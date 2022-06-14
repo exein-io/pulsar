@@ -53,6 +53,7 @@ struct msg_event {
 };
 
 struct close_event {
+  pid_t original_pid;
   struct address source;
   struct address destination;
 };
@@ -522,11 +523,12 @@ int on_tcp_set_state(struct pt_regs *regs) {
   if (state != TCP_CLOSE)
     return 0;
   pid_t *id = bpf_map_lookup_elem(&tcp_set_state_map, &sk);
+  pid_t original_pid = tgid;
   if (!id) {
     bpf_printk("(tcp_set_state) ERROR retrieving original pid");
     return 0;
   } else {
-    tgid = *id;
+    original_pid = *id;
   }
   ret = bpf_map_delete_elem(&tcp_set_state_map, &sk);
   if (ret) {
@@ -543,6 +545,7 @@ int on_tcp_set_state(struct pt_regs *regs) {
     return 0;
   event->event_type = EVENT_CLOSE;
   event->pid = tgid;
+  event->close.original_pid = original_pid;
   event->timestamp = bpf_ktime_get_ns();
   copy_skc_source(&sk->__sk_common, &event->close.source);
   copy_skc_dest(&sk->__sk_common, &event->close.destination);
