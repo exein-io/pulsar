@@ -314,6 +314,13 @@ impl ProcessTree {
                 ProcessData { pid, image, parent }
             })
             .collect();
+        // Make sure to add PID 0 (which is part of kernel) to map_interest to avoid
+        // warnings about missing entries.
+        processes.push(ProcessData {
+            pid: Pid::from_raw(0),
+            image: String::from("kernel"),
+            parent: Pid::from_raw(0),
+        });
         processes.sort_by_key(|p| p.pid);
         Ok(Self { processes })
     }
