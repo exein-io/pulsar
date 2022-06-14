@@ -7,7 +7,7 @@ use bpf_common::{
     aya::{include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::KProbe, Bpf},
     parsing::DataArray,
     program::BpfContext,
-    BpfSender, Program, ProgramError, ProgramHandle,
+    BpfSender, Pid, Program, ProgramError, ProgramHandle,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 
@@ -89,6 +89,7 @@ pub enum NetworkEvent {
         proto: Proto,
     },
     Close {
+        original_pid: Pid,
         src: Addr,
         dst: Addr,
     },
@@ -156,8 +157,16 @@ impl fmt::Display for NetworkEvent {
             }
             NetworkEvent::Send { data_len, .. } => write!(f, "sent {} bytes", data_len),
             NetworkEvent::Receive { data_len, .. } => write!(f, "received {} bytes", data_len),
-            NetworkEvent::Close { src, dst } => {
-                write!(f, "close {} -> {}", src, dst)
+            NetworkEvent::Close {
+                src,
+                dst,
+                original_pid,
+            } => {
+                write!(
+                    f,
+                    "close {} -> {} (original pid: {})",
+                    src, dst, original_pid
+                )
             }
         }
     }
@@ -231,7 +240,11 @@ pub mod pulsar {
                     len: data_len as usize,
                     is_tcp: matches!(proto, Proto::TCP),
                 },
-                NetworkEvent::Close { src, dst } => Payload::Close {
+                NetworkEvent::Close {
+                    src,
+                    dst,
+                    original_pid: _,
+                } => Payload::Close {
                     source: src.into(),
                     destination: dst.into(),
                 },
@@ -506,9 +519,10 @@ mod tests {
             })
             .await
             .expect_event_from_pid(
-                expected_pid,
+                Pid::from_raw(0),
                 event_check!(
                     NetworkEvent::Close,
+                    (original_pid, expected_pid, "original pid"),
                     (src, source.into(), "source address"),
                     (dst, dest.into(), "dest address")
                 ),
