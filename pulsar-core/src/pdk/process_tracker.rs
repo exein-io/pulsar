@@ -151,9 +151,22 @@ const CLEANUP_TIMEOUT: u64 = 5_000_000_000; // 5 seconds
 
 impl ProcessTracker {
     fn new(rx: mpsc::UnboundedReceiver<TrackerRequest>) -> Self {
+        let mut data = HashMap::new();
+        // Some eBPF events (eg. TCP connections closed) may be reported
+        // to PID 0, which is part of the kernel.
+        data.insert(
+            Pid::from_raw(0),
+            ProcessData {
+                ppid: Pid::from_raw(0),
+                fork_time: Timestamp::from(0),
+                exit_time: None,
+                original_image: "kernel".to_string(),
+                exec_changes: vec![],
+            },
+        );
         Self {
             rx,
-            data: HashMap::default(),
+            data,
             next_cleanup: Timestamp::now() + CLEANUP_TIMEOUT,
             pending_requests: Vec::new(),
         }
