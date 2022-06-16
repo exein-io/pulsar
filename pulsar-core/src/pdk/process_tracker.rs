@@ -148,6 +148,9 @@ struct ProcessData {
 /// Cleanup timeout in nanoseconds. This is how long an exited process
 /// is kept inside process tracker before being eligible for delete.
 const CLEANUP_TIMEOUT: u64 = 5_000_000_000; // 5 seconds
+/// How long to consider a process still alive after it exited. Some eBPF probes
+/// might be processed after sched_process_exit, like on_tcp_set_state.
+const EXIT_THRESHOLD: u64 = 5_000_000; // 5 millis
 
 impl ProcessTracker {
     fn new(rx: mpsc::UnboundedReceiver<TrackerRequest>) -> Self {
@@ -272,7 +275,7 @@ impl ProcessTracker {
             return Err(TrackerError::ProcessNotStartedYet);
         }
         if let Some(exit_time) = process.exit_time {
-            if exit_time < ts {
+            if exit_time + EXIT_THRESHOLD < ts {
                 log::warn!("{} exited {} < {}", pid, exit_time, ts);
                 return Err(TrackerError::ProcessExited);
             }
@@ -398,7 +401,9 @@ mod tests {
             }
         );
         assert!(matches!(
-            process_tracker.get(PID_2, 101.into()).await,
+            process_tracker
+                .get(PID_2, (101 + EXIT_THRESHOLD).into())
+                .await,
             Err(TrackerError::ProcessExited)
         ));
     }
