@@ -1,0 +1,5 @@
+# BPF utilities
+
+This crate is a collection of utilities making it easier to develop BPF probes.
+
+See [the eBPF probe tutorial](./ProbeTutorial.md) for example usage of these utilities.

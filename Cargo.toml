@@ -1,0 +1,19 @@
+[workspace]
+
+members = [
+    "modules/file-system-monitor",
+    "modules/process-monitor",
+    "modules/network-monitor",
+    "modules/syscall-monitor",
+    "modules/rules-engine",
+    "modules/logger",
+    "pulsar-core",
+    "pulsar",
+    "bpf-common",
+    "engine-api",
+    "validatron",
+]
+
+[profile.release]
+lto = true
+codegen-units = 1

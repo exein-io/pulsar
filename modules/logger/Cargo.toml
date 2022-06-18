@@ -1,0 +1,12 @@
+[package]
+name = "logger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pulsar-core = { path = "../../pulsar-core" }
+bpf-common = { path = "../../bpf-common" }
+
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+bytes = "1.1"

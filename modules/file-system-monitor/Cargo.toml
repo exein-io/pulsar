@@ -1,0 +1,18 @@
+[package]
+name = "file-system-monitor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bpf-common = { path = "../../bpf-common" }
+pulsar-core = { path = "../../pulsar-core" }
+nix = "0.24.0"
+tokio = { version = "1", features = ["full"] }
+log = "0.4.17"
+
+[build-dependencies]
+bpf-common = { path = "../../bpf-common", features = ["build"] }
+
+[dev-dependencies]
+bpf-common = { path = "../../bpf-common", features = ["test-utils"] }
+serial_test = { version = "0.6.0" }

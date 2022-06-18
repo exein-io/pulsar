@@ -1,0 +1,19 @@
+[package]
+name = "process-monitor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bpf-common = { path = "../../bpf-common" }
+tokio = { version = "1", features = ["full"] }
+pulsar-core = { path = "../../pulsar-core" }
+nix = "0.24.0"
+log = "0.4"
+thiserror = "1"
+
+[build-dependencies]
+bpf-common = { path = "../../bpf-common", features = ["build"] }
+
+[dev-dependencies]
+bpf-common = { path = "../../bpf-common", features = ["test-utils"] }
+serial_test = { version = "0.6.0" }

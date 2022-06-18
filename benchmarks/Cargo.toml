@@ -1,0 +1,16 @@
+[package]
+name = "benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+bus = "2.2.3"
+criterion = { version = "0.3", features = ["html_reports"] }
+parking_lot = "0.12.0"
+crossbeam-channel = "0.5.2"
+ring-channel = "0.10.1"
+tokio = { version = "1.16.1", features = ["full"] }
+
+[[bench]]
+name = "bus"
+harness = false

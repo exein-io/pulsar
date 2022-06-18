@@ -1,0 +1,17 @@
+[package]
+name = "rules-engine"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+validatron = {path = "../../validatron"}
+pulsar-core = { path = "../../pulsar-core" }
+
+log = "0.4"
+anyhow = "1"
+tokio = "1.15.0"
+glob = "0.3.0"
+thiserror = "1"
+serde_json = "1.0"
