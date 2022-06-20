@@ -12,7 +12,7 @@ pub mod parsing;
 pub mod time;
 
 pub use bpf_sender::{BpfSender, BpfSenderWrapper};
-pub use program::{Program, ProgramError, ProgramHandle};
+pub use program::{Program, ProgramBuilder, ProgramError};
 
 pub use aya;
 

@@ -10,12 +10,13 @@ use aya::{
         perf::{AsyncPerfEventArray, PerfBufferError},
         HashMap, MapRefMut,
     },
+    programs::{KProbe, TracePoint},
     util::online_cpus,
-    Bpf, BpfLoader, Btf, BtfError,
+    Bpf, BpfLoader, Btf, BtfError, Pod,
 };
 use bytes::BytesMut;
 use thiserror::Error;
-use tokio::sync::{oneshot, watch};
+use tokio::{sync::watch, task::JoinError};
 
 use crate::{time::Timestamp, BpfSender, Pid};
 
@@ -31,6 +32,8 @@ pub struct BpfContext {
     /// This should be set only for the final executable, not for tests and
     /// examples where process tracking is not running.
     pinning: Pinning,
+    // TODO: Try replacing this with global variable
+    pinning_path: String,
     /// Btf allows to load it only once on startup
     btf: Arc<Btf>,
     /// How many pages of memory (4Kb) to use for perf arrays.
@@ -53,27 +56,20 @@ impl BpfContext {
             log::warn!("The default value {PERF_PAGES_DEFAULT} will be used.");
             perf_pages = PERF_PAGES_DEFAULT;
         }
+        // aya doesn't support specifying from userspace wether or not to pin maps.
+        // As a hack we always pin and delete the folder on shutdown.
+        let pinning_path = match pinning {
+            Pinning::Enabled => PINNED_MAPS_PATH.to_string(),
+            Pinning::Disabled => format!("{}_tmp", PINNED_MAPS_PATH),
+        };
+
         Ok(Self {
             pinning,
             btf: Arc::new(btf),
             perf_pages,
+            pinning_path,
         })
     }
-}
-
-pub struct Program<T> {
-    /// The background thread signals here that Bpf has been loaded
-    rx_ready: oneshot::Receiver<Result<T, ProgramError>>,
-    /// Signal to the background thread that the program has been dropped and
-    /// we should cleanup all Bpf.
-    tx_shutdown: oneshot::Sender<()>,
-    /// Signal from the background thread to the background async tasks that
-    /// we're exiting.
-    rx_exit: watch::Receiver<()>,
-    /// probe name, used for logging purposes
-    name: &'static str,
-    /// Probe configuration
-    ctx: BpfContext,
 }
 
 #[derive(Error, Debug)]
@@ -90,46 +86,50 @@ pub enum ProgramError {
     PerfBuffer(#[from] PerfBufferError),
     #[error("loading BTF {0}")]
     BtfError(#[from] BtfError),
+    #[error("running background aya task {0}")]
+    JoinError(#[from] JoinError),
 }
 
-pub struct ProgramHandle {
-    pub(crate) _tx_shutdown: oneshot::Sender<()>,
-    pub(crate) rx_full_inizialized: Option<oneshot::Receiver<()>>,
+pub struct ProgramBuilder {
+    /// probe name, used for logging purposes
+    name: &'static str,
+    /// Probe configuration
+    ctx: BpfContext,
+    probe: Vec<u8>,
+    tracepoints: Vec<(String, String)>,
+    kprobes: Vec<String>,
+    kretprobes: Vec<String>,
 }
 
-impl ProgramHandle {
-    /// Wait for the full initialization of the map consumer. For perf event arrays,
-    /// this is the moment the map is opened on a given CPU. Waiting for this event
-    /// allows tests to know when it's safe to run the trigger programs.
-    pub async fn fully_initialized(&mut self) {
-        match self.rx_full_inizialized.take() {
-            Some(rx_full_inizialized) => {
-                let _ = rx_full_inizialized.await;
-            }
-            None => {}
+impl ProgramBuilder {
+    pub fn new(ctx: BpfContext, name: &'static str, probe: Vec<u8>) -> Self {
+        Self {
+            ctx,
+            name,
+            probe,
+            tracepoints: Vec::new(),
+            kprobes: Vec::new(),
+            kretprobes: Vec::new(),
         }
     }
-}
 
-impl<T: 'static + Send> Program<T> {
-    // TODO: aya::Bpf is Send since 0.11, so this code can be simplified.
-    /// Since [`aya::Bpf`] is  non-[`std::marker::Send`], it must reside on a single thread.
-    /// First the program is loaded from the `probe` binary, than the setup function
-    /// `setup_fn` is run.
-    ///
-    /// The result of the provided function is provided to an inner channel and it signals
-    /// the BPF program is ready to be used. If there's an error loading the probe or during
-    /// the setup function, it is propagated over inner channel.
-    ///
-    /// When we receive the shutdown signal, we cleanup resourced by dropping Bpf and signaling
-    /// background tasks to exit.
-    pub fn start<F>(ctx: BpfContext, name: &'static str, probe: Vec<u8>, setup_fn: F) -> Self
-    where
-        F: FnOnce(&mut Bpf) -> Result<T, ProgramError>,
-        F: 'static + Send,
-    {
-        let (tx_shutdown, rx_shutdown) = oneshot::channel();
-        let (tx_ready, rx_ready) = oneshot::channel::<Result<T, ProgramError>>();
+    pub fn tracepoint(mut self, section: &str, tracepoint: &str) -> Self {
+        self.tracepoints
+            .push((section.to_string(), tracepoint.to_string()));
+        self
+    }
+
+    pub fn kprobe(mut self, name: &str) -> Self {
+        self.kprobes.push(name.to_string());
+        self
+    }
+
+    pub fn kretprobe(mut self, name: &str) -> Self {
+        self.kretprobes.push(name.to_string());
+        self
+    }
+
+    pub async fn start(self) -> Result<Program, ProgramError> {
         // We need to notify background tasks reading from maps that we're shutting down.
         // We must use oneshot::Receiver as the main shut down machanism because it has
         // blocking_recv. Background tasks need an async notification tought, and we can't
@@ -137,157 +137,155 @@ impl<T: 'static + Send> Program<T> {
         // It would have been perfect if dropping aya::Bpf would have caused an error on
         // background maps, but that's not the case: the map file descriptor is dropped
         // when all Map usage is dropped.
-        let (tx_exit, rx_exit) = watch::channel(());
-        let pinning = ctx.pinning.clone();
-        let btf = ctx.btf.clone();
-        std::thread::spawn(move || {
-            // aya doesn't support specifying from userspace wether or not to pin maps.
-            // As a hack we always pin and delete the folder on shutdown.
-            let pinning_path = match pinning {
-                Pinning::Enabled => PINNED_MAPS_PATH.to_string(),
-                Pinning::Disabled => format!("{}_tmp", PINNED_MAPS_PATH),
-            };
-            let _ = std::fs::create_dir(&pinning_path);
-            match BpfLoader::new()
-                .map_pin_path(&pinning_path)
+        let (tx_exit, _) = watch::channel(());
+        let btf = self.ctx.btf.clone();
+        let ctx = self.ctx.clone();
+        let name = self.name.to_string();
+
+        let bpf = tokio::task::spawn_blocking(move || {
+            let _ = std::fs::create_dir(&self.ctx.pinning_path);
+            let mut bpf = BpfLoader::new()
+                .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
-                .load(&probe)
-            {
-                Err(e) => {
-                    let _ = tx_ready.send(Err(e.into()));
-                }
-                Ok(mut bpf) => {
-                    let result = setup_fn(&mut bpf);
-                    let _ = tx_ready.send(result);
-                    let _ = rx_shutdown.blocking_recv();
-                    drop(tx_exit);
-                    if matches!(pinning, Pinning::Disabled) {
-                        let _ = std::fs::remove_dir_all(&pinning_path);
-                    }
-                }
+                .load(&self.probe)?;
+            for (section, tracepoint) in self.tracepoints {
+                let tp: &mut TracePoint = bpf
+                    .program_mut(&tracepoint)
+                    .ok_or_else(|| ProgramError::ProgramNotFound(tracepoint.clone()))?
+                    .try_into()?;
+                tp.load()?;
+                tp.attach(&section, &tracepoint)?;
             }
-        });
-        Self {
-            rx_ready,
-            rx_exit,
-            tx_shutdown,
+            for kprobe in self.kprobes {
+                let tp: &mut KProbe = bpf
+                    .program_mut(&kprobe)
+                    .ok_or_else(|| ProgramError::ProgramNotFound(kprobe.clone()))?
+                    .try_into()?;
+                tp.load()?;
+                tp.attach(&kprobe, 0)?;
+            }
+            for kretprobe in self.kretprobes {
+                let program = format!("{kretprobe}_return");
+                let tp: &mut KProbe = bpf
+                    .program_mut(&program)
+                    .ok_or_else(|| ProgramError::ProgramNotFound(program.clone()))?
+                    .try_into()?;
+                tp.load()?;
+                tp.attach(&kretprobe, 0)?;
+            }
+            Result::<Bpf, ProgramError>::Ok(bpf)
+        })
+        .await
+        .expect("join error")?;
+
+        Ok(Program {
+            tx_exit,
             name,
             ctx,
+            bpf,
+        })
+    }
+}
+
+pub struct Program {
+    /// Signal from the background thread to the background async tasks that
+    /// we're exiting.
+    tx_exit: watch::Sender<()>,
+    ctx: BpfContext,
+    name: String,
+    bpf: Bpf,
+}
+
+impl Drop for Program {
+    fn drop(&mut self) {
+        if matches!(self.ctx.pinning, Pinning::Disabled) {
+            let _ = std::fs::remove_dir_all(&self.ctx.pinning_path);
         }
     }
 }
 
-impl<K: 'static + Send, V: 'static + Send> Program<HashMap<MapRefMut, K, V>> {
+impl Program {
     /// Poll a BPF_MAP_TYPE_HASH with a certain interval
-    pub fn poll<F>(self, interval: Duration, mut poll_fn: F) -> ProgramHandle
+    pub async fn poll<F, K, V>(
+        &self,
+        map_name: &str,
+        interval: Duration,
+        mut poll_fn: F,
+    ) -> Result<(), ProgramError>
     where
         F: FnMut(Result<&mut HashMap<MapRefMut, K, V>, ProgramError>),
         F: Send + 'static,
+        K: Pod + 'static + Send,
+        V: Pod + 'static + Send,
     {
-        let Self {
-            rx_ready,
-            mut rx_exit,
-            tx_shutdown,
-            ..
-        } = self;
-        let (tx_full_inizialized, rx_full_inizialized) = oneshot::channel();
+        let mut map: HashMap<_, K, V> = self.bpf.map_mut(map_name)?.try_into()?;
+        let mut rx_exit = self.tx_exit.subscribe();
         tokio::spawn(async move {
-            let mut monitored_map = match rx_ready.await.expect("thread failed") {
-                Ok(monitored_map) => monitored_map,
-                Err(e) => return poll_fn(Err(e)),
-            };
-            let _ = tx_full_inizialized.send(());
             let mut interval = tokio::time::interval(interval);
             loop {
                 tokio::select! {
                     Err(_) = rx_exit.changed() => break,
-                    _ = interval.tick() => poll_fn(Ok(&mut monitored_map)),
+                    _ = interval.tick() => poll_fn(Ok(&mut map)),
                 };
             }
         });
-        ProgramHandle {
-            _tx_shutdown: tx_shutdown,
-            rx_full_inizialized: Some(rx_full_inizialized),
-        }
+        Ok(())
     }
 }
 
-impl Program<AsyncPerfEventArray<MapRefMut>> {
+impl Program {
     /// Watch a BPF_MAP_TYPE_PERF_EVENT_ARRAY and forward all its events to `sender`.
     /// A different task is run for each CPU.
-    pub fn read_events<T: Send>(self, sender: impl BpfSender<T>) -> ProgramHandle {
-        let Self {
-            rx_ready,
-            rx_exit,
-            tx_shutdown,
-            name,
-            ctx,
-        } = self;
-        let (tx_full_inizialized, rx_full_inizialized) = oneshot::channel();
-        tokio::spawn(async move {
-            consume_perf_buffer(rx_ready, tx_full_inizialized, sender, rx_exit, name, ctx).await
-        });
-        ProgramHandle {
-            _tx_shutdown: tx_shutdown,
-            rx_full_inizialized: Some(rx_full_inizialized),
+    pub async fn read_events<T: Send>(
+        &self,
+        map_name: &str,
+        sender: impl BpfSender<T>,
+    ) -> Result<(), ProgramError> {
+        let mut perf_array: AsyncPerfEventArray<_> = self.bpf.map_mut(map_name)?.try_into()?;
+        let maps = online_cpus()
+            .unwrap()
+            .into_iter()
+            .map(|cpu_id| {
+                perf_array
+                    .open(cpu_id, Some(self.ctx.perf_pages))
+                    .map_err(|e| ProgramError::from(e))
+            })
+            .collect::<Result<Vec<_>, ProgramError>>()?;
+        for mut buf in maps {
+            let name = self.name.clone();
+            let mut sender = sender.clone();
+            let mut rx_exit = self.tx_exit.subscribe();
+            tokio::spawn(async move {
+                let mut buffers = (0..10)
+                    .map(|_| BytesMut::with_capacity(size_of::<BpfEvent<T>>() + PERF_HEADER_SIZE))
+                    .collect::<Vec<_>>();
+                loop {
+                    let events = tokio::select! {
+                        Err(_) = rx_exit.changed() => return,
+                        events = buf.read_events(&mut buffers) => events,
+                    };
+                    match events {
+                        Ok(events) => {
+                            if events.lost > 0 {
+                                log::warn!(
+                                    "{}: Lost {} events (read {})",
+                                    name,
+                                    events.lost,
+                                    events.read
+                                );
+                            }
+                            for buf in buffers.iter_mut().take(events.read) {
+                                let ptr = buf.as_ptr() as *const BpfEvent<T>;
+                                let event = unsafe { ptr.read_unaligned() };
+                                sender.send(Ok(event))
+                            }
+                        }
+                        Err(e) => return sender.send(Err(e.into())),
+                    };
+                }
+            });
         }
-    }
-}
-
-async fn consume_perf_buffer<T: Send>(
-    rx_ready: oneshot::Receiver<Result<AsyncPerfEventArray<MapRefMut>, ProgramError>>,
-    tx_full_inizialized: oneshot::Sender<()>,
-    mut sender: impl BpfSender<T>,
-    rx_exit: watch::Receiver<()>,
-    name: &'static str,
-    ctx: BpfContext,
-) {
-    let mut perf_array = match rx_ready.await.expect("thread failed") {
-        Ok(perf_array) => perf_array,
-        Err(e) => return sender.send(Err(e)),
-    };
-    let maps = online_cpus()
-        .unwrap()
-        .into_iter()
-        .map(|cpu_id| perf_array.open(cpu_id, Some(ctx.perf_pages)))
-        .collect::<Result<Vec<_>, _>>();
-    let maps = match maps {
-        Ok(maps) => maps,
-        Err(e) => return sender.send(Err(e.into())),
-    };
-    let _ = tx_full_inizialized.send(());
-    for mut buf in maps {
-        let mut sender = sender.clone();
-        let mut rx_exit = rx_exit.clone();
-        tokio::spawn(async move {
-            let mut buffers = (0..10)
-                .map(|_| BytesMut::with_capacity(size_of::<BpfEvent<T>>() + PERF_HEADER_SIZE))
-                .collect::<Vec<_>>();
-            loop {
-                let events = tokio::select! {
-                    Err(_) = rx_exit.changed() => return,
-                    events = buf.read_events(&mut buffers) => events,
-                };
-                match events {
-                    Ok(events) => {
-                        if events.lost > 0 {
-                            log::warn!(
-                                "{}: Lost {} events (read {})",
-                                name,
-                                events.lost,
-                                events.read
-                            );
-                        }
-                        for buf in buffers.iter_mut().take(events.read) {
-                            let ptr = buf.as_ptr() as *const BpfEvent<T>;
-                            let event = unsafe { ptr.read_unaligned() };
-                            sender.send(Ok(event))
-                        }
-                    }
-                    Err(e) => return sender.send(Err(e.into())),
-                };
-            }
-        });
+        Ok(())
     }
 }
 

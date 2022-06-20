@@ -20,27 +20,28 @@
 //! }
 //! ```
 
-use std::{fmt::Display, time::Duration};
+use std::{fmt::Display, future::Future, pin::Pin, time::Duration};
 
 use tokio::sync::mpsc;
 
 use crate::{
     program::{BpfContext, BpfEvent, Pinning},
     time::Timestamp,
-    BpfSender, Pid, ProgramError, ProgramHandle,
+    BpfSender, Pid, Program, ProgramError,
 };
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);
 
 pub struct TestRunner<T: Display> {
-    ebpf: ProgramHandle,
+    ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>>>>,
     rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
 }
 
 impl<T: Display> TestRunner<T> {
-    pub fn with_ebpf<P>(ebpf_fn: P) -> Self
+    pub fn with_ebpf<P, Fut>(ebpf_fn: P) -> Self
     where
-        P: Fn(BpfContext, TestSender<T>) -> ProgramHandle,
+        P: Fn(BpfContext, TestSender<T>) -> Fut,
+        Fut: Future<Output = Result<Program, ProgramError>> + 'static,
     {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
@@ -54,7 +55,7 @@ impl<T: Display> TestRunner<T> {
         // Wait ebpf startup
         Self {
             rx,
-            ebpf: ebpf_fn(ctx, sender),
+            ebpf: Box::pin(ebpf_fn(ctx, sender)),
         }
     }
 
@@ -64,7 +65,7 @@ impl<T: Display> TestRunner<T> {
     {
         #[cfg(debug_assertions)]
         let _stop_handle = crate::trace_pipe::start();
-        self.ebpf.fully_initialized().await;
+        let _program = self.ebpf.await;
         // Run the triggering code
         let start_time = Timestamp::now();
         trigger_program();
