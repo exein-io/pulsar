@@ -103,9 +103,9 @@ dependencies = [
 
 [[package]]
 name = "aya"
-version = "0.10.7"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "116814a5cdf2c2f652022f75f6b0d6884758d5bed2e15c926787ca92db8c70a5"
+checksum = "758d57288601ecc9d149e3413a5f23d6b72c0373febc97044d4f4aa149033b5e"
 dependencies = [
  "bitflags",
  "bytes",
