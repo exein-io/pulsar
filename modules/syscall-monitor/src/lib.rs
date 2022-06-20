@@ -1,69 +1,64 @@
 use std::{fmt, time::Duration};
 
 use bpf_common::{
-    aya::{include_bytes_aligned, maps::hash_map::HashMap, programs::TracePoint, Bpf, Pod},
+    aya::{include_bytes_aligned, Pod},
     platform::SYSCALLS,
     program::{BpfContext, BpfEvent},
     time::Timestamp,
-    BpfSender, Pid, Program, ProgramError, ProgramHandle, MAX_SYSCALLS,
+    BpfSender, Pid, Program, ProgramBuilder, ProgramError, MAX_SYSCALLS,
 };
 
 const MODULE_NAME: &str = "syscall-monitor";
 
-pub fn program(ctx: BpfContext, mut sender: impl BpfSender<ActivityT>) -> ProgramHandle {
+pub async fn program(
+    ctx: BpfContext,
+    mut sender: impl BpfSender<ActivityT>,
+) -> Result<Program, ProgramError> {
     let mut activity_cache: std::collections::HashMap<i32, ActivityT> = Default::default();
-    Program::start(
+    let program = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-        |bpf: &mut Bpf| {
-            for (section, tp) in [
-                ("raw_syscalls", "sys_enter"),
-                ("sched", "sched_process_exit"),
-            ] {
-                let syscall_hook: &mut TracePoint = bpf
-                    .program_mut(tp)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(tp.to_string()))?
-                    .try_into()?;
-                syscall_hook.load()?;
-                syscall_hook.attach(section, tp)?;
-            }
-            let map: HashMap<_, i32, ActivityT> = HashMap::try_from(bpf.map_mut("activities")?)?;
-            Ok(map)
-        },
     )
-    .poll(Duration::from_millis(10), move |result| {
-        let map = match result {
-            Ok(map) => map,
-            Err(e) => return sender.send(Err(e)),
-        };
-        // map is an iterator over Result<item, MapError>
-        let map = map.iter().flat_map(|item| match item {
-            Err(e) => {
-                log::warn!("Error reading map: {}", e);
-                None
-            }
-            Ok(v) => Some(v),
-        });
-        // iterate each process recorded in the syscall monitor map
-        for (pid, activity) in map {
-            // check previous state
-            if let Some(old_activity) = activity_cache.get(&pid) {
-                if *old_activity == activity {
-                    continue;
+    .tracepoint("raw_syscalls", "sys_enter")
+    .tracepoint("sched", "sched_process_exit")
+    .start()
+    .await?;
+    program
+        .poll("activities", Duration::from_millis(10), move |result| {
+            let map = match result {
+                Ok(map) => map,
+                Err(e) => return sender.send(Err(e)),
+            };
+            // map is an iterator over Result<item, MapError>
+            let map = map.iter().flat_map(|item| match item {
+                Err(e) => {
+                    log::warn!("Error reading map: {}", e);
+                    None
                 }
+                Ok(v) => Some(v),
+            });
+            // iterate each process recorded in the syscall monitor map
+            for (pid, activity) in map {
+                // check previous state
+                if let Some(old_activity) = activity_cache.get(&pid) {
+                    if *old_activity == activity {
+                        continue;
+                    }
+                }
+
+                // keep track of the state of this process
+                activity_cache.insert(pid, activity);
+
+                sender.send(Ok(BpfEvent {
+                    pid: Pid::from_raw(pid),
+                    timestamp: Timestamp::now(),
+                    payload: activity,
+                }))
             }
-
-            // keep track of the state of this process
-            activity_cache.insert(pid, activity);
-
-            sender.send(Ok(BpfEvent {
-                pid: Pid::from_raw(pid),
-                timestamp: Timestamp::now(),
-                payload: activity,
-            }))
-        }
-    })
+        })
+        .await?;
+    Ok(program)
 }
 
 /// The data stored on the C side
@@ -112,7 +107,7 @@ pub mod pulsar {
         ctx: ModuleContext,
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
-        let _program: ProgramHandle = program(ctx.get_bpf_context(), ctx.get_sender());
+        let _program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
         shutdown.recv().await
     }
 

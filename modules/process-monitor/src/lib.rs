@@ -2,52 +2,25 @@ mod filtering_policy;
 use std::fmt;
 
 use bpf_common::{
-    aya::{
-        include_bytes_aligned,
-        maps::perf::AsyncPerfEventArray,
-        programs::{KProbe, TracePoint},
-        Bpf,
-    },
-    parsing::StringArray,
-    program::BpfContext,
-    BpfSender, Pid, Program, ProgramError, ProgramHandle,
+    aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Pid, Program,
+    ProgramBuilder, ProgramError,
 };
 pub use filtering_policy::{FilteringPolicy, PidRule, Rule};
 
 const MODULE_NAME: &str = "process-monitor";
 
-pub fn program(
+pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<ProcessEvent>,
-    policy: FilteringPolicy,
-) -> ProgramHandle {
-    Program::start(
-        ctx,
-        MODULE_NAME,
-        process_monitor_ebpf(),
-        move |bpf: &mut Bpf| {
-            if let Err(e) = policy.install(bpf) {
-                bpf_common::log_error("error setting up process tracking", e);
-            }
-            for tp in ["sched_process_exec", "sched_process_exit"] {
-                let tracepoint: &mut TracePoint = bpf
-                    .program_mut(tp)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(tp.to_string()))?
-                    .try_into()?;
-                tracepoint.load()?;
-                tracepoint.attach("sched", tp)?;
-            }
-            let kprobe: &mut KProbe = bpf
-                .program_mut("wake_up_new_task")
-                .ok_or_else(|| ProgramError::ProgramNotFound("wake_up_new_task".to_string()))?
-                .try_into()?;
-            kprobe.load()?;
-            kprobe.attach("wake_up_new_task", 0)?;
-            let map = AsyncPerfEventArray::try_from(bpf.map_mut("events")?)?;
-            Ok(map)
-        },
-    )
-    .read_events(sender)
+) -> Result<Program, ProgramError> {
+    let program = ProgramBuilder::new(ctx, MODULE_NAME, process_monitor_ebpf())
+        .tracepoint("sched", "sched_process_exec")
+        .tracepoint("sched", "sched_process_exit")
+        .kprobe("wake_up_new_task")
+        .start()
+        .await?;
+    program.read_events("events", sender).await?;
+    Ok(program)
 }
 
 fn process_monitor_ebpf() -> Vec<u8> {
@@ -97,7 +70,7 @@ pub mod pulsar {
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
         let rx_config = ctx.get_cfg::<FilteringPolicy>();
-        let policy = rx_config.borrow().as_ref().unwrap().clone();
+        let _policy = rx_config.borrow().as_ref().unwrap().clone();
         let process_tracker = ctx.get_process_tracker();
         let sender = ctx.get_sender();
         // When generating events we must update process_tracker.
@@ -114,7 +87,7 @@ pub mod pulsar {
                     ProcessEvent::Exit { .. } => process_tracker.exit(event.pid, event.timestamp),
                 }
             });
-        let _program = program(ctx.get_bpf_context(), sender, policy);
+        let _program = program(ctx.get_bpf_context(), sender);
         shutdown.recv().await
     }
 
@@ -267,7 +240,7 @@ mod tests {
     }
 
     pub fn test_runner() -> TestRunner<ProcessEvent> {
-        TestRunner::with_ebpf(|ctx, sender| program(ctx, sender, Default::default()))
+        TestRunner::with_ebpf(program)
     }
 
     /// Fork current project and store child pid inside child_pid

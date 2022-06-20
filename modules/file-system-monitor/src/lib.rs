@@ -1,38 +1,29 @@
 use std::fmt;
 
 use bpf_common::{
-    aya::{include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::KProbe, Bpf},
-    parsing::StringArray,
-    program::BpfContext,
-    BpfSender, Program, ProgramError, ProgramHandle,
+    aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Program,
+    ProgramBuilder, ProgramError,
 };
 use nix::libc;
 
 const MODULE_NAME: &str = "file-system-monitor";
 
-pub fn program(ctx: BpfContext, sender: impl BpfSender<FsEvent>) -> ProgramHandle {
-    Program::start(
+pub async fn program(
+    ctx: BpfContext,
+    sender: impl BpfSender<FsEvent>,
+) -> Result<Program, ProgramError> {
+    let program = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-        |bpf: &mut Bpf| {
-            for attach_point in [
-                "security_inode_create",
-                "security_inode_unlink",
-                "security_file_open",
-            ] {
-                let kprobe: &mut KProbe = bpf
-                    .program_mut(attach_point)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(attach_point.to_string()))?
-                    .try_into()?;
-                kprobe.load()?;
-                kprobe.attach(attach_point, 0)?;
-            }
-            let map = AsyncPerfEventArray::try_from(bpf.map_mut("events")?)?;
-            Ok(map)
-        },
     )
-    .read_events(sender)
+    .kprobe("security_inode_create")
+    .kprobe("security_inode_unlink")
+    .kprobe("security_file_open")
+    .start()
+    .await?;
+    program.read_events("events", sender).await?;
+    Ok(program)
 }
 
 const NAME_MAX: usize = 1024;
@@ -130,7 +121,7 @@ pub mod pulsar {
         ctx: ModuleContext,
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
-        let _program: ProgramHandle = program(ctx.get_bpf_context(), ctx.get_sender());
+        let _program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
         let mut receiver = ctx.get_receiver();
         let mut rx_config = ctx.get_cfg::<Config>();
         let mut config = ctx.get_cfg::<Config>().borrow().clone()?;

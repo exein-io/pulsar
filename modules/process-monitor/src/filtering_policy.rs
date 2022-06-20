@@ -355,6 +355,7 @@ impl ProcessTree {
 mod tests {
     use std::ffi::CString;
 
+    use bpf_common::aya::programs::{KProbe, TracePoint};
     use bpf_common::program::load_test_program;
     use nix::unistd::execv;
 

@@ -4,56 +4,42 @@ use std::{
 };
 
 use bpf_common::{
-    aya::{include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::KProbe, Bpf},
-    parsing::DataArray,
-    program::BpfContext,
-    BpfSender, Pid, Program, ProgramError, ProgramHandle,
+    aya::include_bytes_aligned, parsing::DataArray, program::BpfContext, BpfSender, Pid, Program,
+    ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 
 const MODULE_NAME: &str = "network-monitor";
 
-pub fn program(ctx: BpfContext, sender: impl BpfSender<NetworkEvent>) -> ProgramHandle {
-    Program::start(
+pub async fn program(
+    ctx: BpfContext,
+    sender: impl BpfSender<NetworkEvent>,
+) -> Result<Program, ProgramError> {
+    let program = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-        move |bpf: &mut Bpf| {
-            for (attach_point, fn_name) in [
-                // Argo attached to the __x64_sys_bind kprobe, but that requires checking
-                // the CONFIG_ARCH_HAS_SYSCALL_WRAPPER kconfig to make sure we're reading
-                // the arguments correctly.
-                // Tracee attaches to the generic tracepoint and tail calls the specific
-                // handlers.
-                ("__sys_bind", "on___sys_bind"),
-                ("tcp_v4_connect", "on_tcp_v4_connect"),
-                ("tcp_v4_connect", "on_tcp_v4_connect_return"),
-                ("tcp_v6_connect", "on_tcp_v6_connect"),
-                ("tcp_v6_connect", "on_tcp_v6_connect_return"),
-                ("inet_csk_accept", "on_inet_csk_accept_return"),
-                ("udp_sendmsg", "on_udp_sendmsg"),
-                ("udp_recvmsg", "on_udp_recvmsg"),
-                ("udp_recvmsg", "on_udp_recvmsg_return"),
-                ("udpv6_sendmsg", "on_udpv6_sendmsg"),
-                ("udpv6_recvmsg", "on_udpv6_recvmsg"),
-                ("udpv6_recvmsg", "on_udpv6_recvmsg_return"),
-                ("tcp_sendmsg", "on_tcp_sendmsg"),
-                ("tcp_recvmsg", "on_tcp_recvmsg"),
-                ("tcp_recvmsg", "on_tcp_recvmsg_return"),
-                ("tcp_set_state", "on_tcp_set_state"),
-            ] {
-                let kprobe: &mut KProbe = bpf
-                    .program_mut(fn_name)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(fn_name.to_string()))?
-                    .try_into()?;
-                kprobe.load()?;
-                kprobe.attach(attach_point, 0)?;
-            }
-            let map = AsyncPerfEventArray::try_from(bpf.map_mut("events")?)?;
-            Ok(map)
-        },
     )
-    .read_events(sender)
+    .kprobe("__sys_bind")
+    .kprobe("tcp_v4_connect")
+    .kretprobe("tcp_v4_connect")
+    .kprobe("tcp_v6_connect")
+    .kretprobe("tcp_v6_connect")
+    .kretprobe("inet_csk_accept")
+    .kprobe("udp_sendmsg")
+    .kprobe("udp_recvmsg")
+    .kretprobe("udp_recvmsg")
+    .kprobe("udpv6_sendmsg")
+    .kprobe("udpv6_recvmsg")
+    .kretprobe("udpv6_recvmsg")
+    .kprobe("tcp_sendmsg")
+    .kprobe("tcp_recvmsg")
+    .kretprobe("tcp_recvmsg")
+    .kprobe("tcp_set_state")
+    .start()
+    .await?;
+    program.read_events("events", sender).await?;
+    Ok(program)
 }
 
 const MAX_DATA_SIZE: usize = 4096;
@@ -198,7 +184,7 @@ pub mod pulsar {
                 dns_sender.send(event.pid, event.timestamp, dns_event);
             }
         });
-        let _program: ProgramHandle = program(ctx.get_bpf_context(), sender);
+        let _program = program(ctx.get_bpf_context(), sender).await?;
         shutdown.recv().await
     }
 
