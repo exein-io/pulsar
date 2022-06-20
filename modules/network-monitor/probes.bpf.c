@@ -212,8 +212,8 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
-SEC("kprobe/on___sys_bind")
-int on___sys_bind(struct pt_regs *ctx) {
+SEC("kprobe/__sys_bind")
+int __sys_bind(struct pt_regs *ctx) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;
@@ -285,24 +285,24 @@ static __always_inline int do_connect_return(struct pt_regs *ctx) {
   return 0;
 }
 
-SEC("kprobe/on_tcp_v4_connect")
-int on_tcp_v4_connect(struct pt_regs *ctx) { return do_connect(ctx); }
+SEC("kprobe/tcp_v4_connect")
+int tcp_v4_connect(struct pt_regs *ctx) { return do_connect(ctx); }
 
-SEC("kprobe/on_tcp_v6_connect")
-int on_tcp_v6_connect(struct pt_regs *ctx) { return do_connect(ctx); }
+SEC("kprobe/tcp_v6_connect")
+int tcp_v6_connect(struct pt_regs *ctx) { return do_connect(ctx); }
 
-SEC("kretprobe/on_tcp_v4_connect_return")
-int on_tcp_v4_connect_return(struct pt_regs *ctx) {
+SEC("kretprobe/tcp_v4_connect_return")
+int tcp_v4_connect_return(struct pt_regs *ctx) {
   return do_connect_return(ctx);
 }
 
-SEC("kretprobe/on_tcp_v6_connect_return")
-int on_tcp_v6_connect_return(struct pt_regs *ctx) {
+SEC("kretprobe/tcp_v6_connect_return")
+int tcp_v6_connect_return(struct pt_regs *ctx) {
   return do_connect_return(ctx);
 }
 
-SEC("kretprobe/on_inet_csk_accept_return")
-int on_inet_csk_accept_return(struct pt_regs *ctx) {
+SEC("kretprobe/inet_csk_accept_return")
+int inet_csk_accept_return(struct pt_regs *ctx) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;
@@ -470,41 +470,41 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
   return 0;
 }
 
-SEC("kprobe/on_udp_sendmsg")
-int on_udp_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_UDP); }
+SEC("kprobe/udp_sendmsg")
+int udp_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_UDP); }
 
-SEC("kprobe/on_udpv6_sendmsg")
-int on_udpv6_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_UDP); }
+SEC("kprobe/udpv6_sendmsg")
+int udpv6_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_UDP); }
 
-SEC("kprobe/on_tcp_sendmsg")
-int on_tcp_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_TCP); }
+SEC("kprobe/tcp_sendmsg")
+int tcp_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_TCP); }
 
-SEC("kprobe/on_udp_recvmsg")
-int on_udp_recvmsg(struct pt_regs *ctx) { return save_recvmsg(ctx); }
+SEC("kprobe/udp_recvmsg")
+int udp_recvmsg(struct pt_regs *ctx) { return save_recvmsg(ctx); }
 
-SEC("kprobe/on_udpv6_recvmsg")
-int on_udpv6_recvmsg(struct pt_regs *ctx) { return save_recvmsg(ctx); }
+SEC("kprobe/udpv6_recvmsg")
+int udpv6_recvmsg(struct pt_regs *ctx) { return save_recvmsg(ctx); }
 
-SEC("kretprobe/on_udp_recvmsg_return")
-int on_udp_recvmsg_return(struct pt_regs *ctx) {
+SEC("kretprobe/udp_recvmsg_return")
+int udp_recvmsg_return(struct pt_regs *ctx) {
   return do_recvmsg(ctx, PROTO_UDP);
 }
 
-SEC("kretprobe/on_udpv6_recvmsg_return")
-int on_udpv6_recvmsg_return(struct pt_regs *ctx) {
+SEC("kretprobe/udpv6_recvmsg_return")
+int udpv6_recvmsg_return(struct pt_regs *ctx) {
   return do_recvmsg(ctx, PROTO_UDP);
 }
 
-SEC("kprobe/on_tcp_recvmsg")
-int on_tcp_recvmsg(struct pt_regs *regs) { return save_recvmsg(regs); }
+SEC("kprobe/tcp_recvmsg")
+int tcp_recvmsg(struct pt_regs *regs) { return save_recvmsg(regs); }
 
-SEC("kretprobe/on_tcp_recvmsg_return")
-int on_tcp_recvmsg_return(struct pt_regs *regs) {
+SEC("kretprobe/tcp_recvmsg_return")
+int tcp_recvmsg_return(struct pt_regs *regs) {
   return do_recvmsg(regs, PROTO_TCP);
 }
 
-SEC("kprobe/on_tcp_set_state")
-int on_tcp_set_state(struct pt_regs *regs) {
+SEC("kprobe/tcp_set_state")
+int tcp_set_state(struct pt_regs *regs) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;

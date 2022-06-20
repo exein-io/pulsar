@@ -1,6 +1,8 @@
+use std::future::Future;
+
 use bpf_common::{
     program::{BpfContext, Pinning},
-    ProgramError, ProgramHandle,
+    Program, ProgramError,
 };
 use clap::Parser;
 use tokio::sync::mpsc;
@@ -34,9 +36,7 @@ async fn main() {
         Probe::FileSystemMonitor => run(file_system_monitor::program).await,
 
         #[cfg(feature = "process-monitor")]
-        Probe::ProcessMonitor => {
-            run(|ctx, s| process_monitor::program(ctx, s, Default::default())).await
-        }
+        Probe::ProcessMonitor => run(process_monitor::program).await,
 
         #[cfg(feature = "network-monitor")]
         Probe::NetworkMonitor => run(network_monitor::program).await,
@@ -46,9 +46,10 @@ async fn main() {
     };
 }
 
-async fn run<F, T>(program: F)
+async fn run<F, T, Fut>(program: F)
 where
-    F: Fn(BpfContext, mpsc::Sender<Result<T, ProgramError>>) -> ProgramHandle,
+    F: Fn(BpfContext, mpsc::Sender<Result<T, ProgramError>>) -> Fut,
+    Fut: Future<Output = Result<Program, ProgramError>>,
     T: std::fmt::Display,
 {
     env_logger::builder()
@@ -59,7 +60,7 @@ where
     let _stop_handle = bpf_common::trace_pipe::start();
     let (tx, mut rx) = mpsc::channel(100);
     let ctx = BpfContext::new(Pinning::Disabled, 512).unwrap();
-    let _program = program(ctx, tx);
+    let _program = program(ctx, tx).await.expect("initialization failed");
     loop {
         tokio::select!(
             _ = tokio::signal::ctrl_c() => break,
