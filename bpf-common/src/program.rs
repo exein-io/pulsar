@@ -205,6 +205,9 @@ impl Drop for Program {
 }
 
 impl Program {
+    pub fn bpf(&mut self) -> &mut Bpf {
+        &mut self.bpf
+    }
     /// Poll a BPF_MAP_TYPE_HASH with a certain interval
     pub async fn poll<F, K, V>(
         &self,
@@ -231,9 +234,7 @@ impl Program {
         });
         Ok(())
     }
-}
 
-impl Program {
     /// Watch a BPF_MAP_TYPE_PERF_EVENT_ARRAY and forward all its events to `sender`.
     /// A different task is run for each CPU.
     pub async fn read_events<T: Send>(
