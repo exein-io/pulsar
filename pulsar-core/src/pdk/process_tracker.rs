@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bpf_common::{parsing::procfs, time::Timestamp, Pid};
+use bpf_common::{time::Timestamp, Pid};
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -14,17 +14,21 @@ pub struct ProcessTrackerHandle {
 
 enum TrackerRequest {
     GetProcessInfo(InfoRequest),
-    RegisterFork {
+    UpdateProcess(TrackerUpdate),
+}
+
+pub enum TrackerUpdate {
+    Fork {
         pid: Pid,
         timestamp: Timestamp,
         ppid: Pid,
     },
-    RegisterExec {
+    Exec {
         pid: Pid,
         timestamp: Timestamp,
         image: String,
     },
-    RegisterExit {
+    Exit {
         pid: Pid,
         timestamp: Timestamp,
     },
@@ -36,7 +40,7 @@ struct InfoRequest {
     tx_reply: oneshot::Sender<Result<ProcessInfo, TrackerError>>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum TrackerError {
     #[error("process not found")]
     ProcessNotFound,
@@ -61,23 +65,6 @@ impl ProcessTrackerHandle {
         Self { tx }
     }
 
-    /// Create a new process tracker loading data from procfs
-    pub fn load_procfs() -> Result<Self, procfs::ProcfsError> {
-        let process_tracker = ProcessTrackerHandle::new();
-        let mut processes = procfs::get_running_processes()?;
-        let from_the_start = Timestamp::from(0);
-        processes.sort();
-        for pid in processes.into_iter() {
-            let ppid = procfs::get_process_parent_pid(pid)?;
-            let image = procfs::get_process_image(pid)
-                .map(|path| path.to_string_lossy().to_string())
-                .unwrap_or_default();
-            process_tracker.fork(ppid, pid, from_the_start);
-            process_tracker.exec(pid, image, from_the_start);
-        }
-        Ok(process_tracker)
-    }
-
     pub async fn get(&self, pid: Pid, ts: Timestamp) -> Result<ProcessInfo, TrackerError> {
         let (tx_reply, rx_reply) = oneshot::channel();
         let r = self.tx.send(TrackerRequest::GetProcessInfo(InfoRequest {
@@ -91,28 +78,8 @@ impl ProcessTrackerHandle {
         rx_reply.await.unwrap()
     }
 
-    pub fn fork(&self, ppid: Pid, pid: Pid, timestamp: Timestamp) {
-        let r = self.tx.send(TrackerRequest::RegisterFork {
-            pid,
-            timestamp,
-            ppid,
-        });
-        assert!(r.is_ok());
-    }
-
-    pub fn exec(&self, pid: Pid, image: String, timestamp: Timestamp) {
-        let r = self.tx.send(TrackerRequest::RegisterExec {
-            pid,
-            timestamp,
-            image,
-        });
-        assert!(r.is_ok());
-    }
-
-    pub fn exit(&self, pid: Pid, timestamp: Timestamp) {
-        let r = self
-            .tx
-            .send(TrackerRequest::RegisterExit { pid, timestamp });
+    pub fn update(&self, request: TrackerUpdate) {
+        let r = self.tx.send(TrackerRequest::UpdateProcess(request));
         assert!(r.is_ok());
     }
 }
@@ -203,11 +170,11 @@ impl ProcessTracker {
 
     fn handle_message(&mut self, req: TrackerRequest) {
         match req {
-            TrackerRequest::RegisterFork {
+            TrackerRequest::UpdateProcess(TrackerUpdate::Fork {
                 pid,
                 timestamp,
                 ppid,
-            } => {
+            }) => {
                 self.data.insert(
                     pid,
                     ProcessData {
@@ -220,11 +187,11 @@ impl ProcessTracker {
                 );
                 // TODO: apply self.pending_event if matching pid
             }
-            TrackerRequest::RegisterExec {
+            TrackerRequest::UpdateProcess(TrackerUpdate::Exec {
                 pid,
                 timestamp,
                 image,
-            } => {
+            }) => {
                 if let Some(p) = self.data.get_mut(&pid) {
                     p.exec_changes.push((timestamp, image));
                     p.exec_changes.sort_by_key(|p| p.0.raw());
@@ -234,7 +201,7 @@ impl ProcessTracker {
                     log::warn!("(exec) Process {pid} not found in process tree");
                 }
             }
-            TrackerRequest::RegisterExit { pid, timestamp } => {
+            TrackerRequest::UpdateProcess(TrackerUpdate::Exit { pid, timestamp }) => {
                 if let Some(p) = self.data.get_mut(&pid) {
                     p.exit_time = Some(timestamp);
                 } else {
@@ -363,27 +330,38 @@ mod tests {
     #[tokio::test]
     async fn no_processes_by_default() {
         let process_tracker = ProcessTrackerHandle::new();
-        assert!(matches!(
+        assert_eq!(
             process_tracker.get(PID_1, 0.into()).await,
             Err(TrackerError::ProcessNotFound)
-        ));
+        );
     }
 
     #[tokio::test]
     async fn different_response_depending_on_timestamp() {
         let process_tracker = ProcessTrackerHandle::new();
-        assert!(matches!(
+        assert_eq!(
             process_tracker.get(PID_2, 0.into()).await,
             Err(TrackerError::ProcessNotFound)
-        ));
-        process_tracker.fork(PID_1, PID_2, 10.into());
-        process_tracker.exec(PID_2, "/bin/after_exec".to_string(), 15.into());
-        process_tracker.exit(PID_2, 100.into());
+        );
+        process_tracker.update(TrackerUpdate::Fork {
+            ppid: PID_1,
+            pid: PID_2,
+            timestamp: 10.into(),
+        });
+        process_tracker.update(TrackerUpdate::Exec {
+            pid: PID_2,
+            image: "/bin/after_exec".to_string(),
+            timestamp: 15.into(),
+        });
+        process_tracker.update(TrackerUpdate::Exit {
+            pid: PID_2,
+            timestamp: 100.into(),
+        });
         time::sleep(time::Duration::from_millis(10)).await;
-        assert!(matches!(
+        assert_eq!(
             process_tracker.get(PID_2, 0.into()).await,
             Err(TrackerError::ProcessNotStartedYet)
-        ));
+        );
         assert_eq!(
             process_tracker.get(PID_2, 10.into()).await.unwrap(),
             ProcessInfo {
@@ -400,11 +378,11 @@ mod tests {
                 fork_time: 10.into()
             }
         );
-        assert!(matches!(
+        assert_eq!(
             process_tracker
                 .get(PID_2, (101 + EXIT_THRESHOLD).into())
                 .await,
             Err(TrackerError::ProcessExited)
-        ));
+        );
     }
 }

@@ -1,11 +1,10 @@
-mod filtering_policy;
 use std::fmt;
 
 use bpf_common::{
     aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
-pub use filtering_policy::{FilteringPolicy, PidRule, Rule};
+mod filtering;
 
 const MODULE_NAME: &str = "process-monitor";
 
@@ -54,12 +53,22 @@ impl fmt::Display for ProcessEvent {
 }
 
 pub mod pulsar {
+    use std::time::Duration;
+
+    use crate::filtering::ProcessTree;
+
     use super::*;
-    use bpf_common::{program::BpfEvent, BpfSenderWrapper, Pid};
-    use pulsar_core::pdk::{
-        CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, Payload, PulsarModule,
-        ShutdownSignal, Version,
+    use bpf_common::{program::BpfEvent, BpfSenderWrapper};
+    use pulsar_core::{
+        pdk::{
+            process_tracker::TrackerUpdate, CleanExit, ModuleContext, ModuleError, Payload,
+            PulsarModule, ShutdownSignal, Version,
+        },
+        Timestamp,
     };
+    use tokio::sync::mpsc;
+
+    const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 
     pub fn module() -> PulsarModule {
         PulsarModule::new(MODULE_NAME, Version::new(0, 0, 1), process_monitor_task)
@@ -69,28 +78,77 @@ pub mod pulsar {
         ctx: ModuleContext,
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
-        let rx_config = ctx.get_cfg::<FilteringPolicy>();
-        let _policy = rx_config.borrow().as_ref().unwrap().clone();
+        let rx_config = ctx.get_cfg::<filtering::Config>();
+        let filtering_policy = rx_config.borrow().as_ref().unwrap().clone();
         let process_tracker = ctx.get_process_tracker();
-        let sender = ctx.get_sender();
-        // When generating events we must update process_tracker.
-        // We do this by wrapping the pulsar sender and calling this closure on every event.
-        let sender =
-            BpfSenderWrapper::new(sender, move |event: &BpfEvent<ProcessEvent>| {
-                match event.payload {
-                    ProcessEvent::Fork { ppid } => {
-                        process_tracker.fork(ppid, event.pid, event.timestamp)
-                    }
-                    ProcessEvent::Exec { ref filename } => {
-                        process_tracker.exec(event.pid, filename.to_string(), event.timestamp)
-                    }
-                    ProcessEvent::Exit { .. } => process_tracker.exit(event.pid, event.timestamp),
-                }
-            });
-        let _program = program(ctx.get_bpf_context(), sender);
-        shutdown.recv().await
-    }
+        let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
+        let mut program = program(
+            ctx.get_bpf_context(),
+            // When generating events we must update process_tracker.
+            // We do this by wrapping the pulsar sender and calling this closure on every event.
+            BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
+                let _ = tx_processes.send(match event.payload {
+                    ProcessEvent::Fork { ppid } => TrackerUpdate::Fork {
+                        pid: event.pid,
+                        ppid,
+                        timestamp: event.timestamp,
+                    },
+                    ProcessEvent::Exec { ref filename } => TrackerUpdate::Exec {
+                        pid: event.pid,
+                        image: filename.to_string(),
+                        timestamp: event.timestamp,
+                    },
+                    ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
+                        pid: event.pid,
+                        timestamp: event.timestamp,
+                    },
+                });
+            }),
+        )
+        .await?;
 
+        // INITIALIZATION:
+        let mut initializer = filtering::Initializer::new(program.bpf(), filtering_policy)?;
+        let mut process_tree = ProcessTree::load_from_procfs()?;
+        for process in &process_tree {
+            initializer.update(process)?;
+            process_tracker.update(TrackerUpdate::Fork {
+                ppid: process.parent,
+                pid: process.pid,
+                timestamp: Timestamp::from(0),
+            });
+            process_tracker.update(TrackerUpdate::Exec {
+                pid: process.pid,
+                image: process.image.to_string(),
+                timestamp: Timestamp::from(0),
+            });
+        }
+        // handle processes spawned during setup
+        let mut process_new_processes = || -> Result<(), ModuleError> {
+            while let Ok(update) = rx_processes.try_recv() {
+                match &update {
+                    TrackerUpdate::Fork { pid, ppid, .. } => {
+                        initializer.update(process_tree.fork(*pid, *ppid)?)?
+                    }
+                    TrackerUpdate::Exec { pid, image, .. } => {
+                        initializer.update(process_tree.exec(*pid, image)?)?
+                    }
+                    TrackerUpdate::Exit { .. } => {}
+                };
+                process_tracker.update(update);
+            }
+            Ok(())
+        };
+        process_new_processes()?;
+        tokio::time::sleep(INIT_TIMEOUT).await;
+        process_new_processes()?;
+        loop {
+            tokio::select! {
+                r = shutdown.recv() => return r,
+                Some(msg) = rx_processes.recv() => process_tracker.update(msg),
+            }
+        }
+    }
     impl From<ProcessEvent> for Payload {
         fn from(data: ProcessEvent) -> Self {
             match data {
@@ -104,67 +162,25 @@ pub mod pulsar {
             }
         }
     }
-
-    /// Extract FilteringPolicy from configuration file
-    impl TryFrom<&ModuleConfig> for FilteringPolicy {
-        type Error = ConfigError;
-
-        fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-            let mut pid_targets = Vec::new();
-            pid_targets.extend(config.get_list("pid_targets")?.iter().map(|pid| PidRule {
-                pid: Pid::from_raw(*pid),
-                with_children: false,
-            }));
-            pid_targets.extend(config.get_list("pid_targets_children")?.iter().map(|pid| {
-                PidRule {
-                    pid: Pid::from_raw(*pid),
-                    with_children: false,
-                }
-            }));
-            let mut targets = Vec::new();
-            targets.extend(config.get_list("targets")?.into_iter().map(|image| Rule {
-                image,
-                with_children: false,
-            }));
-            targets.extend(
-                config
-                    .get_list("targets_children")?
-                    .into_iter()
-                    .map(|image| Rule {
-                        image,
-                        with_children: true,
-                    }),
-            );
-            let mut whitelist = Vec::new();
-            whitelist.extend(config.get_list("whitelist")?.into_iter().map(|image| Rule {
-                image,
-                with_children: false,
-            }));
-            whitelist.extend(
-                config
-                    .get_list("whitelist_children")?
-                    .into_iter()
-                    .map(|image| Rule {
-                        image,
-                        with_children: true,
-                    }),
-            );
-
-            Ok(FilteringPolicy {
-                pid_targets,
-                targets,
-                whitelist,
-            })
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use bpf_common::aya::Bpf;
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use nix::unistd::{fork, ForkResult};
 
+    use std::ffi::CString;
+
+    use bpf_common::aya::programs::{KProbe, TracePoint};
+    use bpf_common::program::load_test_program;
+    use nix::unistd::execv;
+
+    use crate::filtering::maps::PolicyDecision;
+    use crate::filtering::Rule;
+
     use super::*;
+    use filtering::{InterestMap, RuleMap};
 
     /// Check we're generating the correct parent and child pid.
     /// Note: we must make sure to use the real process id (kernel space tgid)
@@ -260,4 +276,191 @@ mod tests {
             }
         }
     }
-}
+
+    /// Make sure *fork* is extending interest to child
+    #[test]
+    // Running multiple tests in parallel will result in a messed up interest map
+    // since it's pinned. We use serial_test to run them one by one.
+    #[serial_test::serial]
+    fn inherit_policy() {
+        for (parent_value, interest_in_child) in [
+            // if we miss parent information, we have full interest in child
+            (None, true),
+            // only children interest should be inherited by child
+            (Some((true, true)), true),
+            (Some((false, true)), true),
+            (Some((true, false)), false),
+            (Some((false, false)), false),
+        ] {
+            // load ebpf and clear interest map
+            let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+            attach_fork_kprobe(&mut bpf);
+            let mut interest_map = filtering::InterestMap::load(&mut bpf).unwrap();
+            interest_map.clear().unwrap();
+
+            // set the parent interest before forking the child
+            if let Some(parent_value) = parent_value {
+                let parent_value = PolicyDecision {
+                    interesting: parent_value.0,
+                    children_interesting: parent_value.1,
+                }
+                .as_raw();
+                let pid = std::process::id() as i32;
+                interest_map.0.insert(pid, parent_value, 0).unwrap();
+            }
+
+            // fork the child
+            let child_pid = fork_and_return(0).as_raw() as i32;
+
+            // make sure the eBPF fork code expanded interest to the child
+            let expected_interest = PolicyDecision {
+                interesting: interest_in_child,
+                children_interesting: interest_in_child,
+            }
+            .as_raw();
+            println!("expecting {child_pid}={expected_interest}");
+            let actual_interest = interest_map.0.get(&child_pid, 0).unwrap();
+            assert_eq!(expected_interest, actual_interest);
+        }
+    }
+
+    /// Make sure *exec* is checking whitelist and target map to update interest
+    #[test]
+    #[serial_test::serial]
+    fn exec_updates_interest() {
+        // for each rule type (whitelist, whitelist&children, target, target&children)
+        // check if exec is updating it as expected
+        for (is_target, with_children) in
+            [(true, true), (true, false), (false, true), (false, false)]
+        {
+            // load ebpf and clear interest map
+            let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+            attach_tracepoint(&mut bpf, "sched_process_exec");
+            let mut interest_map = InterestMap::load(&mut bpf).unwrap();
+            interest_map.clear().unwrap();
+
+            // add rule to target echo
+            let image = "/usr/bin/echo";
+            let rule = Rule {
+                image: image.to_string(),
+                with_children,
+            };
+            let rules = vec![rule];
+            let mut rule_map = if is_target {
+                RuleMap::target(&mut bpf).unwrap()
+            } else {
+                RuleMap::whitelist(&mut bpf).unwrap()
+            };
+            rule_map.clear().unwrap();
+            rule_map.install(&rules).unwrap();
+
+            // set old value to wrong value to make sure we're making a change
+            // try both values of with_children
+            for old_with_children in [true, false] {
+                // run the targeted command
+                let interest_map_ref = &mut interest_map;
+                let child_pid = fork_and_run(move || {
+                    // before calling exec, we want to update our interest
+                    let old_value = PolicyDecision {
+                        interesting: !is_target,
+                        children_interesting: old_with_children,
+                    }
+                    .as_raw();
+                    let pid = std::process::id() as i32;
+                    interest_map_ref.0.insert(pid, old_value, 0).unwrap();
+                    execv(
+                        &CString::new(image).unwrap(),
+                        &[CString::new("hello world").unwrap()],
+                    )
+                    .unwrap();
+                    unreachable!();
+                })
+                .as_raw();
+
+                // make sure the eBPF exec code updated interest
+                let expected_interest = PolicyDecision {
+                    interesting: is_target,
+                    children_interesting: if with_children {
+                        is_target
+                    } else {
+                        old_with_children
+                    },
+                }
+                .as_raw();
+                println!("is_target={is_target} with_children={with_children} old_with_children={old_with_children}");
+                println!("expecting {child_pid}={expected_interest}");
+                let actual_interest = interest_map.0.get(&child_pid, 0).unwrap();
+                assert_eq!(expected_interest, actual_interest);
+            }
+        }
+    }
+
+    // attach a single tracepoint for test purposes
+    fn attach_tracepoint(bpf: &mut Bpf, tp: &str) {
+        let tracepoint: &mut TracePoint = bpf
+            .program_mut(tp)
+            .ok_or(ProgramError::ProgramNotFound(tp.to_string()))
+            .unwrap()
+            .try_into()
+            .unwrap();
+        tracepoint.load().unwrap();
+        tracepoint.attach("sched", tp).unwrap();
+    }
+
+    fn attach_fork_kprobe(bpf: &mut Bpf) {
+        let kprobe: &mut KProbe = bpf
+            .program_mut("wake_up_new_task")
+            .unwrap()
+            .try_into()
+            .unwrap();
+        kprobe.load().unwrap();
+        kprobe.attach("wake_up_new_task", 0).unwrap();
+    }
+
+    /// map_interest should not include thread entries because it would
+    /// fill the map with useless data.
+    #[test]
+    #[serial_test::serial]
+    fn threads_are_ignored() {
+        // load ebpf and clear interest map
+        let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+        attach_fork_kprobe(&mut bpf);
+        let mut interest_map = InterestMap::load(&mut bpf).unwrap();
+        interest_map.clear().unwrap();
+
+        // try spawning a new thread
+        let child_thread = std::thread::spawn(|| nix::unistd::gettid())
+            .join()
+            .unwrap()
+            .as_raw();
+        let our_pid = std::process::id() as i32;
+
+        // make sure we've not created an interest entry for it
+        assert!(interest_map.0.get(&child_thread, 0).is_err());
+        // make sure we've not overridden the parent interest
+        // with the child one.
+        assert!(interest_map.0.get(&our_pid, 0).is_err());
+    }
+
+    /// exit hook must delete elements from map_interest
+    #[test]
+    #[serial_test::serial]
+    fn exit_cleans_up_resources() {
+        // setup
+        let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+        attach_tracepoint(&mut bpf, "sched_process_exit");
+        let mut interest_map = InterestMap::load(&mut bpf).unwrap();
+        interest_map.clear().unwrap();
+
+        let interest_map_ref = &mut interest_map;
+        let child_pid = fork_and_run(move || {
+            let pid = std::process::id() as i32;
+            interest_map_ref.0.insert(pid, 0, 0).unwrap();
+            std::process::exit(0);
+        })
+        .as_raw();
+
+        // make sure exit hook deleted it
+        assert!(interest_map.0.get(&child_pid, 0).is_err());
+    }
+} // TODO: test we're not missing anything between program start and initialization
