@@ -53,22 +53,13 @@ impl fmt::Display for ProcessEvent {
 }
 
 pub mod pulsar {
-    use std::time::Duration;
-
-    use crate::filtering::ProcessTree;
-
     use super::*;
     use bpf_common::{program::BpfEvent, BpfSenderWrapper};
-    use pulsar_core::{
-        pdk::{
-            process_tracker::TrackerUpdate, CleanExit, ModuleContext, ModuleError, Payload,
-            PulsarModule, ShutdownSignal, Version,
-        },
-        Timestamp,
+    use pulsar_core::pdk::{
+        process_tracker::TrackerUpdate, CleanExit, ModuleContext, ModuleError, Payload,
+        PulsarModule, ShutdownSignal, Version,
     };
     use tokio::sync::mpsc;
-
-    const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 
     pub fn module() -> PulsarModule {
         PulsarModule::new(MODULE_NAME, Version::new(0, 0, 1), process_monitor_task)
@@ -78,8 +69,8 @@ pub mod pulsar {
         ctx: ModuleContext,
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
-        let rx_config = ctx.get_cfg::<filtering::Config>();
-        let filtering_policy = rx_config.borrow().as_ref().unwrap().clone();
+        let rx_config = ctx.get_cfg::<filtering::config::Config>();
+        let filtering_config = rx_config.borrow().as_ref().unwrap().clone();
         let process_tracker = ctx.get_process_tracker();
         let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
         let mut program = program(
@@ -107,41 +98,17 @@ pub mod pulsar {
         )
         .await?;
 
-        // INITIALIZATION:
-        let mut initializer = filtering::Initializer::new(program.bpf(), filtering_policy)?;
-        let mut process_tree = ProcessTree::load_from_procfs()?;
-        for process in &process_tree {
-            initializer.update(process)?;
-            process_tracker.update(TrackerUpdate::Fork {
-                ppid: process.parent,
-                pid: process.pid,
-                timestamp: Timestamp::from(0),
-            });
-            process_tracker.update(TrackerUpdate::Exec {
-                pid: process.pid,
-                image: process.image.to_string(),
-                timestamp: Timestamp::from(0),
-            });
-        }
-        // handle processes spawned during setup
-        let mut process_new_processes = || -> Result<(), ModuleError> {
-            while let Ok(update) = rx_processes.try_recv() {
-                match &update {
-                    TrackerUpdate::Fork { pid, ppid, .. } => {
-                        initializer.update(process_tree.fork(*pid, *ppid)?)?
-                    }
-                    TrackerUpdate::Exec { pid, image, .. } => {
-                        initializer.update(process_tree.exec(*pid, image)?)?
-                    }
-                    TrackerUpdate::Exit { .. } => {}
-                };
-                process_tracker.update(update);
-            }
-            Ok(())
-        };
-        process_new_processes()?;
-        tokio::time::sleep(INIT_TIMEOUT).await;
-        process_new_processes()?;
+        filtering::initializer::setup_events_filter(
+            program.bpf(),
+            filtering_config,
+            &process_tracker,
+            &mut rx_processes,
+        )
+        .await?;
+
+        // rx_processes will first be used during initialization,
+        // than it will be used to keep the process tracker updated
+
         loop {
             tokio::select! {
                 r = shutdown.recv() => return r,
@@ -149,6 +116,7 @@ pub mod pulsar {
             }
         }
     }
+
     impl From<ProcessEvent> for Payload {
         fn from(data: ProcessEvent) -> Self {
             match data {
@@ -166,21 +134,18 @@ pub mod pulsar {
 
 #[cfg(test)]
 mod tests {
+    use crate::filtering::maps::PolicyDecision;
+    use bpf_common::aya::programs::{KProbe, TracePoint};
     use bpf_common::aya::Bpf;
+    use bpf_common::program::load_test_program;
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
+    use filtering::config::Rule;
+    use filtering::maps::{InterestMap, RuleMap};
+    use nix::unistd::execv;
     use nix::unistd::{fork, ForkResult};
-
     use std::ffi::CString;
 
-    use bpf_common::aya::programs::{KProbe, TracePoint};
-    use bpf_common::program::load_test_program;
-    use nix::unistd::execv;
-
-    use crate::filtering::maps::PolicyDecision;
-    use crate::filtering::Rule;
-
     use super::*;
-    use filtering::{InterestMap, RuleMap};
 
     /// Check we're generating the correct parent and child pid.
     /// Note: we must make sure to use the real process id (kernel space tgid)
@@ -295,7 +260,7 @@ mod tests {
             // load ebpf and clear interest map
             let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
             attach_fork_kprobe(&mut bpf);
-            let mut interest_map = filtering::InterestMap::load(&mut bpf).unwrap();
+            let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
 
             // set the parent interest before forking the child
@@ -463,4 +428,4 @@ mod tests {
         // make sure exit hook deleted it
         assert!(interest_map.0.get(&child_pid, 0).is_err());
     }
-} // TODO: test we're not missing anything between program start and initialization
+}
