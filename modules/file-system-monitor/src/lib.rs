@@ -127,8 +127,16 @@ pub mod pulsar {
         let mut config = ctx.get_cfg::<Config>().borrow().clone()?;
         let sender = ctx.get_sender();
         loop {
+            // enable receiver only if the elf checker is enabled
+            let receiver_recv = async {
+                if config.elf_check_enabled {
+                    receiver.recv().await
+                } else {
+                    std::future::pending().await
+                }
+            };
             tokio::select! {
-                Ok(msg) = receiver.recv(), if config.elf_check_enabled => {
+                Ok(msg) = receiver_recv => {
                     check_elf(&sender, &config, msg.as_ref()).await;
                 }
                 _ = rx_config.changed() => {
