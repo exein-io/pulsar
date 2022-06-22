@@ -17,7 +17,7 @@ use super::{
     config::Config,
     maps::InterestMap,
     maps::{PolicyDecision, RuleMap},
-    process_tree::{ProcessData, ProcessTree},
+    process_tree::{ProcessData, ProcessTree, PID_0},
 };
 
 const INIT_TIMEOUT: Duration = Duration::from_millis(100);
@@ -120,7 +120,15 @@ impl Initializer {
     }
 
     fn update(&mut self, process: &ProcessData) -> Result<(), MapError> {
-        let parent_result = self.cache.get(&process.parent).copied().unwrap_or_default();
+        let parent_result = self.cache.get(&process.parent).copied().unwrap_or_else(|| {
+            if process.pid != PID_0 {
+                log::warn!(
+                    "process {} not found while building map_interest",
+                    process.parent
+                );
+            }
+            PolicyDecision::default()
+        });
         let inherited_interest = parent_result.children_interesting;
         let mut decision = PolicyDecision {
             interesting: inherited_interest,

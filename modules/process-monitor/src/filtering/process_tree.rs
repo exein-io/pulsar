@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bpf_common::{
     parsing::procfs::{self, ProcfsError},
     Pid,
@@ -9,6 +11,7 @@ pub(crate) struct ProcessTree {
     processes: Vec<ProcessData>,
 }
 
+#[derive(Debug)]
 pub(crate) struct ProcessData {
     pub(crate) pid: Pid,
     pub(crate) image: String,
@@ -23,40 +26,67 @@ pub(crate) enum Error {
     ParentNotFound { pid: Pid, ppid: Pid },
 }
 
+pub(crate) const PID_0: Pid = Pid::from_raw(0);
+
 impl ProcessTree {
     /// Construct the `ProcessTree` by reading from `procfs`:
     /// - process list
     /// - parent pid
     /// - image
     pub(crate) fn load_from_procfs() -> Result<Self, ProcfsError> {
-        let mut processes: Vec<ProcessData> = procfs::get_running_processes()?
-            .into_iter()
-            .map(|pid| {
-                let image = procfs::get_process_image(pid)
-                    .map(|path| path.to_string_lossy().to_string())
-                    .unwrap_or_else(|err| {
-                        log::debug!("{}", err);
-                        String::new()
-                    });
-                let parent = procfs::get_process_parent_pid(pid).unwrap_or_else(|err| {
-                    log::debug!("Error getting parent pid of {pid}: {}", err);
-                    Pid::from_raw(1)
+        let mut processes: HashMap<Pid, ProcessData> = HashMap::new();
+        let mut children: HashMap<Pid, Vec<Pid>> = HashMap::new();
+        let mut sorted_processes: Vec<ProcessData> = Vec::new();
+
+        // Get process list
+        for pid in procfs::get_running_processes()? {
+            let image = procfs::get_process_image(pid)
+                .map(|path| path.to_string_lossy().to_string())
+                .unwrap_or_else(|err| {
+                    log::debug!("{}", err);
+                    String::new()
                 });
-                ProcessData { pid, image, parent }
-            })
-            .collect();
+            let parent = procfs::get_process_parent_pid(pid).unwrap_or_else(|err| {
+                log::debug!("Error getting parent pid of {pid}: {}", err);
+                Pid::from_raw(1)
+            });
+            processes.insert(pid, ProcessData { pid, image, parent });
+            children.entry(parent).or_default().push(pid);
+        }
+
         // Make sure to add PID 0 (which is part of kernel) to map_interest to avoid
         // warnings about missing entries.
-        processes.push(ProcessData {
-            pid: Pid::from_raw(0),
-            image: String::from("kernel"),
-            parent: Pid::from_raw(0),
-        });
-        // TODO: we may have no parent_result if more than `/proc/sys/kernel/pid_max`
-        // processes have already spawn and the pid number restarted from 0.
-        // We should build a proper tree structure and do a breath first search.
-        processes.sort_by_key(|p| p.pid);
-        Ok(Self { processes })
+        processes.insert(
+            PID_0,
+            ProcessData {
+                pid: PID_0,
+                image: String::from("kernel"),
+                parent: PID_0,
+            },
+        );
+
+        // Sort process tree by starting by process 0
+        fn add_process_and_children(
+            pid: Pid,
+            processes: &mut HashMap<Pid, ProcessData>,
+            children: &mut HashMap<Pid, Vec<Pid>>,
+            sorted_processes: &mut Vec<ProcessData>,
+        ) {
+            let process = processes.remove(&pid).unwrap();
+            sorted_processes.push(process);
+            for child in children.remove(&pid).unwrap_or_default() {
+                add_process_and_children(child, processes, children, sorted_processes);
+            }
+        }
+        add_process_and_children(PID_0, &mut processes, &mut children, &mut sorted_processes);
+        if !processes.is_empty() {
+            log::warn!("Found processes not starting from root: {:?}", processes);
+            sorted_processes.extend(processes.into_values());
+        }
+
+        Ok(Self {
+            processes: sorted_processes,
+        })
     }
 
     /// Add a new entry and return its process info.
