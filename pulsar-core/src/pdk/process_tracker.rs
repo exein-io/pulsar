@@ -17,6 +17,7 @@ enum TrackerRequest {
     UpdateProcess(TrackerUpdate),
 }
 
+#[derive(Debug)]
 pub enum TrackerUpdate {
     Fork {
         pid: Pid,
@@ -99,8 +100,11 @@ struct ProcessTracker {
     next_cleanup: Timestamp,
     /// pending info requests arrived before the process was created
     pending_requests: Vec<(time::Instant, InfoRequest)>,
+    /// pending process updates arrived before its fork
+    pending_updates: HashMap<Pid, Vec<TrackerUpdate>>,
 }
 
+#[derive(Debug)]
 struct ProcessData {
     ppid: Pid,
     fork_time: Timestamp,
@@ -139,6 +143,7 @@ impl ProcessTracker {
             data,
             next_cleanup: Timestamp::now() + CLEANUP_TIMEOUT,
             pending_requests: Vec::new(),
+            pending_updates: HashMap::new(),
         }
     }
 
@@ -170,46 +175,7 @@ impl ProcessTracker {
 
     fn handle_message(&mut self, req: TrackerRequest) {
         match req {
-            TrackerRequest::UpdateProcess(TrackerUpdate::Fork {
-                pid,
-                timestamp,
-                ppid,
-            }) => {
-                self.data.insert(
-                    pid,
-                    ProcessData {
-                        ppid,
-                        fork_time: timestamp,
-                        exit_time: None,
-                        original_image: self.get_image(ppid, timestamp),
-                        exec_changes: Vec::new(),
-                    },
-                );
-                // TODO: apply self.pending_event if matching pid
-            }
-            TrackerRequest::UpdateProcess(TrackerUpdate::Exec {
-                pid,
-                timestamp,
-                image,
-            }) => {
-                if let Some(p) = self.data.get_mut(&pid) {
-                    p.exec_changes.push((timestamp, image));
-                    p.exec_changes.sort_by_key(|p| p.0.raw());
-                } else {
-                    // if exec arrived before the fork, we save the event as pending
-                    // TODO: save self.pending_event
-                    log::warn!("(exec) Process {pid} not found in process tree");
-                }
-            }
-            TrackerRequest::UpdateProcess(TrackerUpdate::Exit { pid, timestamp }) => {
-                if let Some(p) = self.data.get_mut(&pid) {
-                    p.exit_time = Some(timestamp);
-                } else {
-                    // if exit arrived before the fork, we save the event as pending
-                    // TODO: save self.pending_event
-                    log::warn!("(exit) Process {pid} not found in process tree");
-                }
-            }
+            TrackerRequest::UpdateProcess(update) => self.handle_update(update),
             TrackerRequest::GetProcessInfo(info_request) => {
                 let r = self.get_info(info_request.pid, info_request.ts);
                 match r {
@@ -224,6 +190,55 @@ impl ProcessTracker {
                     x => {
                         let _ = info_request.tx_reply.send(x);
                     }
+                }
+            }
+        }
+    }
+
+    fn handle_update(&mut self, update: TrackerUpdate) {
+        match update {
+            TrackerUpdate::Fork {
+                pid,
+                timestamp,
+                ppid,
+            } => {
+                self.data.insert(
+                    pid,
+                    ProcessData {
+                        ppid,
+                        fork_time: timestamp,
+                        exit_time: None,
+                        original_image: self.get_image(ppid, timestamp),
+                        exec_changes: Vec::new(),
+                    },
+                );
+                if let Some(pending_updates) = self.pending_updates.remove(&pid) {
+                    pending_updates
+                        .into_iter()
+                        .for_each(|update| self.handle_update(update));
+                }
+            }
+            TrackerUpdate::Exec {
+                pid,
+                timestamp,
+                ref image,
+            } => {
+                if let Some(p) = self.data.get_mut(&pid) {
+                    p.exec_changes.push((timestamp, image.to_string()));
+                    p.exec_changes.sort_by_key(|p| p.0.raw());
+                } else {
+                    // if exec arrived before the fork, we save the event as pending
+                    log::debug!("(exec) Process {pid} not found in process tree, saving for later");
+                    self.pending_updates.entry(pid).or_default().push(update);
+                }
+            }
+            TrackerUpdate::Exit { pid, timestamp } => {
+                if let Some(p) = self.data.get_mut(&pid) {
+                    p.exit_time = Some(timestamp);
+                } else {
+                    // if exit arrived before the fork, we save the event as pending
+                    log::debug!("(exit) Process {pid} not found in process tree, saving for later");
+                    self.pending_updates.entry(pid).or_default().push(update);
                 }
             }
         }
@@ -381,6 +396,53 @@ mod tests {
         assert_eq!(
             process_tracker
                 .get(PID_2, (101 + EXIT_THRESHOLD).into())
+                .await,
+            Err(TrackerError::ProcessExited)
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_events() {
+        // on multi-core machines we could get the exec/exit events before its fork
+        let process_tracker = ProcessTrackerHandle::new();
+        process_tracker.update(TrackerUpdate::Exit {
+            pid: PID_2,
+            timestamp: 18.into(),
+        });
+        process_tracker.update(TrackerUpdate::Exec {
+            pid: PID_2,
+            image: "/bin/after_exec".to_string(),
+            timestamp: 15.into(),
+        });
+        process_tracker.update(TrackerUpdate::Fork {
+            ppid: PID_1,
+            pid: PID_2,
+            timestamp: 10.into(),
+        });
+        assert_eq!(
+            process_tracker.get(PID_2, 9.into()).await,
+            Err(TrackerError::ProcessNotStartedYet)
+        );
+        assert_eq!(
+            process_tracker.get(PID_2, 13.into()).await,
+            Ok(ProcessInfo {
+                image: "".to_string(),
+                ppid: PID_1,
+                fork_time: 10.into()
+            })
+        );
+        assert_eq!(
+            process_tracker.get(PID_2, 17.into()).await,
+            Ok(ProcessInfo {
+                image: "/bin/after_exec".to_string(),
+                ppid: PID_1,
+                fork_time: 10.into()
+            })
+        );
+        time::sleep(time::Duration::from_millis(1)).await;
+        assert_eq!(
+            process_tracker
+                .get(PID_2, (22 + EXIT_THRESHOLD).into())
                 .await,
             Err(TrackerError::ProcessExited)
         );
