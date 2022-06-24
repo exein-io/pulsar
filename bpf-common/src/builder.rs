@@ -38,12 +38,6 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
         .arg(probe)
         .arg("-o")
         .arg(out_object)
-        // Enable bpf_trace_printk helper function only on debug builds
-        .args(if cfg!(debug_assertions) {
-            &["-D", "ALLOW_PRINTK"][..]
-        } else {
-            &[]
-        })
         .status()
         .context("Failed to execute clang")?;
 

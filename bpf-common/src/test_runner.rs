@@ -25,7 +25,7 @@ use std::{fmt::Display, future::Future, pin::Pin, time::Duration};
 use tokio::sync::mpsc;
 
 use crate::{
-    program::{BpfContext, BpfEvent, Pinning},
+    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
     time::Timestamp,
     BpfSender, Pid, Program, ProgramError,
 };
@@ -51,7 +51,7 @@ impl<T: Display> TestRunner<T> {
             .try_init();
         let (tx, rx) = mpsc::unbounded_channel();
         let sender = TestSender { tx };
-        let ctx = BpfContext::new(Pinning::Disabled, 512).unwrap();
+        let ctx = BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug).unwrap();
         // Wait ebpf startup
         Self {
             rx,

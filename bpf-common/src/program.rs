@@ -32,7 +32,6 @@ pub struct BpfContext {
     /// This should be set only for the final executable, not for tests and
     /// examples where process tracking is not running.
     pinning: Pinning,
-    // TODO: Try replacing this with global variable
     pinning_path: String,
     /// Btf allows to load it only once on startup
     btf: Arc<Btf>,
@@ -40,6 +39,8 @@ pub struct BpfContext {
     /// NOTE: this will result in a memory usage of:
     /// (number of modules) * (number of cores) * (perf_pages) * 4Kb
     perf_pages: usize,
+    /// Log level for eBPF print statements
+    log_level: BpfLogLevel,
 }
 
 #[derive(Clone)]
@@ -48,8 +49,19 @@ pub enum Pinning {
     Disabled,
 }
 
+#[derive(Clone, Copy)]
+pub enum BpfLogLevel {
+    Disabled = 0,
+    Error = 1,
+    Debug = 2,
+}
+
 impl BpfContext {
-    pub fn new(pinning: Pinning, mut perf_pages: usize) -> Result<Self, ProgramError> {
+    pub fn new(
+        pinning: Pinning,
+        mut perf_pages: usize,
+        log_level: BpfLogLevel,
+    ) -> Result<Self, ProgramError> {
         let btf = Btf::from_sys_fs()?;
         if perf_pages == 0 || (perf_pages & (perf_pages - 1) != 0) {
             log::warn!("Invalid value ({perf_pages}) for perf_pages, which must be a power of 2.");
@@ -68,6 +80,7 @@ impl BpfContext {
             btf: Arc::new(btf),
             perf_pages,
             pinning_path,
+            log_level,
         })
     }
 }
@@ -147,7 +160,7 @@ impl ProgramBuilder {
             let mut bpf = BpfLoader::new()
                 .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
-                .set_global("log_level", &2)
+                .set_global("log_level", &(self.ctx.log_level as i32))
                 .load(&self.probe)?;
             for (section, tracepoint) in self.tracepoints {
                 let tp: &mut TracePoint = bpf
