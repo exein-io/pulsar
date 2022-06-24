@@ -1,8 +1,7 @@
 //! eBPF programs can use `bpf_printk` for simple logging, this module
 //! forwards these debug events from tracefs to [`log::warn`]
 //!
-//! This module is disabled in release mode because [`bpf_common::builder`]
-//! defines ALLOW_PRINTK only in debug builds.
+//! This module is disabled in release mode for performance reasons.
 
 use std::os::unix::prelude::AsRawFd;
 

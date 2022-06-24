@@ -1,16 +1,24 @@
 use std::future::Future;
 
 use bpf_common::{
-    program::{BpfContext, Pinning},
+    program::{BpfContext, BpfLogLevel, Pinning},
     Program, ProgramError,
 };
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use tokio::sync::mpsc;
 
-/// Test runner for eBPF programs
 #[derive(Parser, Debug)]
 #[clap(name = "probe")]
 #[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    verbose: bool,
+    #[clap(subcommand)]
+    probe: Probe,
+}
+
+/// Test runner for eBPF programs
+#[derive(Subcommand, Debug)]
 enum Probe {
     #[cfg(feature = "file-system-monitor")]
     /// Watch file creations
@@ -31,22 +39,23 @@ enum Probe {
 
 #[tokio::main]
 async fn main() {
-    match Probe::parse() {
+    let args = Args::parse();
+    match args.probe {
         #[cfg(feature = "file-system-monitor")]
-        Probe::FileSystemMonitor => run(file_system_monitor::program).await,
+        Probe::FileSystemMonitor => run(args, file_system_monitor::program).await,
 
         #[cfg(feature = "process-monitor")]
-        Probe::ProcessMonitor => run(process_monitor::program).await,
+        Probe::ProcessMonitor => run(args, process_monitor::program).await,
 
         #[cfg(feature = "network-monitor")]
-        Probe::NetworkMonitor => run(network_monitor::program).await,
+        Probe::NetworkMonitor => run(args, network_monitor::program).await,
 
         #[cfg(feature = "syscall-monitor")]
-        Probe::SyscallMonitor => run(syscall_monitor::program).await,
+        Probe::SyscallMonitor => run(args, syscall_monitor::program).await,
     };
 }
 
-async fn run<F, T, Fut>(program: F)
+async fn run<F, T, Fut>(args: Args, program: F)
 where
     F: Fn(BpfContext, mpsc::Sender<Result<T, ProgramError>>) -> Fut,
     Fut: Future<Output = Result<Program, ProgramError>>,
@@ -59,7 +68,12 @@ where
     #[cfg(debug_assertions)]
     let _stop_handle = bpf_common::trace_pipe::start();
     let (tx, mut rx) = mpsc::channel(100);
-    let ctx = BpfContext::new(Pinning::Disabled, 512).unwrap();
+    let log_level = if args.verbose {
+        BpfLogLevel::Debug
+    } else {
+        BpfLogLevel::Error
+    };
+    let ctx = BpfContext::new(Pinning::Disabled, 512, log_level).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");
     loop {
         tokio::select!(

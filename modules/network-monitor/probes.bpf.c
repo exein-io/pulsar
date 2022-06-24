@@ -410,7 +410,6 @@ static __always_inline int save_recvmsg(struct pt_regs *regs) {
 }
 
 static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
-  LOG_DEBUG("exit");
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;

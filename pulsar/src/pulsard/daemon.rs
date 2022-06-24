@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::{bail, Result};
-use bpf_common::program::{BpfContext, Pinning, PERF_PAGES_DEFAULT};
+use bpf_common::program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT};
 
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        process_tracker::{start_process_tracker, ProcessTrackerHandle},
-        ModuleConfig, ModuleDetails, ModuleOverview, ModuleStatus, PulsarDaemonCommand,
-        PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
+        process_tracker::start_process_tracker, ModuleConfig, ModuleDetails, ModuleOverview,
+        ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
     },
 };
 use tokio::sync::mpsc;
@@ -35,7 +34,7 @@ struct PulsarDaemon {
     rx_modules_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     #[cfg(debug_assertions)]
     #[allow(unused)]
-    trace_pipe_handle: Option<bpf_common::trace_pipe::StopHandle>,
+    trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
 }
 
 impl PulsarDaemon {
@@ -60,15 +59,18 @@ impl PulsarDaemon {
 
         let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
         let perf_pages = general_config.with_default("perf_pages", PERF_PAGES_DEFAULT)?;
-        let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages)?;
-
-        #[cfg(debug_assertions)]
-        let trace_pipe_handle = if general_config.with_default("trace", true)? {
-            let s_handle = bpf_common::trace_pipe::start();
-            Some(s_handle)
+        let bpf_log_level = if cfg!(debug_assertions) {
+            if log::max_level() >= log::Level::Debug {
+                BpfLogLevel::Debug
+            } else {
+                BpfLogLevel::Error
+            }
         } else {
-            None
+            BpfLogLevel::Disabled
         };
+        let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
+        #[cfg(debug_assertions)]
+        let trace_pipe_handle = bpf_common::trace_pipe::start();
 
         // Initialize bus
         let bus = Bus::new();
