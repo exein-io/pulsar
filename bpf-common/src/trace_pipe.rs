@@ -50,7 +50,7 @@ pub fn start() -> StopHandle {
             }
             buf[..]
                 .split(|c| *c == b'\n')
-                .filter(|bytes| bytes.is_empty())
+                .filter(|bytes| !bytes.is_empty())
                 .for_each(|bytes| log::warn!(target: "trace_pipe", "{}", format_msg(bytes)));
         }
     });
