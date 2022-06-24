@@ -43,7 +43,7 @@ int sys_enter(struct trace_event_raw_sys_enter *ctx) {
     u32 key = 0;
     activity = bpf_map_lookup_elem(&memory, &key);
     if (!activity) {
-      bpf_printk("can't get activity_t memory for %d", tgid);
+      LOG_ERROR("can't get activity_t memory for %d", tgid);
       return 0;
     }
     // We want to always start with a 0 initialized activity_t, so

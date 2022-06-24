@@ -124,7 +124,7 @@ static __always_inline struct network_event *new_event() {
   u32 key = 0;
   struct network_event *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event) {
-    bpf_printk("can't get event memory");
+    LOG_ERROR("can't get event memory");
     return 0;
   }
   int i;
@@ -158,7 +158,7 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
     break;
   }
   default:
-    bpf_printk("ignored sockaddr famility %d", family);
+    LOG_DEBUG("ignored sockaddr famility %d", family);
   }
 }
 
@@ -184,7 +184,7 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     break;
   }
   default:
-    bpf_printk("ignored sockaddr famility %d", family);
+    LOG_DEBUG("ignored sockaddr famility %d", family);
   }
 }
 
@@ -208,7 +208,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     break;
   }
   default:
-    bpf_printk("ignored sockaddr famility %d", family);
+    LOG_DEBUG("ignored sockaddr famility %d", family);
   }
 }
 
@@ -254,7 +254,7 @@ static __always_inline int do_connect_return(struct pt_regs *ctx) {
   u64 pid_tgid = bpf_get_current_pid_tgid();
   skpp = bpf_map_lookup_elem(&skmap, &pid_tgid);
   if (skpp == 0) {
-    bpf_printk("missed entry in skmap");
+    LOG_ERROR("missed entry in skmap");
     return 0;
   }
 
@@ -277,7 +277,7 @@ static __always_inline int do_connect_return(struct pt_regs *ctx) {
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                           sizeof(struct network_event));
   } else {
-    bpf_printk("failed connect");
+    LOG_DEBUG("failed connect");
   }
 
   bpf_map_delete_elem(&skmap, &pid_tgid);
@@ -309,7 +309,7 @@ int inet_csk_accept_return(struct pt_regs *ctx) {
 
   struct sock *sk = (struct sock *)PT_REGS_RC(ctx);
   if (!sk) {
-    bpf_printk("accept returned null");
+    LOG_DEBUG("accept returned null");
     return 0;
   }
 
@@ -339,7 +339,7 @@ static __always_inline void read_iovec(struct msg_event *event,
   bpf_core_read(&iov, sizeof(iov), &msg->msg_iter.iov);
 
   if (len > MAX_DATA_SIZE) {
-    bpf_printk("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);
+    LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);
   }
 
   void *iovbase = NULL;
@@ -351,10 +351,10 @@ static __always_inline void read_iovec(struct msg_event *event,
 
   int r = bpf_core_read_user(event->data, len, iovbase);
   if (r) {
-    bpf_printk("cant read data %d", r);
+    LOG_DEBUG("cant read data %d", r);
   }
   event->copied_data_len = len;
-  // bpf_printk("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
+  LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
 }
 
 static __always_inline int do_sendmsg(struct pt_regs *regs, u8 proto) {
@@ -366,10 +366,8 @@ static __always_inline int do_sendmsg(struct pt_regs *regs, u8 proto) {
   struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(regs);
 
   struct network_event *event = new_event();
-  if (!event) {
-    bpf_printk("can't get event memory");
+  if (!event)
     return 0;
-  }
   event->event_type = EVENT_SEND;
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
@@ -404,14 +402,15 @@ static __always_inline int save_recvmsg(struct pt_regs *regs) {
   };
   int r = bpf_map_update_elem(&recvmsgmap, &pid_tgid, &args, BPF_NOEXIST);
   if (r) {
-    bpf_printk("INSERT ERROR on recvmsgmap: %d %d", pid_tgid, r);
+    LOG_ERROR("insert error on recvmsgmap: %d %d", pid_tgid, r);
   } else {
-    // bpf_printk("insert recvmsgmap: %d %d", pid_tgid, r);
+    LOG_DEBUG("insert recvmsgmap: %d %d", pid_tgid, r);
   }
   return 0;
 }
 
 static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
+  LOG_DEBUG("exit");
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;
@@ -419,7 +418,7 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
   u64 pid_tgid = bpf_get_current_pid_tgid();
   struct recvmsg_args *args = bpf_map_lookup_elem(&recvmsgmap, &pid_tgid);
   int r = bpf_map_delete_elem(&recvmsgmap, &pid_tgid);
-  // bpf_printk("remove recvmsgmap: %d %d", pid_tgid, r);
+  LOG_DEBUG("delete recvmsgmap: %d %d", pid_tgid, r);
   if (!args) {
     return 0;
   }
@@ -427,10 +426,9 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
   struct msghdr *msg = args->msg;
 
   struct network_event *event = new_event();
-  if (!event) {
-    bpf_printk("can't get event memory");
+  if (!event)
     return 0;
-  }
+
   event->event_type = EVENT_RECV;
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
@@ -456,7 +454,7 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
     struct sockaddr *msg_name = 0;
     int k = bpf_core_read(&msg_name, sizeof(msg_name), &msg->msg_name);
     if (!msg_name) {
-      bpf_printk("msg_name is null. %d", k);
+      LOG_DEBUG("msg_name is null. %d", k);
     } else {
       copy_sockaddr(msg_name, &event->connect.destination, false);
     }
@@ -513,10 +511,9 @@ int tcp_set_state(struct pt_regs *regs) {
   struct sock *sk = (struct sock *)PT_REGS_PARM1(regs);
   int state = (int)PT_REGS_PARM2(regs);
   if (state == TCP_SYN_SENT || state == TCP_LAST_ACK) {
-    bpf_printk("OPEN %d", sk);
     ret = bpf_map_update_elem(&tcp_set_state_map, &sk, &tgid, BPF_ANY);
     if (ret) {
-      bpf_printk("(tcp_set_state) ERROR updating p_set_state_map");
+      LOG_ERROR("updating tcp_set_state_map");
     }
     return 0;
   }
@@ -525,14 +522,14 @@ int tcp_set_state(struct pt_regs *regs) {
   pid_t *id = bpf_map_lookup_elem(&tcp_set_state_map, &sk);
   pid_t original_pid = tgid;
   if (!id) {
-    bpf_printk("(tcp_set_state) ERROR retrieving original pid");
+    LOG_DEBUG("can't retrieve the original pid");
     return 0;
   } else {
     original_pid = *id;
   }
   ret = bpf_map_delete_elem(&tcp_set_state_map, &sk);
   if (ret) {
-    bpf_printk("(tcp_set_state) ERROR deleting element from p_set_state_map");
+    LOG_ERROR("deleting from tcp_set_state_map");
   }
 
   u16 family = 0;
@@ -553,7 +550,7 @@ int tcp_set_state(struct pt_regs *regs) {
   ret = bpf_perf_event_output(regs, &events, BPF_F_CURRENT_CPU, event,
                               sizeof(struct network_event));
   if (ret) {
-    bpf_printk("(tcp_set_state) ERROR on perf event output");
+    LOG_ERROR("emitting event");
   }
   return 0;
 }

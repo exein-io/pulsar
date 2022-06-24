@@ -69,19 +69,18 @@ int wake_up_new_task(struct pt_regs *ctx) {
   pid_t parent_tgid = bpf_get_current_pid_tgid() >> 32;
   struct task_struct *child = (struct task_struct *)PT_REGS_PARM1(ctx);
   if (!child) {
-    bpf_printk("wake_up_new_task: error getting child task");
+    LOG_ERROR("error getting child task");
   }
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
   if (parent_tgid == child_tgid) {
     // pid_t child_pid = BPF_CORE_READ(child, pid);
-    // bpf_printk("ignoring thread %d %d", child_tgid, child_pid);
     return 0;
   }
   // Propagate whitelist to child
   inherit_interest(parent_tgid, child_tgid);
-  // bpf_printk("fork %d %d", parent_tgid, child_tgid);
+  LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
   struct process_event event = {};
   event.event_type = EVENT_FORK;
@@ -127,14 +126,14 @@ int sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {
   // Check whitelist
   char *res = bpf_map_lookup_elem(&whitelist, image);
   if (res) {
-    bpf_printk("whitelisting %s", image);
+    LOG_DEBUG("whitelisting %s", image);
     update_interest(tgid, false, res);
   }
 
   // Check target list
   res = bpf_map_lookup_elem(&target, image);
   if (res) {
-    bpf_printk("targeting %s", image);
+    LOG_DEBUG("targeting %s", image);
     update_interest(tgid, true, res);
   }
 
@@ -152,7 +151,7 @@ int sched_process_exit(void *ctx) {
 
   // cleanup resources from map_interest
   if (bpf_map_delete_elem(&map_interest, &tgid) != 0) {
-    bpf_printk("%d not found in map_interest during exit", tgid);
+    LOG_DEBUG("%d not found in map_interest during exit", tgid);
   }
 
   struct process_event event = {};
@@ -163,8 +162,8 @@ int sched_process_exit(void *ctx) {
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   event.exit.exit_code = BPF_CORE_READ(task, exit_code) >> 8;
 
-  bpf_printk("exit %d -> %d at %ld", tgid, event.exit.exit_code,
-             event.timestamp);
+  LOG_DEBUG("exit %d -> %d at %ld", tgid, event.exit.exit_code,
+            event.timestamp);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
                         sizeof(struct process_event));
   return 0;

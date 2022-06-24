@@ -4,10 +4,24 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-// Disable bpf_printk on release builds
-#ifndef ALLOW_PRINTK
-#define bpf_printk(fmt, ...) ({})
-#endif
+#define LOG_LEVEL_NONE 0
+#define LOG_LEVEL_ERROR 1
+#define LOG_LEVEL_DEBUG 2
+const volatile int log_level = 0;
+
+#define LOG_DEBUG(fmt, ...)                                                    \
+  ({                                                                           \
+    if (log_level >= LOG_LEVEL_DEBUG) {                                        \
+      bpf_printk("[%s] " fmt, __func__, ##__VA_ARGS__);                        \
+    }                                                                          \
+  })
+
+#define LOG_ERROR(fmt, ...)                                                    \
+  ({                                                                           \
+    if (log_level >= LOG_LEVEL_ERROR) {                                        \
+      bpf_printk("[%s] " fmt " (ERROR)", __func__, ##__VA_ARGS__);             \
+    }                                                                          \
+  })
 
 // ========================= POLICY TRACKING ==============================
 // The following code contains the eBPF side of the Tracking Policy defined
@@ -47,15 +61,15 @@ static __always_inline bool interesting(u32 tgid) {
   u8 *value = (u8 *)bpf_map_lookup_elem(&map_interest, &tgid);
   // If we can't find an element, we process it
   if (value == NULL) {
-#ifdef ALLOW_PRINTK
-    // We want to warn about missing entries in map_interest, but only
-    // if process tracking is running. We check if map_interest contains
-    // pid 1, which should always exist.
-    u32 pid_init = 1;
-    if (bpf_map_lookup_elem(&map_interest, &pid_init)) {
-      bpf_printk("map_interest is missing entry for pid %d", tgid);
+    if (log_level >= LOG_LEVEL_ERROR) {
+      // We want to warn about missing entries in map_interest, but only
+      // if process tracking is running. We check if map_interest contains
+      // pid 1, which should always exist.
+      u32 pid_init = 1;
+      if (bpf_map_lookup_elem(&map_interest, &pid_init)) {
+        LOG_ERROR("missing entry for pid %d", tgid);
+      }
     }
-#endif
     return true;
   }
   bool target = *value & POLICY_INTERESTING;
@@ -79,7 +93,7 @@ static __always_inline void inherit_interest(u32 parent, u32 child) {
   }
   long res = bpf_map_update_elem(&map_interest, &child, &policy, BPF_ANY);
   if (res != 0) {
-    bpf_printk("error inheriting interest for %d (%d)", child, res);
+    LOG_ERROR("error inheriting interest for %d (%d)", child, res);
   }
 }
 
@@ -92,7 +106,7 @@ static __always_inline void update_interest(u32 tgid, bool interest,
   if (p_policy != NULL) {
     policy = *p_policy;
   } else {
-    bpf_printk("policy for %d not found", tgid);
+    LOG_ERROR("policy for %d not found", tgid);
     policy = POLICY_INTERESTING | POLICY_CHILDREN_INTERESTING;
   }
 
@@ -112,7 +126,7 @@ static __always_inline void update_interest(u32 tgid, bool interest,
 
   long res = bpf_map_update_elem(&map_interest, &tgid, &policy, BPF_ANY);
   if (res != 0) {
-    bpf_printk("error updating interest for %d (%d)", tgid, res);
+    LOG_ERROR("updating interest for %d (%d)", tgid, res);
   }
 }
 
