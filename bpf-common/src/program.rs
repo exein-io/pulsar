@@ -147,6 +147,7 @@ impl ProgramBuilder {
             let mut bpf = BpfLoader::new()
                 .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
+                .set_global("log_level", &2)
                 .load(&self.probe)?;
             for (section, tracepoint) in self.tracepoints {
                 let tp: &mut TracePoint = bpf

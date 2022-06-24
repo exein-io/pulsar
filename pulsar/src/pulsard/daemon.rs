@@ -63,7 +63,7 @@ impl PulsarDaemon {
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages)?;
 
         #[cfg(debug_assertions)]
-        let trace_pipe_handle = if general_config.with_default("trace", false)? {
+        let trace_pipe_handle = if general_config.with_default("trace", true)? {
             let s_handle = bpf_common::trace_pipe::start();
             Some(s_handle)
         } else {
