@@ -291,7 +291,7 @@ impl Program {
 }
 
 #[cfg(feature = "test-utils")]
-pub fn load_test_program(probe: Vec<u8>) -> Result<Bpf, ProgramError> {
+pub fn load_test_program(probe: &[u8]) -> Result<Bpf, ProgramError> {
     let _ = std::fs::create_dir(PINNED_MAPS_PATH);
     let bpf = BpfLoader::new()
         .map_pin_path(PINNED_MAPS_PATH)
