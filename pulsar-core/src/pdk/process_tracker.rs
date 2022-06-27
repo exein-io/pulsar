@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use bpf_common::{time::Timestamp, Pid};
 use thiserror::Error;
@@ -110,10 +110,10 @@ struct ProcessData {
     fork_time: Timestamp,
     exit_time: Option<Timestamp>,
     original_image: String,
-    exec_changes: Vec<(
+    exec_changes: BTreeMap<
         Timestamp, // exec event timestamp
         String,    // new image name
-    )>,
+    >,
 }
 
 /// Cleanup timeout in nanoseconds. This is how long an exited process
@@ -135,7 +135,7 @@ impl ProcessTracker {
                 fork_time: Timestamp::from(0),
                 exit_time: None,
                 original_image: "kernel".to_string(),
-                exec_changes: vec![],
+                exec_changes: BTreeMap::new(),
             },
         );
         Self {
@@ -209,7 +209,7 @@ impl ProcessTracker {
                         fork_time: timestamp,
                         exit_time: None,
                         original_image: self.get_image(ppid, timestamp),
-                        exec_changes: Vec::new(),
+                        exec_changes: BTreeMap::new(),
                     },
                 );
                 if let Some(pending_updates) = self.pending_updates.remove(&pid) {
@@ -224,8 +224,7 @@ impl ProcessTracker {
                 ref image,
             } => {
                 if let Some(p) = self.data.get_mut(&pid) {
-                    p.exec_changes.push((timestamp, image.to_string()));
-                    p.exec_changes.sort_by_key(|p| p.0.raw());
+                    p.exec_changes.insert(timestamp, image.to_string());
                 } else {
                     // if exec arrived before the fork, we save the event as pending
                     log::debug!("(exec) Process {pid} not found in process tree, saving for later");
@@ -274,9 +273,9 @@ impl ProcessTracker {
         match self.data.get(&pid) {
             Some(p) => p
                 .exec_changes
-                .iter()
-                .rev()
-                .find_map(|(exec_ts, image)| (exec_ts.raw() <= ts.raw()).then(|| image))
+                .range(..=ts)
+                .next_back()
+                .map(|(_timestamp, image)| image)
                 .unwrap_or(&p.original_image)
                 .clone(),
             None => String::new(),
@@ -294,7 +293,7 @@ impl ProcessTracker {
                     log::trace!(
                         "deleting [{}:{:?}] from process_tracker",
                         pid,
-                        v.exec_changes.last()
+                        v.exec_changes.iter().last()
                     );
                     false
                 }
