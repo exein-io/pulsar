@@ -59,7 +59,7 @@ pub fn program(ctx: BpfContext, mut sender: impl BpfSender<ActivityT>) -> Progra
 
             sender.send(Ok(BpfEvent {
                 pid: Pid::from_raw(pid),
-                timestamp: Timestamp::from(*activity.calls.iter().find(|x| x != &&0).unwrap()),
+                timestamp: Timestamp::now(),
                 payload: activity,
             }))
         }
@@ -70,7 +70,6 @@ pub fn program(ctx: BpfContext, mut sender: impl BpfSender<ActivityT>) -> Progra
 #[derive(Clone, Copy, PartialEq)]
 #[repr(C)]
 pub struct ActivityT {
-    calls: [u64; MAX_SYSCALLS],
     histogram: [u64; MAX_SYSCALLS],
 }
 
@@ -79,7 +78,6 @@ unsafe impl Pod for ActivityT {}
 impl Default for ActivityT {
     fn default() -> Self {
         Self {
-            calls: [0; MAX_SYSCALLS],
             histogram: [0; MAX_SYSCALLS],
         }
     }
@@ -90,7 +88,7 @@ impl fmt::Display for ActivityT {
         let mut space = String::new();
         for syscall in 0..MAX_SYSCALLS {
             let n = self.histogram[syscall];
-            if n > 0 || self.calls[syscall] > 0 {
+            if n > 0 {
                 let syscall_name = SYSCALLS.get(&syscall).unwrap_or(&"??");
                 write!(f, "{space}{syscall_name}x{n}")?;
                 space = " ".to_string();
@@ -122,7 +120,6 @@ pub mod pulsar {
         fn from(data: ActivityT) -> Self {
             Payload::SyscallActivity {
                 histogram: data.histogram.into(),
-                calls: data.calls.into(),
             }
         }
     }
@@ -137,9 +134,7 @@ mod tests {
     fn activity_display() {
         let mut activity = ActivityT::default();
         assert_eq!(activity.to_string(), "");
-        activity.calls[42] = 111111;
         activity.histogram[42] = 10;
-        activity.calls[46] = 111119;
         activity.histogram[46] = 9;
         assert_eq!(
             activity.to_string(),
@@ -160,9 +155,7 @@ mod tests {
             .await;
         let unlink_syscall: usize = *SYSCALLS.iter().find(|(_, v)| **v == "UNLINK").unwrap().0;
         result.expect(|e: &BpfEvent<ActivityT>| {
-            e.pid.as_raw() as u32 == std::process::id()
-                && e.payload.histogram[unlink_syscall] == 1
-                && result.was_running_at(e.payload.calls[unlink_syscall].into())
+            e.pid.as_raw() as u32 == std::process::id() && e.payload.histogram[unlink_syscall] == 1
         });
     }
 }

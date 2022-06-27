@@ -100,8 +100,6 @@ pub enum Payload {
     SyscallActivity {
         #[validatron(skip)]
         histogram: Vec<u64>,
-        #[validatron(skip)]
-        calls: Vec<u64>,
     },
     Bind {
         address: SocketAddr,

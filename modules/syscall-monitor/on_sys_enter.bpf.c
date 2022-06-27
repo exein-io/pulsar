@@ -7,7 +7,6 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define MAX_SYSCALLS 512
 
 typedef struct activity {
-  uint64_t calls[MAX_SYSCALLS];
   uint64_t histogram[MAX_SYSCALLS];
 } activity_t;
 
@@ -66,7 +65,6 @@ int sys_enter(struct trace_event_raw_sys_enter *ctx) {
   // limit the index to avoid "unbounded memory access, make sure to bounds
   // check any array access into a map"
   uint32_t syscall_number = ctx->id & (MAX_SYSCALLS - 1);
-  activity->calls[syscall_number] = bpf_ktime_get_ns();
   activity->histogram[syscall_number]++;
   bpf_map_update_elem(&activities, &tgid, activity, BPF_ANY);
 
