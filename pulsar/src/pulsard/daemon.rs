@@ -6,8 +6,9 @@ use bpf_common::program::{BpfContext, Pinning, PERF_PAGES_DEFAULT};
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        process_tracker::ProcessTrackerHandle, ModuleConfig, ModuleDetails, ModuleOverview,
-        ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
+        process_tracker::{start_process_tracker, ProcessTrackerHandle},
+        ModuleConfig, ModuleDetails, ModuleOverview, ModuleStatus, PulsarDaemonCommand,
+        PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
     },
 };
 use tokio::sync::mpsc;
@@ -55,7 +56,7 @@ impl PulsarDaemon {
         };
 
         let mut m = HashMap::new();
-        let process_tracker = ProcessTrackerHandle::new();
+        let process_tracker = start_process_tracker();
 
         let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
         let perf_pages = general_config.with_default("perf_pages", PERF_PAGES_DEFAULT)?;

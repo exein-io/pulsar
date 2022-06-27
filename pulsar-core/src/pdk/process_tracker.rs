@@ -7,6 +7,13 @@ use tokio::{
     time,
 };
 
+pub fn start_process_tracker() -> ProcessTrackerHandle {
+    let (tx, rx) = mpsc::unbounded_channel();
+    let mut process_tracker = ProcessTracker::new(rx);
+    tokio::spawn(async move { process_tracker.run().await });
+    ProcessTrackerHandle { tx }
+}
+
 #[derive(Clone)]
 pub struct ProcessTrackerHandle {
     tx: mpsc::UnboundedSender<TrackerRequest>,
@@ -59,13 +66,6 @@ pub struct ProcessInfo {
 }
 
 impl ProcessTrackerHandle {
-    pub fn new() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let mut process_tracker = ProcessTracker::new(rx);
-        tokio::spawn(async move { process_tracker.run().await });
-        Self { tx }
-    }
-
     pub async fn get(&self, pid: Pid, ts: Timestamp) -> Result<ProcessInfo, TrackerError> {
         let (tx_reply, rx_reply) = oneshot::channel();
         let r = self.tx.send(TrackerRequest::GetProcessInfo(InfoRequest {
@@ -82,12 +82,6 @@ impl ProcessTrackerHandle {
     pub fn update(&self, request: TrackerUpdate) {
         let r = self.tx.send(TrackerRequest::UpdateProcess(request));
         assert!(r.is_ok());
-    }
-}
-
-impl Default for ProcessTrackerHandle {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -343,7 +337,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_processes_by_default() {
-        let process_tracker = ProcessTrackerHandle::new();
+        let process_tracker = start_process_tracker();
         assert_eq!(
             process_tracker.get(PID_1, 0.into()).await,
             Err(TrackerError::ProcessNotFound)
@@ -352,7 +346,7 @@ mod tests {
 
     #[tokio::test]
     async fn different_response_depending_on_timestamp() {
-        let process_tracker = ProcessTrackerHandle::new();
+        let process_tracker = start_process_tracker();
         assert_eq!(
             process_tracker.get(PID_2, 0.into()).await,
             Err(TrackerError::ProcessNotFound)
@@ -403,7 +397,7 @@ mod tests {
     #[tokio::test]
     async fn pending_events() {
         // on multi-core machines we could get the exec/exit events before its fork
-        let process_tracker = ProcessTrackerHandle::new();
+        let process_tracker = start_process_tracker();
         process_tracker.update(TrackerUpdate::Exit {
             pid: PID_2,
             timestamp: 18.into(),
