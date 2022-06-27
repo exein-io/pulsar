@@ -12,7 +12,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
-    let program = ProgramBuilder::new(ctx, MODULE_NAME, process_monitor_ebpf())
+    let program = ProgramBuilder::new(ctx, MODULE_NAME, PROCESS_MONITOR_PROBE.into())
         .tracepoint("sched", "sched_process_exec")
         .tracepoint("sched", "sched_process_exit")
         .kprobe("wake_up_new_task")
@@ -22,9 +22,8 @@ pub async fn program(
     Ok(program)
 }
 
-fn process_monitor_ebpf() -> Vec<u8> {
-    include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into()
-}
+static PROCESS_MONITOR_PROBE: &[u8] =
+    include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o"));
 
 const NAME_MAX: usize = 264;
 
@@ -258,7 +257,7 @@ mod tests {
             (Some((false, false)), false),
         ] {
             // load ebpf and clear interest map
-            let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+            let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
             attach_fork_kprobe(&mut bpf);
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
@@ -299,7 +298,7 @@ mod tests {
             [(true, true), (true, false), (false, true), (false, false)]
         {
             // load ebpf and clear interest map
-            let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+            let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
             attach_tracepoint(&mut bpf, "sched_process_exec");
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
@@ -388,7 +387,7 @@ mod tests {
     #[serial_test::serial]
     fn threads_are_ignored() {
         // load ebpf and clear interest map
-        let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+        let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
         attach_fork_kprobe(&mut bpf);
         let mut interest_map = InterestMap::load(&mut bpf).unwrap();
         interest_map.clear().unwrap();
@@ -412,7 +411,7 @@ mod tests {
     #[serial_test::serial]
     fn exit_cleans_up_resources() {
         // setup
-        let mut bpf = load_test_program(process_monitor_ebpf()).unwrap();
+        let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
         attach_tracepoint(&mut bpf, "sched_process_exit");
         let mut interest_map = InterestMap::load(&mut bpf).unwrap();
         interest_map.clear().unwrap();
