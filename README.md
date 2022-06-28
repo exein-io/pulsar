@@ -6,8 +6,9 @@
   </p>
   <p>
     <a href="https://github.com/Exein-io/pulsar/actions/workflows/test.yml">
-      <img src="https://github.com/Exein-io/pulsar-experiments/actions/workflows/test.yml/badge.svg?branch=main" alt="Lint and Tests">
+      <img src="https://github.com/Exein-io/pulsar/actions/workflows/test.yml/badge.svg?branch=main" alt="Lint and Tests">
     </a>
+    <a href="https://discord.gg/ZrySDqhBtZ"><img src="https://img.shields.io/discord/986983233256321075?color=%2331c753&logo=discord">
     <a href="https://opensource.org/licenses/Apache-2.0">
       <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License">
       <img src="https://img.shields.io/badge/License-GPL--2.0-blue.svg" alt="License">
