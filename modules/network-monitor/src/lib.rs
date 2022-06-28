@@ -486,32 +486,32 @@ mod tests {
         // the original creator the connection. This happens for example if it
         // receives a SIGKILL. We test this to make sure we're still emitting
         // an event with the correct origianl pid.
-        // The positive side of this is that we don't have any leak in the
-        // tcp_set_state_map since the close signal will be generated even
-        // if the process prematurely exited.
-        TestRunner::with_ebpf(program)
+        let result = TestRunner::with_ebpf(program)
             .run(|| match unsafe { fork() }.unwrap() {
                 ForkResult::Child => {
                     let _conn = TcpStream::connect(dest).unwrap();
                     unreachable!();
                 }
                 ForkResult::Parent { child } => {
-                    expected_pid = dbg!(child);
+                    expected_pid = child;
                     let (_connection, addr) = listener.accept().unwrap();
                     unsafe { kill(child.as_raw(), 9) };
                     source = addr;
                     std::thread::sleep(Duration::from_millis(100));
                 }
             })
-            .await
-            .expect_event_from_pid(
-                Pid::from_raw(0),
-                event_check!(
-                    NetworkEvent::Close,
-                    (original_pid, expected_pid, "original pid"),
-                    (src, source.into(), "source address"),
-                    (dst, dest.into(), "dest address")
-                ),
+            .await;
+        // We use a custom check where we ignore the event pid since
+        // it might be 0 or a ksoftirqd process.
+        result.expect_custom_event({
+            let mut checks = event_check!(
+                NetworkEvent::Close,
+                (original_pid, expected_pid, "original pid"),
+                (src, source.into(), "source address"),
+                (dst, dest.into(), "dest address")
             );
+            checks.push(result.timestamp_check());
+            checks
+        });
     }
 }
