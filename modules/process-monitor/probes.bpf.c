@@ -162,8 +162,8 @@ int sched_process_exit(void *ctx) {
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   event.exit.exit_code = BPF_CORE_READ(task, exit_code) >> 8;
 
-  LOG_DEBUG("exit %d -> %d at %ld", tgid, event.exit.exit_code,
-            event.timestamp);
+  LOG_DEBUG("exitited at %ld with code %d", event.timestamp,
+            event.exit.exit_code);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
                         sizeof(struct process_event));
   return 0;

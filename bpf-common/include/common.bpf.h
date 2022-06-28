@@ -9,6 +9,8 @@
 #define LOG_LEVEL_DEBUG 2
 const volatile int log_level = 0;
 
+// NOTE: bpf_printk supports up to 3 arguments, while these LOG_ macros
+// allow only up to 2 arguments since one is used by the probe name.
 #define LOG_DEBUG(fmt, ...)                                                    \
   ({                                                                           \
     if (log_level >= LOG_LEVEL_DEBUG) {                                        \
