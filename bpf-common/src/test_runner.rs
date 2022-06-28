@@ -22,6 +22,7 @@
 
 use std::{fmt::Display, future::Future, pin::Pin, time::Duration};
 
+use anyhow::Context;
 use tokio::sync::mpsc;
 
 use crate::{
@@ -65,7 +66,7 @@ impl<T: Display> TestRunner<T> {
     {
         #[cfg(debug_assertions)]
         let _stop_handle = crate::trace_pipe::start();
-        let _program = self.ebpf.await;
+        let _program = self.ebpf.await.context("running eBPF").unwrap();
         // Run the triggering code
         let start_time = Timestamp::now();
         trigger_program();
