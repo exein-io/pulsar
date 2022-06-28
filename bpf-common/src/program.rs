@@ -263,7 +263,7 @@ impl Program {
             .map(|cpu_id| {
                 perf_array
                     .open(cpu_id, Some(self.ctx.perf_pages))
-                    .map_err(|e| ProgramError::from(e))
+                    .map_err(ProgramError::from)
             })
             .collect::<Result<Vec<_>, ProgramError>>()?;
         for mut buf in maps {
@@ -309,7 +309,7 @@ pub fn load_test_program(probe: &[u8]) -> Result<Bpf, ProgramError> {
     let _ = std::fs::create_dir(PINNED_MAPS_PATH);
     let bpf = BpfLoader::new()
         .map_pin_path(PINNED_MAPS_PATH)
-        .load(&probe)?;
+        .load(probe)?;
     Ok(bpf)
 }
 
