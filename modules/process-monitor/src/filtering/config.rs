@@ -13,7 +13,7 @@ pub(crate) struct Config {
 #[derive(Clone, Debug)]
 pub(crate) struct Rule {
     /// This rule applies to all processes matching this process name
-    pub(crate) image: String,
+    pub(crate) image: Vec<u8>,
     /// If true, this rule is applied to all children of this process
     /// until a new rule with `with_children=true` applies.
     pub(crate) with_children: bool,
@@ -25,6 +25,8 @@ pub(crate) struct PidRule {
     pub(crate) pid: Pid,
     pub(crate) with_children: bool,
 }
+
+pub const MAX_IMAGE_LEN: usize = 100;
 
 /// Extract Config from configuration file
 impl TryFrom<&ModuleConfig> for Config {
@@ -46,33 +48,11 @@ impl TryFrom<&ModuleConfig> for Config {
                 }),
         );
         let mut targets = Vec::new();
-        targets.extend(config.get_list("targets")?.into_iter().map(|image| Rule {
-            image,
-            with_children: false,
-        }));
-        targets.extend(
-            config
-                .get_list("targets_children")?
-                .into_iter()
-                .map(|image| Rule {
-                    image,
-                    with_children: true,
-                }),
-        );
+        targets.extend(get_rules(config, "targets", false)?);
+        targets.extend(get_rules(config, "targets_children", true)?);
         let mut whitelist = Vec::new();
-        whitelist.extend(config.get_list("whitelist")?.into_iter().map(|image| Rule {
-            image,
-            with_children: false,
-        }));
-        whitelist.extend(
-            config
-                .get_list("whitelist_children")?
-                .into_iter()
-                .map(|image| Rule {
-                    image,
-                    with_children: true,
-                }),
-        );
+        whitelist.extend(get_rules(config, "whitelist", false)?);
+        whitelist.extend(get_rules(config, "whitelist_children", true)?);
 
         Ok(Config {
             pid_targets,
@@ -80,4 +60,37 @@ impl TryFrom<&ModuleConfig> for Config {
             whitelist,
         })
     }
+}
+
+/// Create a list of rules from the given config field, which must contain
+/// a list of process images (ascii strings smaller than MAX_IMAGE_LEN)
+fn get_rules(
+    config: &ModuleConfig,
+    field: &'static str,
+    with_children: bool,
+) -> Result<Vec<Rule>, ConfigError> {
+    let images: Vec<String> = config.get_list(field)?;
+    images
+        .into_iter()
+        .map(move |image| {
+            if !image.is_ascii() {
+                Err(ConfigError::InvalidValue {
+                    field: field.to_string(),
+                    value: image,
+                    err: "process image must be ascii".to_string(),
+                })
+            } else if image.len() >= MAX_IMAGE_LEN {
+                Err(ConfigError::InvalidValue {
+                    field: field.to_string(),
+                    value: image,
+                    err: format!("process image must be smaller than {MAX_IMAGE_LEN}"),
+                })
+            } else {
+                Ok(Rule {
+                    image: image.bytes().collect(),
+                    with_children,
+                })
+            }
+        })
+        .collect()
 }
