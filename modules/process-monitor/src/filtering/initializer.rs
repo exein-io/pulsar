@@ -135,8 +135,9 @@ impl Initializer {
             children_interesting: inherited_interest,
         };
         let config = &self.config;
-        let whitelist_match = config.whitelist.iter().find(|r| r.image == process.image);
-        let targets_match = config.targets.iter().find(|r| r.image == process.image);
+        let image: Vec<u8> = process.image.bytes().collect();
+        let whitelist_match = config.whitelist.iter().find(|r| r.image == image);
+        let targets_match = config.targets.iter().find(|r| r.image == image);
         let pid_targets_match = config.pid_targets.iter().find(|r| r.pid == process.pid);
         if let Some(rule) = whitelist_match {
             decision.interesting = false;
