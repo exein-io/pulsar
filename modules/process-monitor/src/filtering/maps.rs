@@ -95,7 +95,7 @@ impl RuleMap {
     /// Fill the map with a list of rules
     pub(crate) fn install(&mut self, rules: &Vec<Rule>) -> Result<(), MapError> {
         for rule in rules {
-            let mut src = rule.image.clone();
+            let mut src = rule.image.as_vec().clone();
             src.resize(MAX_IMAGE_LEN, 0);
             let mut image: Image = Image([0; MAX_IMAGE_LEN]);
             image.0.clone_from_slice(&src[..]);

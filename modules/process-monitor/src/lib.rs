@@ -304,9 +304,9 @@ mod tests {
             interest_map.clear().unwrap();
 
             // add rule to target echo
-            let image = b"/usr/bin/echo";
+            let image = "/usr/bin/echo";
             let rule = Rule {
-                image: image.to_vec(),
+                image: image.parse().unwrap(),
                 with_children,
             };
             let rules = vec![rule];
@@ -333,7 +333,7 @@ mod tests {
                     let pid = std::process::id() as i32;
                     interest_map_ref.0.insert(pid, old_value, 0).unwrap();
                     execv(
-                        &CString::new(image.to_vec()).unwrap(),
+                        &CString::new(image).unwrap(),
                         &[CString::new("hello world").unwrap()],
                     )
                     .unwrap();
