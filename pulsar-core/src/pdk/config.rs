@@ -3,7 +3,7 @@ use std::{
         hash_map::{IntoIter, Iter},
         HashMap,
     },
-    fmt::Debug,
+    fmt::{Debug, Display},
     str::FromStr,
 };
 
@@ -63,7 +63,7 @@ impl ModuleConfig {
     pub fn get_list<T>(&self, config_name: &str) -> Result<Vec<T>, ConfigError>
     where
         T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+        <T as FromStr>::Err: Display,
     {
         self.inner
             .get(config_name)
@@ -106,7 +106,7 @@ impl ModuleConfig {
 fn parse<T>(value: &str, config_name: &str) -> Result<T, ConfigError>
 where
     T: FromStr,
-    <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+    <T as FromStr>::Err: Display,
 {
     T::from_str(value).map_err(|err| ConfigError::InvalidValue {
         field: config_name.to_string(),

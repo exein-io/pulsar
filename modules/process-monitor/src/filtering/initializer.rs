@@ -136,8 +136,8 @@ impl Initializer {
         };
         let config = &self.config;
         let image: Vec<u8> = process.image.bytes().collect();
-        let whitelist_match = config.whitelist.iter().find(|r| r.image == image);
-        let targets_match = config.targets.iter().find(|r| r.image == image);
+        let whitelist_match = config.whitelist.iter().find(|r| r.image.as_vec() == &image);
+        let targets_match = config.targets.iter().find(|r| r.image.as_vec() == &image);
         let pid_targets_match = config.pid_targets.iter().find(|r| r.pid == process.pid);
         if let Some(rule) = whitelist_match {
             decision.interesting = false;

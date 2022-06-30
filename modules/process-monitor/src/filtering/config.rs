@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use bpf_common::Pid;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
@@ -13,7 +15,7 @@ pub(crate) struct Config {
 #[derive(Clone, Debug)]
 pub(crate) struct Rule {
     /// This rule applies to all processes matching this process name
-    pub(crate) image: Vec<u8>,
+    pub(crate) image: Image,
     /// If true, this rule is applied to all children of this process
     /// until a new rule with `with_children=true` applies.
     pub(crate) with_children: bool,
@@ -63,34 +65,40 @@ impl TryFrom<&ModuleConfig> for Config {
 }
 
 /// Create a list of rules from the given config field, which must contain
-/// a list of process images (ascii strings smaller than MAX_IMAGE_LEN)
+/// a list of process images
 fn get_rules(
     config: &ModuleConfig,
     field: &'static str,
     with_children: bool,
-) -> Result<Vec<Rule>, ConfigError> {
-    let images: Vec<String> = config.get_list(field)?;
-    images
-        .into_iter()
-        .map(move |image| {
-            if !image.is_ascii() {
-                Err(ConfigError::InvalidValue {
-                    field: field.to_string(),
-                    value: image,
-                    err: "process image must be ascii".to_string(),
-                })
-            } else if image.len() >= MAX_IMAGE_LEN {
-                Err(ConfigError::InvalidValue {
-                    field: field.to_string(),
-                    value: image,
-                    err: format!("process image must be smaller than {MAX_IMAGE_LEN}"),
-                })
-            } else {
-                Ok(Rule {
-                    image: image.bytes().collect(),
-                    with_children,
-                })
-            }
-        })
-        .collect()
+) -> Result<impl Iterator<Item = Rule>, ConfigError> {
+    Ok(config.get_list(field)?.into_iter().map(move |image| Rule {
+        image,
+        with_children,
+    }))
+}
+
+/// Process name. Invariant: this is valid ASCII and smaller than MAX_IMAGE_LEN
+#[derive(Clone, Debug)]
+pub(crate) struct Image(Vec<u8>);
+
+impl Image {
+    pub(crate) fn as_vec(&self) -> &Vec<u8> {
+        &self.0
+    }
+}
+
+impl FromStr for Image {
+    type Err = String;
+
+    fn from_str(image: &str) -> Result<Self, Self::Err> {
+        if !image.is_ascii() {
+            Err("process image must be ascii".to_string())
+        } else if image.len() >= MAX_IMAGE_LEN {
+            Err(format!(
+                "process image must be smaller than {MAX_IMAGE_LEN}"
+            ))
+        } else {
+            Ok(Image(image.bytes().collect()))
+        }
+    }
 }
