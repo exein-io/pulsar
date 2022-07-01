@@ -14,16 +14,14 @@ async fn logger_task(
     mut shutdown: ShutdownSignal,
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_cfg::<Config>();
-    let config = rx_config.borrow().clone()?;
-    let mut logger = Logger::from_config(config);
+    let mut rx_config = ctx.get_config();
+    let mut logger = Logger::from_config(rx_config.parse()?);
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                let config = rx_config.borrow().clone()?;
-                logger = Logger::from_config(config);
+                logger = Logger::from_config(rx_config.parse()?);
             }
             msg = receiver.recv() => {
                 let msg = msg?;

@@ -104,8 +104,8 @@ pub mod pulsar {
     ) -> Result<CleanExit, ModuleError> {
         let _program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
         let mut receiver = ctx.get_receiver();
-        let mut rx_config = ctx.get_cfg::<Config>();
-        let mut config = ctx.get_cfg::<Config>().borrow().clone()?;
+        let mut rx_config = ctx.get_config();
+        let mut config: Config = rx_config.parse()?;
         let sender = ctx.get_sender();
         loop {
             // enable receiver only if the elf checker is enabled
@@ -121,7 +121,7 @@ pub mod pulsar {
                     check_elf(&sender, &config, msg.as_ref()).await;
                 }
                 _ = rx_config.changed() => {
-                    config = rx_config.borrow().clone()?;
+                    config = rx_config.parse()?;
                 }
                 r = shutdown.recv() => return r,
             }

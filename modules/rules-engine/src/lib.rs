@@ -22,15 +22,16 @@ async fn rules_engine_task(
     mut shutdown: ShutdownSignal,
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_cfg::<Config>();
-
-    let mut engine = PulsarEngine::new(&rx_config.borrow().clone()?.rules_path, ctx.get_sender())?;
+    let mut rx_config = ctx.get_config();
+    let config: Config = rx_config.parse()?;
+    let mut engine = PulsarEngine::new(&config.rules_path, ctx.get_sender())?;
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                engine = PulsarEngine::new(&rx_config.borrow().clone()?.rules_path, ctx.get_sender())?;
+                let config: Config = rx_config.parse()?;
+                engine = PulsarEngine::new(&config.rules_path, ctx.get_sender())?;
             }
             // handle pulsar message
             event = receiver.recv() => {

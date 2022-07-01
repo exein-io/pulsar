@@ -13,7 +13,7 @@ use super::{process_tracker::ProcessTrackerHandle, ConfigError, ModuleError, Mod
 #[derive(Clone)]
 pub struct ModuleContext {
     module_name: ModuleName,
-    cfg: watch::Receiver<ModuleConfig>,
+    cfg: ModuleConfigReceiver,
     bus: Bus,
     error_sender: ErrorSender,
     daemon_handle: PulsarDaemonHandle,
@@ -24,7 +24,7 @@ pub struct ModuleContext {
 impl ModuleContext {
     /// Constructs a new `ModuleContext< B: Bus>`
     pub fn new(
-        cfg: watch::Receiver<ModuleConfig>,
+        cfg: ModuleConfigReceiver,
         bus: Bus,
         module_name: ModuleName,
         error_sender: ErrorSender,
@@ -109,31 +109,45 @@ impl ModuleContext {
         self.daemon_handle.clone()
     }
 
-    /// Get a [`tokio::sync::watch::Receiver`] of typed [`Result<T, String>`] for the module configuration.
-    ///
-    /// It can be used to receive always the last configuration without stop the module.
-    ///
-    /// It receives an [`Err`] if the configuration doesn't parse correctly.
-    pub fn get_cfg<T>(&self) -> watch::Receiver<Result<T, ConfigError>>
-    where
-        T: Send + Sync + 'static,
-        for<'foo> T: TryFrom<&'foo ModuleConfig, Error = ConfigError>,
-    {
-        let mut rx_raw = self.cfg.clone();
-        let initial_value = T::try_from(&rx_raw.borrow());
-        let (tx_converted, rx_converted) = watch::channel(initial_value);
-
-        tokio::spawn(async move {
-            while rx_raw.changed().await.is_ok() {
-                let new_value = T::try_from(&rx_raw.borrow());
-                let _ = tx_converted.send_replace(new_value);
-            }
-        });
-
-        rx_converted
+    pub fn get_config(&self) -> ModuleConfigReceiver {
+        self.cfg.clone()
     }
 
     pub fn get_bpf_context(&self) -> BpfContext {
         self.bpf_context.clone()
+    }
+}
+
+#[derive(Clone)]
+pub struct ModuleConfigReceiver(watch::Receiver<ModuleConfig>);
+
+impl ModuleConfigReceiver {
+    pub fn new(rx: watch::Receiver<ModuleConfig>) -> Self {
+        Self(rx)
+    }
+
+    pub fn borrow(&self) -> watch::Ref<'_, ModuleConfig> {
+        self.0.borrow()
+    }
+
+    /// Get a [`Result<T, String>`] for the module configuration.
+    ///
+    /// It can be used to receive the lastest parsed configuration.
+    /// T Must implement [`TryFrom<&ModuleConfig, Error = ConfigError>`]
+    ///
+    /// It receives an [`Err`] if the configuration doesn't parse correctly.
+    pub fn parse<T>(&self) -> Result<T, ConfigError>
+    where
+        T: Send + Sync + 'static,
+        for<'foo> T: TryFrom<&'foo ModuleConfig, Error = ConfigError>,
+    {
+        T::try_from(&self.0.borrow())
+    }
+
+    /// Get notified of a configuration change.
+    pub async fn changed(&mut self) {
+        // This can't fail because the sender half of this channel is never dropped.
+        // Its lifetime is bound to PulsarConfig in `pulsar::pulsard::pulsar_daemon_run`
+        self.0.changed().await.expect("Config sender dropped");
     }
 }
