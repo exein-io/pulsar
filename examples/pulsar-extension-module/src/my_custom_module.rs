@@ -22,8 +22,8 @@ async fn module_task(
     let mut receiver = ctx.get_receiver();
 
     // Get the configuration of your own module
-    let mut rx_config = ctx.get_cfg::<MyModuleConfig>();
-    let mut config = rx_config.borrow().clone()?;
+    let mut rx_config = ctx.get_config();
+    let mut config: MyModuleConfig = rx_config.parse()?;
 
     // Get a channel for sending new events
     let sender = ctx.get_sender();
@@ -32,7 +32,7 @@ async fn module_task(
         tokio::select! {
             // Handle configuration changes:
             _ = rx_config.changed() => {
-                config = rx_config.borrow().clone()?;
+                config = rx_config.parse()?;
                 println!("Configuration changed: {config:?}");
             }
 

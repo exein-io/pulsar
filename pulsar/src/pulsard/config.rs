@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use pulsar_core::pdk::ModuleConfig;
+use pulsar_core::pdk::{ModuleConfig, ModuleConfigReceiver};
 use tokio::sync::watch;
 
 const DEFAULT_CONFIG_FILE: &str = "/var/lib/pulsar/pulsar.ini";
@@ -79,8 +79,9 @@ impl PulsarConfig {
     }
 
     /// Get [`watch::Receiver`] of a module configuration. This is intended to be used in modules.
-    pub fn get_watched_module_config(&self, module: &str) -> watch::Receiver<ModuleConfig> {
-        self.inner
+    pub fn get_watched_module_config(&self, module: &str) -> ModuleConfigReceiver {
+        let rx = self
+            .inner
             .lock()
             .unwrap()
             .configs
@@ -89,7 +90,8 @@ impl PulsarConfig {
                 let (tx, _) = watch::channel(ModuleConfig::default());
                 tx
             })
-            .subscribe()
+            .subscribe();
+        ModuleConfigReceiver::new(rx)
     }
 
     /// Get module configuration. This is intended to be used when a single access is enought.

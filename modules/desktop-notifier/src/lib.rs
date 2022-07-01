@@ -24,14 +24,14 @@ async fn desktop_nitifier_task(
     mut shutdown: ShutdownSignal,
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_cfg::<Config>();
-    let mut config = rx_config.borrow().clone()?;
+    let mut rx_config = ctx.get_config();
+    let mut config = rx_config.parse()?;
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                config = rx_config.borrow().clone()?;
+                config = rx_config.parse()?;
                 continue;
             }
             msg = receiver.recv() => {
