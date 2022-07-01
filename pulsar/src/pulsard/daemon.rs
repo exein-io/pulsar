@@ -70,7 +70,7 @@ impl PulsarDaemon {
         };
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
         #[cfg(debug_assertions)]
-        let trace_pipe_handle = bpf_common::trace_pipe::start();
+        let trace_pipe_handle = bpf_common::trace_pipe::start().await;
 
         // Initialize bus
         let bus = Bus::new();

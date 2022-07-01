@@ -65,7 +65,7 @@ impl<T: Display> TestRunner<T> {
         F: FnOnce(),
     {
         #[cfg(debug_assertions)]
-        let _stop_handle = crate::trace_pipe::start();
+        let _stop_handle = crate::trace_pipe::start().await;
         let _program = self.ebpf.await.context("running eBPF").unwrap();
         // Run the triggering code
         let start_time = Timestamp::now();

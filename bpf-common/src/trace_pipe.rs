@@ -15,46 +15,55 @@ const PATH: &str = "/sys/kernel/debug/tracing/trace_pipe";
 
 pub struct StopHandle(oneshot::Sender<()>);
 
-pub fn start() -> StopHandle {
+pub async fn start() -> StopHandle {
     let (tx, rx) = oneshot::channel();
-    tokio::spawn(async {
-        let file = match File::open(PATH).await {
-            Ok(file) => file,
-            Err(e) => {
-                log::warn!("Error opening {}: {:?}", PATH, e);
-                return;
-            }
-        };
-        let mut file = match AsyncFd::try_from(file.as_raw_fd()) {
-            Ok(file) => file,
-            Err(e) => {
-                log::warn!("Error opening {} as non-blocking: {:?}", PATH, e);
-                return;
-            }
-        };
-        log::info!("Logging events from {}", PATH);
+    if let Some(mut file) = open_trace_pipe().await {
+        tokio::spawn(async move {
+            log::info!("Logging events from {}", PATH);
 
-        tokio::pin!(rx);
-        loop {
-            let mut buf = BytesMut::with_capacity(512);
-            let file_event = tokio::select! {
-                // wait for a new event
-                f = file.read_buf(&mut buf) => f,
-                // exit when stop handle is dropped
-                _ = &mut rx => return,
-            };
-            if let Err(e) = file_event {
-                log::warn!("Error reading from {}: {:?}", PATH, e);
-                return;
+            tokio::pin!(rx);
+            loop {
+                let mut buf = BytesMut::with_capacity(512);
+                let file_event = tokio::select! {
+                    // wait for a new event
+                    f = file.read_buf(&mut buf) => f,
+                    // exit when stop handle is dropped
+                    _ = &mut rx => return,
+                };
+                if let Err(e) = file_event {
+                    log::warn!("Error reading from {}: {:?}", PATH, e);
+                    return;
+                }
+                print_buffer(&buf[..]);
             }
-            buf[..]
-                .split(|c| *c == b'\n')
-                .filter(|bytes| !bytes.is_empty())
-                .for_each(|bytes| log::warn!(target: "trace_pipe", "{}", format_msg(bytes)));
-        }
-    });
+        });
+    }
 
     StopHandle(tx)
+}
+
+async fn open_trace_pipe() -> Option<AsyncFd> {
+    let file = match File::open(PATH).await {
+        Ok(file) => file,
+        Err(e) => {
+            log::warn!("Error opening {}: {:?}", PATH, e);
+            return None;
+        }
+    };
+    let file = match AsyncFd::try_from(file.as_raw_fd()) {
+        Ok(file) => file,
+        Err(e) => {
+            log::warn!("Error opening {} as non-blocking: {:?}", PATH, e);
+            return None;
+        }
+    };
+    Some(file)
+}
+
+fn print_buffer(buf: &[u8]) {
+    buf.split(|c| *c == b'\n')
+        .filter(|bytes| !bytes.is_empty())
+        .for_each(|bytes| log::warn!(target: "trace_pipe", "{}", format_msg(bytes)));
 }
 
 /// Cleanup log messages from substrings we don't need

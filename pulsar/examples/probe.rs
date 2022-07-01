@@ -66,7 +66,7 @@ where
         .filter(Some("trace_point"), log::LevelFilter::Info)
         .init();
     #[cfg(debug_assertions)]
-    let _stop_handle = bpf_common::trace_pipe::start();
+    let _stop_handle = bpf_common::trace_pipe::start().await;
     let (tx, mut rx) = mpsc::channel(100);
     let log_level = if args.verbose {
         BpfLogLevel::Debug
