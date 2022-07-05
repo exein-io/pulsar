@@ -1,4 +1,4 @@
-use std::{fmt, time::Duration};
+use std::{collections::HashSet, fmt, time::Duration};
 
 use bpf_common::{
     aya::{include_bytes_aligned, Pod},
@@ -38,8 +38,11 @@ pub async fn program(
                 }
                 Ok(v) => Some(v),
             });
+            // set of processes contained in the activities map
+            let mut running_processes = HashSet::new();
             // iterate each process recorded in the syscall monitor map
             for (pid, activity) in map {
+                running_processes.insert(pid);
                 // check previous state
                 if let Some(old_activity) = activity_cache.get(&pid) {
                     if *old_activity == activity {
@@ -56,6 +59,8 @@ pub async fn program(
                     payload: activity,
                 }))
             }
+            // remove exited processes to avoid a memory leak.
+            activity_cache.retain(|pid, _| running_processes.contains(pid));
         })
         .await?;
     Ok(program)
