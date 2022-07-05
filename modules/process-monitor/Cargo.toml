@@ -1,12 +1,14 @@
 [package]
 name = "process-monitor"
 version = "0.1.0"
+license = "Apache-2.0 with BPF probe under GPL-2.0"
 edition = "2021"
 
 [dependencies]
 bpf-common = { path = "../../bpf-common" }
-tokio = { version = "1", features = ["full"] }
 pulsar-core = { path = "../../pulsar-core" }
+
+tokio = { version = "1", features = ["full"] }
 nix = "0.24.0"
 log = "0.4"
 thiserror = "1"
