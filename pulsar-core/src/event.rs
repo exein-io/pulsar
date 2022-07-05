@@ -81,7 +81,6 @@ pub enum Payload {
     },
     FileOpened {
         filename: String,
-
         flags: i32,
     },
     ElfOpened {
@@ -114,15 +113,12 @@ pub enum Payload {
     },
     Close {
         source: SocketAddr,
-
         destination: SocketAddr,
     },
-
     Receive {
         source: SocketAddr,
         destination: SocketAddr,
         len: usize,
-
         is_tcp: bool,
     },
     DnsQuery {
