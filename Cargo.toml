@@ -17,3 +17,7 @@ members = [
 [profile.release]
 lto = true
 codegen-units = 1
+
+[profile.release-with-debug]
+inherits = "release"
+debug=true
