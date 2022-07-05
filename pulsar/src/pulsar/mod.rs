@@ -1,15 +1,14 @@
 use anyhow::Result;
 use engine_api::client::EngineApiClient;
 
-mod pretty_print;
+mod term_print;
 
 use crate::{
     cli::pulsar::{Commands, Config, ModuleConfigKV, PulsarCliOpts},
-    pulsar::pretty_print::TermPrintable,
+    pulsar::term_print::TermPrintable,
 };
 
 pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
-    // TODO: ownership of PulsarCliOpts
     log::trace!("Pulsar CLI Options: {:?}", options);
 
     let engine_api_client = if let Some(api_server) = &options.api_server {
