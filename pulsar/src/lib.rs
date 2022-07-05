@@ -1,11 +1,11 @@
 //! A highly modular XDR agent framework.
-//! 
+//!
 //! Pulsar is an runtime security observability tool powered by eBPF.
 //! At high level it provides few major components:
-//! 
+//!
 //! - a modular daemon that should be run as a service on the machine  
 //! - a cli to interact with the daemon to do administration operations
-//! 
+//!
 //! ## Feature flags
 //!
 //! Pulsar uses a set of [feature flags] to reduce the amount of compiled code. It
@@ -14,7 +14,7 @@
 //! Below is a list of the available feature flags. If you are new to Pulsar it is
 //! recommended that you use the default features flag which will enable all public APIs.
 //!
-//! 
+//!
 //! - `default`: Enables core and extra.
 //! - `core`: Enables all the monitoring features listed below, specifically
 //!           `  logger`, `process-monitor`, `network-monitor`, `syscall-monitor`
