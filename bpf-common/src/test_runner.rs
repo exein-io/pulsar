@@ -65,7 +65,7 @@ impl<T: Display> TestRunner<T> {
         F: FnOnce(),
     {
         #[cfg(debug_assertions)]
-        let _stop_handle = crate::trace_pipe::start();
+        let _stop_handle = crate::trace_pipe::start().await;
         let _program = self.ebpf.await.context("running eBPF").unwrap();
         // Run the triggering code
         let start_time = Timestamp::now();
@@ -104,24 +104,13 @@ impl<T: Display> TestResult<T> {
         }
     }
 
-    /// Return if the provided timestamp matches the test execution time.
-    /// This is used to make sure ebpf programs generate the correct timestamp.
-    pub fn was_running_at(&self, timestamp: Timestamp) -> bool {
-        self.start_time <= timestamp && timestamp <= self.end_time
-    }
-
     pub fn iter(&self) -> std::slice::Iter<'_, BpfEvent<T>> {
         self.events.iter()
     }
 
     /// Make sure the eBPF program produced at least one event maching all checks.
-    /// The event must come from the specified process during the collection time.
-    pub fn expect_event_from_pid(&self, pid: Pid, mut checks: Vec<Check<T>>) -> &Self {
+    pub fn expect_custom_event(&self, checks: Vec<Check<T>>) -> &Self {
         assert!(!self.events.is_empty());
-
-        // add time and process check
-        checks.insert(0, Check::timestamp(self.start_time, self.end_time));
-        checks.insert(0, Check::pid(pid));
 
         // for each event, run all checks
         let results: Vec<(&BpfEvent<T>, usize, Vec<CheckResult>)> = self
@@ -159,9 +148,44 @@ impl<T: Display> TestResult<T> {
         self
     }
 
-    /// Like calling `expect_event_from_pid` with the current process pid.
-    pub fn expect_event(&self, checks: Vec<Check<T>>) -> &Self {
-        self.expect_event_from_pid(Pid::from_raw(std::process::id() as i32), checks)
+    /// Make sure there's an event:
+    /// - matching all expectations
+    /// - produced during the collection interval
+    /// - coming by the current process.
+    pub fn expect_event(&self, mut checks: Vec<Check<T>>) -> &Self {
+        checks.insert(0, self.timestamp_check());
+        checks.insert(0, Self::pid_check(Pid::from_raw(std::process::id() as i32)));
+        self.expect_custom_event(checks)
+    }
+
+    /// Make sure there's an event:
+    /// - matching all expectations
+    /// - produced during the collection interval
+    /// - coming by the specified process.
+    pub fn expect_event_from_pid(&self, pid: Pid, mut checks: Vec<Check<T>>) -> &Self {
+        checks.insert(0, self.timestamp_check());
+        checks.insert(0, Self::pid_check(pid));
+        self.expect_custom_event(checks)
+    }
+
+    /// Make sure the timestamp of an event matches the data collection period
+    pub fn timestamp_check(&self) -> Check<T> {
+        let start_time = self.start_time;
+        let end_time = self.end_time;
+        Check::new("timestamp", move |event: &BpfEvent<_>| CheckResult {
+            success: start_time <= event.timestamp && event.timestamp <= end_time,
+            found: format!("{}", event.timestamp),
+            expected: format!("{} - {}", start_time, end_time),
+        })
+    }
+
+    /// Make sure the pid of an event matches the provided one
+    pub fn pid_check(pid: Pid) -> Check<T> {
+        Check::new("pid", move |event: &BpfEvent<_>| CheckResult {
+            success: event.pid == pid,
+            found: format!("{}", event.pid),
+            expected: format!("{}", pid),
+        })
     }
 }
 
@@ -174,27 +198,13 @@ pub struct Check<T> {
 }
 
 impl<T> Check<T> {
-    /// Make sure the timestamp of an event matches the data collection period
-    fn timestamp(start_time: Timestamp, end_time: Timestamp) -> Self {
-        Check {
-            description: "timestamp",
-            check_fn: Box::new(move |event: &BpfEvent<_>| CheckResult {
-                success: start_time <= event.timestamp && event.timestamp <= end_time,
-                found: format!("{}", event.timestamp),
-                expected: format!("{} - {}", start_time, end_time),
-            }),
-        }
-    }
-
-    /// Make sure the pid of an event matches the provided one
-    pub fn pid(pid: Pid) -> Self {
-        Check {
-            description: "pid",
-            check_fn: Box::new(move |event: &BpfEvent<_>| CheckResult {
-                success: event.pid == pid,
-                found: format!("{}", event.pid),
-                expected: format!("{}", pid),
-            }),
+    pub fn new(
+        description: &'static str,
+        check_fn: impl Fn(&BpfEvent<T>) -> CheckResult + 'static,
+    ) -> Self {
+        Self {
+            description,
+            check_fn: Box::new(check_fn),
         }
     }
 }
@@ -226,19 +236,18 @@ macro_rules! event_check {
             use bpf_common::program::BpfEvent;
             use bpf_common::test_runner::{Check, CheckResult};
             let mut checks = Vec::new();
-            checks.push(Check {
-                description: "event type",
-                check_fn: Box::new(move |event: &BpfEvent<_>| CheckResult {
+            checks.push(Check::new("event type", move |event: &BpfEvent<_>| {
+                CheckResult {
                     success: matches!(event.payload, $event::$subtype {..}),
                     found: String::new(),
                     expected: stringify!($event::$subtype).to_string(),
-                })
-            });
+                }
+            }));
             $(
                 let expected_value = $right;
-                checks.push(Check {
-                    description: $description,
-                    check_fn: Box::new(move |event: &BpfEvent<_>| match event.payload {
+                checks.push(Check::new(
+                    $description,
+                    move |event: &BpfEvent<_>| match event.payload {
                         $event::$subtype { ref $left, .. } => CheckResult {
                             success: $left == &expected_value,
                             found: format!("{:?}", $left),
@@ -249,8 +258,8 @@ macro_rules! event_check {
                             found: format!("wrong variant"),
                             expected: format!("{:?}", expected_value),
                         },
-                    })
-                });
+                    },
+                ));
             )*
             checks
         }

@@ -229,10 +229,10 @@ impl<T: Into<Payload> + fmt::Display> bpf_common::BpfSender<T> for ModuleSender 
     fn send(&mut self, data: Result<BpfEvent<T>, bpf_common::ProgramError>) {
         match data {
             Ok(data) => {
-                let _ = ModuleSender::send(self, data.pid, data.timestamp, data.payload.into());
+                ModuleSender::send(self, data.pid, data.timestamp, data.payload.into());
             }
             Err(e) => {
-                let _ = self.raise_error(Box::new(e));
+                self.raise_error(Box::new(e));
             }
         }
     }
