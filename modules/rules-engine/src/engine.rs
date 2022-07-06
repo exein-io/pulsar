@@ -6,9 +6,9 @@ use pulsar_core::{
     Pid, Timestamp,
 };
 use thiserror::Error;
-use validatron::{Engine, Rule, ValidatronError};
+use validatron::{Engine, UserRule, ValidatronError};
 
-const RULE_EXTENSION: &str = "json";
+const RULE_EXTENSION: &str = "validatron";
 
 /// Describes Pulsar Engine error.
 #[allow(clippy::enum_variant_names)]
@@ -42,10 +42,10 @@ pub struct PulsarEngine {
 
 impl PulsarEngine {
     pub fn new(rules_path: &Path, sender: ModuleSender) -> Result<Self, PulsarEngineError> {
-        let rules = load_jsons_from_dir(rules_path)?;
+        let rules = load_user_rules_from_dir(rules_path)?;
 
-        let engine =
-            Engine::from_rules(rules).map_err(|error| PulsarEngineError::RuleCompile { error })?;
+        let engine = Engine::from_user_rules(rules)
+            .map_err(|error| PulsarEngineError::RuleCompile { error })?;
 
         Ok(PulsarEngine {
             internal: Arc::new(PulsarEngineInternal { engine, sender }),
@@ -59,7 +59,7 @@ impl PulsarEngine {
     }
 }
 
-fn load_jsons_from_dir(rules_path: &Path) -> Result<Vec<Rule>, PulsarEngineError> {
+fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEngineError> {
     let mut rule_files = Vec::new();
 
     let expr = format!("{}/**/*.{}", rules_path.display(), RULE_EXTENSION);
@@ -72,14 +72,14 @@ fn load_jsons_from_dir(rules_path: &Path) -> Result<Vec<Rule>, PulsarEngineError
     let rules = rule_files
         .into_iter()
         .map(|rule_file| {
-            serde_json::from_str::<Vec<Rule>>(&rule_file.body).map_err(|error| {
+            serde_json::from_str::<Vec<UserRule>>(&rule_file.body).map_err(|error| {
                 PulsarEngineError::RuleParsing {
                     filename: rule_file.path,
                     error,
                 }
             })
         })
-        .collect::<Result<Vec<Vec<Rule>>, PulsarEngineError>>()?;
+        .collect::<Result<Vec<Vec<UserRule>>, PulsarEngineError>>()?;
 
     Ok(rules.into_iter().flatten().collect())
 }

@@ -24,7 +24,7 @@ BaseCondition: Condition = {
 }
 
 Value: String = {
-    r#""\w+""# => <>.to_string()
+    r#"".[^\s]+""# => <>.trim_matches('"').to_string()
 }
 
 Operator: Operator = {

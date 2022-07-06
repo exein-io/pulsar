@@ -75,7 +75,7 @@ impl FromStr for Field {
     }
 }
 
-lalrpop_mod!(dsl); // syntesized by LALRPOP
+lalrpop_mod!(pub dsl); // syntesized by LALRPOP
 
 #[cfg(test)]
 mod tests {
@@ -114,6 +114,26 @@ mod tests {
     #[test]
     fn test6() {
         let p = dsl::ConditionParser::new().parse(r#"header.pid.inner == "3""#);
+        assert!(p.is_ok())
+    }
+
+    #[test]
+    fn test7() {
+        let p = dsl::ConditionParser::new().parse(r#"header.image != "/usr/bin/sshd""#);
+        assert!(p.is_ok())
+    }
+
+    #[test]
+    fn test8() {
+        let p = dsl::ConditionParser::new().parse(r#"payload.filename == "/etc/shadow""#);
+        assert!(p.is_ok())
+    }
+
+    #[test]
+    fn test9() {
+        let p = dsl::ConditionParser::new()
+            .parse(r#"header.image != "/usr/bin/sshd" && payload.filename == "/etc/shadow""#);
+        println!("{p:?}");
         assert!(p.is_ok())
     }
 }

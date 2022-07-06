@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     compiler::{compile_condition, validate_condition, CompiledRule},
-    Rule, ValidatedCondition, ValidatronError, ValidatronVariant,
+    parser::dsl,
+    Rule, UserRule, ValidatedCondition, ValidatronError, ValidatronVariant,
 };
 
 pub struct Engine<T: ValidatronVariant + 'static>(pub(crate) HashMap<usize, Vec<CompiledRule<T>>>);
@@ -10,6 +11,28 @@ pub struct Engine<T: ValidatronVariant + 'static>(pub(crate) HashMap<usize, Vec<
 impl<T: ValidatronVariant> Engine<T> {
     pub fn from_compiled(rules: HashMap<usize, Vec<CompiledRule<T>>>) -> Self {
         Self(rules)
+    }
+
+    pub fn from_user_rules(user_rules: Vec<UserRule>) -> Result<Self, ValidatronError> {
+        let rule_parser = dsl::ConditionParser::new();
+
+        let rules = user_rules
+            .into_iter()
+            .map(|user_rule| {
+                rule_parser
+                    .parse(&user_rule.condition)
+                    .map(|condition| Rule {
+                        name: user_rule.name,
+                        typ: user_rule.typ,
+                        condition,
+                    })
+                    .map_err(|err| {
+                        ValidatronError::DslError(user_rule.condition.clone(), err.to_string())
+                    })
+            })
+            .collect::<Result<Vec<Rule>, ValidatronError>>()?;
+
+        Self::from_rules(rules)
     }
 
     pub fn from_rules(rules: Vec<Rule>) -> Result<Self, ValidatronError> {
