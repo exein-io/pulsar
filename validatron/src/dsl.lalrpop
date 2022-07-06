@@ -1,0 +1,54 @@
+use std::str::FromStr;
+use crate::{Operator, Condition, Field, RelationalOperator, StringOperator, MultiOperator};
+
+grammar;
+
+// pub Term: i32 = {
+//     <n:Num> => n,
+//     "(" <t:Term> ")" => t,
+// };
+
+// Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
+
+pub Condition: Condition = {
+    <l:Condition> "&&" <r:SignedCondition> => Condition::And{l: Box::new(l), r: Box::new(r)},
+    <l:Condition> "||" <r:SignedCondition> => Condition::Or{l: Box::new(l), r: Box::new(r)},
+    SignedCondition
+}
+
+SignedCondition: Condition = {
+    "!" <b:BaseCondition> => Condition::Not{inner: Box::new(b)},
+    BaseCondition
+}
+
+BaseCondition: Condition = {
+    <f: Field> <op: Operator> <value: Value> => Condition::Base {
+        field: f,
+        op,
+        value
+    },
+    "(" <Condition> ")",
+}
+
+Value: String = {
+    r#""\w+""# => <>.to_string()
+}
+
+Operator: Operator = {
+    // Relational
+    "==" => Operator::Relational(RelationalOperator::Equals),
+    "!=" => Operator::Relational(RelationalOperator::NotEquals),
+    ">" => Operator::Relational(RelationalOperator::Greater),
+    "<" => Operator::Relational(RelationalOperator::Less),
+    ">=" => Operator::Relational(RelationalOperator::GreaterEqual),
+    "<=" => Operator::Relational(RelationalOperator::LessEqual),
+    // String
+    "starts_with" => Operator::String(StringOperator::StartsWith),
+    "ends_with" => Operator::String(StringOperator::EndsWith),
+    // Multi
+    "contains" => Operator::Multi(MultiOperator::Contains),
+}
+
+Field: Field = {
+    <s: r"[a-zA-Z]\w+[\.[a-zA-Z]\w+]*"> => Field::from_str(<>).unwrap()
+}
