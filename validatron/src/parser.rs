@@ -56,7 +56,7 @@ impl FromStr for Field {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split_by_dot = s.split(".").collect::<Vec<&str>>();
+        let split_by_dot = s.split('.').collect::<Vec<&str>>();
 
         let mut reversed = split_by_dot.iter().rev();
 
@@ -75,7 +75,7 @@ impl FromStr for Field {
     }
 }
 
-lalrpop_mod!(pub dsl); // syntesized by LALRPOP
+lalrpop_mod!(#[allow(clippy::all)] pub dsl); // syntesized by LALRPOP
 
 #[cfg(test)]
 mod tests {
