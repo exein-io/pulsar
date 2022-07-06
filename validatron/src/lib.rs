@@ -48,29 +48,6 @@ pub trait ValidatronTypeProvider: Sized {
     fn field_type() -> ValidatronType<Self>;
 }
 
-// impl<T: ValidatronPrimitive> ValidatronTypeProvider for T {
-
-//     fn field_type() -> ValidatronType<Self> {
-//         ValidatronType::Primitive(Primitive {
-//             parse_fn: Box::new(<T as ValidatronPrimitive>::parse),
-//             handle_op_fn: Box::new(<T as ValidatronPrimitive>::apply_operator),
-//         })
-//     }
-// }
-
-// impl<T: ValidatronStruct> ValidatronTypeProvider for T {
-//     fn field_type() -> ValidatronType<Self> {
-
-//     }
-// }
-
-pub trait ValidatronPrimitive: Sized {
-    fn parse(value: &str) -> Result<Self, ValidatronError>;
-    fn apply_operator(
-        op: Operator,
-    ) -> Result<Box<dyn Fn(&Self, &Self) -> bool + Send + Sync + 'static>, ValidatronError>;
-}
-
 pub struct Primitive<T: 'static> {
     pub parse_fn: Box<dyn Fn(&str) -> Result<T, ValidatronError>>,
     pub handle_op_fn: Box<
