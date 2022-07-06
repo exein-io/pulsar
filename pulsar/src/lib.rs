@@ -1,3 +1,37 @@
+//! A highly modular XDR agent framework.
+//!
+//! Pulsar is an runtime security observability tool powered by eBPF.
+//! At high level it provides few major components:
+//!
+//! - a modular daemon that should be run as a service on the machine  
+//! - a cli to interact with the daemon to do administration operations
+//!
+//! ## Feature flags
+//!
+//! Pulsar uses a set of [feature flags] to reduce the amount of compiled code. It
+//! is possible to just enable certain features over others. By default, Pulsar
+//! enable all features but allows one to disable a subset for their use case.
+//! Below is a list of the available feature flags. If you are new to Pulsar it is
+//! recommended that you use the default features flag which will enable all public APIs.
+//!
+//!
+//! - `default`: Enables core and extra.
+//! - `core`: Enables all the monitoring features listed below, specifically
+//!           `  logger`, `process-monitor`, `network-monitor`, `syscall-monitor`
+//!              and `file-system-monitor`.
+//! - `extra`: Enables the rule-engine feature.
+//! - `logger`: Enables the event logger to print threat events in the console.
+//! - `process-monitor`: Enables a monitor on processes lifecycle and manages the list
+//!                      of interesting applications. It's considered a core module and
+//!                      should never be disabled.
+//! - `network-monitor`: Enables a monitor on networks events: connections events and
+//!                      dns events.
+//! - `syscall-monitor`: Enables a monitor on syscall event, it produces an aggregated
+//!                      map of syscall events with syscalls as key and relative counts
+//!                      as value.
+//! - `file-system-monitor`: Enables a monitor on file system events, example file open, delete, ecc.
+//! - `rules-engine`: Enables the rule engine module to process events and detect threats.
+
 use std::env;
 
 use anyhow::Result;
