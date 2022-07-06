@@ -1,3 +1,5 @@
+use std::{ffi::CString, fmt, str::FromStr};
+
 use bpf_common::{
     aya::{self, maps::MapError},
     Pid,
@@ -65,11 +67,6 @@ impl PolicyDecision {
 /// Whitelist and target list have the same fields, so we use a single struct for both.
 pub(crate) struct RuleMap(aya::maps::HashMap<aya::maps::MapRefMut, Image, u8>);
 
-#[derive(Clone, Copy)]
-struct Image([u8; MAX_IMAGE_LEN]);
-// We must explicitly mark Image as a plain old data which can be safely memcopied by aya.
-unsafe impl bpf_common::aya::Pod for Image {}
-
 impl RuleMap {
     /// Try to load the whitelist map
     pub(crate) fn whitelist(bpf: &mut aya::Bpf) -> Result<Self, MapError> {
@@ -95,13 +92,42 @@ impl RuleMap {
     /// Fill the map with a list of rules
     pub(crate) fn install(&mut self, rules: &Vec<Rule>) -> Result<(), MapError> {
         for rule in rules {
-            let mut src = rule.image.as_vec().clone();
-            src.resize(MAX_IMAGE_LEN, 0);
-            let mut image: Image = Image([0; MAX_IMAGE_LEN]);
-            image.0.clone_from_slice(&src[..]);
             let value: u8 = if rule.with_children { 1 } else { 0 };
-            self.0.insert(image, value, 0)?;
+            self.0.insert(rule.image, value, 0)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Image(pub(crate) [u8; MAX_IMAGE_LEN]);
+// We must explicitly mark Image as a plain old data which can be safely memcopied by aya.
+unsafe impl bpf_common::aya::Pod for Image {}
+
+impl FromStr for Image {
+    type Err = String;
+
+    fn from_str(image: &str) -> Result<Self, Self::Err> {
+        if !image.is_ascii() {
+            Err("process image must be ascii".to_string())
+        } else if image.len() >= MAX_IMAGE_LEN {
+            Err(format!(
+                "process image must be smaller than {MAX_IMAGE_LEN}"
+            ))
+        } else {
+            let mut image_vec: Vec<u8> = image.bytes().collect();
+            image_vec.resize(MAX_IMAGE_LEN, 0);
+            let mut image_array = [0; MAX_IMAGE_LEN];
+            image_array.clone_from_slice(&image_vec[..]);
+            Ok(Image(image_array))
+        }
+    }
+}
+
+impl fmt::Display for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Thse unwrap are safe because in the from_str constructor we've
+        // made sure there's a trailing 0 and it's valid ASCII.
+        write!(f, "{}", CString::new(self.0).unwrap().to_str().unwrap())
     }
 }
