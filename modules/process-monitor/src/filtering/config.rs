@@ -1,7 +1,7 @@
-use std::str::FromStr;
-
 use bpf_common::Pid;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
+
+use super::maps::Image;
 
 /// [`Config`] is the user configuration of a list of rules
 /// for determining what constitutes an interesting eBPF event.
@@ -75,30 +75,4 @@ fn get_rules(
         image,
         with_children,
     }))
-}
-
-/// Process name. Invariant: this is valid ASCII and smaller than MAX_IMAGE_LEN
-#[derive(Clone, Debug)]
-pub(crate) struct Image(Vec<u8>);
-
-impl Image {
-    pub(crate) fn as_vec(&self) -> &Vec<u8> {
-        &self.0
-    }
-}
-
-impl FromStr for Image {
-    type Err = String;
-
-    fn from_str(image: &str) -> Result<Self, Self::Err> {
-        if !image.is_ascii() {
-            Err("process image must be ascii".to_string())
-        } else if image.len() >= MAX_IMAGE_LEN {
-            Err(format!(
-                "process image must be smaller than {MAX_IMAGE_LEN}"
-            ))
-        } else {
-            Ok(Image(image.bytes().collect()))
-        }
-    }
 }

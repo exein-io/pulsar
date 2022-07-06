@@ -134,11 +134,21 @@ impl Initializer {
             interesting: inherited_interest,
             children_interesting: inherited_interest,
         };
-        let config = &self.config;
-        let image: Vec<u8> = process.image.bytes().collect();
-        let whitelist_match = config.whitelist.iter().find(|r| r.image.as_vec() == &image);
-        let targets_match = config.targets.iter().find(|r| r.image.as_vec() == &image);
-        let pid_targets_match = config.pid_targets.iter().find(|r| r.pid == process.pid);
+        let whitelist_match = self
+            .config
+            .whitelist
+            .iter()
+            .find(|r| r.image.to_string() == process.image);
+        let targets_match = self
+            .config
+            .targets
+            .iter()
+            .find(|r| r.image.to_string() == process.image);
+        let pid_targets_match = self
+            .config
+            .pid_targets
+            .iter()
+            .find(|r| r.pid == process.pid);
         if let Some(rule) = whitelist_match {
             decision.interesting = false;
             if rule.with_children {
