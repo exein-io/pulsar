@@ -3,13 +3,6 @@ use crate::{Operator, Condition, Field, RelationalOperator, StringOperator, Mult
 
 grammar;
 
-// pub Term: i32 = {
-//     <n:Num> => n,
-//     "(" <t:Term> ")" => t,
-// };
-
-// Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
-
 pub Condition: Condition = {
     <l:Condition> "&&" <r:SignedCondition> => Condition::And{l: Box::new(l), r: Box::new(r)},
     <l:Condition> "||" <r:SignedCondition> => Condition::Or{l: Box::new(l), r: Box::new(r)},
