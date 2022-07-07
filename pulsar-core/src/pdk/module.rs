@@ -19,9 +19,9 @@ use super::{
     CleanExit, ModuleContext, ShutdownSignal,
 };
 
-pub type PulsarModuleTask = dyn Future<Output = Result<CleanExit, ModuleError>> + Send + Sync;
+pub type PulsarModuleTask = dyn Future<Output = Result<CleanExit, ModuleError>> + Send;
 
-type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModuleTask> + Send + Sync;
+type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModuleTask> + Send;
 
 /// Main implementation of [`TaskLauncher`] for creating Pulsar pluggable modules.
 ///
@@ -40,7 +40,7 @@ impl PulsarModule {
         F: Fn(ModuleContext, ShutdownSignal) -> Fut,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<CleanExit, ModuleError>>,
-        Fut: Send + Sync + 'static,
+        Fut: Send + 'static,
     {
         Self {
             name: name.into(),
@@ -131,7 +131,7 @@ pub struct ModuleDetails {
 /// Check instead [`PulsarModule`] for a module implementation.
 ///
 /// The [`TaskLauncher::run`] method starts the module task and returns an pointer to a dynamic [`PulsarModuleTask`] trait object.
-pub trait TaskLauncher: Send + Sync {
+pub trait TaskLauncher: Send {
     /// Starts an asyncronous task in background a return a pointer to [`PulsarModuleTask`] to use it as an handle to stop the running task.
     fn run(&self, ctx: ModuleContext, shutdown: ShutdownSignal) -> Box<PulsarModuleTask>;
 
