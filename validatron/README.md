@@ -14,7 +14,7 @@ For the runtime it compiles rules using closures to generate code. It walks AST 
 
 ## Status
 
-Now have the base functionalities needed by Pulsar. There are some limitations and a complete DSL is work in progess.
+Now have the base functionalities needed by Pulsar and a custom DSL. Missing features are work in progress. 
 
 ## Contributing
 
