@@ -4,6 +4,8 @@ use crate::Operator;
 
 #[derive(Error, Debug)]
 pub enum ValidatronError {
+    #[error("Error validating dsl '{0}': {1}")]
+    DslError(String, String),
     #[error("Variant not found: {0}")]
     ViariantNotFound(String),
     #[error("Field not found: {0}")]

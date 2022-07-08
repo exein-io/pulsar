@@ -10,3 +10,8 @@ anyhow = "1.0.53"
 log = "0.4"
 thiserror = "1.0.30"
 validatron-derive = {path = "derive"}
+lalrpop-util = "0.19.7"
+regex = "1"
+
+[build-dependencies]
+lalrpop = "0.19.7"

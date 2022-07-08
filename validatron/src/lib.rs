@@ -20,7 +20,7 @@ pub use validatron_derive::*;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserRule {
     name: String,
-    typ: String,
+    r#type: String,
     condition: String,
 }
 
@@ -46,29 +46,6 @@ pub trait ValidatronVariant: Sized {
 
 pub trait ValidatronTypeProvider: Sized {
     fn field_type() -> ValidatronType<Self>;
-}
-
-// impl<T: ValidatronPrimitive> ValidatronTypeProvider for T {
-
-//     fn field_type() -> ValidatronType<Self> {
-//         ValidatronType::Primitive(Primitive {
-//             parse_fn: Box::new(<T as ValidatronPrimitive>::parse),
-//             handle_op_fn: Box::new(<T as ValidatronPrimitive>::apply_operator),
-//         })
-//     }
-// }
-
-// impl<T: ValidatronStruct> ValidatronTypeProvider for T {
-//     fn field_type() -> ValidatronType<Self> {
-
-//     }
-// }
-
-pub trait ValidatronPrimitive: Sized {
-    fn parse(value: &str) -> Result<Self, ValidatronError>;
-    fn apply_operator(
-        op: Operator,
-    ) -> Result<Box<dyn Fn(&Self, &Self) -> bool + Send + Sync + 'static>, ValidatronError>;
 }
 
 pub struct Primitive<T: 'static> {
@@ -170,7 +147,6 @@ where
 
 pub fn process_field<F, T, S>(
     field_name: &str,
-
     field_compare: &Field,
     field_access_fn: F,
     op: Operator,
