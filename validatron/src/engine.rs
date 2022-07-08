@@ -23,7 +23,7 @@ impl<T: ValidatronVariant> Engine<T> {
                     .parse(&user_rule.condition)
                     .map(|condition| Rule {
                         name: user_rule.name,
-                        typ: user_rule.typ,
+                        r#type: user_rule.r#type,
                         condition,
                     })
                     .map_err(|err| {
@@ -39,7 +39,7 @@ impl<T: ValidatronVariant> Engine<T> {
         let validated_conditions = rules
             .into_iter()
             .map(|rule| {
-                validate_condition(rule.condition, &rule.typ)
+                validate_condition(rule.condition, &rule.r#type)
                     .map(|(var_num, validated)| (rule.name, var_num, validated))
             })
             .collect::<Result<Vec<(String, usize, ValidatedCondition<T>)>, ValidatronError>>()?;

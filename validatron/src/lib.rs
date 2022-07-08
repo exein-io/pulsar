@@ -20,7 +20,7 @@ pub use validatron_derive::*;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserRule {
     name: String,
-    typ: String,
+    r#type: String,
     condition: String,
 }
 
@@ -147,7 +147,6 @@ where
 
 pub fn process_field<F, T, S>(
     field_name: &str,
-
     field_compare: &Field,
     field_access_fn: F,
     op: Operator,

@@ -8,7 +8,7 @@ use crate::Operator;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub name: String,
-    pub typ: String,
+    pub r#type: String,
     pub condition: Condition,
 }
 
