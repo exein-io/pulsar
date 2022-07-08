@@ -8,7 +8,7 @@ use pulsar_core::{
 use thiserror::Error;
 use validatron::{Engine, UserRule, ValidatronError};
 
-const RULE_EXTENSION: &str = "validatron";
+const RULE_EXTENSION: &str = "yaml";
 
 /// Describes Pulsar Engine error.
 #[allow(clippy::enum_variant_names)]
@@ -26,7 +26,7 @@ pub enum PulsarEngineError {
     RuleParsing {
         filename: String,
         #[source]
-        error: serde_json::Error,
+        error: serde_yaml::Error,
     },
     #[error("Error compiling rules: {error}")]
     RuleCompile {
@@ -72,7 +72,7 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEn
     let rules = rule_files
         .into_iter()
         .map(|rule_file| {
-            serde_json::from_str::<Vec<UserRule>>(&rule_file.body).map_err(|error| {
+            serde_yaml::from_str::<Vec<UserRule>>(&rule_file.body).map_err(|error| {
                 PulsarEngineError::RuleParsing {
                     filename: rule_file.path,
                     error,
