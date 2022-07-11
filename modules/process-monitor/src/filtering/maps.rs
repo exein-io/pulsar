@@ -1,4 +1,4 @@
-use std::{ffi::CString, fmt, str::FromStr};
+use std::{fmt, str::FromStr};
 
 use bpf_common::{
     aya::{self, maps::MapError},
@@ -126,8 +126,9 @@ impl FromStr for Image {
 
 impl fmt::Display for Image {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Thse unwrap are safe because in the from_str constructor we've
-        // made sure there's a trailing 0 and it's valid ASCII.
-        write!(f, "{}", CString::new(self.0).unwrap().to_str().unwrap())
+        for c in self.0.into_iter().take_while(|c| *c != 0) {
+            write!(f, "{}", c)?;
+        }
+        Ok(())
     }
 }
