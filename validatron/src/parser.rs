@@ -80,7 +80,7 @@ impl FromStr for Field {
 pub enum DslError {
     #[error("Empty list is not allowed")]
     EmptyList,
-    #[error("Error parsing field {field}: {}")]
+    #[error("Error parsing field {field}: {cause}")]
     Field { field: String, cause: String },
 }
 
