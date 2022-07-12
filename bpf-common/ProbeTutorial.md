@@ -1,5 +1,3 @@
-TODO: update this
-
 # New eBPF probe tutorial
 
 This tutorial goes through the development of a simple Pulsar module
@@ -73,42 +71,34 @@ We create `build.rs` in order to build the program.
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    bpf-common::builder::build("probe.bpf.c")
+    bpf_common::builder::build("probe.bpf.c")
 }
 ```
 
 The module implementation in Rust is also relatively short.
 
 ```rust
-
 use std::fmt;
 
-use bpf-common::{
-    aya::{include_bytes_aligned, maps::perf::AsyncPerfEventArray, programs::KProbe, Bpf},
-    parsing::StringArray,
-    program::BpfContext,
-    BpfSender, Program, ProgramError, ProgramHandle,
+use bpf_common::{
+    aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Program,
+    ProgramBuilder, ProgramError,
 };
 
-pub fn program(ctx: BpfContext, sender: impl BpfSender<EventT>) -> ProgramHandle {
-    Program::start(
+pub async fn program(
+    ctx: BpfContext,
+    sender: impl BpfSender<EventT>,
+) -> Result<Program, ProgramError> {
+    let program = ProgramBuilder::new(
         ctx,
         "file_created",
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-        |bpf: &mut Bpf| {
-            let kprobe: &mut KProbe = bpf
-                .program_mut("security_inode_create")
-                .ok_or(ProgramError::ProgramNotFound(
-                    "security_inode_create".to_string(),
-                ))?
-                .try_into()?;
-            kprobe.load()?;
-            kprobe.attach("security_inode_create", 0)?;
-            let map = AsyncPerfEventArray::try_from(bpf.map_mut("events")?)?;
-            Ok(map)
-        },
     )
-    .read_events(sender)
+    .kprobe("security_inode_create")
+    .start()
+    .await?;
+    program.read_events("events", sender).await?;
+    Ok(program)
 }
 
 const NAME_MAX: usize = 264;
@@ -128,19 +118,20 @@ impl fmt::Display for EventT {
 
 The central part of the module is the `program` function, which:
 - takes a `BpfContext` containing general Bpf settings, like BTF information and map pinning configuration.
-  Just pass it down to `bpf-common::Program::start`.
+  Just pass it down to `bpf_common::ProgramBuilder::new`.
 - takes a `BpfSender`—the channel where we'll send the generated events. It's a trait so that
   you can use whatever data structure you want for your application: modules can be used inside Pulsar,
   but can also be used by themself. The [probe](../pulsar/examples/probe.rs) example shows how
   you can use our modules without running the full agent.
-- returns a `bpf-common::ProgramHandle`. The application will keep sending `EventT` events over the `sender`
+- returns a `bpf_common::Program`. The application will keep sending `EventT` events over the `sender`
   channel until the program handle is dropped.
 
-This implementation delegates all repetitive tasks to `bpf-common::Program::start()` which takes the
-eBPF configuration, a name used for logging purposes, the compiled eBPF program binary and a setup closure.  
+This implementation delegates all repetitive tasks to `bpf_common::ProgramBuilder::new()` which takes the
+eBPF configuration, a name used for logging purposes and the compiled eBPF program binary.
 
-The setup closure should attach the program to the `security_inode_create` kprobe and return the eBPF map
-which will be used for sending events to userspace.  
+We attach the program to the `security_inode_create` kprobe and start it.
+Finally, we forward all events read from the `events` map to the `sender`
+channel.
 
 The most commonly used map type is `BPF_MAP_TYPE_PERF_EVENT_ARRAY` and `Program::read_events(sender)`
 can be used to forward all generated events to the sender channel.
@@ -216,7 +207,7 @@ check it matches the expectations.
 ```rust
 #[cfg(test)]
 mod tests {
-    use bpf-common::{event_check, test_runner::TestRunner};
+    use bpf_common::{event_check, test_runner::TestRunner};
 
     use super::*;
 
@@ -268,7 +259,7 @@ pub mod pulsar {
         ctx: ModuleContext,
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
-        let _program: ProgramHandle = program(ctx.get_bpf_context(), ctx.get_sender());
+        let _program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
         shutdown.recv().await
     }
 
@@ -290,10 +281,10 @@ the shutdown signal. By dropping `_program` we shut down the eBPF program and st
 All modules communicate using the agent's message bus, where [events](../pulsar-core/src/event.rs)
 are sent and received.
 Since we're writing a producer module, we'll get a sender with the `ModuleContext::get_sender()` method.
-We can use that channel as a `BpfSender` for `bpf-common::Program` because we've implemented a conversion
+We can use that channel as a `BpfSender` for `bpf_common::Program` because we've implemented a conversion
 method for transforming the module-specific and C-compatibile `EventT` into a `Payload`, which is the enum
 with all the Pulsar events. We don't have to worry about process id and timestamp because headers will be
-automatically filled by `bpf-common::Program`.
+automatically filled by `bpf_common::Program`.
 
 
 ## Conclusion
