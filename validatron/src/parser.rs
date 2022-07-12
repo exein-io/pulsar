@@ -2,6 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use lalrpop_util::lalrpop_mod;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::Operator;
 
@@ -73,6 +74,14 @@ impl FromStr for Field {
 
         Ok(composed)
     }
+}
+
+#[derive(Error, Debug)]
+pub enum DslError {
+    #[error("Empty list is not allowed")]
+    EmptyList,
+    #[error("Error parsing field {field}: {}")]
+    Field { field: String, cause: String },
 }
 
 lalrpop_mod!(#[allow(clippy::all)] pub dsl); // syntesized by LALRPOP
@@ -274,5 +283,89 @@ mod tests {
             }),
         };
         assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn list_single_string() {
+        let parsed = dsl::ConditionParser::new()
+            .parse(r#"header.image in ["/usr/bin/cat"]"#)
+            .unwrap();
+        let expected = Condition::Base {
+            field: Field::Struct {
+                name: "header".to_string(),
+                inner_field: Box::new(Field::Simple("image".to_string())),
+            },
+            op: Operator::Relational(RelationalOperator::Equals),
+            value: "/usr/bin/cat".to_string(),
+        };
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn list_two_num() {
+        let parsed = dsl::ConditionParser::new()
+            .parse(r#"header.pid in [4,2]"#)
+            .unwrap();
+        let expected = Condition::Or {
+            l: Box::new(Condition::Base {
+                field: Field::Struct {
+                    name: "header".to_string(),
+                    inner_field: Box::new(Field::Simple("pid".to_string())),
+                },
+                op: Operator::Relational(RelationalOperator::Equals),
+                value: "4".to_string(),
+            }),
+            r: Box::new(Condition::Base {
+                field: Field::Struct {
+                    name: "header".to_string(),
+                    inner_field: Box::new(Field::Simple("pid".to_string())),
+                },
+                op: Operator::Relational(RelationalOperator::Equals),
+                value: "2".to_string(),
+            }),
+        };
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn list_three_num() {
+        let parsed = dsl::ConditionParser::new()
+            .parse(r#"header.pid in [6,6,6]"#)
+            .unwrap();
+        let expected = Condition::Or {
+            l: Box::new(Condition::Or {
+                l: Box::new(Condition::Base {
+                    field: Field::Struct {
+                        name: "header".to_string(),
+                        inner_field: Box::new(Field::Simple("pid".to_string())),
+                    },
+                    op: Operator::Relational(RelationalOperator::Equals),
+                    value: "6".to_string(),
+                }),
+                r: Box::new(Condition::Base {
+                    field: Field::Struct {
+                        name: "header".to_string(),
+                        inner_field: Box::new(Field::Simple("pid".to_string())),
+                    },
+                    op: Operator::Relational(RelationalOperator::Equals),
+                    value: "6".to_string(),
+                }),
+            }),
+            r: Box::new(Condition::Base {
+                field: Field::Struct {
+                    name: "header".to_string(),
+                    inner_field: Box::new(Field::Simple("pid".to_string())),
+                },
+                op: Operator::Relational(RelationalOperator::Equals),
+                value: "6".to_string(),
+            }),
+        };
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn list_void() {
+        let parsed = dsl::ConditionParser::new().parse(r#"header.pid in []"#);
+        assert!(parsed.is_err());
     }
 }
