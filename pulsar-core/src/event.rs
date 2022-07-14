@@ -139,7 +139,6 @@ pub enum Payload {
     },
     MalwareDetection {
         score: f32,
-        threshold: f32,
         #[validatron(skip)]
         tags: Vec<String>,
     },
@@ -151,7 +150,6 @@ pub enum Payload {
     },
     AnomalyDetection {
         score: f32,
-        threshold: f32,
     }, // CustomJson { ty: i32, data: Vec<u8> },
        // CustomProto { ty: i32, data: Vec<u8> },
        // CustomRaw { ty: i32, data: Vec<u8> }
