@@ -4,6 +4,9 @@ version = "0.1.0"
 license = "Apache-2.0 with BPF probe under GPL-2.0"
 edition = "2021"
 
+[features]
+test-suite = ["bpf-common/test-utils", "inventory"]
+
 [dependencies]
 bpf-common = { path = "../../bpf-common" }
 pulsar-core = { path = "../../pulsar-core" }
@@ -11,10 +14,9 @@ pulsar-core = { path = "../../pulsar-core" }
 nix = "0.24.0"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
+inventory = { version = "0.3.0", optional = true }
 
 [build-dependencies]
 bpf-common = { path = "../../bpf-common", features = ["build"] }
 
 [dev-dependencies]
-bpf-common = { path = "../../bpf-common", features = ["test-utils"] }
-serial_test = { version = "0.6.0" }

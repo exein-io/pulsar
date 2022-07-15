@@ -12,13 +12,14 @@ members = [
     "bpf-common",
     "engine-api",
     "validatron",
+    "xtask",
+    "test-suite",
 ]
 
 [profile.release]
 lto = true
 codegen-units = 1
-strip = true
 
 [profile.release-with-debug]
 inherits = "release"
-debug = true
+debug=true

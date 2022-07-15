@@ -1,0 +1,17 @@
+[package]
+name = "test-suite"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+file-system-monitor = { path = "../modules/file-system-monitor", features = ["test-suite"] }
+inventory = "0.3.0"
+libtest-mimic = "0.4.1"
+bpf-common = { path = "../bpf-common", features = ["test-utils"] }
+tokio = { version = "1", features = ["full"] }
+#process-monitor = { path = "../modules/process-monitor", optional = true }
+#network-monitor = { path = "../modules/network-monitor", optional = true }
+#syscall-monitor = { path = "../modules/syscall-monitor", optional = true }
+#logger = { path = "../modules/logger", optional = true }
+#rules-engine = { path = "../modules/rules-engine", optional = true }

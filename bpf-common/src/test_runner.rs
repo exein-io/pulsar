@@ -33,6 +33,13 @@ use crate::{
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);
 
+#[derive(Debug)]
+pub struct IntegrationTest {
+    pub name: &'static str,
+    pub test_fn: fn(),
+}
+inventory::collect!(IntegrationTest);
+
 pub struct TestRunner<T: Display> {
     ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>>>>,
     rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
