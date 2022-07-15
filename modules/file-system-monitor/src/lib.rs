@@ -245,16 +245,21 @@ pub mod pulsar {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::fs::OpenOptions;
-
-    use bpf_common::{event_check, test_runner::TestRunner};
+#[cfg(feature = "test-suite")]
+pub mod test_suite {
+    use std::{fs::OpenOptions, future::Future, pin::Pin};
 
     use super::*;
+    use bpf_common::{event_check, test_runner::TestRunner};
 
-    #[tokio::test]
-    #[serial_test::serial]
+    pub fn tests() -> Vec<(&'static str, fn() -> Pin<Box<dyn Future<Output = ()>>>)> {
+        vec![
+            ("file_name", || Box::pin(file_name())),
+            ("unlink_file", || Box::pin(unlink_file())),
+            ("open_file", || Box::pin(open_file())),
+        ]
+    }
+
     async fn file_name() {
         let path = "/tmp/file_name_1";
         TestRunner::with_ebpf(program)
@@ -269,8 +274,6 @@ mod tests {
             ));
     }
 
-    #[tokio::test]
-    #[serial_test::serial]
     async fn unlink_file() {
         let path = "/tmp/unlink_file";
         std::fs::write(path, b"").unwrap();
@@ -283,8 +286,6 @@ mod tests {
             ));
     }
 
-    #[tokio::test]
-    #[serial_test::serial]
     async fn open_file() {
         let path = "/tmp/open_file";
         // See include/linux/fs.h
@@ -301,7 +302,7 @@ mod tests {
             .expect_event(event_check!(
                 FsEvent::FileOpened,
                 (filename, path.into(), "filename"),
-                (flags, Flags(libc::O_RDWR | FMODE_OPENED), "open flags")
+                (flags, Flags(libc::O_RDWR), "open flags")
             ));
     }
 }
