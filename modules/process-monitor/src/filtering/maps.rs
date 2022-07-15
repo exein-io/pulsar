@@ -99,7 +99,7 @@ impl RuleMap {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub(crate) struct Image(pub(crate) [u8; MAX_IMAGE_LEN]);
 // We must explicitly mark Image as a plain old data which can be safely memcopied by aya.
 unsafe impl bpf_common::aya::Pod for Image {}
@@ -127,8 +127,14 @@ impl FromStr for Image {
 impl fmt::Display for Image {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for c in self.0.into_iter().take_while(|c| *c != 0) {
-            write!(f, "{}", c)?;
+            write!(f, "{}", c as char)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Image").field(&self.to_string()).finish()
     }
 }
