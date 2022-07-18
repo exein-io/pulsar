@@ -247,62 +247,67 @@ pub mod pulsar {
 
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
-    use std::{fs::OpenOptions, future::Future, pin::Pin};
+    use std::fs::OpenOptions;
 
     use super::*;
-    use bpf_common::{event_check, test_runner::TestRunner};
+    use bpf_common::{
+        event_check,
+        test_runner::{TestCase, TestRunner},
+    };
 
-    pub fn tests() -> Vec<(&'static str, fn() -> Pin<Box<dyn Future<Output = ()>>>)> {
-        vec![
-            ("file_name", || Box::pin(file_name())),
-            ("unlink_file", || Box::pin(unlink_file())),
-            ("open_file", || Box::pin(open_file())),
-        ]
+    pub fn tests() -> Vec<TestCase> {
+        vec![open_file(), file_name(), unlink_file()]
     }
 
-    async fn file_name() {
-        let path = "/tmp/file_name_1";
-        TestRunner::with_ebpf(program)
-            .run(|| {
-                let _ = std::fs::remove_file(path);
-                std::fs::File::create(path).expect("creating file failed");
-            })
-            .await
-            .expect_event(event_check!(
-                FsEvent::FileCreated,
-                (filename, path.into(), "filename")
-            ));
+    fn file_name() -> TestCase {
+        TestCase::new("file_name", {
+            const PATH: &str = "/tmp/file_name_1";
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    let _ = std::fs::remove_file(PATH);
+                    std::fs::File::create(PATH).expect("creating file failed");
+                })
+                .expect_event(event_check!(
+                    FsEvent::FileCreated,
+                    (filename, PATH.into(), "filename")
+                ))
+                .report()
+        })
     }
 
-    async fn unlink_file() {
-        let path = "/tmp/unlink_file";
-        std::fs::write(path, b"").unwrap();
-        TestRunner::with_ebpf(program)
-            .run(|| nix::unistd::unlink(path).unwrap())
-            .await
-            .expect_event(event_check!(
-                FsEvent::FileDeleted,
-                (filename, path.into(), "filename")
-            ));
+    fn unlink_file() -> TestCase {
+        TestCase::new("unlink_file", {
+            let path = "/tmp/unlink_file";
+            std::fs::write(path, b"").unwrap();
+            TestRunner::with_ebpf(program)
+                .run(|| nix::unistd::unlink(path).unwrap())
+                .expect_event(event_check!(
+                    FsEvent::FileDeleted,
+                    (filename, path.into(), "filename")
+                ))
+                .report()
+        })
     }
 
-    async fn open_file() {
-        let path = "/tmp/open_file";
-        // See include/linux/fs.h
-        const FMODE_OPENED: i32 = 32768;
+    fn open_file() -> TestCase {
+        TestCase::new("open_file", {
+            const PATH: &str = "/tmp/open_file";
+            // See include/linux/fs.h
+            const FMODE_OPENED: i32 = 32768;
 
-        std::fs::write(path, b"hello_world").unwrap();
-        let mut options = OpenOptions::new();
-        options.read(true).write(true);
-        TestRunner::with_ebpf(program)
-            .run(|| {
-                options.open(path).unwrap();
-            })
-            .await
-            .expect_event(event_check!(
-                FsEvent::FileOpened,
-                (filename, path.into(), "filename"),
-                (flags, Flags(libc::O_RDWR), "open flags")
-            ));
+            std::fs::write(PATH, b"hello_world").unwrap();
+            let mut options = OpenOptions::new();
+            options.read(true).write(true);
+            TestRunner::with_ebpf(program)
+                .run(move || {
+                    options.open(PATH).unwrap();
+                })
+                .expect_event(event_check!(
+                    FsEvent::FileOpened,
+                    (filename, PATH.into(), "filename"),
+                    (flags, Flags(libc::O_RDWR), "open flags")
+                ))
+                .report()
+        })
     }
 }

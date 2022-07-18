@@ -33,23 +33,44 @@ use crate::{
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);
 
-#[derive(Debug)]
-pub struct IntegrationTest {
+pub struct TestCase {
     pub name: &'static str,
-    pub test_fn: fn(),
+    pub test: Pin<Box<dyn Future<Output = TestReport> + Send>>,
 }
-inventory::collect!(IntegrationTest);
 
-pub struct TestRunner<T: Display> {
-    ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>>>>,
+impl TestCase {
+    pub fn new(
+        name: &'static str,
+        test: impl Future<Output = TestReport> + 'static + Send,
+    ) -> Self {
+        Self {
+            name,
+            test: Box::pin(test),
+        }
+    }
+}
+
+pub struct TestRunner<'a, T: Display> {
+    ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>> + Send>>,
+    trigger_program: Box<dyn FnOnce() + 'a + Send>,
+    expectations: Vec<Expectation<T>>,
     rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
 }
 
-impl<T: Display> TestRunner<T> {
+enum Expectation<T> {
+    Predicate(Box<dyn Fn(&BpfEvent<T>) -> bool + Send>),
+    Checks {
+        pid: Option<Pid>,
+        time_bound: bool,
+        checks: Vec<Check<T>>,
+    },
+}
+
+impl<'a, T: Display> TestRunner<'a, T> {
     pub fn with_ebpf<P, Fut>(ebpf_fn: P) -> Self
     where
         P: Fn(BpfContext, TestSender<T>) -> Fut,
-        Fut: Future<Output = Result<Program, ProgramError>> + 'static,
+        Fut: Future<Output = Result<Program, ProgramError>> + 'static + Send,
     {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
@@ -64,94 +85,33 @@ impl<T: Display> TestRunner<T> {
         Self {
             rx,
             ebpf: Box::pin(ebpf_fn(ctx, sender)),
+            trigger_program: Box::new(|| {}),
+            expectations: Vec::new(),
         }
     }
 
-    pub async fn run<F>(mut self, trigger_program: F) -> TestResult<T>
-    where
-        F: FnOnce(),
-    {
-        #[cfg(debug_assertions)]
-        let _stop_handle = crate::trace_pipe::start().await;
-        let _program = self.ebpf.await.context("running eBPF").unwrap();
-        // Run the triggering code
-        let start_time = Timestamp::now();
-        trigger_program();
-        let end_time = Timestamp::now();
-        // Wait ebpf to process pending events
-        tokio::time::sleep(MAX_TIMEOUT).await;
-        // Collect events
-        let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
-        // Cargo will display stdout only on failed tests, so it's useful
-        // to print all produced events.
-        events.iter().for_each(|e| println!("{}", e));
-        TestResult {
-            start_time,
-            end_time,
-            events,
-        }
+    pub fn run(mut self, trigger_program: impl FnOnce() + 'a + Send) -> Self {
+        self.trigger_program = Box::new(trigger_program);
+        self
     }
-}
 
-pub struct TestResult<T: Display> {
-    start_time: Timestamp,
-    end_time: Timestamp,
-    events: Vec<BpfEvent<T>>,
-}
-
-impl<T: Display> TestResult<T> {
     /// Assert the provided predicate matches at least one event
-    pub fn expect<F>(&self, predicate: F)
-    where
-        F: Fn(&BpfEvent<T>) -> bool,
-    {
-        let found = self.events.iter().map(predicate).any(|x| x);
-        if !found {
-            panic!("event not found among {} analyzed", self.events.len());
-        }
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<'_, BpfEvent<T>> {
-        self.events.iter()
+    pub fn expect(
+        &mut self,
+        predicate: impl Fn(&BpfEvent<T>) -> bool + 'static + Send,
+    ) -> &mut Self {
+        self.expectations
+            .push(Expectation::Predicate(Box::new(predicate)));
+        self
     }
 
     /// Make sure the eBPF program produced at least one event maching all checks.
-    pub fn expect_custom_event(&self, checks: Vec<Check<T>>) -> &Self {
-        assert!(!self.events.is_empty());
-
-        // for each event, run all checks
-        let results: Vec<(&BpfEvent<T>, usize, Vec<CheckResult>)> = self
-            .events
-            .iter()
-            .map(|event| {
-                let results: Vec<CheckResult> =
-                    checks.iter().map(|c| (c.check_fn)(event)).collect();
-                let score = results.iter().filter(|x| x.success).count();
-                (event, score, results)
-            })
-            .collect();
-
-        // check how many checks have passed
-        let max_score = results.iter().map(|x| x.1).max().unwrap();
-
-        // if no event satisfies all cheks, we print a report table for each event
-        if max_score != checks.len() {
-            let best_results = results.into_iter().filter(|x| x.1 == max_score);
-            for (event, score, check_results) in best_results {
-                println!("\n{} ({}/{})", event, score, checks.len());
-                for (check_result, check) in check_results.iter().zip(checks.iter()) {
-                    if check_result.success {
-                        println!("- {}: {} (OK)", check.description, check_result.expected);
-                    } else {
-                        println!("- {}: (FAIL)", check.description);
-                        println!("  |    found: {}", check_result.found);
-                        println!("  | expected: {}", check_result.expected);
-                    }
-                }
-            }
-            println!();
-            panic!("No event found matching results");
-        }
+    pub fn expect_custom_event(&mut self, checks: Vec<Check<T>>) -> &mut Self {
+        self.expectations.push(Expectation::Checks {
+            pid: None,
+            time_bound: false,
+            checks,
+        });
         self
     }
 
@@ -159,40 +119,126 @@ impl<T: Display> TestResult<T> {
     /// - matching all expectations
     /// - produced during the collection interval
     /// - coming by the current process.
-    pub fn expect_event(&self, mut checks: Vec<Check<T>>) -> &Self {
-        checks.insert(0, self.timestamp_check());
-        checks.insert(0, Self::pid_check(Pid::from_raw(std::process::id() as i32)));
-        self.expect_custom_event(checks)
+    pub fn expect_event(mut self, checks: Vec<Check<T>>) -> Self {
+        self.expectations.push(Expectation::Checks {
+            pid: Some(Pid::from_raw(std::process::id() as i32)),
+            time_bound: true,
+            checks,
+        });
+        self
     }
 
     /// Make sure there's an event:
     /// - matching all expectations
     /// - produced during the collection interval
     /// - coming by the specified process.
-    pub fn expect_event_from_pid(&self, pid: Pid, mut checks: Vec<Check<T>>) -> &Self {
-        checks.insert(0, self.timestamp_check());
-        checks.insert(0, Self::pid_check(pid));
-        self.expect_custom_event(checks)
+    pub fn expect_event_from_pid(&mut self, pid: Pid, checks: Vec<Check<T>>) -> &mut Self {
+        self.expectations.push(Expectation::Checks {
+            pid: Some(pid),
+            time_bound: true,
+            checks,
+        });
+        self
     }
 
-    /// Make sure the timestamp of an event matches the data collection period
-    pub fn timestamp_check(&self) -> Check<T> {
-        let start_time = self.start_time;
-        let end_time = self.end_time;
-        Check::new("timestamp", move |event: &BpfEvent<_>| CheckResult {
-            success: start_time <= event.timestamp && event.timestamp <= end_time,
-            found: format!("{}", event.timestamp),
-            expected: format!("{} - {}", start_time, end_time),
-        })
-    }
+    pub async fn report(mut self) -> TestReport {
+        let _program = self.ebpf.await.context("running eBPF").unwrap();
+        // Run the triggering code
+        let start_time = Timestamp::now();
+        (self.trigger_program)();
+        let end_time = Timestamp::now();
+        // Wait ebpf to process pending events
+        tokio::time::sleep(MAX_TIMEOUT).await;
+        // Collect events
+        let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
 
-    /// Make sure the pid of an event matches the provided one
-    pub fn pid_check(pid: Pid) -> Check<T> {
-        Check::new("pid", move |event: &BpfEvent<_>| CheckResult {
-            success: event.pid == pid,
-            found: format!("{}", event.pid),
-            expected: format!("{}", pid),
+        let mut success = true;
+        let mut lines = Vec::new();
+        // print all events
+        events.iter().for_each(|e| lines.push(e.to_string()));
+
+        for expectation in self.expectations {
+            match expectation {
+                Expectation::Predicate(predicate) => {
+                    let found = events.iter().map(predicate).any(|x| x);
+                    if !found {
+                        lines.push(format!("event not found among {} analyzed", events.len()));
+                        success = false;
+                    }
+                }
+                Expectation::Checks {
+                    pid,
+                    time_bound,
+                    mut checks,
+                } => {
+                    if let Some(pid) = pid {
+                        checks.push(pid_check(pid));
+                    }
+                    if time_bound {
+                        checks.push(timestamp_check(start_time, end_time));
+                    }
+                    success = success && run_checks(&events, checks, &mut lines);
+                }
+            }
+        }
+        TestReport { success, lines }
+    }
+}
+
+#[must_use]
+pub struct TestReport {
+    pub success: bool,
+    pub lines: Vec<String>,
+}
+
+/// Make sure the eBPF program produced at least one event maching all checks.
+pub fn run_checks<T: std::fmt::Display>(
+    events: &Vec<BpfEvent<T>>,
+    checks: Vec<Check<T>>,
+    lines: &mut Vec<String>,
+) -> bool {
+    // for each event, run all checks
+    let results: Vec<(&BpfEvent<T>, usize, Vec<CheckResult>)> = events
+        .iter()
+        .map(|event| {
+            let results: Vec<CheckResult> = checks.iter().map(|c| (c.check_fn)(event)).collect();
+            let score = results.iter().filter(|x| x.success).count();
+            (event, score, results)
         })
+        .collect();
+
+    // check how many checks have passed
+    let max_score = match results.iter().map(|x| x.1).max() {
+        Some(max_score) => max_score,
+        None => {
+            lines.push("No events generated".to_string());
+            return false;
+        }
+    };
+
+    // if no event satisfies all cheks, we print a report table for each event
+    if max_score != checks.len() {
+        let best_results = results.into_iter().filter(|x| x.1 == max_score);
+        lines.push("No event found matching results:".to_string());
+        for (event, score, check_results) in best_results {
+            lines.push(format!("{} ({}/{})", event, score, checks.len()));
+            for (check_result, check) in check_results.iter().zip(checks.iter()) {
+                if check_result.success {
+                    lines.push(format!(
+                        "- {}: {} (OK)",
+                        check.description, check_result.expected
+                    ));
+                } else {
+                    lines.push(format!("- {}: (FAIL)", check.description));
+                    lines.push(format!("  |    found: {}", check_result.found));
+                    lines.push(format!("  | expected: {}", check_result.expected));
+                }
+            }
+            lines.push(String::new());
+        }
+        false
+    } else {
+        true
     }
 }
 
@@ -203,19 +249,37 @@ pub type CheckFunction<T> = Box<dyn Fn(&BpfEvent<T>) -> CheckResult>;
 /// Build this is using the `event_check!` macro.
 pub struct Check<T> {
     pub description: &'static str,
-    pub check_fn: CheckFunction<T>,
+    pub check_fn: Box<dyn Fn(&BpfEvent<T>) -> CheckResult + Send>,
 }
 
 impl<T> Check<T> {
     pub fn new(
         description: &'static str,
-        check_fn: impl Fn(&BpfEvent<T>) -> CheckResult + 'static,
+        check_fn: impl Fn(&BpfEvent<T>) -> CheckResult + 'static + Send,
     ) -> Self {
         Self {
             description,
             check_fn: Box::new(check_fn),
         }
     }
+}
+
+/// Make sure the pid of an event matches the provided one
+pub fn pid_check<T>(pid: Pid) -> Check<T> {
+    Check::new("pid", move |event: &BpfEvent<_>| CheckResult {
+        success: event.pid == pid,
+        found: format!("{}", event.pid),
+        expected: format!("{}", pid),
+    })
+}
+
+/// Make sure the timestamp of an event matches the data collection period
+pub fn timestamp_check<T>(start_time: Timestamp, end_time: Timestamp) -> Check<T> {
+    Check::new("timestamp", move |event: &BpfEvent<_>| CheckResult {
+        success: start_time <= event.timestamp && event.timestamp <= end_time,
+        found: format!("{}", event.timestamp),
+        expected: format!("{} - {}", start_time, end_time),
+    })
 }
 
 pub struct CheckResult {
