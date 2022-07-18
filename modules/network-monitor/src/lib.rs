@@ -367,7 +367,7 @@ mod tests {
 
     async fn run_accept_test(dest: &str) {
         let dest: SocketAddr = dest.parse().unwrap();
-        let mut source = dest.clone();
+        let mut source = dest;
         TestRunner::with_ebpf(program)
             .run(|| {
                 let listener = TcpListener::bind(&dest).unwrap();
@@ -414,7 +414,7 @@ mod tests {
         let dest: SocketAddr = dest.parse().unwrap();
         // for UDP, we use the next port as the source
         // for TCP it's overriden on connection
-        let mut source = dest.clone();
+        let mut source = dest;
         let msg = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let data_copied = match proto {
             Proto::TCP => DataArray::from(&[][..]),
@@ -453,7 +453,7 @@ mod tests {
                 (src, source.into(), "source address"),
                 (data, data_copied.clone(), "data copy"),
                 (data_len, msg.len() as u32, "real message len"),
-                (proto, proto.clone(), "protocol")
+                (proto, proto, "protocol")
             ))
             .expect_event(event_check!(
                 NetworkEvent::Receive,
@@ -461,7 +461,7 @@ mod tests {
                 (src, dest.into(), "source address"),
                 (data, data_copied.clone(), "data copy"),
                 (data_len, msg.len() as u32, "real message len"),
-                (proto, proto.clone(), "protocol")
+                (proto, proto, "protocol")
             ));
     }
 
@@ -479,7 +479,7 @@ mod tests {
 
     async fn run_close_test(dest: &str) {
         let dest: SocketAddr = dest.parse().unwrap();
-        let mut source = dest.clone();
+        let mut source = dest;
         let mut expected_pid = Pid::from_raw(0);
         let listener = TcpListener::bind(&dest).unwrap();
         // The on_tcp_set_state hook may be called by a process different from

@@ -363,7 +363,7 @@ mod tests {
     fn attach_tracepoint(bpf: &mut Bpf, tp: &str) {
         let tracepoint: &mut TracePoint = bpf
             .program_mut(tp)
-            .ok_or(ProgramError::ProgramNotFound(tp.to_string()))
+            .ok_or_else(|| ProgramError::ProgramNotFound(tp.to_string()))
             .unwrap()
             .try_into()
             .unwrap();
@@ -393,7 +393,7 @@ mod tests {
         interest_map.clear().unwrap();
 
         // try spawning a new thread
-        let child_thread = std::thread::spawn(|| nix::unistd::gettid())
+        let child_thread = std::thread::spawn(nix::unistd::gettid)
             .join()
             .unwrap()
             .as_raw();
