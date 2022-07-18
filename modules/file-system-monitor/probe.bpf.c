@@ -46,7 +46,8 @@ static __always_inline void get_path_str(struct path *path,
   struct mount *mnt_parent_p;
 
   struct mount *mnt_p = container_of(vfsmnt, struct mount, mnt);
-  bpf_probe_read_kernel(&mnt_parent_p, sizeof(struct mount *), &mnt_p->mnt_parent);
+  bpf_probe_read_kernel(&mnt_parent_p, sizeof(struct mount *),
+                        &mnt_p->mnt_parent);
 
   u32 buf_off = (NAME_MAX >> 1);
   struct dentry *mnt_root;
@@ -71,10 +72,11 @@ static __always_inline void get_path_str(struct path *path,
       if (mnt_p != mnt_parent_p) {
         // We reached root, but not global root - continue with mount point path
         bpf_probe_read_kernel(&dentry, sizeof(struct dentry *),
-                       &mnt_p->mnt_mountpoint);
-        bpf_probe_read_kernel(&mnt_p, sizeof(struct mount *), &mnt_p->mnt_parent);
+                              &mnt_p->mnt_mountpoint);
+        bpf_probe_read_kernel(&mnt_p, sizeof(struct mount *),
+                              &mnt_p->mnt_parent);
         bpf_probe_read_kernel(&mnt_parent_p, sizeof(struct mount *),
-                       &mnt_p->mnt_parent);
+                              &mnt_p->mnt_parent);
         vfsmnt = &mnt_p->mnt;
         continue;
       }
@@ -91,7 +93,7 @@ static __always_inline void get_path_str(struct path *path,
     if (off <= buf_off) { // verify no wrap occurred
       len = len & ((NAME_MAX >> 1) - 1);
       sz = bpf_probe_read_kernel_str(&(buf[off & ((NAME_MAX >> 1) - 1)]), len,
-                              (void *)d_name.name);
+                                     (void *)d_name.name);
     } else
       break;
     if (sz > 1) {
@@ -120,7 +122,8 @@ static __always_inline void get_path_str(struct path *path,
 
     // Copy string to the start
     int total_len = NAME_MAX - buf_off;
-    bpf_probe_read_kernel(buf, total_len&(NAME_MAX-1), buf+(buf_off & NAME_MAX-1));
+    bpf_probe_read_kernel(buf, total_len & (NAME_MAX - 1),
+                          buf + (buf_off & NAME_MAX - 1));
   }
 }
 
@@ -152,7 +155,7 @@ static __always_inline void get_dentry_path_str(struct dentry *dentry,
     if (off <= buf_off) { // verify no wrap occurred
       len = len & ((NAME_MAX >> 1) - 1);
       sz = bpf_probe_read_kernel_str(&(buf[off & ((NAME_MAX >> 1) - 1)]), len,
-                              (void *)d_name.name);
+                                     (void *)d_name.name);
     } else {
       break;
     }
@@ -181,7 +184,8 @@ static __always_inline void get_dentry_path_str(struct dentry *dentry,
     bpf_probe_read_kernel(&(buf[(NAME_MAX >> 1) - 1]), 1, &zero);
     // Copy string to the start
     int total_len = NAME_MAX - buf_off;
-    bpf_probe_read_kernel(buf, total_len&(NAME_MAX-1), buf+(buf_off & NAME_MAX-1));
+    bpf_probe_read_kernel(buf, total_len & (NAME_MAX - 1),
+                          buf + (buf_off & NAME_MAX - 1));
   }
 }
 
@@ -201,6 +205,7 @@ int security_inode_create(struct pt_regs *ctx) {
   event->timestamp = bpf_ktime_get_ns();
   event->pid = tgid;
 
+  LOG_DEBUG("create %s", event->filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
   return 0;
@@ -222,6 +227,7 @@ int security_inode_unlink(struct pt_regs *ctx) {
   event->timestamp = bpf_ktime_get_ns();
   event->pid = tgid;
 
+  LOG_DEBUG("unlink %s", event->filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
   return 0;
@@ -245,6 +251,7 @@ int security_file_open(struct pt_regs *ctx) {
   event->pid = tgid;
   event->flags = BPF_CORE_READ(file, f_flags);
 
+  LOG_DEBUG("open %s", event->filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
   return 0;
