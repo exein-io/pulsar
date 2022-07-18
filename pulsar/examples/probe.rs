@@ -18,6 +18,7 @@ struct Args {
 }
 
 /// Test runner for eBPF programs
+#[allow(clippy::enum_variant_names)]
 #[derive(Subcommand, Debug)]
 enum Probe {
     #[cfg(feature = "file-system-monitor")]
