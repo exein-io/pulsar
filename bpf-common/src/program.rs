@@ -1,6 +1,6 @@
 //! [`Program`] is a wrapper around [`aya::Bpf`] which:
 //! - runs background thread which sets up the probe and waits for a shutdown signal
-//! - allows to to read events events.
+//! - allows to read events events.
 //!
 use core::fmt;
 use std::{mem::size_of, sync::Arc, time::Duration};
