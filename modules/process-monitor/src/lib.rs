@@ -143,6 +143,7 @@ mod tests {
     use nix::unistd::execv;
     use nix::unistd::{fork, ForkResult};
     use std::ffi::CString;
+    use which::which;
 
     use super::*;
 
@@ -169,6 +170,8 @@ mod tests {
     #[serial_test::serial]
     async fn exec_event() {
         let mut child_pid = Pid::from_raw(0);
+        let echo_buff = which("echo").unwrap();
+        let echo_path: StringArray<NAME_MAX> = echo_buff.as_path().to_str().unwrap().into();
         test_runner()
             .run(|| {
                 let mut child = std::process::Command::new("echo").spawn().unwrap();
@@ -180,7 +183,7 @@ mod tests {
                 child_pid,
                 event_check!(
                     ProcessEvent::Exec,
-                    (filename, "/usr/bin/echo".into(), "exec filename")
+                    (filename, echo_path.into(), "exec filename")
                 ),
             );
     }
