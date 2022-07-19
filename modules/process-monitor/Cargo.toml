@@ -12,7 +12,6 @@ tokio = { version = "1", features = ["full"] }
 nix = "0.24.0"
 log = "0.4"
 thiserror = "1"
-which = "4.2.5"
 
 [build-dependencies]
 bpf-common = { path = "../../bpf-common", features = ["build"] }
@@ -20,3 +19,4 @@ bpf-common = { path = "../../bpf-common", features = ["build"] }
 [dev-dependencies]
 bpf-common = { path = "../../bpf-common", features = ["test-utils"] }
 serial_test = { version = "0.6.0" }
+which = "4.2.5"
