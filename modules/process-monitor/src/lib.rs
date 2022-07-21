@@ -183,7 +183,7 @@ mod tests {
                 child_pid,
                 event_check!(
                     ProcessEvent::Exec,
-                    (filename, echo_path.into(), "exec filename")
+                    (filename, echo_path, "exec filename")
                 ),
             );
     }

@@ -47,8 +47,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           use-cross: ${{ matrix.cross }}
-          command: clippy
-          args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets -- -D warnings
+          command: build
+          args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"
