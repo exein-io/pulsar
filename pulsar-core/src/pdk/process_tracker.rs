@@ -48,7 +48,7 @@ struct InfoRequest {
     tx_reply: oneshot::Sender<Result<ProcessInfo, TrackerError>>,
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum TrackerError {
     #[error("process not found")]
     ProcessNotFound,

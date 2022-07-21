@@ -67,7 +67,7 @@ pub async fn program(
 }
 
 /// The data stored on the C side
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct ActivityT {
     histogram: [u64; MAX_SYSCALLS],

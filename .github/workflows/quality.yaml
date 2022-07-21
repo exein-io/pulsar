@@ -1,0 +1,82 @@
+name: Quality Checks
+on:
+  pull_request:
+    branches:    
+      - main
+
+jobs:
+  fmt:
+    name: Formatting (rustfmt)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust:
+          - stable
+
+        platform:
+          - target: x86_64-unknown-linux-gnu
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: Install Rust toolchain (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.platform.target }}
+          override: true
+          components: rustfmt
+
+      - name: Formatting (rustfmt)
+        run: cargo fmt -- --check
+
+  lint:
+    name: Lint (clippy)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust:
+          - stable
+
+        platform:
+          - target: x86_64-unknown-linux-gnu
+            cross: false
+          - target: x86_64-unknown-linux-musl
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            cross: true
+          - target: riscv64gc-unknown-linux-gnu
+            cross: true
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+          
+      - name: Install musl-gcc
+        run: sudo apt install -y musl-tools
+
+      - name: Install Rust toolchain (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.platform.target }}
+          override: true
+          components: clippy
+
+      - name: Clippy (default features)
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: ${{ matrix.cross }}
+          command: clippy
+          args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets -- -D warnings
+
+      - name: Check build did not modify any files
+        run: test -z "$(git status --porcelain)"

@@ -20,4 +20,4 @@ codegen-units = 1
 
 [profile.release-with-debug]
 inherits = "release"
-debug=true
+debug = true

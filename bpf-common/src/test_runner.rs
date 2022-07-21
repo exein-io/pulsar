@@ -189,12 +189,14 @@ impl<T: Display> TestResult<T> {
     }
 }
 
+pub type CheckFunction<T> = Box<dyn Fn(&BpfEvent<T>) -> CheckResult>;
+
 /// A Check is an expectation about a BpfEvent which should be emitted.
 /// This allows to split test expectations in different lines, making it easier to spot the error.
 /// Build this is using the `event_check!` macro.
 pub struct Check<T> {
     pub description: &'static str,
-    pub check_fn: Box<dyn Fn(&BpfEvent<T>) -> CheckResult>,
+    pub check_fn: CheckFunction<T>,
 }
 
 impl<T> Check<T> {
