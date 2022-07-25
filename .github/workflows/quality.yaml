@@ -1,7 +1,7 @@
 name: Quality Checks
 on:
   pull_request:
-    branches:    
+    branches:
       - main
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: recursive
-          
+
       - name: Install musl-gcc
         run: sudo apt install -y musl-tools
 
@@ -74,7 +74,7 @@ jobs:
       - name: Clippy (default features)
         uses: actions-rs/cargo@v1
         with:
-          use-cross: ${{ matrix.cross }}
+          use-cross: ${{ matrix.platform.cross }}
           command: clippy
           args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets -- -D warnings
 

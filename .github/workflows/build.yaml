@@ -1,7 +1,7 @@
 name: Build
 on:
   pull_request:
-    branches:    
+    branches:
       - main
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
       - name: Clippy (default features)
         uses: actions-rs/cargo@v1
         with:
-          use-cross: ${{ matrix.cross }}
+          use-cross: ${{ matrix.platform.cross }}
           command: build
           args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets
 
@@ -94,7 +94,7 @@ jobs:
       - name: Clippy (default features)
         uses: actions-rs/cargo@v1
         with:
-          use-cross: ${{ matrix.cross }}
+          use-cross: ${{ matrix.platform.cross }}
           command: build
           args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets --release
 
