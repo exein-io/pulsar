@@ -1,4 +1,5 @@
 name: Dependency Audit
+# there is a problem with a dependency of a dependency : `time`. so for now I'm keeping it manual
 on: workflow_dispatch
 # on:
 #   pull_request:
