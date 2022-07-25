@@ -43,7 +43,7 @@ jobs:
           override: true
           components: clippy
 
-      - name: Clippy (default features)
+      - name: Build (default features)
         uses: actions-rs/cargo@v1
         with:
           use-cross: ${{ matrix.platform.cross }}
@@ -91,7 +91,7 @@ jobs:
           override: true
           components: clippy
 
-      - name: Clippy (default features)
+      - name: Build (default features)
         uses: actions-rs/cargo@v1
         with:
           use-cross: ${{ matrix.platform.cross }}
