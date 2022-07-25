@@ -78,7 +78,7 @@ const FLAGS: [(i32, &str); 22] = [
     (libc::O_WRONLY, "WRONLY"),
 ];
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub struct Flags(i32);
 
 impl fmt::Display for Flags {

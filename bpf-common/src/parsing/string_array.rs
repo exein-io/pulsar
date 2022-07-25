@@ -7,6 +7,7 @@
 //! - allows conversion to String using String::from_utf8_lossy
 use core::fmt;
 
+#[derive(Clone, Eq)]
 #[repr(C)]
 pub struct StringArray<const N: usize> {
     data: [u8; N],

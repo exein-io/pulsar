@@ -8,7 +8,7 @@
 
 use std::fmt;
 
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 #[repr(C)]
 pub struct DataArray<const T: usize> {
     copied_data_len: u32,

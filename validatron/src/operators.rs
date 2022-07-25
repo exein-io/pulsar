@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "content")]
 pub enum Operator {
     Relational(RelationalOperator),
@@ -16,7 +16,7 @@ impl fmt::Display for Operator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum StringOperator {
     StartsWith,
     EndsWith,
@@ -32,7 +32,7 @@ impl StringOperator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RelationalOperator {
     Equals,
     NotEquals,
@@ -61,7 +61,7 @@ impl fmt::Display for RelationalOperator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MultiOperator {
     Contains,
 }

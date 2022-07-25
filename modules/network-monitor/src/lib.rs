@@ -44,7 +44,7 @@ pub async fn program(
 
 const MAX_DATA_SIZE: usize = 4096;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(C)]
 pub enum NetworkEvent {
     Bind {
@@ -81,7 +81,7 @@ pub enum NetworkEvent {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(C, u8)]
 pub enum Addr {
     V4(SockaddrIn),
@@ -124,7 +124,7 @@ impl fmt::Display for Addr {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Proto {
     TCP = 0,
