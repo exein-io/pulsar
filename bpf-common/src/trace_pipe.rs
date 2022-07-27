@@ -17,8 +17,8 @@ pub struct StopHandle(oneshot::Sender<()>);
 
 pub async fn start() -> StopHandle {
     let (tx, rx) = oneshot::channel();
-    if let Some(mut file) = open_trace_pipe().await {
-        tokio::spawn(async move {
+    tokio::spawn(async move {
+        if let Some((mut async_fd, _open_file)) = open_trace_pipe().await {
             log::info!("Logging events from {}", PATH);
 
             tokio::pin!(rx);
@@ -26,7 +26,7 @@ pub async fn start() -> StopHandle {
                 let mut buf = BytesMut::with_capacity(512);
                 let file_event = tokio::select! {
                     // wait for a new event
-                    f = file.read_buf(&mut buf) => f,
+                    f = async_fd.read_buf(&mut buf) => f,
                     // exit when stop handle is dropped
                     _ = &mut rx => return,
                 };
@@ -36,13 +36,21 @@ pub async fn start() -> StopHandle {
                 }
                 print_buffer(&buf[..]);
             }
-        });
-    }
+        }
+    });
 
     StopHandle(tx)
 }
 
-async fn open_trace_pipe() -> Option<AsyncFd> {
+/// Open the trace pipe file and returns:
+/// - An AsyncFd which can be used to read asynchronously from it.
+///   NOTE: we can't just use tokio::fs::File because it uses blocking IO on
+///   a different thread. If we do, Ctrl-C won't quit the application since
+///   we're still stuck reading this file.
+/// - The original tokio::fs::File is returned and must not be dropped until
+///   we're done reading from the async fd. Dropping it would close the FD,
+///   resulting in EBADFD errors when trying to read.
+async fn open_trace_pipe() -> Option<(AsyncFd, File)> {
     let file = match File::open(PATH).await {
         Ok(file) => file,
         Err(e) => {
@@ -50,14 +58,14 @@ async fn open_trace_pipe() -> Option<AsyncFd> {
             return None;
         }
     };
-    let file = match AsyncFd::try_from(file.as_raw_fd()) {
-        Ok(file) => file,
+    let async_fd = match AsyncFd::try_from(file.as_raw_fd()) {
+        Ok(async_fd) => async_fd,
         Err(e) => {
             log::warn!("Error opening {} as non-blocking: {:?}", PATH, e);
             return None;
         }
     };
-    Some(file)
+    Some((async_fd, file))
 }
 
 fn print_buffer(buf: &[u8]) {
