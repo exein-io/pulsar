@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 file-system-monitor = { path = "../modules/file-system-monitor", features = ["test-suite"] }
-inventory = "0.3.0"
 libtest-mimic = { path = "../../read/libtest-mimic" } # "0.4.1"
 bpf-common = { path = "../bpf-common", features = ["test-utils"] }
 tokio = { version = "1", features = ["full"] }
