@@ -7,9 +7,6 @@ use std::{
 
 use bpf_common::test_runner::{TestCase, TestReport};
 use libtest_mimic::{run_tests, Arguments, Outcome, Test};
-
-// Import the modules,  this is needed to make inventory work
-use file_system_monitor;
 use tokio::sync::mpsc;
 
 fn main() {
@@ -24,25 +21,20 @@ fn main() {
         .map(|()| log::set_max_level(log::LevelFilter::Info))
         .expect("initalizing logger failed");
 
-    let modules = [(
-        "file-system-monitor",
-        file_system_monitor::test_suite::tests,
-    )];
+    let modules = [file_system_monitor::test_suite::tests()];
 
     let tests = modules
         .into_iter()
         .flat_map(move |(module, tests)| {
-            tests()
-                .into_iter()
-                .map(move |TestCase { name, test }| Test {
-                    name: format!("{module}::{name}"),
-                    kind: String::new(),
-                    is_ignored: false,
-                    is_bench: false,
-                    // libtest_mimic requires data to be Sync,
-                    // so we wrap it
-                    data: Arc::new(Mutex::new(Some(test))),
-                })
+            tests.into_iter().map(move |TestCase { name, test }| Test {
+                name: format!("{module}::{name}"),
+                kind: String::new(),
+                is_ignored: false,
+                is_bench: false,
+                // libtest_mimic requires data to be Sync,
+                // so we wrap it
+                data: Arc::new(Mutex::new(Some(test))),
+            })
         })
         .collect();
 

@@ -159,7 +159,6 @@ dependencies = [
  "env_logger",
  "glob",
  "hex",
- "inventory",
  "lazy_static",
  "libc",
  "log",
@@ -340,16 +339,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
-name = "ctor"
-version = "0.1.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f877be4f7c9f246b183111634f75baa039715e3f46ce860677d3b19a69fb229c"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -454,7 +443,6 @@ name = "file-system-monitor"
 version = "0.1.0"
 dependencies = [
  "bpf-common",
- "inventory",
  "log",
  "nix",
  "pulsar-core",
@@ -591,17 +579,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
-]
-
-[[package]]
-name = "ghost"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b93490550b1782c589a350f2211fff2e34682e25fed17ef53fc4fa8fe184975e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -754,16 +731,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
  "cfg-if",
-]
-
-[[package]]
-name = "inventory"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0257e268c91daba296499206db5dd5a058875936bec3d8429b5f3e20ec9dc9a"
-dependencies = [
- "ctor",
- "ghost",
 ]
 
 [[package]]
@@ -934,7 +901,6 @@ dependencies = [
  "log",
  "nix",
  "pulsar-core",
- "serial_test",
  "tokio",
 ]
 
@@ -1678,7 +1644,6 @@ version = "0.1.0"
 dependencies = [
  "bpf-common",
  "file-system-monitor",
- "inventory",
  "libtest-mimic",
  "log",
  "tokio",

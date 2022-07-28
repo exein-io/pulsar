@@ -255,8 +255,11 @@ pub mod test_suite {
         test_runner::{TestCase, TestRunner},
     };
 
-    pub fn tests() -> Vec<TestCase> {
-        vec![open_file(), file_name(), unlink_file()]
+    pub fn tests() -> (&'static str, Vec<TestCase>) {
+        (
+            "file-system-monitor",
+            vec![open_file(), file_name(), unlink_file()],
+        )
     }
 
     fn file_name() -> TestCase {
@@ -305,7 +308,7 @@ pub mod test_suite {
                 .expect_event(event_check!(
                     FsEvent::FileOpened,
                     (filename, PATH.into(), "filename"),
-                    (flags, Flags(libc::O_RDWR), "open flags")
+                    (flags, Flags(libc::O_RDWR | FMODE_OPENED), "open flags")
                 ))
                 .report()
         })
