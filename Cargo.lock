@@ -156,7 +156,6 @@ dependencies = [
  "anyhow",
  "aya",
  "bytes",
- "env_logger",
  "glob",
  "hex",
  "lazy_static",
