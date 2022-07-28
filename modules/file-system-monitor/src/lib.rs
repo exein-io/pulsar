@@ -263,13 +263,14 @@ pub mod test_suite {
     }
 
     fn file_name() -> TestCase {
-        TestCase::new("file_name", {
+        TestCase::new("file_name", async {
             const PATH: &str = "/tmp/file_name_1";
             TestRunner::with_ebpf(program)
                 .run(|| {
                     let _ = std::fs::remove_file(PATH);
                     std::fs::File::create(PATH).expect("creating file failed");
                 })
+                .await
                 .expect_event(event_check!(
                     FsEvent::FileCreated,
                     (filename, PATH.into(), "filename")
@@ -279,11 +280,12 @@ pub mod test_suite {
     }
 
     fn unlink_file() -> TestCase {
-        TestCase::new("unlink_file", {
+        TestCase::new("unlink_file", async {
             let path = "/tmp/unlink_file";
             std::fs::write(path, b"").unwrap();
             TestRunner::with_ebpf(program)
                 .run(|| nix::unistd::unlink(path).unwrap())
+                .await
                 .expect_event(event_check!(
                     FsEvent::FileDeleted,
                     (filename, path.into(), "filename")
@@ -293,7 +295,7 @@ pub mod test_suite {
     }
 
     fn open_file() -> TestCase {
-        TestCase::new("open_file", {
+        TestCase::new("open_file", async {
             const PATH: &str = "/tmp/open_file";
             // See include/linux/fs.h
             const FMODE_OPENED: i32 = 32768;
@@ -305,6 +307,7 @@ pub mod test_suite {
                 .run(move || {
                     options.open(PATH).unwrap();
                 })
+                .await
                 .expect_event(event_check!(
                     FsEvent::FileOpened,
                     (filename, PATH.into(), "filename"),

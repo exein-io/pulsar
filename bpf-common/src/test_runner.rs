@@ -50,10 +50,8 @@ impl TestCase {
     }
 }
 
-pub struct TestRunner<'a, T: Display> {
+pub struct TestRunner<T: Display> {
     ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>> + Send>>,
-    trigger_program: Box<dyn FnOnce() + 'a + Send>,
-    expectations: Vec<Expectation<T>>,
     rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
 }
 
@@ -66,18 +64,12 @@ enum Expectation<T> {
     },
 }
 
-impl<'a, T: Display> TestRunner<'a, T> {
+impl<T: Display> TestRunner<T> {
     pub fn with_ebpf<P, Fut>(ebpf_fn: P) -> Self
     where
         P: Fn(BpfContext, TestSender<T>) -> Fut,
         Fut: Future<Output = Result<Program, ProgramError>> + 'static + Send,
     {
-        let _ = env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .is_test(true)
-            .format_timestamp(None)
-            .target(env_logger::Target::Stdout)
-            .try_init();
         let (tx, rx) = mpsc::unbounded_channel();
         let sender = TestSender { tx };
         let ctx = BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug).unwrap();
@@ -85,16 +77,39 @@ impl<'a, T: Display> TestRunner<'a, T> {
         Self {
             rx,
             ebpf: Box::pin(ebpf_fn(ctx, sender)),
-            trigger_program: Box::new(|| {}),
-            expectations: Vec::new(),
         }
     }
 
-    pub fn run(mut self, trigger_program: impl FnOnce() + 'a + Send) -> Self {
-        self.trigger_program = Box::new(trigger_program);
-        self
+    pub async fn run<F>(mut self, trigger_program: F) -> TestResult<T>
+    where
+        F: FnOnce(),
+    {
+        let _program = self.ebpf.await.context("running eBPF").unwrap();
+        // Run the triggering code
+        let start_time = Timestamp::now();
+        trigger_program();
+        let end_time = Timestamp::now();
+        // Wait ebpf to process pending events
+        tokio::time::sleep(MAX_TIMEOUT).await;
+        // Collect events
+        let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
+        TestResult {
+            start_time,
+            end_time,
+            events,
+            expectations: Vec::new(),
+        }
     }
+}
 
+pub struct TestResult<T: Display> {
+    start_time: Timestamp,
+    end_time: Timestamp,
+    events: Vec<BpfEvent<T>>,
+    expectations: Vec<Expectation<T>>,
+}
+
+impl<T: Display> TestResult<T> {
     /// Assert the provided predicate matches at least one event
     pub fn expect(mut self, predicate: impl Fn(&BpfEvent<T>) -> bool + 'static + Send) -> Self {
         self.expectations
@@ -143,17 +158,8 @@ impl<'a, T: Display> TestRunner<'a, T> {
         self
     }
 
-    pub async fn report(mut self) -> TestReport {
-        let _program = self.ebpf.await.context("running eBPF").unwrap();
-        // Run the triggering code
-        let start_time = Timestamp::now();
-        (self.trigger_program)();
-        let end_time = Timestamp::now();
-        // Wait ebpf to process pending events
-        tokio::time::sleep(MAX_TIMEOUT).await;
-        // Collect events
-        let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
-
+    pub fn report(self) -> TestReport {
+        let events = self.events;
         let mut success = true;
         let mut lines = Vec::new();
         // print all events
@@ -179,7 +185,7 @@ impl<'a, T: Display> TestRunner<'a, T> {
                         checks.push(pid_check(pid));
                     }
                     if time_bound {
-                        checks.push(timestamp_check(start_time, end_time));
+                        checks.push(timestamp_check(self.start_time, self.end_time));
                     }
                     success = success && run_checks(&events, checks, &mut lines);
                 }

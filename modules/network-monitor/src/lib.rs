@@ -300,7 +300,6 @@ pub mod test_suite {
         libc::kill,
         unistd::{fork, ForkResult},
     };
-    use tokio::sync::{oneshot, watch};
 
     use super::*;
 
@@ -338,12 +337,12 @@ pub mod test_suite {
             .run(|| {
                 let _listener = TcpListener::bind(&bind_addr).unwrap();
             })
+            .await
             .expect_event(event_check!(
                 NetworkEvent::Bind,
                 (addr, bind_addr.into(), "address")
             ))
             .report()
-            .await
     }
 
     fn connect_ipv4() -> TestCase {
@@ -357,19 +356,19 @@ pub mod test_suite {
     async fn run_connect_test(dest: &str) -> TestReport {
         let dest: SocketAddr = dest.parse().unwrap();
         let _listener = TcpListener::bind(&dest).unwrap();
-        let (tx_source, rx_source) = oneshot::channel();
+        let mut source = dest;
         TestRunner::with_ebpf(program)
             .run(|| {
                 let stream = TcpStream::connect(dest).unwrap();
-                let _ = tx_source.send(stream.local_addr().unwrap());
+                source = stream.local_addr().unwrap();
             })
+            .await
             .expect_event(event_check!(
                 NetworkEvent::Connect,
                 (dst, dest.into(), "destination address"),
-                (src, rx_source.await.unwrap().into(), "source address")
+                (src, source.into(), "source address")
             ))
             .report()
-            .await
     }
 
     fn accept_ipv4() -> TestCase {
@@ -382,22 +381,22 @@ pub mod test_suite {
 
     async fn run_accept_test(dest: &str) -> TestReport {
         let dest: SocketAddr = dest.parse().unwrap();
-        let (tx_source, rx_source) = oneshot::channel();
+        let mut source = dest;
         TestRunner::with_ebpf(program)
             .run(|| {
                 let listener = TcpListener::bind(&dest).unwrap();
                 let handle =
                     std::thread::spawn(move || TcpStream::connect(dest).unwrap().local_addr());
                 listener.accept().unwrap();
-                let _ = tx_source.send(handle.join().unwrap().unwrap());
+                source = handle.join().unwrap().unwrap();
             })
+            .await
             .expect_event(event_check!(
                 NetworkEvent::Accept,
-                (src, rx_source.await.unwrap().into(), "source address"),
+                (src, source.into(), "source address"),
                 (dst, dest.into(), "destination address")
             ))
             .report()
-            .await
     }
 
     fn udp_ipv4_sendmsg_recvmsg() -> TestCase {
@@ -434,22 +433,21 @@ pub mod test_suite {
         let dest: SocketAddr = dest.parse().unwrap();
         // for UDP, we use the next port as the source
         // for TCP it's overriden on connection
+        let mut source = dest;
         let msg = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let data_copied = match proto {
             Proto::TCP => DataArray::from(&[][..]),
             Proto::UDP => DataArray::from(&msg[..]),
         };
-        let (tx_source, rx_source) = watch::channel(None);
         TestRunner::with_ebpf(program)
             .run(|| match proto {
                 Proto::UDP => {
-                    let source = SocketAddr::new(dest.ip(), dest.port() + 1);
-                    let _ = tx_source.send(Some(source));
+                    source.set_port(dest.port() + 1);
                     let receiver = UdpSocket::bind(&dest).unwrap();
                     std::thread::spawn(move || {
                         let s = UdpSocket::bind(source).unwrap();
                         s.connect(dest).unwrap();
-                        let _ = s.send(&msg).unwrap();
+                        s.send(&msg).unwrap();
                     });
                     let mut buf = [0; 512];
                     assert_eq!(receiver.recv_from(&mut buf).unwrap(), (msg.len(), source));
@@ -464,31 +462,27 @@ pub mod test_suite {
                     let mut connection = listener.accept().unwrap().0;
                     let mut buf = [0; 512];
                     assert_eq!(connection.read(&mut buf).unwrap(), msg.len());
-                    let _ = tx_source.send(Some(t.join().unwrap()));
+                    source = t.join().unwrap();
                 }
             })
+            .await
             .expect_event(event_check!(
                 NetworkEvent::Send,
                 (dst, dest.into(), "destination address"),
-                (src, rx_source.borrow().unwrap().into(), "source address"),
+                (src, source.into(), "source address"),
                 (data, data_copied.clone(), "data copy"),
                 (data_len, msg.len() as u32, "real message len"),
                 (proto, proto, "protocol")
             ))
             .expect_event(event_check!(
                 NetworkEvent::Receive,
-                (
-                    dst,
-                    rx_source.borrow().unwrap().into(),
-                    "destination address"
-                ),
+                (dst, source.into(), "destination address"),
                 (src, dest.into(), "source address"),
                 (data, data_copied.clone(), "data copy"),
                 (data_len, msg.len() as u32, "real message len"),
                 (proto, proto, "protocol")
             ))
             .report()
-            .await
     }
 
     fn close_ipv4() -> TestCase {
@@ -501,43 +495,40 @@ pub mod test_suite {
 
     async fn run_close_test(dest: &str) -> TestReport {
         let dest: SocketAddr = dest.parse().unwrap();
-        let (tx_source, rx_source) = oneshot::channel();
-        let (tx_pid, rx_pid) = oneshot::channel();
+        let mut source = dest;
+        let mut expected_pid = Pid::from_raw(0);
+        let listener = TcpListener::bind(&dest).unwrap();
         // The on_tcp_set_state hook may be called by a process different from
         // the original creator the connection. This happens for example if it
         // receives a SIGKILL. We test this to make sure we're still emitting
         // an event with the correct origianl pid.
         TestRunner::with_ebpf(program)
-            .run(|| {
-                let dest = dest.clone();
-                match unsafe { fork() }.unwrap() {
-                    ForkResult::Child => {
-                        let _conn = TcpStream::connect(dest).unwrap();
-                        unreachable!();
-                    }
-                    ForkResult::Parent { child } => {
-                        let _ = tx_pid.send(child);
-                        let listener = TcpListener::bind(&dest).unwrap();
-                        let (_connection, addr) = listener.accept().unwrap();
-                        unsafe { kill(child.as_raw(), 9) };
-                        let _ = tx_source.send(addr);
-                        std::thread::sleep(Duration::from_millis(100));
-                    }
+            .run(|| match unsafe { fork() }.unwrap() {
+                ForkResult::Child => {
+                    let _conn = TcpStream::connect(dest).unwrap();
+                    unreachable!();
+                }
+                ForkResult::Parent { child } => {
+                    expected_pid = child;
+                    let (_connection, addr) = listener.accept().unwrap();
+                    unsafe { kill(child.as_raw(), 9) };
+                    source = addr;
+                    std::thread::sleep(Duration::from_millis(100));
                 }
             })
             // We use a custom check where we ignore the event pid since
             // it might be 0 or a ksoftirqd process.
+            .await
             .expect_custom_event(
                 None,
                 true,
                 event_check!(
                     NetworkEvent::Close,
-                    (original_pid, rx_pid.await.unwrap().into(), "original pid"),
-                    (src, rx_source.await.unwrap().into(), "source address"),
+                    (original_pid, expected_pid, "original pid"),
+                    (src, source.into(), "source address"),
                     (dst, dest.into(), "dest address")
                 ),
             )
             .report()
-            .await
     }
 }
