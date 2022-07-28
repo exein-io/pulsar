@@ -53,18 +53,12 @@ fn main() {
     run_tests(&args, tests, move |test| {
         rt.block_on(async {
             let test = (test.data.lock().unwrap().take()).unwrap();
-            let TestReport { success, mut lines } = {
-                bpf_common::trace_pipe::start().await;
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                test.await
-            };
+            let TestReport { success, mut lines } = test.await;
 
-            lines.push(String::new());
             while let Ok(log) = rx_log.lock().unwrap().try_recv() {
                 lines.push(log);
             }
 
-            //let success = false;
             if success {
                 Outcome::Passed
             } else {
