@@ -124,11 +124,9 @@ pub mod pulsar {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bpf_common::test_runner::TestRunner;
 
     #[test]
     fn activity_display() {
@@ -145,17 +143,30 @@ mod tests {
             )
         );
     }
+}
 
-    #[tokio::test]
-    async fn syscalls_generated() {
-        let result = TestRunner::with_ebpf(program)
-            .run(|| {
-                let _ = std::fs::remove_file("/tmp/test_activity");
-            })
-            .await;
-        let unlink_syscall: usize = *SYSCALLS.iter().find(|(_, v)| **v == "UNLINK").unwrap().0;
-        result.expect(|e: &BpfEvent<ActivityT>| {
-            e.pid.as_raw() as u32 == std::process::id() && e.payload.histogram[unlink_syscall] == 1
-        });
+#[cfg(feature = "test-suite")]
+pub mod test_suite {
+    use super::*;
+    use bpf_common::test_runner::{TestCase, TestRunner};
+
+    pub fn tests() -> (&'static str, Vec<TestCase>) {
+        ("syscall-monitor", vec![syscalls_generated()])
+    }
+
+    fn syscalls_generated() -> TestCase {
+        TestCase::new("syscalls_generated", async {
+            let unlink_syscall: usize = *SYSCALLS.iter().find(|(_, v)| **v == "UNLINK").unwrap().0;
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    let _ = std::fs::remove_file("/tmp/test_activity");
+                })
+                .await
+                .expect(move |e: &BpfEvent<ActivityT>| {
+                    e.pid.as_raw() as u32 == std::process::id()
+                        && e.payload.histogram[unlink_syscall] == 1
+                })
+                .report()
+        })
     }
 }
