@@ -1,4 +1,4 @@
-use std::env;
+use std::env::{self, Args};
 
 use anyhow::Result;
 use xshell::{cmd, Shell};
@@ -11,9 +11,10 @@ fn main() {
 }
 
 fn try_main() -> Result<()> {
-    let task = env::args().nth(1);
+    let mut args = env::args();
+    let task = args.nth(1);
     match task.as_ref().map(|it| it.as_str()) {
-        Some("test") => test()?,
+        Some("test") => test(args)?,
         _ => print_help(),
     }
     Ok(())
@@ -27,10 +28,9 @@ test            run eBPF test suite with admin priviledges
     )
 }
 
-fn test() -> Result<()> {
+fn test(args: Args) -> Result<()> {
     let sh = Shell::new()?;
-    // TODO: make generic
     cmd!(sh, "cargo build --bin test-suite").run()?;
-    cmd!(sh, "sudo ./target/debug/test-suite").run()?;
+    cmd!(sh, "sudo ./target/debug/test-suite {args...}").run()?;
     Ok(())
 }
