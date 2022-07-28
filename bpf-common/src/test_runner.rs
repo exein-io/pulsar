@@ -96,20 +96,22 @@ impl<'a, T: Display> TestRunner<'a, T> {
     }
 
     /// Assert the provided predicate matches at least one event
-    pub fn expect(
-        &mut self,
-        predicate: impl Fn(&BpfEvent<T>) -> bool + 'static + Send,
-    ) -> &mut Self {
+    pub fn expect(mut self, predicate: impl Fn(&BpfEvent<T>) -> bool + 'static + Send) -> Self {
         self.expectations
             .push(Expectation::Predicate(Box::new(predicate)));
         self
     }
 
     /// Make sure the eBPF program produced at least one event maching all checks.
-    pub fn expect_custom_event(&mut self, checks: Vec<Check<T>>) -> &mut Self {
+    pub fn expect_custom_event(
+        mut self,
+        pid: Option<Pid>,
+        time_bound: bool,
+        checks: Vec<Check<T>>,
+    ) -> Self {
         self.expectations.push(Expectation::Checks {
-            pid: None,
-            time_bound: false,
+            pid,
+            time_bound,
             checks,
         });
         self
@@ -132,7 +134,7 @@ impl<'a, T: Display> TestRunner<'a, T> {
     /// - matching all expectations
     /// - produced during the collection interval
     /// - coming by the specified process.
-    pub fn expect_event_from_pid(&mut self, pid: Pid, checks: Vec<Check<T>>) -> &mut Self {
+    pub fn expect_event_from_pid(mut self, pid: Pid, checks: Vec<Check<T>>) -> Self {
         self.expectations.push(Expectation::Checks {
             pid: Some(pid),
             time_bound: true,

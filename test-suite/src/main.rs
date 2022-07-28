@@ -21,7 +21,10 @@ fn main() {
         .map(|()| log::set_max_level(log::LevelFilter::Info))
         .expect("initalizing logger failed");
 
-    let modules = [file_system_monitor::test_suite::tests()];
+    let modules = [
+        file_system_monitor::test_suite::tests(),
+        network_monitor::test_suite::tests(),
+    ];
 
     let tests = modules
         .into_iter()
