@@ -155,7 +155,9 @@ impl<'a, T: Display> TestRunner<'a, T> {
         let mut success = true;
         let mut lines = Vec::new();
         // print all events
-        events.iter().for_each(|e| lines.push(e.to_string()));
+        lines.push(format!("* {} events generated:", events.len()));
+        events.iter().for_each(|e| lines.push(format!("| {e}")));
+        lines.push(String::new());
 
         for expectation in self.expectations {
             match expectation {
@@ -219,17 +221,21 @@ pub fn run_checks<T: std::fmt::Display>(
     // if no event satisfies all cheks, we print a report table for each event
     if max_score != checks.len() {
         let best_results = results.into_iter().filter(|x| x.1 == max_score);
-        lines.push("No event found matching results:".to_string());
         for (event, score, check_results) in best_results {
-            lines.push(format!("{} ({}/{})", event, score, checks.len()));
+            lines.push(format!(
+                "* Only ({}/{}) matches for \"{}\"",
+                score,
+                checks.len(),
+                event
+            ));
             for (check_result, check) in check_results.iter().zip(checks.iter()) {
                 if check_result.success {
                     lines.push(format!(
-                        "- {}: {} (OK)",
+                        "✓ {}: {}",
                         check.description, check_result.expected
                     ));
                 } else {
-                    lines.push(format!("- {}: (FAIL)", check.description));
+                    lines.push(format!("❌ {}: (FAIL)", check.description));
                     lines.push(format!("  |    found: {}", check_result.found));
                     lines.push(format!("  | expected: {}", check_result.expected));
                 }

@@ -64,7 +64,7 @@ where
 {
     env_logger::builder()
         .filter(Some("probe"), log::LevelFilter::Info)
-        .filter(Some("trace_point"), log::LevelFilter::Info)
+        .filter(Some("trace_pipe"), log::LevelFilter::Info)
         .init();
     #[cfg(debug_assertions)]
     let _stop_handle = bpf_common::trace_pipe::start().await;
