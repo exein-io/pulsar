@@ -103,9 +103,9 @@ impl<T: Display> TestRunner<T> {
 }
 
 pub struct TestResult<T: Display> {
-    start_time: Timestamp,
-    end_time: Timestamp,
-    events: Vec<BpfEvent<T>>,
+    pub start_time: Timestamp,
+    pub end_time: Timestamp,
+    pub events: Vec<BpfEvent<T>>,
     expectations: Vec<Expectation<T>>,
 }
 
