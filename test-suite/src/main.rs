@@ -25,6 +25,7 @@ fn main() {
         file_system_monitor::test_suite::tests(),
         network_monitor::test_suite::tests(),
         process_monitor::test_suite::tests(),
+        syscall_monitor::test_suite::tests(),
     ];
 
     let tests = modules
