@@ -118,7 +118,7 @@ Which is the same as
 
 ```sh
 cargo build
-sudo ./target/debug/examples/probe file-system-monitor
+sudo ./target/debug/probe file-system-monitor
 ```
 
 ## Contributing

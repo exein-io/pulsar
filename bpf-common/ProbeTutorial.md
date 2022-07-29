@@ -121,7 +121,7 @@ The central part of the module is the `program` function, which:
   Just pass it down to `bpf_common::ProgramBuilder::new`.
 - takes a `BpfSender`—the channel where we'll send the generated events. It's a trait so that
   you can use whatever data structure you want for your application: modules can be used inside Pulsar,
-  but can also be used by themself. The [probe](../pulsar/examples/probe.rs) example shows how
+  but can also be used by themself. The [probe](../pulsar/bin/probe.rs) binary shows how
   you can use our modules without running the full agent.
 - returns a `bpf_common::Program`. The application will keep sending `EventT` events over the `sender`
   channel until the program handle is dropped.
@@ -138,7 +138,7 @@ can be used to forward all generated events to the sender channel.
 In case it's needed, `Program` also has a `poll` method for consuming eBPF HashMaps.
 
 The application is almost ready to use and you should refer to the 
-[`probe` example](https://github.com/Exein-io/pulsar-experiments/blob/cleanup/pulsar/examples/probe.rs) 
+[`probe` binary](https://github.com/Exein-io/pulsar-experiments/blob/cleanup/pulsar/bin/probe.rs) 
 for a simple way to link a and run it.
 
 We can now implement `probe.bpf.c` to get this example to work. 
