@@ -6,8 +6,6 @@ edition = "2021"
 
 [lib]
 proc-macro = true
-# Disable tests until https://github.com/Exein-io/pulsar/issues/3 is fixed
-test = false
 
 [dependencies]
 syn = { version = "1.0" }
