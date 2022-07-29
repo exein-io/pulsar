@@ -137,7 +137,7 @@ pub mod test_suite {
     use bpf_common::aya::programs::{KProbe, TracePoint};
     use bpf_common::aya::Bpf;
     use bpf_common::program::load_test_program;
-    use bpf_common::test_runner::{TestCase, TestReport};
+    use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use filtering::config::Rule;
     use filtering::maps::{InterestMap, RuleMap};
@@ -148,10 +148,10 @@ pub mod test_suite {
 
     use super::*;
 
-    pub fn tests() -> (&'static str, Vec<TestCase>) {
-        (
-            "process-monitor",
-            vec![
+    pub fn tests() -> TestSuite {
+        TestSuite {
+            name: "process-monitor",
+            tests: vec![
                 fork_event(),
                 exec_event(),
                 exit_event(),
@@ -161,7 +161,7 @@ pub mod test_suite {
                 threads_are_ignored(),
                 exit_cleans_up_resources(),
             ],
-        )
+        }
     }
 
     /// Check we're generating the correct parent and child pid.

@@ -1,22 +1,34 @@
 //! Test utility for eBPF programs
 //!
-//! Example usage:
+//! Example usage taken from file-system-monitor:
 //! ```
-//! #[tokio::test]
-//! async fn test_file_creation() {
-//!     let fname = "file_name_1";
-//!     let path = "/tmp/file_name_1";
-//!     let result = TestRunner::with_ebpf(program)
-//!         .run(|| {
-//!             let _ = std::fs::remove_file(path);
-//!             std::fs::File::create(path).expect("creating file failed");
+//! #[cfg(feature = "test-suite")]
+//! pub mod test_suite {
+//!     use bpf_common::{
+//!         event_check,
+//!         test_runner::{TestCase, TestRunner, TestSuite},
+//!     };
+//!
+//!     pub fn tests() -> TestSuite {
+//!         TestSuite {
+//!             name: "file-system-monitor",
+//!             tests: vec![open_file()],
+//!         }
+//!     }
+//!
+//!     fn file_name() -> TestCase {
+//!         TestCase::new("file_name", async {
+//!             const PATH: &str = "/tmp/file_name_1";
+//!             TestRunner::with_ebpf(program)
+//!                 .run(|| { std::fs::File::create(PATH); } )
+//!                 .await
+//!                 .expect_event(event_check!(
+//!                     FsEvent::FileCreated,
+//!                     (filename, PATH.into(), "filename")
+//!                 ))
+//!                 .report()
 //!         })
-//!         .await;
-//!     result.expect(|e: &EventT| {
-//!         e.pid == std::process::id()
-//!             && bpf_common::get_string(&e.filename) == fname
-//!             && result.was_running_at(e.timestamp)
-//!     });
+//!     }
 //! }
 //! ```
 
@@ -33,9 +45,29 @@ use crate::{
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);
 
-pub struct TestCase {
+/// Every module should export its own test suite
+pub struct TestSuite {
+    /// Name of the module
     pub name: &'static str,
+    /// List of tests to run
+    pub tests: Vec<TestCase>,
+}
+
+/// Every feature have a test case
+pub struct TestCase {
+    /// Name of the test
+    pub name: &'static str,
+    /// A test is an async function which returns a TestReport
     pub test: Pin<Box<dyn Future<Output = TestReport> + Send>>,
+}
+
+/// TestReport is the TestCase output
+#[must_use]
+pub struct TestReport {
+    /// Wheather or not the test passed
+    pub success: bool,
+    /// Output describing the failure
+    pub lines: Vec<String>,
 }
 
 impl TestCase {
@@ -50,36 +82,32 @@ impl TestCase {
     }
 }
 
+/// TestRunner starts a eBPF program and collects into a TestResult all events
+/// produced by the given trigger program.
 pub struct TestRunner<T: Display> {
     ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>> + Send>>,
     rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
 }
 
-enum Expectation<T> {
-    Predicate(Box<dyn Fn(&BpfEvent<T>) -> bool + Send>),
-    Checks {
-        pid: Option<Pid>,
-        time_bound: bool,
-        checks: Vec<Check<T>>,
-    },
-}
-
 impl<T: Display> TestRunner<T> {
+    /// Set the eBPF program
     pub fn with_ebpf<P, Fut>(ebpf_fn: P) -> Self
     where
         P: Fn(BpfContext, TestSender<T>) -> Fut,
         Fut: Future<Output = Result<Program, ProgramError>> + 'static + Send,
     {
+        // We use a channel to collect events
         let (tx, rx) = mpsc::unbounded_channel();
         let sender = TestSender { tx };
+
         let ctx = BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug).unwrap();
-        // Wait ebpf startup
         Self {
             rx,
             ebpf: Box::pin(ebpf_fn(ctx, sender)),
         }
     }
 
+    /// Run the given triggering code and collect all events into a TestResult.
     pub async fn run<F>(mut self, trigger_program: F) -> TestResult<T>
     where
         F: FnOnce(),
@@ -102,11 +130,53 @@ impl<T: Display> TestRunner<T> {
     }
 }
 
+/// Simple BpfSender used to collect `bpf_common::program::Program` events.
+pub struct TestSender<T> {
+    tx: mpsc::UnboundedSender<BpfEvent<T>>,
+}
+
+impl<T> Clone for TestSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+        }
+    }
+}
+
+impl<T: Send + 'static> BpfSender<T> for TestSender<T> {
+    fn send(&mut self, data: Result<BpfEvent<T>, ProgramError>) {
+        let data = data.map_err(anyhow::Error::from).unwrap();
+        assert!(self.tx.send(data).is_ok());
+    }
+}
+
+/// Events collected by the TestRunner
 pub struct TestResult<T: Display> {
+    /// When collection started
     pub start_time: Timestamp,
+    /// When collection ended
     pub end_time: Timestamp,
+    /// Collected events
     pub events: Vec<BpfEvent<T>>,
+
+    /// Expectations for this test. These are checked by the `report`
+    /// function and used to produce a TestReport.
     expectations: Vec<Expectation<T>>,
+}
+
+/// Expectation for a given test
+enum Expectation<T> {
+    /// The given predicate must match at least one of the generated events
+    Predicate(Box<dyn Fn(&BpfEvent<T>) -> bool + Send>),
+    /// At least one event must match all provided constraints
+    Checks {
+        /// Check the event comes from the configured pid, if one is specified
+        pid: Option<Pid>,
+        /// Enable checking that the event timestamp fits between the TestResult start/end time
+        time_bound: bool,
+        /// List of checks on the event properties
+        checks: Vec<Check<T>>,
+    },
 }
 
 impl<T: Display> TestResult<T> {
@@ -117,7 +187,7 @@ impl<T: Display> TestResult<T> {
         self
     }
 
-    /// Make sure the eBPF program produced at least one event maching all checks.
+    /// Make sure the eBPF program produced at least one event matching all checks.
     pub fn expect_custom_event(
         mut self,
         pid: Option<Pid>,
@@ -158,6 +228,7 @@ impl<T: Display> TestResult<T> {
         self
     }
 
+    /// Search among the produced events one which satisfies all expectations.
     pub fn report(self) -> TestReport {
         let events = self.events;
         let mut success = true;
@@ -193,12 +264,6 @@ impl<T: Display> TestResult<T> {
         }
         TestReport { success, lines }
     }
-}
-
-#[must_use]
-pub struct TestReport {
-    pub success: bool,
-    pub lines: Vec<String>,
 }
 
 /// Make sure the eBPF program produced at least one event maching all checks.
@@ -256,20 +321,18 @@ pub fn run_checks<T: std::fmt::Display>(
     }
 }
 
-pub type CheckFunction<T> = Box<dyn Fn(&BpfEvent<T>) -> CheckResult>;
-
 /// A Check is an expectation about a BpfEvent which should be emitted.
 /// This allows to split test expectations in different lines, making it easier to spot the error.
 /// Build this is using the `event_check!` macro.
 pub struct Check<T> {
     pub description: &'static str,
-    pub check_fn: Box<dyn Fn(&BpfEvent<T>) -> CheckResult + Send>,
+    pub check_fn: Box<dyn Fn(&BpfEvent<T>) -> CheckResult>,
 }
 
 impl<T> Check<T> {
     pub fn new(
         description: &'static str,
-        check_fn: impl Fn(&BpfEvent<T>) -> CheckResult + 'static + Send,
+        check_fn: impl Fn(&BpfEvent<T>) -> CheckResult + 'static,
     ) -> Self {
         Self {
             description,
@@ -279,7 +342,7 @@ impl<T> Check<T> {
 }
 
 /// Make sure the pid of an event matches the provided one
-pub fn pid_check<T>(pid: Pid) -> Check<T> {
+fn pid_check<T>(pid: Pid) -> Check<T> {
     Check::new("pid", move |event: &BpfEvent<_>| CheckResult {
         success: event.pid == pid,
         found: format!("{}", event.pid),
@@ -288,7 +351,7 @@ pub fn pid_check<T>(pid: Pid) -> Check<T> {
 }
 
 /// Make sure the timestamp of an event matches the data collection period
-pub fn timestamp_check<T>(start_time: Timestamp, end_time: Timestamp) -> Check<T> {
+fn timestamp_check<T>(start_time: Timestamp, end_time: Timestamp) -> Check<T> {
     Check::new("timestamp", move |event: &BpfEvent<_>| CheckResult {
         success: start_time <= event.timestamp && event.timestamp <= end_time,
         found: format!("{}", event.timestamp),
@@ -350,25 +413,5 @@ macro_rules! event_check {
             )*
             checks
         }
-    }
-}
-
-/// Simple BpfSender used to collect `bpf_common::program::Program` events.
-pub struct TestSender<T> {
-    tx: mpsc::UnboundedSender<BpfEvent<T>>,
-}
-
-impl<T> Clone for TestSender<T> {
-    fn clone(&self) -> Self {
-        Self {
-            tx: self.tx.clone(),
-        }
-    }
-}
-
-impl<T: Send + 'static> BpfSender<T> for TestSender<T> {
-    fn send(&mut self, data: Result<BpfEvent<T>, ProgramError>) {
-        let data = data.map_err(anyhow::Error::from).unwrap();
-        assert!(self.tx.send(data).is_ok());
     }
 }
