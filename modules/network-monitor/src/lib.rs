@@ -506,7 +506,6 @@ pub mod test_suite {
             .run(|| match unsafe { fork() }.unwrap() {
                 ForkResult::Child => {
                     let _conn = TcpStream::connect(dest).unwrap();
-                    unreachable!();
                 }
                 ForkResult::Parent { child } => {
                     expected_pid = child;

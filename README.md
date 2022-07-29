@@ -34,6 +34,7 @@ sudo apt install clang
 git clone https://github.com/Exein-io/pulsar.git
 cd pulsar
 cargo test
+cargo xtask test
 cargo build --release
 
 # Install files
@@ -78,19 +79,31 @@ See <https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md>
 
 ### Running without installing
 
-> **Warning**: pulsar requires root privileges to load eBPF programs. To make it
-> easier for development, [we run cargo artifacts with `sudo`](.cargo/config).
+```sh
+cargo xtask pulsard
+```
+
+Which is the same as
 
 ```sh
-cargo run -- pulsard
+cargo build
+sudo ./target/debug/pulsar-exec pulsard
 ```
 
 ### Integration tests
 
-In order to make sure your system is fully surpported, run the test suite.
+In order to make sure your system is fully surpported, run the [test
+suite](./test-suite).
 
 ```sh
-cargo test
+cargo xtask test
+```
+
+Which is the same as
+
+```sh
+cargo build
+sudo ./target/debug/test-suite
 ```
 
 ### Single probe runner
@@ -98,7 +111,14 @@ cargo test
 Probes can be run in isolation by running the following. 
 
 ```sh
-cargo run --example probe -- file-created
+cargo xtask probe file-system-monitor
+```
+
+Which is the same as
+
+```sh
+cargo build
+sudo ./target/debug/examples/probe file-system-monitor
 ```
 
 ## Contributing
