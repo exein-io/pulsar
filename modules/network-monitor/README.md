@@ -36,8 +36,8 @@ pulsar config --set network-monitor.enabled=false
 
 ## Testing
 
-You can try this module using the [probe example](../../pulsar/examples/probe.rs):
+You can try this module using the [probe binary](../../pulsar/bin/probe.rs):
 
 ```sh
-cargo run --example probe -- network-monitor
+cargo xtask probe network-monitor
 ```

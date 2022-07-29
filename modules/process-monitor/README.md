@@ -45,8 +45,8 @@ pulsar config --set process-monitor.targets_children=/usr/sbin/sshd
 
 ## Testing
 
-You can try this module using the [probe example](../../pulsar/examples/probe.rs):
+You can try this module using the [probe binary](../../pulsar/bin/probe.rs):
 
 ```sh
-cargo run --example probe -- process-monitor
+cargo xtask probe process-monitor
 ```

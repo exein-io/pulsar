@@ -38,8 +38,8 @@ pulsar config --set file-system-monitor.elf_check_enabled=false
 
 ## Testing
 
-You can try this module using the [probe example](../../pulsar/examples/probe.rs):
+You can try this module using the [probe binary](../../pulsar/bin/probe.rs):
 
 ```sh
-cargo run --example probe -- file-system-monitor
+cargo xtask probe file-system-monitor
 ```
