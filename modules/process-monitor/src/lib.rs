@@ -461,7 +461,7 @@ pub mod test_suite {
                 report.success = false;
                 report
                     .lines
-                    .push(format!("unexpected entry for child thread"))
+                    .push("unexpected entry for child thread".to_string())
             }
             // make sure we've not overridden the parent interest
             // with the child one.
@@ -469,7 +469,7 @@ pub mod test_suite {
                 report.success = false;
                 report
                     .lines
-                    .push(format!("should not have overridden parent interest"))
+                    .push("should not have overridden parent interest".to_string())
             }
             report
         })
