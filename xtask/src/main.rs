@@ -14,7 +14,10 @@ fn try_main() -> Result<()> {
     let mut args = env::args();
     let task = args.nth(1);
     match task.as_ref().map(|it| it.as_str()) {
-        Some("test") => test(args)?,
+        Some("test") => run_with_sudo("test-suite", "", args)?,
+        Some("pulsard") => run_with_sudo("pulsar-exec", "pulsard", args)?,
+        Some("pulsar") => run_with_sudo("pulsar-exec", "pulsar", args)?,
+        Some("probe") => run_with_sudo("probe", "", args)?,
         _ => print_help(),
     }
     Ok(())
@@ -28,9 +31,9 @@ test            run eBPF test suite with admin priviledges
     )
 }
 
-fn test(args: Args) -> Result<()> {
+fn run_with_sudo(binary: &str, prefix: &str, args: Args) -> Result<()> {
     let sh = Shell::new()?;
-    cmd!(sh, "cargo build --bin test-suite").run()?;
-    cmd!(sh, "sudo ./target/debug/test-suite {args...}").run()?;
+    cmd!(sh, "cargo build --bin {binary}").run()?;
+    cmd!(sh, "sudo ./target/debug/{binary} {prefix} {args...}").run()?;
     Ok(())
 }
