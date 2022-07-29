@@ -252,14 +252,14 @@ pub mod test_suite {
     use super::*;
     use bpf_common::{
         event_check,
-        test_runner::{TestCase, TestRunner},
+        test_runner::{TestCase, TestRunner, TestSuite},
     };
 
-    pub fn tests() -> (&'static str, Vec<TestCase>) {
-        (
-            "file-system-monitor",
-            vec![open_file(), file_name(), unlink_file()],
-        )
+    pub fn tests() -> TestSuite {
+        TestSuite {
+            name: "file-system-monitor",
+            tests: vec![open_file(), file_name(), unlink_file()],
+        }
     }
 
     fn file_name() -> TestCase {

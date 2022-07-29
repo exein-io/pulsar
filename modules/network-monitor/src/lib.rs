@@ -294,7 +294,7 @@ pub mod test_suite {
     use bpf_common::{
         event_check,
         parsing::DataArray,
-        test_runner::{TestCase, TestReport, TestRunner},
+        test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };
     use nix::{
         libc::kill,
@@ -303,10 +303,10 @@ pub mod test_suite {
 
     use super::*;
 
-    pub fn tests() -> (&'static str, Vec<TestCase>) {
-        (
-            "network-monitor",
-            vec![
+    pub fn tests() -> TestSuite {
+        TestSuite {
+            name: "network-monitor",
+            tests: vec![
                 bind_ipv4(),
                 bind_ipv6(),
                 connect_ipv4(),
@@ -320,7 +320,7 @@ pub mod test_suite {
                 close_ipv4(),
                 close_ipv6(),
             ],
-        )
+        }
     }
 
     fn bind_ipv4() -> TestCase {

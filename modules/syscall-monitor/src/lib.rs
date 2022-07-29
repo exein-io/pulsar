@@ -148,10 +148,13 @@ mod tests {
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
     use super::*;
-    use bpf_common::test_runner::{TestCase, TestRunner};
+    use bpf_common::test_runner::{TestCase, TestRunner, TestSuite};
 
-    pub fn tests() -> (&'static str, Vec<TestCase>) {
-        ("syscall-monitor", vec![syscalls_generated()])
+    pub fn tests() -> TestSuite {
+        TestSuite {
+            name: "syscall-monitor",
+            tests: vec![syscalls_generated()],
+        }
     }
 
     fn syscalls_generated() -> TestCase {
