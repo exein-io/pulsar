@@ -268,7 +268,7 @@ impl<T: Display> TestResult<T> {
 
 /// Make sure the eBPF program produced at least one event maching all checks.
 pub fn run_checks<T: std::fmt::Display>(
-    events: &Vec<BpfEvent<T>>,
+    events: &[BpfEvent<T>],
     checks: Vec<Check<T>>,
     lines: &mut Vec<String>,
 ) -> bool {

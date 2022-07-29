@@ -13,7 +13,7 @@ fn main() {
 fn try_main() -> Result<()> {
     let mut args = env::args();
     let task = args.nth(1);
-    match task.as_ref().map(|it| it.as_str()) {
+    match task.as_deref() {
         Some("test") => run_with_sudo("test-suite", &[], args)?,
         Some("pulsard") => run_with_sudo("pulsar-exec", &["pulsard"], args)?,
         Some("pulsar") => run_with_sudo("pulsar-exec", &["pulsar"], args)?,
