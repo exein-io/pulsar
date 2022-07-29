@@ -5,7 +5,7 @@ license = "Apache-2.0 with BPF probe under GPL-2.0"
 edition = "2021"
 
 [features]
-test-suite = ["bpf-common/test-utils", ]
+test-suite = ["bpf-common/test-utils"]
 
 [dependencies]
 bpf-common = { path = "../../bpf-common" }

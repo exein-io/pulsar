@@ -38,6 +38,9 @@ name = "file_created"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+test-suite = ["bpf-common/test-utils"]
+
 [dependencies]
 bpf-common = { path = "../../bpf-common" }
 pulsar-core = { path = "../../pulsar-core" }
@@ -46,10 +49,6 @@ tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 bpf-common = { path = "../../bpf-common", features = ["build"] }
-
-[dev-dependencies]
-bpf-common = { path = "../../bpf-common", features = ["test-utils"] }
-serial_test = { version = "0.6.0" }
 ```
 
 The most important dependency is `bpf-common`, which re-exports [aya](https://github.com/aya-rs/aya)
@@ -205,33 +204,61 @@ regressions quickly and easily. The `TestRunner` struct makes it simple to run c
 check it matches the expectations.
 
 ```rust
-#[cfg(test)]
-mod tests {
-    use bpf_common::{event_check, test_runner::TestRunner};
+#[cfg(feature = "test-suite")]
+pub mod test_suite {
+    use bpf_common::{
+        event_check,
+        test_runner::{TestCase, TestRunner, TestSuite},
+    };
 
     use super::*;
 
-    #[tokio::test]
-    async fn file_name() {
-        let fname = "file_name_1";
-        let path = "/tmp/file_name_1";
-        TestRunner::with_ebpf(program)
-            .run(|| {
-                let _ = std::fs::remove_file(path);
-                std::fs::File::create(path).expect("creating file failed");
-            })
-            .await
-            .expect_event(event_check!(
-                EventT::FileCreated,
-                (filename, fname.into(), "filename")
-            ));
+    pub fn tests() -> TestSuite {
+        TestSuite {
+            name: "file-created",
+            tests: vec![file_name()],
+        }
+    }
+
+    fn file_name() -> TestCase {
+        TestCase::new("file_name", async {
+            let fname = "file_name_1";
+            let path = "/tmp/file_name_1";
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    let _ = std::fs::remove_file(path);
+                    std::fs::File::create(path).expect("creating file failed");
+                })
+                .await
+                .expect_event(event_check!(
+                    EventT::FileCreated,
+                    (filename, fname.into(), "filename")
+                ))
+                .report()
+        })
     }
 }
 ```
 
-See the existing modules 
-[`lib.rs`](https://github.com/Exein-io/pulsar-experiments/blob/37491068631e83f2df9dc74ed42ad0775d2cbd8f/modules/file-system-monitor/src/lib.rs#L164-L223) 
-for more examples. All Pulsar modules must include an appropriate test suite. This makes it simple to spot 
+Finally, since this is a new module, you have to add it to the [test-suite main file](./src/main.rs):
+```rust
+// List of modules we want to test
+let modules = [
+    file_system_monitor::test_suite::tests(),
+    network_monitor::test_suite::tests(),
+    process_monitor::test_suite::tests(),
+    syscall_monitor::test_suite::tests(),
+];
+```
+
+You can now run the test suite with:
+
+```sh
+cargo xtask test
+```
+
+See the existing modules for more examples.
+All Pulsar modules must include an appropriate test suite. This makes it simple to spot
 incompatibilities when porting Pulsar to a new targets.
 
 ## Pulsar Integration 
