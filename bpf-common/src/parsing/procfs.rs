@@ -5,8 +5,9 @@ use nix::unistd::{Pid, Uid};
 use std::{
     fs::{self, File},
     io::{self, prelude::*, BufReader},
-    path::PathBuf,
+    path::{PathBuf, Path},
 };
+use std::io::Error;
 use thiserror::Error;
 
 // Special value used to indicate openat should use the current working directory.
@@ -152,4 +153,23 @@ pub fn get_running_processes() -> Result<Vec<Pid>, ProcfsError> {
             Ok(Pid::from_raw(pid))
         })
         .collect()
+}
+
+pub fn visit_dir(dir: &Path) -> Result<Vec<PathBuf>, Error> {
+    let mut files: Vec<PathBuf> = Vec::new();
+    for file in dir.read_dir()? {
+        let file = file?;
+        let path = file.path();
+
+        if path.is_dir() {
+            files.append(&mut visit_dir(&path)?);
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(files)
+}
+
+pub fn parse_proc_task_status(status: &[u8], task_status_path: String) {
+    todo!()
 }

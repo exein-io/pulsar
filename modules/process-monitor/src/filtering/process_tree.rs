@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read};
 
 use bpf_common::{
     parsing::procfs::{self, ProcfsError},
@@ -40,6 +40,35 @@ impl ProcessTree {
 
         // Get process list
         for pid in procfs::get_running_processes()? {
+            let task_path = format!("/proc/{}/task", pid);
+            
+            let tasks = std::fs::read_dir(&task_path);
+            if tasks.is_err() {
+                continue;
+            }
+            for entry in tasks.unwrap() {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    let _task_path = format!("/proc/{}/task/{}", pid, path.to_string_lossy().into_owned());
+                    let task_status = format!("/proc/{}/task/{}/status", pid, path.to_string_lossy().into_owned());
+                    let proc_task_status = std::fs::File::open(&task_status);
+                    if proc_task_status.is_err() {
+                        continue;
+                    }
+                    let mut buffer = vec![];
+                    proc_task_status.unwrap().read_to_end(&mut buffer).unwrap();
+                    
+                    procfs::parse_proc_task_status(&buffer, task_status);
+
+                    // get_container_id_from_task_dir(&task_path);
+                } else {
+                    ProcfsError::ReadFile {
+                        source: entry.err().unwrap(),
+                        path: task_path.clone(),
+                    };
+                }                
+
+            }
             let image = procfs::get_process_image(pid)
                 .map(|path| path.to_string_lossy().to_string())
                 .unwrap_or_else(|err| {
