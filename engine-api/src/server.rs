@@ -41,7 +41,10 @@ pub struct EngineAPIContext {
     pub pulsar_daemon: PulsarDaemonHandle,
 }
 
-pub fn run_api_server(engine_api_ctx: EngineAPIContext) -> Result<ServerHandle> {
+pub fn run_api_server(
+    engine_api_ctx: EngineAPIContext,
+    custom_socket_path: Option<&str>,
+) -> Result<ServerHandle> {
     let modules = Router::new()
         .route("/", get(modules))
         .route("/:module_name/start", post(module_start))
@@ -55,7 +58,9 @@ pub fn run_api_server(engine_api_ctx: EngineAPIContext) -> Result<ServerHandle> 
         .route("/configs", get(configs))
         .layer(Extension(Arc::new(engine_api_ctx)));
 
-    let uds = UnixListener::bind(PathBuf::from(super::DEFAULT_UDS))
+    let socket_path = custom_socket_path.unwrap_or(super::DEFAULT_UDS);
+
+    let uds = UnixListener::bind(PathBuf::from(socket_path))
         .map_err(|err| anyhow!("Cannot bind to socket: {err}"))?;
     log::debug!("listening on {}", super::DEFAULT_UDS);
 

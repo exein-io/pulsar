@@ -14,6 +14,9 @@ use config::PulsarConfig;
 
 use daemon::start_daemon;
 
+/// General configuration section for settings shared by all modules.
+const GENERAL_CONFIG: &str = "pulsar";
+
 pub async fn pulsar_daemon_run(
     options: &PulsarDaemonOpts,
     modules: Vec<Box<dyn TaskLauncher>>,
@@ -31,12 +34,15 @@ pub async fn pulsar_daemon_run(
         PulsarConfig::new()?
     };
 
-    let pulsar_daemon = start_daemon(modules, config).await?;
+    let pulsar_daemon = start_daemon(modules, config.clone()).await?;
 
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();
 
-        server::run_api_server(EngineAPIContext { pulsar_daemon })?
+        let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
+        let custom_socket_path = general_config.get_raw("api_socket_path");
+
+        server::run_api_server(EngineAPIContext { pulsar_daemon }, custom_socket_path)?
     };
 
     let mut sig_int = signal(SignalKind::interrupt())?;
