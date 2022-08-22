@@ -33,7 +33,7 @@ impl ModuleConfig {
         self.inner.insert(key, value)
     }
 
-    /// Returns an option of typed configuration value.
+    /// Returns an option of raw configuration value.
     pub fn get_raw(&self, config_name: &str) -> Option<&str> {
         self.inner.get(config_name).map(String::as_str)
     }
