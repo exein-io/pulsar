@@ -12,12 +12,9 @@ use pulsar_core::{
 };
 use tokio::sync::mpsc;
 
-use crate::pulsard::config::PulsarConfig;
+use crate::pulsard::{config::PulsarConfig, GENERAL_CONFIG};
 
 use super::module_manager::{create_module_manager, ModuleManagerHandle};
-
-/// General configuration section for settings shared by all modules.
-const GENERAL_CONFIG: &str = "pulsar";
 
 /// Main component of Pulsar framework. It's implemented with the actor pattern and its entrypoint is its [`PulsarDaemonHandle`]
 ///

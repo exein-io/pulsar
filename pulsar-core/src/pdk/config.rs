@@ -33,6 +33,11 @@ impl ModuleConfig {
         self.inner.insert(key, value)
     }
 
+    /// Returns an option of typed configuration value.
+    pub fn get_raw(&self, config_name: &str) -> Option<&str> {
+        self.inner.get(config_name).map(String::as_str)
+    }
+
     /// Returns a typed configuration value. This method uses anyhow
     pub fn with_default<T>(&self, config_name: &str, default: T) -> Result<T, ConfigError>
     where
