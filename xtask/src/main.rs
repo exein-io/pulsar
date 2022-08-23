@@ -37,6 +37,7 @@ probe           run a single module with admin privileges
 fn run_with_sudo(binary: &str, prefix: &[&str], args: Args) -> Result<()> {
     let sh = Shell::new()?;
     cmd!(sh, "cargo build --bin {binary}").run()?;
-    cmd!(sh, "sudo ./target/debug/{binary} {prefix...} {args...}").run()?;
+    // -E preserves the environment
+    cmd!(sh, "sudo -E ./target/debug/{binary} {prefix...} {args...}").run()?;
     Ok(())
 }
