@@ -10,7 +10,7 @@ use aya::{
         perf::{AsyncPerfEventArray, PerfBufferError},
         HashMap, MapRefMut,
     },
-    programs::{KProbe, TracePoint},
+    programs::{KProbe, Lsm, TracePoint},
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
@@ -112,6 +112,7 @@ pub struct ProgramBuilder {
     tracepoints: Vec<(String, String)>,
     kprobes: Vec<String>,
     kretprobes: Vec<String>,
+    lsms: Vec<String>,
 }
 
 impl ProgramBuilder {
@@ -123,6 +124,7 @@ impl ProgramBuilder {
             tracepoints: Vec::new(),
             kprobes: Vec::new(),
             kretprobes: Vec::new(),
+            lsms: Vec::new(),
         }
     }
 
@@ -139,6 +141,11 @@ impl ProgramBuilder {
 
     pub fn kretprobe(mut self, name: &str) -> Self {
         self.kretprobes.push(name.to_string());
+        self
+    }
+
+    pub fn lsm(mut self, name: &str) -> Self {
+        self.lsms.push(name.to_string());
         self
     }
 
@@ -186,6 +193,14 @@ impl ProgramBuilder {
                     .try_into()?;
                 tp.load()?;
                 tp.attach(&kretprobe, 0)?;
+            }
+            for lsm in self.lsms {
+                let tp: &mut Lsm = bpf
+                    .program_mut(&lsm)
+                    .ok_or_else(|| ProgramError::ProgramNotFound(lsm.clone()))?
+                    .try_into()?;
+                tp.load(&lsm, &btf)?;
+                tp.attach()?;
             }
             Result::<Bpf, ProgramError>::Ok(bpf)
         })
