@@ -189,8 +189,9 @@ static __always_inline void get_dentry_path_str(struct dentry *dentry,
   }
 }
 
-SEC("kprobe/security_inode_create")
-int security_inode_create(struct pt_regs *ctx) {
+SEC("lsm/inode_create")
+int BPF_PROG(inode_create, struct inode *dir, struct dentry *dentry,
+             umode_t mode) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;
@@ -199,7 +200,7 @@ int security_inode_create(struct pt_regs *ctx) {
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
     return 0;
-  struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+  // struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
   get_dentry_path_str(dentry, event->filename);
   event->event = FILE_CREATED;
   event->timestamp = bpf_ktime_get_ns();
@@ -211,8 +212,8 @@ int security_inode_create(struct pt_regs *ctx) {
   return 0;
 }
 
-SEC("kprobe/security_inode_unlink")
-int security_inode_unlink(struct pt_regs *ctx) {
+SEC("lsm/inode_unlink")
+int BPF_PROG(inode_unlink, struct inode *dir, struct dentry *dentry) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;
@@ -221,7 +222,6 @@ int security_inode_unlink(struct pt_regs *ctx) {
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
     return 0;
-  struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
   get_dentry_path_str(dentry, event->filename);
   event->event = FILE_DELETED;
   event->timestamp = bpf_ktime_get_ns();
@@ -233,8 +233,8 @@ int security_inode_unlink(struct pt_regs *ctx) {
   return 0;
 }
 
-SEC("kprobe/security_file_open")
-int security_file_open(struct pt_regs *ctx) {
+SEC("lsm/file_open")
+int BPF_PROG(file_open, struct file *file) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return 0;
@@ -243,7 +243,6 @@ int security_file_open(struct pt_regs *ctx) {
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
     return 0;
-  struct file *file = (struct file *)PT_REGS_PARM1(ctx);
   struct path path = BPF_CORE_READ(file, f_path);
   get_path_str(&path, event->filename);
   event->event = FILE_OPENED;

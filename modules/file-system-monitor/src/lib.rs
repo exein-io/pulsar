@@ -17,9 +17,9 @@ pub async fn program(
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
     )
-    .kprobe("security_inode_create")
-    .kprobe("security_inode_unlink")
-    .kprobe("security_file_open")
+    .lsm("inode_create")
+    .lsm("inode_unlink")
+    .lsm("file_open")
     .start()
     .await?;
     program.read_events("events", sender).await?;
