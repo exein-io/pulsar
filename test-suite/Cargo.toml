@@ -14,3 +14,4 @@ libtest-mimic =  "0.4.1"
 bpf-common = { path = "../bpf-common", features = ["test-utils"] }
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
+futures = "0.3.21"
