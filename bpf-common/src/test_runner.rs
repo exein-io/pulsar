@@ -167,7 +167,7 @@ pub struct TestResult<T: Display> {
 /// Expectation for a given test
 enum Expectation<T> {
     /// The given predicate must match at least one of the generated events
-    Predicate(Box<dyn Fn(&BpfEvent<T>) -> bool + Send>),
+    Predicate(Predicate<T>),
     /// At least one event must match all provided constraints
     Checks {
         /// Check the event comes from the configured pid, if one is specified
@@ -178,6 +178,10 @@ enum Expectation<T> {
         checks: Vec<Check<T>>,
     },
 }
+
+/// A `Predicate<T>` is a function which takes a `BpfEvent<T>` and returns if
+/// an expectation is satisfied.
+type Predicate<T> = Box<dyn Fn(&BpfEvent<T>) -> bool + Send>;
 
 impl<T: Display> TestResult<T> {
     /// Assert the provided predicate matches at least one event
@@ -326,8 +330,12 @@ pub fn run_checks<T: std::fmt::Display>(
 /// Build this is using the `event_check!` macro.
 pub struct Check<T> {
     pub description: &'static str,
-    pub check_fn: Box<dyn Fn(&BpfEvent<T>) -> CheckResult>,
+    pub check_fn: CheckFunction<T>,
 }
+
+/// A `CheckFunction<T>` is a function which takes a `BpfEvent<T>` and returns the description
+/// of the test-result
+type CheckFunction<T> = Box<dyn Fn(&BpfEvent<T>) -> CheckResult>;
 
 impl<T> Check<T> {
     pub fn new(

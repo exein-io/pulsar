@@ -1595,6 +1595,7 @@ version = "0.1.0"
 dependencies = [
  "bpf-common",
  "file-system-monitor",
+ "futures",
  "libtest-mimic",
  "log",
  "network-monitor",

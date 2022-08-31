@@ -1,11 +1,13 @@
 #![allow(unused_imports)]
 
 use std::{
+    panic::AssertUnwindSafe,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
+use futures::FutureExt;
 use libtest_mimic::{run_tests, Arguments, Outcome, Test};
 use tokio::sync::mpsc;
 
@@ -19,7 +21,7 @@ fn main() {
     // We want to show logs only for failed tests, so we use a simple
     // interceptor which sends them over a channel.
     let (tx_log, rx_log) = mpsc::unbounded_channel();
-    log::set_boxed_logger(Box::new(SimpleLogger(tx_log)))
+    log::set_boxed_logger(Box::new(SimpleLogger(tx_log.clone())))
         .map(|()| log::set_max_level(log::LevelFilter::Info))
         .expect("initalizing logger failed");
 
@@ -56,12 +58,37 @@ fn main() {
     #[cfg(debug_assertions)]
     let _stop_handle = rt.spawn(bpf_common::trace_pipe::start());
 
+    // Replace the panic hook with one which sends a message over the log channel
+    if std::env::var("USE_NORMAL_PANIC_HANDLER").is_err() {
+        std::panic::set_hook(Box::new(move |panic_info| {
+            let panic_msg = if let Some(msg) = panic_info.payload().downcast_ref::<&str>() {
+                msg.to_string()
+            } else if let Some(msg) = panic_info.payload().downcast_ref::<String>() {
+                msg.to_string()
+            } else {
+                "Unknown panic error\nRe-run exporting the USE_NORMAL_PANIC_HANDLER env variable"
+                    .to_string()
+            };
+            let location = panic_info
+                .location()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "unknown location".to_string());
+            let _ = tx_log.send(format!("❌ Panic: {panic_msg}\n  | at {location}"));
+        }));
+    }
+
     let rx_log = Arc::new(Mutex::new(rx_log));
     run_tests(&args, tests, move |test| {
         rt.block_on(async {
-            // Run actual test
+            // Run actual test and treat eventual panics as errors.
             let test = (test.data.lock().unwrap().take()).unwrap();
-            let TestReport { success, mut lines } = test.await;
+            let TestReport { success, mut lines } = AssertUnwindSafe(test)
+                .catch_unwind()
+                .await
+                .unwrap_or(TestReport {
+                    success: false,
+                    lines: vec![],
+                });
 
             // Collect logs and append them to the report lines
             while let Ok(log) = rx_log.lock().unwrap().try_recv() {
