@@ -189,17 +189,17 @@ static __always_inline void get_dentry_path_str(struct dentry *dentry,
   }
 }
 
-SEC("lsm/inode_create")
-int BPF_PROG(inode_create, struct inode *dir, struct dentry *dentry,
-             umode_t mode) {
+static __always_inline void on_inode_create(void *ctx, struct inode *dir,
+                                            struct dentry *dentry,
+                                            umode_t mode) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
   u32 key = 0;
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
-    return 0;
+    return;
   // struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
   get_dentry_path_str(dentry, event->filename);
   event->event = FILE_CREATED;
@@ -209,19 +209,18 @@ int BPF_PROG(inode_create, struct inode *dir, struct dentry *dentry,
   LOG_DEBUG("create %s", event->filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
-  return 0;
 }
 
-SEC("lsm/inode_unlink")
-int BPF_PROG(inode_unlink, struct inode *dir, struct dentry *dentry) {
+static __always_inline void on_inode_unlink(void *ctx, struct inode *dir,
+                                            struct dentry *dentry) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
   u32 key = 0;
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
-    return 0;
+    return;
   get_dentry_path_str(dentry, event->filename);
   event->event = FILE_DELETED;
   event->timestamp = bpf_ktime_get_ns();
@@ -230,19 +229,18 @@ int BPF_PROG(inode_unlink, struct inode *dir, struct dentry *dentry) {
   LOG_DEBUG("unlink %s", event->filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
-  return 0;
+  return;
 }
 
-SEC("lsm/file_open")
-int BPF_PROG(file_open, struct file *file) {
+void __always_inline on_file_open(void *ctx, struct file *file) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
   u32 key = 0;
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
-    return 0;
+    return;
   struct path path = BPF_CORE_READ(file, f_path);
   get_path_str(&path, event->filename);
   event->event = FILE_OPENED;
@@ -253,5 +251,48 @@ int BPF_PROG(file_open, struct file *file) {
   LOG_DEBUG("open %s", event->filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
+  return;
+}
+
+/// LSM hook points
+
+SEC("lsm/inode_create")
+int BPF_PROG(inode_create, struct inode *dir, struct dentry *dentry,
+             umode_t mode, int ret) {
+  on_inode_create(ctx, dir, dentry, mode);
+  return ret;
+}
+
+SEC("lsm/inode_unlink")
+int BPF_PROG(inode_unlink, struct inode *dir, struct dentry *dentry, int ret) {
+  on_inode_unlink(ctx, dir, dentry);
+  return ret;
+}
+
+SEC("lsm/file_open")
+int BPF_PROG(file_open, struct file *file, int ret) {
+  on_file_open(ctx, file);
+  return ret;
+}
+
+/// Fallback kprobes
+
+SEC("kprobe/security_inode_create")
+int BPF_KPROBE(security_inode_create, struct inode *dir, struct dentry *dentry,
+               umode_t mode) {
+  on_inode_create(ctx, dir, dentry, mode);
+  return 0;
+}
+
+SEC("kprobe/security_inode_unlink")
+int BPF_KPROBE(security_inode_unlink, struct inode *dir,
+               struct dentry *dentry) {
+  on_inode_unlink(ctx, dir, dentry);
+  return 0;
+}
+
+SEC("kprobe/security_file_open")
+int BPF_KPROBE(security_file_open, struct file *file) {
+  on_file_open(ctx, file);
   return 0;
 }

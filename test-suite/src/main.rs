@@ -27,6 +27,7 @@ fn main() {
 
     // List of modules we want to test
     let modules = [
+        bpf_common::feature_autodetect::test_suite::tests(),
         file_system_monitor::test_suite::tests(),
         network_monitor::test_suite::tests(),
         process_monitor::test_suite::tests(),
