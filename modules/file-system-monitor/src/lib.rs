@@ -1,8 +1,8 @@
 use std::fmt;
 
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Program,
-    ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::StringArray,
+    program::BpfContext, BpfSender, Program, ProgramBuilder, ProgramError,
 };
 use nix::libc;
 
@@ -12,16 +12,25 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<FsEvent>,
 ) -> Result<Program, ProgramError> {
-    let program = ProgramBuilder::new(
+    let mut builder = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-    )
-    .lsm("inode_create")
-    .lsm("inode_unlink")
-    .lsm("file_open")
-    .start()
-    .await?;
+    );
+    if lsm_supported().await {
+        log::info!("Loading LSM programs");
+        builder = builder
+            .lsm("inode_create")
+            .lsm("inode_unlink")
+            .lsm("file_open");
+    } else {
+        log::info!("LSM programs not supported. Falling back to kprobes");
+        builder = builder
+            .kprobe("security_inode_create")
+            .kprobe("security_inode_unlink")
+            .kprobe("security_file_open");
+    }
+    let program = builder.start().await?;
     program.read_events("events", sender).await?;
     Ok(program)
 }
@@ -258,12 +267,12 @@ pub mod test_suite {
     pub fn tests() -> TestSuite {
         TestSuite {
             name: "file-system-monitor",
-            tests: vec![open_file(), file_name(), unlink_file()],
+            tests: vec![open_file(), create_file(), unlink_file()],
         }
     }
 
-    fn file_name() -> TestCase {
-        TestCase::new("file_name", async {
+    fn create_file() -> TestCase {
+        TestCase::new("create_file", async {
             const PATH: &str = "/tmp/file_name_1";
             TestRunner::with_ebpf(program)
                 .run(|| {

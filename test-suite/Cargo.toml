@@ -11,7 +11,7 @@ network-monitor = { path = "../modules/network-monitor", features = ["test-suite
 process-monitor = { path = "../modules/process-monitor", features = ["test-suite"] }
 syscall-monitor = { path = "../modules/syscall-monitor", features = ["test-suite"] }
 libtest-mimic =  "0.4.1"
-bpf-common = { path = "../bpf-common", features = ["test-utils"] }
+bpf-common = { path = "../bpf-common", features = ["test-utils", "test-suite"] }
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
 futures = "0.3.21"

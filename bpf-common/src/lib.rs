@@ -17,6 +17,7 @@ pub use program::{Program, ProgramBuilder, ProgramError};
 pub use aya;
 
 pub mod bpf_fs;
+pub mod feature_autodetect;
 
 /// Utility function to pretty print an error with its sources.
 ///
