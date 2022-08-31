@@ -15,18 +15,12 @@ excluded="--exclude threat-response-lua"
 
 export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
 cargo build --bin pulsar-exec ${features}
-
-# build all tests and get file list
-# https://github.com/rust-lang/cargo/issues/1924
-tests=$(cargo test --no-run --message-format=json ${features} --workspace ${excluded}| jq -r .executable? | grep deps)
+cargo build --bin test-suite ${features}
 
 for vagrantfile in vagrant/*/Vagrantfile
 do
   box=$(dirname $vagrantfile)
   cp "./target/${CARGO_BUILD_TARGET}/debug/pulsar-exec" "${box}/"
-  test_folder="${box}/tests/"
-  rm -rf "${test_folder}"
-  mkdir "${test_folder}"
-  cp ${tests} "${test_folder}"
+  cp "./target/${CARGO_BUILD_TARGET}/debug/test-suite" "${box}/"
 done
 
