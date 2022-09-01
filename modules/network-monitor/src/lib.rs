@@ -4,8 +4,8 @@ use std::{
 };
 
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::DataArray, program::BpfContext, BpfSender, Pid, Program,
-    ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::DataArray,
+    program::BpfContext, BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 
@@ -15,29 +15,49 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<NetworkEvent>,
 ) -> Result<Program, ProgramError> {
-    let program = ProgramBuilder::new(
+    let mut builder = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-    )
-    .kprobe("__sys_bind")
-    .kprobe("tcp_v4_connect")
-    .kretprobe("tcp_v4_connect")
-    .kprobe("tcp_v6_connect")
-    .kretprobe("tcp_v6_connect")
-    .kretprobe("inet_csk_accept")
-    .kprobe("udp_sendmsg")
-    .kprobe("udp_recvmsg")
-    .kretprobe("udp_recvmsg")
-    .kprobe("udpv6_sendmsg")
-    .kprobe("udpv6_recvmsg")
-    .kretprobe("udpv6_recvmsg")
-    .kprobe("tcp_sendmsg")
-    .kprobe("tcp_recvmsg")
-    .kretprobe("tcp_recvmsg")
-    .kprobe("tcp_set_state")
-    .start()
-    .await?;
+    );
+    if lsm_supported().await {
+        builder = builder
+            .lsm("socket_bind")
+            .kprobe("tcp_v4_connect")
+            .kretprobe("tcp_v4_connect")
+            .kprobe("tcp_v6_connect")
+            .kretprobe("tcp_v6_connect")
+            .kretprobe("inet_csk_accept")
+            .kprobe("udp_sendmsg")
+            .kprobe("udp_recvmsg")
+            .kretprobe("udp_recvmsg")
+            .kprobe("udpv6_sendmsg")
+            .kprobe("udpv6_recvmsg")
+            .kretprobe("udpv6_recvmsg")
+            .kprobe("tcp_sendmsg")
+            .kprobe("tcp_recvmsg")
+            .kretprobe("tcp_recvmsg")
+            .kprobe("tcp_set_state");
+    } else {
+        builder = builder
+            .kprobe("security_socket_bind")
+            .kprobe("tcp_v4_connect")
+            .kretprobe("tcp_v4_connect")
+            .kprobe("tcp_v6_connect")
+            .kretprobe("tcp_v6_connect")
+            .kretprobe("inet_csk_accept")
+            .kprobe("udp_sendmsg")
+            .kprobe("udp_recvmsg")
+            .kretprobe("udp_recvmsg")
+            .kprobe("udpv6_sendmsg")
+            .kprobe("udpv6_recvmsg")
+            .kretprobe("udpv6_recvmsg")
+            .kprobe("tcp_sendmsg")
+            .kprobe("tcp_recvmsg")
+            .kretprobe("tcp_recvmsg")
+            .kprobe("tcp_set_state");
+    }
+    let program = builder.start().await?;
     program.read_events("events", sender).await?;
     Ok(program)
 }
