@@ -212,25 +212,23 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
-SEC("kprobe/__sys_bind")
-int __sys_bind(struct pt_regs *ctx) {
+void __always_inline on_socket_bind(void *ctx, struct socket *sock,
+                                    struct sockaddr *address, int addrlen) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
-  int fd = PT_REGS_PARM1(ctx);
-  struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2(ctx);
   struct network_event *event = new_event();
   if (!event)
-    return 0;
+    return;
   event->event_type = EVENT_BIND;
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
-  copy_sockaddr(addr, &event->bind.addr, true);
+  copy_sockaddr(address, &event->bind.addr, false);
 
   int r = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                                 sizeof(struct network_event));
-  return 0;
+  return;
 }
 
 static __always_inline int do_connect(struct pt_regs *ctx) {
@@ -551,5 +549,22 @@ int tcp_set_state(struct pt_regs *regs) {
   if (ret) {
     LOG_ERROR("emitting event");
   }
+  return 0;
+}
+
+/// LSM hook points
+
+SEC("lsm/socket_bind")
+int BPF_PROG(socket_bind, struct socket *sock, struct sockaddr *address,
+             int addrlen, int ret) {
+  on_socket_bind(ctx, sock, address, addrlen);
+  return ret;
+}
+
+/// Fallback kprobes
+SEC("kprobe/security_socket_bind")
+int BPF_KPROBE(security_socket_bind, struct socket *sock,
+               struct sockaddr *address, int addrlen) {
+  on_socket_bind(ctx, sock, address, addrlen);
   return 0;
 }
