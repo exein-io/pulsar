@@ -104,7 +104,6 @@ pub enum Payload {
         address: SocketAddr,
     },
     Connect {
-        source: SocketAddr,
         destination: SocketAddr,
     },
     Accept {

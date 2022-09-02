@@ -23,28 +23,24 @@ pub async fn program(
     if lsm_supported().await {
         builder = builder
             .lsm("socket_bind")
-            .kprobe("tcp_v4_connect")
-            .kretprobe("tcp_v4_connect")
-            .kprobe("tcp_v6_connect")
-            .kretprobe("tcp_v6_connect")
-            .kretprobe("inet_csk_accept")
-            .kprobe("udp_sendmsg")
-            .kprobe("udp_recvmsg")
-            .kretprobe("udp_recvmsg")
-            .kprobe("udpv6_sendmsg")
-            .kprobe("udpv6_recvmsg")
-            .kretprobe("udpv6_recvmsg")
-            .kprobe("tcp_sendmsg")
-            .kprobe("tcp_recvmsg")
-            .kretprobe("tcp_recvmsg")
-            .kprobe("tcp_set_state");
+            .lsm("socket_connect")
+            //.kprobe("security_socket_connect")
+            //.kretprobe("inet_csk_accept")
+            //.kprobe("udp_sendmsg")
+            //.kprobe("udp_recvmsg")
+            //.kretprobe("udp_recvmsg")
+            //.kprobe("udpv6_sendmsg")
+            //.kprobe("udpv6_recvmsg")
+            //.kretprobe("udpv6_recvmsg")
+            //.kprobe("tcp_sendmsg")
+            //.kprobe("tcp_recvmsg")
+            //.kretprobe("tcp_recvmsg")
+            //.kprobe("tcp_set_state")
+            ;
     } else {
         builder = builder
             .kprobe("security_socket_bind")
-            .kprobe("tcp_v4_connect")
-            .kretprobe("tcp_v4_connect")
-            .kprobe("tcp_v6_connect")
-            .kretprobe("tcp_v6_connect")
+            .kprobe("security_socket_connect")
             .kretprobe("inet_csk_accept")
             .kprobe("udp_sendmsg")
             .kprobe("udp_recvmsg")
@@ -71,7 +67,6 @@ pub enum NetworkEvent {
         addr: Addr,
     },
     Connect {
-        src: Addr,
         dst: Addr,
     },
     Accept {
@@ -155,8 +150,8 @@ impl fmt::Display for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NetworkEvent::Bind { addr } => write!(f, "bind on {}", addr),
-            NetworkEvent::Connect { src, dst } => {
-                write!(f, "connect {} -> {}", src, dst)
+            NetworkEvent::Connect { dst } => {
+                write!(f, "connect  -> {}", dst)
             }
             NetworkEvent::Accept { src, dst } => {
                 write!(f, "accept {} -> {}", src, dst)
@@ -214,8 +209,7 @@ pub mod pulsar {
                 NetworkEvent::Bind { addr } => Payload::Bind {
                     address: addr.into(),
                 },
-                NetworkEvent::Connect { src, dst } => Payload::Connect {
-                    source: src.into(),
+                NetworkEvent::Connect { dst } => Payload::Connect {
                     destination: dst.into(),
                 },
                 NetworkEvent::Accept { src, dst } => Payload::Accept {
@@ -376,17 +370,14 @@ pub mod test_suite {
     async fn run_connect_test(dest: &str) -> TestReport {
         let dest: SocketAddr = dest.parse().unwrap();
         let _listener = TcpListener::bind(&dest).unwrap();
-        let mut source = dest;
         TestRunner::with_ebpf(program)
             .run(|| {
-                let stream = TcpStream::connect(dest).unwrap();
-                source = stream.local_addr().unwrap();
+                TcpStream::connect(dest).unwrap();
             })
             .await
             .expect_event(event_check!(
                 NetworkEvent::Connect,
-                (dst, dest.into(), "destination address"),
-                (src, source.into(), "source address")
+                (dst, dest.into(), "destination address")
             ))
             .report()
     }
