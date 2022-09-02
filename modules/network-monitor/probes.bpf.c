@@ -34,7 +34,6 @@ struct bind_event {
 };
 
 struct connect_event {
-  struct address source;
   struct address destination;
 };
 
@@ -78,14 +77,6 @@ struct bpf_map_def SEC("maps/events") events = {
     .key_size = sizeof(int),
     .value_size = sizeof(u32),
     .max_entries = 0,
-};
-
-// save input argument to
-struct bpf_map_def SEC("maps/sk") skmap = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct sock *),
-    .max_entries = 10240,
 };
 
 // The BPF stack limit of 512 bytes is exceeded by network_event, so we use
@@ -231,72 +222,24 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
   return;
 }
 
-static __always_inline int do_connect(struct pt_regs *ctx) {
+static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
+                                              struct sockaddr *address,
+                                              int addrlen) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
-  struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  bpf_map_update_elem(&skmap, &pid_tgid, &sk, BPF_ANY);
+  struct network_event *event = new_event();
+  if (!event)
+    return;
+  event->event_type = EVENT_CONNECT;
+  event->pid = tgid;
+  event->timestamp = bpf_ktime_get_ns();
 
-  return 0;
-}
+  copy_sockaddr(address, &event->connect.destination, false);
 
-static __always_inline int do_connect_return(struct pt_regs *ctx) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return 0;
-
-  struct sock **skpp, *sk;
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  skpp = bpf_map_lookup_elem(&skmap, &pid_tgid);
-  if (skpp == 0) {
-    LOG_ERROR("missed entry in skmap");
-    return 0;
-  }
-
-  // if ret!=0, connect failed to send SYNC packet, and sk may not have
-  // populated
-  int ret = PT_REGS_RC(ctx);
-  if (ret == 0) {
-    struct network_event *event = new_event();
-    if (!event)
-      return 0;
-    event->event_type = EVENT_CONNECT;
-    event->pid = tgid;
-    event->timestamp = bpf_ktime_get_ns();
-
-    sk = *skpp;
-
-    copy_skc_source(&sk->__sk_common, &event->connect.source);
-    copy_skc_dest(&sk->__sk_common, &event->connect.destination);
-
-    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                          sizeof(struct network_event));
-  } else {
-    LOG_DEBUG("failed connect");
-  }
-
-  bpf_map_delete_elem(&skmap, &pid_tgid);
-
-  return 0;
-}
-
-SEC("kprobe/tcp_v4_connect")
-int tcp_v4_connect(struct pt_regs *ctx) { return do_connect(ctx); }
-
-SEC("kprobe/tcp_v6_connect")
-int tcp_v6_connect(struct pt_regs *ctx) { return do_connect(ctx); }
-
-SEC("kretprobe/tcp_v4_connect_return")
-int tcp_v4_connect_return(struct pt_regs *ctx) {
-  return do_connect_return(ctx);
-}
-
-SEC("kretprobe/tcp_v6_connect_return")
-int tcp_v6_connect_return(struct pt_regs *ctx) {
-  return do_connect_return(ctx);
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                        sizeof(struct network_event));
 }
 
 SEC("kretprobe/inet_csk_accept_return")
@@ -442,7 +385,7 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
 
   u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
 
-  copy_skc_source(&sk->__sk_common, &event->connect.source);
+  copy_skc_source(&sk->__sk_common, &event->recv.source);
   if (proto == PROTO_UDP) {
     // in UDP we find destination value in sockaddr
     // NOTE: msg_name is NULL if the userspace code is not interested
@@ -453,11 +396,11 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
     if (!msg_name) {
       LOG_DEBUG("msg_name is null. %d", k);
     } else {
-      copy_sockaddr(msg_name, &event->connect.destination, false);
+      copy_sockaddr(msg_name, &event->recv.destination, false);
     }
   } else {
     // in TCP we find destination value in sock_common
-    copy_skc_dest(&sk->__sk_common, &event->connect.destination);
+    copy_skc_dest(&sk->__sk_common, &event->recv.destination);
   }
 
   bpf_perf_event_output(regs, &events, BPF_F_CURRENT_CPU, event,
@@ -561,10 +504,24 @@ int BPF_PROG(socket_bind, struct socket *sock, struct sockaddr *address,
   return ret;
 }
 
+SEC("lsm/socket_connect")
+int BPF_PROG(socket_connect, struct socket *sock, struct sockaddr *address,
+             int addrlen, int ret) {
+  on_socket_connect(ctx, sock, address, addrlen);
+  return ret;
+}
+
 /// Fallback kprobes
 SEC("kprobe/security_socket_bind")
 int BPF_KPROBE(security_socket_bind, struct socket *sock,
                struct sockaddr *address, int addrlen) {
   on_socket_bind(ctx, sock, address, addrlen);
+  return 0;
+}
+
+SEC("kprobe/security_socket_connect")
+int BPF_KPROBE(security_socket_connect, struct socket *sock,
+               struct sockaddr *address, int addrlen) {
+  on_socket_connect(ctx, sock, address, addrlen);
   return 0;
 }
