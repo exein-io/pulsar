@@ -96,6 +96,14 @@ struct bpf_map_def SEC("maps/tcp_set_state") tcp_set_state_map = {
     .max_entries = 10240,
 };
 
+// Maps for sharing data between various hook points
+struct bpf_map_def SEC("maps/args_map") args_map = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u64),      // bpf_get_current_pid_tgid()
+    .value_size = sizeof(void *), // data
+    .max_entries = 3,
+};
+
 struct recvmsg_args {
   struct sock *sk;
   struct msghdr *msg;
@@ -242,31 +250,48 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
                         sizeof(struct network_event));
 }
 
-SEC("kretprobe/inet_csk_accept_return")
-int inet_csk_accept_return(struct pt_regs *ctx) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return 0;
+static __always_inline void on_socket_accept(void *ctx, struct socket *sock,
+                                             struct socket *newsock) {
+  // This LSM hook is invoked on accept calls, which happens before
+  // there's an actual connection. If we tried to read the source address
+  // from newsock, we'd get empty data.
+  // For this reason, we'll just save the socket pointer and read it when
+  // the accept syscall exits.
+  if (interesting_tgid() >= 0) {
+    u64 id = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&args_map, &id, &newsock, 0);
+  }
+}
 
-  struct sock *sk = (struct sock *)PT_REGS_RC(ctx);
-  if (!sk) {
-    LOG_DEBUG("accept returned null");
-    return 0;
+static __always_inline void on_accept_exit(void *ctx, long ret) {
+  // Retrieve the socket pointer saved by on_socket_accept.
+  u64 id = bpf_get_current_pid_tgid();
+  void **data = bpf_map_lookup_elem(&args_map, &id);
+  if (data == 0) {
+    LOG_DEBUG("accept_exit on unknown socket");
+    return;
+  }
+  struct socket *sock = *data;
+  bpf_map_delete_elem(&args_map, &id);
+
+  // Ignore failed accept
+  LOG_ERROR("GOT %d", ret);
+  if (ret < 0) {
+    return;
   }
 
+  // Emit event
   struct network_event *event = new_event();
   if (!event)
-    return 0;
+    return;
   event->event_type = EVENT_ACCEPT;
-  event->pid = tgid;
+  event->pid = id >> 32;
   event->timestamp = bpf_ktime_get_ns();
-
+  struct sock *sk = BPF_CORE_READ(sock, sk);
   copy_skc_source(&sk->__sk_common, &event->accept.destination);
   copy_skc_dest(&sk->__sk_common, &event->accept.source);
-
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct network_event));
-  return 0;
 }
 
 static __always_inline void read_iovec(struct msg_event *event,
@@ -495,6 +520,24 @@ int tcp_set_state(struct pt_regs *regs) {
   return 0;
 }
 
+// Tracepoints
+
+SEC("tracepoint/sys_exit_accept4")
+int BPF_PROG(sys_exit_accept4, struct pt_regs *regs, int syscall, long ret) {
+  // NOTE: this gets called even if the process is stopped with a kill -9,
+  // there is no need to intercept sched_process_exit for map cleanup.
+  on_accept_exit(ctx, ret);
+  return 0;
+}
+
+SEC("tracepoint/sys_exit_accept")
+int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int syscall, long ret) {
+  // NOTE: this gets called even if the process is stopped with a kill -9,
+  // there is no need to intercept sched_process_exit for map cleanup.
+  on_accept_exit(ctx, ret);
+  return 0;
+}
+
 /// LSM hook points
 
 SEC("lsm/socket_bind")
@@ -511,7 +554,24 @@ int BPF_PROG(socket_connect, struct socket *sock, struct sockaddr *address,
   return ret;
 }
 
-/// Fallback kprobes
+SEC("lsm/socket_accept")
+int BPF_PROG(socket_accept, struct socket *sock, struct socket *newsock,
+             int ret) {
+  on_socket_accept(ctx, sock, newsock);
+  return ret;
+}
+
+// SEC("lsm/socket_sendmsg")
+// int BPF_PROG(socket_sendmsg, struct socket *sock, struct msghdr *msg, int
+// size,
+//              int ret) {}
+//
+// SEC("lsm/socket_recvmsg")
+// int BPF_PROG(socket_recvmsg, struct socket *sock, struct msghdr *msg, int
+// size,
+//              int flags, int ret) {}
+
+/// Fallback kprobes if LSM programs not suported
 SEC("kprobe/security_socket_bind")
 int BPF_KPROBE(security_socket_bind, struct socket *sock,
                struct sockaddr *address, int addrlen) {

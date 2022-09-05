@@ -24,8 +24,9 @@ pub async fn program(
         builder = builder
             .lsm("socket_bind")
             .lsm("socket_connect")
-            //.kprobe("security_socket_connect")
-            //.kretprobe("inet_csk_accept")
+            .lsm("socket_accept")
+            .tracepoint("syscalls", "sys_exit_accept4")
+            .tracepoint("syscalls", "sys_exit_accept")
             //.kprobe("udp_sendmsg")
             //.kprobe("udp_recvmsg")
             //.kretprobe("udp_recvmsg")
@@ -41,7 +42,7 @@ pub async fn program(
         builder = builder
             .kprobe("security_socket_bind")
             .kprobe("security_socket_connect")
-            .kretprobe("inet_csk_accept")
+            //.kretprobe("inet_csk_accept")
             .kprobe("udp_sendmsg")
             .kprobe("udp_recvmsg")
             .kretprobe("udp_recvmsg")
