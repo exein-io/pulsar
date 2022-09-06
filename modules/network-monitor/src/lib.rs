@@ -22,27 +22,33 @@ pub async fn program(
     );
     if lsm_supported().await {
         builder = builder
+            // ok
             .lsm("socket_bind")
+
+            // connect
             .lsm("socket_connect")
+
+            // serve tracepoint all'uscita
             .lsm("socket_accept")
             .tracepoint("syscalls", "sys_exit_accept4")
             .tracepoint("syscalls", "sys_exit_accept")
-            //.kprobe("udp_sendmsg")
-            //.kprobe("udp_recvmsg")
-            //.kretprobe("udp_recvmsg")
-            //.kprobe("udpv6_sendmsg")
-            //.kprobe("udpv6_recvmsg")
-            //.kretprobe("udpv6_recvmsg")
-            //.kprobe("tcp_sendmsg")
-            //.kprobe("tcp_recvmsg")
-            //.kretprobe("tcp_recvmsg")
+
+            .lsm("socket_sendmsg")
+
+            .lsm("socket_recvmsg")
+            .tracepoint("syscalls", "sys_exit_recvmsg")
+            .tracepoint("syscalls", "sys_exit_recvmmsg")
+            .tracepoint("syscalls", "sys_enter_recvfrom")
+            .tracepoint("syscalls", "sys_exit_recvfrom")
+            .tracepoint("syscalls", "sys_exit_read")
+            .tracepoint("syscalls", "sys_exit_readv")
+
             //.kprobe("tcp_set_state")
             ;
     } else {
         builder = builder
             .kprobe("security_socket_bind")
             .kprobe("security_socket_connect")
-            //.kretprobe("inet_csk_accept")
             .kprobe("udp_sendmsg")
             .kprobe("udp_recvmsg")
             .kretprobe("udp_recvmsg")

@@ -40,8 +40,10 @@ impl<const T: usize> PartialEq for DataArray<T> {
 
 impl<const T: usize> fmt::Debug for DataArray<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let data = &self.data[..(self.copied_data_len as usize)];
         f.debug_struct("DataArray")
             .field("copied_data_len", &self.copied_data_len)
+            .field("data", &data)
             .finish()
     }
 }
