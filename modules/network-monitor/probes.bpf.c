@@ -71,8 +71,12 @@ struct network_event {
   };
 };
 
+struct arguments {
+  unsigned long data[3];
+};
+
 // used to send events to userspace
-struct bpf_map_def SEC("maps/events") events = {
+struct bpf_map_def_aya SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(int),
     .value_size = sizeof(u32),
@@ -81,7 +85,7 @@ struct bpf_map_def SEC("maps/events") events = {
 
 // The BPF stack limit of 512 bytes is exceeded by network_event, so we use
 // a per-cpu array as a workaround
-struct bpf_map_def SEC("maps/event") eventmem = {
+struct bpf_map_def_aya SEC("maps/event") eventmem = {
     .type = BPF_MAP_TYPE_PERCPU_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct network_event),
@@ -89,7 +93,7 @@ struct bpf_map_def SEC("maps/event") eventmem = {
 };
 
 // Map a socket pointer to its creating process
-struct bpf_map_def SEC("maps/tcp_set_state") tcp_set_state_map = {
+struct bpf_map_def_aya SEC("maps/tcp_set_state") tcp_set_state_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(struct sock *),
     .value_size = sizeof(pid_t),
@@ -97,23 +101,11 @@ struct bpf_map_def SEC("maps/tcp_set_state") tcp_set_state_map = {
 };
 
 // Maps for sharing data between various hook points
-struct bpf_map_def SEC("maps/args_map") args_map = {
+struct bpf_map_def_aya SEC("maps/args_map") args_map = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),      // bpf_get_current_pid_tgid()
-    .value_size = sizeof(void *), // data
+    .key_size = sizeof(u64),                // bpf_get_current_pid_tgid()
+    .value_size = sizeof(struct arguments), // data
     .max_entries = 3,
-};
-
-struct recvmsg_args {
-  struct sock *sk;
-  struct msghdr *msg;
-};
-
-struct bpf_map_def SEC("maps/recvmsgmap") recvmsgmap = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct recvmsg_args),
-    .max_entries = 10240,
 };
 
 const int IPV6_NUM_OCTECTS = 16;
@@ -144,20 +136,29 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
     read = bpf_probe_read_kernel;
 
   u16 family = 0;
-  read(&family, sizeof(family), &addr->sa_family);
+  int r = read(&family, sizeof(family), &addr->sa_family);
+  if (r != 0) {
+    LOG_ERROR("Error copying sockaddr: %d", r);
+  }
   switch (family) {
   case AF_INET: {
     dest->ip_ver = 0;
-    read(&dest->v4, sizeof(struct sockaddr_in), addr);
+    r = read(&dest->v4, sizeof(struct sockaddr_in), addr);
+    if (r != 0) {
+      LOG_ERROR("Error 2 copying sockaddr: %d", r);
+    }
     break;
   }
   case AF_INET6: {
     dest->ip_ver = 1;
-    read(&dest->v6, sizeof(struct sockaddr_in6), addr);
+    r = read(&dest->v6, sizeof(struct sockaddr_in6), addr);
+    if (r != 0) {
+      LOG_ERROR("Error 3 copying sockaddr: %d", r);
+    }
     break;
   }
   default:
-    LOG_DEBUG("ignored sockaddr famility %d", family);
+    LOG_DEBUG("ignored sockaddr family %d", family);
   }
 }
 
@@ -258,25 +259,27 @@ static __always_inline void on_socket_accept(void *ctx, struct socket *sock,
   // For this reason, we'll just save the socket pointer and read it when
   // the accept syscall exits.
   if (interesting_tgid() >= 0) {
-    u64 id = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&args_map, &id, &newsock, 0);
+    struct arguments args = {0};
+    args.data[0] = (unsigned long)newsock;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
   }
 }
 
 static __always_inline void on_accept_exit(void *ctx, long ret) {
   // Retrieve the socket pointer saved by on_socket_accept.
-  u64 id = bpf_get_current_pid_tgid();
-  void **data = bpf_map_lookup_elem(&args_map, &id);
-  if (data == 0) {
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct arguments *args = bpf_map_lookup_elem(&args_map, &pid_tgid);
+  if (args == 0) {
     LOG_DEBUG("accept_exit on unknown socket");
     return;
   }
-  struct socket *sock = *data;
-  bpf_map_delete_elem(&args_map, &id);
+  struct socket *sock = (struct socket *)args->data[0];
+  bpf_map_delete_elem(&args_map, &pid_tgid);
 
   // Ignore failed accept
-  LOG_ERROR("GOT %d", ret);
   if (ret < 0) {
+    LOG_DEBUG("Failed accept: %d", ret);
     return;
   }
 
@@ -285,7 +288,7 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
   if (!event)
     return;
   event->event_type = EVENT_ACCEPT;
-  event->pid = id >> 32;
+  event->pid = pid_tgid >> 32;
   event->timestamp = bpf_ktime_get_ns();
   struct sock *sk = BPF_CORE_READ(sock, sk);
   copy_skc_source(&sk->__sk_common, &event->accept.destination);
@@ -294,118 +297,141 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
                         sizeof(struct network_event));
 }
 
-static __always_inline void read_iovec(struct msg_event *event,
-                                       struct msghdr *msg) {
-  size_t len = event->data_len;
-  event->copied_data_len = 0;
+static __always_inline void read_iovec(struct msg_event *output,
+                                       void *iov_base) {
+  size_t len = output->data_len;
+  output->copied_data_len = 0;
 
   unsigned int msg_iter_type = 0;
-
-  struct iovec *iov = NULL;
-  bpf_core_read(&iov, sizeof(iov), &msg->msg_iter.iov);
 
   if (len > MAX_DATA_SIZE) {
     LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);
   }
 
-  void *iovbase = NULL;
-  bpf_core_read(&iovbase, sizeof(iovbase), &iov->iov_base);
-
   // limit the index to avoid "min value is negative, either use unsigned or
   // 'var &= const'"
   len &= (MAX_DATA_SIZE - 1);
 
-  int r = bpf_core_read_user(event->data, len, iovbase);
+  int r = bpf_core_read_user(output->data, len, iov_base);
   if (r) {
-    LOG_DEBUG("cant read data %d", r);
+    LOG_ERROR("cant read data %d", r);
   }
-  event->copied_data_len = len;
+  output->copied_data_len = len;
   LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
 }
 
-static __always_inline int do_sendmsg(struct pt_regs *regs, u8 proto) {
+static __always_inline u16 get_sock_protocol(struct sock *sk) {
+  u16 proto = BPF_CORE_READ(sk, sk_protocol);
+  // TODO: clean this up
+  if (proto == IPPROTO_UDP) {
+    return PROTO_UDP;
+  } else {
+    return PROTO_TCP;
+  }
+}
+
+static __always_inline void do_sendmsg(void *ctx, struct socket *sock,
+                                       struct msghdr *msg, int size) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
-  struct sock *sk = (struct sock *)PT_REGS_PARM1(regs);
-  struct msghdr *msg = (struct msghdr *)PT_REGS_PARM2(regs);
+  struct sock *sk = BPF_CORE_READ(sock, sk);
+  u16 proto = get_sock_protocol(sk);
+  void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
 
   struct network_event *event = new_event();
   if (!event)
-    return 0;
+    return;
   event->event_type = EVENT_SEND;
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
   event->send.proto = proto;
 
-  size_t len = (size_t)PT_REGS_PARM3(regs);
-  if (len <= 0)
-    return 0;
-  event->send.data_len = len;
+  if (size <= 0)
+    return;
+  event->send.data_len = size;
   // Copy data only for UDP events since we want to intercept DNS requests
   if (proto == PROTO_UDP) {
-    read_iovec(&event->send, msg);
+    read_iovec(&event->send, iov_base);
   }
 
   copy_skc_source(&sk->__sk_common, &event->send.source);
   copy_skc_dest(&sk->__sk_common, &event->send.destination);
 
-  bpf_perf_event_output(regs, &events, BPF_F_CURRENT_CPU, event,
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct network_event));
-
-  return 0;
 }
 
-static __always_inline int save_recvmsg(struct pt_regs *regs) {
+static __always_inline void save_recvmsg_addr(void *ctx,
+                                              struct sockaddr *addr) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
+  struct arguments args = {0};
+  args.data[2] = (unsigned long)addr;
   u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct recvmsg_args args = {
-      .sk = (struct sock *)PT_REGS_PARM1(regs),
-      .msg = (struct msghdr *)PT_REGS_PARM2(regs),
-  };
-  int r = bpf_map_update_elem(&recvmsgmap, &pid_tgid, &args, BPF_NOEXIST);
-  if (r) {
-    LOG_ERROR("insert error on recvmsgmap: %d %d", pid_tgid, r);
+  bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
+}
+
+static __always_inline void save_recvmsg(void *ctx, struct socket *sock,
+                                         struct msghdr *msg) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return;
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct sock *sk = (struct sock *)BPF_CORE_READ(sock, sk);
+  void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
+
+  struct arguments args = {0};
+  args.data[0] = (unsigned long)sk;
+  args.data[1] = (unsigned long)iov_base;
+
+  struct arguments *old_args = bpf_map_lookup_elem(&args_map, &pid_tgid);
+  if (old_args) {
+    args.data[2] = old_args->data[2];
+  }
+
+  int r = bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
+  if (r != 0) {
+    LOG_ERROR("insert error on args_map: %d %d", pid_tgid, r);
   } else {
-    LOG_DEBUG("insert recvmsgmap: %d %d", pid_tgid, r);
+    LOG_DEBUG("insert args_map: %d", pid_tgid);
   }
-  return 0;
 }
 
-static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
+static __always_inline void do_recvmsg(void *ctx, long ret) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
-    return 0;
+    return;
 
   u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct recvmsg_args *args = bpf_map_lookup_elem(&recvmsgmap, &pid_tgid);
-  int r = bpf_map_delete_elem(&recvmsgmap, &pid_tgid);
-  LOG_DEBUG("delete recvmsgmap: %d %d", pid_tgid, r);
+  struct arguments *args = bpf_map_lookup_elem(&args_map, &pid_tgid);
+  int r = bpf_map_delete_elem(&args_map, &pid_tgid);
+  // LOG_DEBUG("delete args_map: %d %d", pid_tgid, r);
   if (!args) {
-    return 0;
+    return;
   }
-  struct sock *sk = args->sk;
-  struct msghdr *msg = args->msg;
+  struct sock *sk = (struct sock *)args->data[0];
+  void *iov_base = (void *)args->data[1];
 
   struct network_event *event = new_event();
   if (!event)
-    return 0;
+    return;
 
+  u16 proto = get_sock_protocol(sk);
   event->event_type = EVENT_RECV;
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
   event->recv.proto = proto;
 
-  int len = PT_REGS_RC(regs);
+  int len = ret;
   if (len <= 0)
-    return 0;
+    return;
   event->recv.data_len = len;
   // Copy data only for UDP events since we want to intercept DNS replies
   if (proto == PROTO_UDP) {
-    read_iovec(&event->recv, msg);
+    read_iovec(&event->recv, iov_base);
   }
 
   u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
@@ -416,54 +442,19 @@ static __always_inline int do_recvmsg(struct pt_regs *regs, u8 proto) {
     // NOTE: msg_name is NULL if the userspace code is not interested
     // in knowing the source of the message. In that case we won't extract
     // the source port and address.
-    struct sockaddr *msg_name = 0;
-    int k = bpf_core_read(&msg_name, sizeof(msg_name), &msg->msg_name);
-    if (!msg_name) {
-      LOG_DEBUG("msg_name is null. %d", k);
+    struct sockaddr *addr = args->data[2];
+    if (!addr) {
+      LOG_DEBUG("sockaddr is null. ");
     } else {
-      copy_sockaddr(msg_name, &event->recv.destination, false);
+      copy_sockaddr(addr, &event->recv.destination, true);
     }
   } else {
     // in TCP we find destination value in sock_common
     copy_skc_dest(&sk->__sk_common, &event->recv.destination);
   }
 
-  bpf_perf_event_output(regs, &events, BPF_F_CURRENT_CPU, event,
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct network_event));
-  return 0;
-}
-
-SEC("kprobe/udp_sendmsg")
-int udp_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_UDP); }
-
-SEC("kprobe/udpv6_sendmsg")
-int udpv6_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_UDP); }
-
-SEC("kprobe/tcp_sendmsg")
-int tcp_sendmsg(struct pt_regs *ctx) { return do_sendmsg(ctx, PROTO_TCP); }
-
-SEC("kprobe/udp_recvmsg")
-int udp_recvmsg(struct pt_regs *ctx) { return save_recvmsg(ctx); }
-
-SEC("kprobe/udpv6_recvmsg")
-int udpv6_recvmsg(struct pt_regs *ctx) { return save_recvmsg(ctx); }
-
-SEC("kretprobe/udp_recvmsg_return")
-int udp_recvmsg_return(struct pt_regs *ctx) {
-  return do_recvmsg(ctx, PROTO_UDP);
-}
-
-SEC("kretprobe/udpv6_recvmsg_return")
-int udpv6_recvmsg_return(struct pt_regs *ctx) {
-  return do_recvmsg(ctx, PROTO_UDP);
-}
-
-SEC("kprobe/tcp_recvmsg")
-int tcp_recvmsg(struct pt_regs *regs) { return save_recvmsg(regs); }
-
-SEC("kretprobe/tcp_recvmsg_return")
-int tcp_recvmsg_return(struct pt_regs *regs) {
-  return do_recvmsg(regs, PROTO_TCP);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -523,7 +514,8 @@ int tcp_set_state(struct pt_regs *regs) {
 // Tracepoints
 
 SEC("tracepoint/sys_exit_accept4")
-int BPF_PROG(sys_exit_accept4, struct pt_regs *regs, int syscall, long ret) {
+int BPF_PROG(sys_exit_accept4, struct pt_regs *regs, int __syscall_nr,
+             long ret) {
   // NOTE: this gets called even if the process is stopped with a kill -9,
   // there is no need to intercept sched_process_exit for map cleanup.
   on_accept_exit(ctx, ret);
@@ -531,10 +523,57 @@ int BPF_PROG(sys_exit_accept4, struct pt_regs *regs, int syscall, long ret) {
 }
 
 SEC("tracepoint/sys_exit_accept")
-int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int syscall, long ret) {
+int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
+             long ret) {
   // NOTE: this gets called even if the process is stopped with a kill -9,
   // there is no need to intercept sched_process_exit for map cleanup.
   on_accept_exit(ctx, ret);
+  return 0;
+}
+
+SEC("tracepoint/sys_exit_recvmsg")
+int BPF_PROG(sys_exit_recvmsg, struct pt_regs *regs, int __syscall_nr,
+             long ret) {
+  LOG_DEBUG("sys_exit_recvmsg %d", ret);
+  do_recvmsg(ctx, ret);
+  return 0;
+}
+
+SEC("tracepoint/sys_exit_recvmmsg")
+int BPF_PROG(sys_exit_recvmmsg, struct pt_regs *regs, int __syscall_nr,
+             long ret) {
+  // LOG_DEBUG("sys_exit_recvmmsg %d", ret);
+  do_recvmsg(ctx, ret);
+  return 0;
+}
+
+SEC("tracepoint/sys_enter_recvfrom")
+int BPF_PROG(sys_enter_recvfrom, struct pt_regs *regs, int __syscall_nr, int fd,
+             void *ubuf, size_t size, int flags, struct sockaddr *addr,
+             int *addr_len, long ret) {
+  save_recvmsg_addr(ctx, addr);
+  return 0;
+}
+
+SEC("tracepoint/sys_exit_recvfrom")
+int BPF_PROG(sys_exit_recvfrom, struct pt_regs *regs, int __syscall_nr,
+             long ret) {
+  LOG_DEBUG("sys_exit_recvfrom %d", ret);
+  do_recvmsg(ctx, ret);
+  return 0;
+}
+
+SEC("tracepoint/sys_exit_read")
+int BPF_PROG(sys_exit_read, struct pt_regs *regs, int __syscall_nr, long ret) {
+  LOG_DEBUG("sys_exit_read %d", ret);
+  do_recvmsg(ctx, ret);
+  return 0;
+}
+
+SEC("tracepoint/sys_exit_readv")
+int BPF_PROG(sys_exit_readv, struct pt_regs *regs, int __syscall_nr, long ret) {
+  LOG_DEBUG("sys_exit_readv %d", ret);
+  do_recvmsg(ctx, ret);
   return 0;
 }
 
@@ -561,15 +600,19 @@ int BPF_PROG(socket_accept, struct socket *sock, struct socket *newsock,
   return ret;
 }
 
-// SEC("lsm/socket_sendmsg")
-// int BPF_PROG(socket_sendmsg, struct socket *sock, struct msghdr *msg, int
-// size,
-//              int ret) {}
-//
-// SEC("lsm/socket_recvmsg")
-// int BPF_PROG(socket_recvmsg, struct socket *sock, struct msghdr *msg, int
-// size,
-//              int flags, int ret) {}
+SEC("lsm/socket_sendmsg")
+int BPF_PROG(socket_sendmsg, struct socket *sock, struct msghdr *msg, int size,
+             int ret) {
+  do_sendmsg(ctx, sock, msg, size);
+  return ret;
+}
+
+SEC("lsm/socket_recvmsg")
+int BPF_PROG(socket_recvmsg, struct socket *sock, struct msghdr *msg, int size,
+             int flags, int ret) {
+  save_recvmsg(ctx, sock, msg);
+  return ret;
+}
 
 /// Fallback kprobes if LSM programs not suported
 SEC("kprobe/security_socket_bind")
