@@ -73,6 +73,17 @@ We're requiring 5.5 because we use `BPF_CORE_READ`, which under the hood uses
 `bpf_probe_read_kernel`. To support older kernel versions we may use the older
 and generic `bpf_probe_read`.
 
+For the best results, make sure these kernel configurations are enabled:
+```
+CONFIG_DEBUG_INFO=y
+CONFIG_DEBUG_INFO_BTF=y
+CONFIG_SECURITY=y
+CONFIG_SECURITYFS=y
+CONFIG_BPF_LSM=y
+CONFIG_FUNCTION_TRACER=y
+CONFIG_FTRACE_SYSCALLS=y
+```
+
 See <https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md>
 
 ## Advanced
