@@ -57,25 +57,15 @@ struct bpf_map_def SEC("maps/whitelist") whitelist = {
 
 // This hook intercepts new process creations, inherits interest for the child
 // from the parent and emits a fork event.
-// The sched_process_fork tracepoint would have been better, sadly we would be
-// given only the pid of the child and we need its tgid in order to detect
-// threads. We track the wake_up_new_task in order to have the child task_struct
-// which is passed as the first argument.
-// This is clearly less reliable than the tracepoint, so we may have to
-// conditially revert to it if kernels don't support this kproble. The problem
-// with that is that we would fill map_interest with useless thread entries.
-SEC("kprobe/wake_up_new_task")
-int wake_up_new_task(struct pt_regs *ctx) {
-  pid_t parent_tgid = bpf_get_current_pid_tgid() >> 32;
-  struct task_struct *child = (struct task_struct *)PT_REGS_PARM1(ctx);
-  if (!child) {
-    LOG_ERROR("error getting child task");
-  }
+SEC("raw_tracepoint/sched_process_fork")
+int BPF_PROG(process_fork, struct task_struct *parent,
+             struct task_struct *child) {
+  pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
+
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
   if (parent_tgid == child_tgid) {
-    // pid_t child_pid = BPF_CORE_READ(child, pid);
     return 0;
   }
   // Propagate whitelist to child

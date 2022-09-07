@@ -15,7 +15,7 @@ pub async fn program(
     let program = ProgramBuilder::new(ctx, MODULE_NAME, PROCESS_MONITOR_PROBE.into())
         .tracepoint("sched", "sched_process_exec")
         .tracepoint("sched", "sched_process_exit")
-        .kprobe("wake_up_new_task")
+        .raw_tracepoint("sched_process_fork")
         .start()
         .await?;
     program.read_events("events", sender).await?;
@@ -134,7 +134,7 @@ pub mod pulsar {
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
     use crate::filtering::maps::PolicyDecision;
-    use bpf_common::aya::programs::{KProbe, TracePoint};
+    use bpf_common::aya::programs::{RawTracePoint, TracePoint};
     use bpf_common::aya::Bpf;
     use bpf_common::program::load_test_program;
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
@@ -292,7 +292,7 @@ pub mod test_suite {
             ] {
                 // load ebpf and clear interest map
                 let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
-                attach_fork_kprobe(&mut bpf);
+                attach_fork_tracepoint(&mut bpf);
                 let mut interest_map = InterestMap::load(&mut bpf).unwrap();
                 interest_map.clear().unwrap();
 
@@ -424,14 +424,14 @@ pub mod test_suite {
         tracepoint.attach("sched", tp).unwrap();
     }
 
-    fn attach_fork_kprobe(bpf: &mut Bpf) {
-        let kprobe: &mut KProbe = bpf
-            .program_mut("wake_up_new_task")
+    fn attach_fork_tracepoint(bpf: &mut Bpf) {
+        let tracepoint: &mut RawTracePoint = bpf
+            .program_mut("sched_process_fork")
             .unwrap()
             .try_into()
             .unwrap();
-        kprobe.load().unwrap();
-        kprobe.attach("wake_up_new_task", 0).unwrap();
+        tracepoint.load().unwrap();
+        tracepoint.attach("sched_process_fork").unwrap();
     }
 
     /// map_interest should not include thread entries because it would
@@ -440,7 +440,7 @@ pub mod test_suite {
         TestCase::new("threads_are_ignored", async {
             // load ebpf and clear interest map
             let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
-            attach_fork_kprobe(&mut bpf);
+            attach_fork_tracepoint(&mut bpf);
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
 
