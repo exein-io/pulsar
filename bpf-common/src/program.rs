@@ -10,7 +10,7 @@ use aya::{
         perf::{AsyncPerfEventArray, PerfBufferError},
         HashMap, MapRefMut,
     },
-    programs::{KProbe, Lsm, TracePoint},
+    programs::{KProbe, Lsm, RawTracePoint, TracePoint},
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
@@ -110,6 +110,7 @@ pub struct ProgramBuilder {
     ctx: BpfContext,
     probe: Vec<u8>,
     tracepoints: Vec<(String, String)>,
+    raw_tracepoints: Vec<String>,
     kprobes: Vec<String>,
     kretprobes: Vec<String>,
     lsms: Vec<String>,
@@ -122,6 +123,7 @@ impl ProgramBuilder {
             name,
             probe,
             tracepoints: Vec::new(),
+            raw_tracepoints: Vec::new(),
             kprobes: Vec::new(),
             kretprobes: Vec::new(),
             lsms: Vec::new(),
@@ -131,6 +133,11 @@ impl ProgramBuilder {
     pub fn tracepoint(mut self, section: &str, tracepoint: &str) -> Self {
         self.tracepoints
             .push((section.to_string(), tracepoint.to_string()));
+        self
+    }
+
+    pub fn raw_tracepoint(mut self, raw_tracepoint: &str) -> Self {
+        self.raw_tracepoints.push(raw_tracepoint.to_string());
         self
     }
 
@@ -176,6 +183,14 @@ impl ProgramBuilder {
                     .try_into()?;
                 tp.load()?;
                 tp.attach(&section, &tracepoint)?;
+            }
+            for raw_tracepoint in self.raw_tracepoints {
+                let tp: &mut RawTracePoint = bpf
+                    .program_mut(&raw_tracepoint)
+                    .ok_or_else(|| ProgramError::ProgramNotFound(raw_tracepoint.clone()))?
+                    .try_into()?;
+                tp.load()?;
+                tp.attach(&raw_tracepoint)?;
             }
             for kprobe in self.kprobes {
                 let tp: &mut KProbe = bpf
