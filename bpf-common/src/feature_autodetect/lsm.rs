@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 /// compile time or in the `--lsm=` boot flags.
 /// `cat /sys/kernel/security/lsm` will list `bpf` on supported systems.
 pub async fn lsm_supported() -> bool {
-    match tokio::task::spawn_blocking(|| try_load())
+    match tokio::task::spawn_blocking(try_load)
         .await
         .context("Error in background task")
     {
