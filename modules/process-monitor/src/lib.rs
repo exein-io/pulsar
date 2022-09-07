@@ -347,7 +347,7 @@ pub mod test_suite {
                 interest_map.clear().unwrap();
 
                 // add rule to target echo
-                let image = "/usr/bin/echo";
+                let image = which("echo").unwrap().to_string_lossy().to_string();
                 let rule = Rule {
                     image: image.parse().unwrap(),
                     with_children,
@@ -366,7 +366,7 @@ pub mod test_suite {
                 for old_with_children in [true, false] {
                     // run the targeted command
                     let interest_map_ref = &mut interest_map;
-                    let child_pid = fork_and_run(move || {
+                    let child_pid = fork_and_run(|| {
                         // before calling exec, we want to update our interest
                         let old_value = PolicyDecision {
                             interesting: !is_target,
@@ -375,7 +375,7 @@ pub mod test_suite {
                         .as_raw();
                         let pid = std::process::id() as i32;
                         interest_map_ref.0.insert(pid, old_value, 0).unwrap();
-                        let exec_binary = CString::new(image).unwrap();
+                        let exec_binary = CString::new(image.as_str()).unwrap();
                         execv(
                             &exec_binary,
                             // -n flag suppresses echo newline character
