@@ -36,13 +36,13 @@ pub mod test_suite {
 
     fn file_name() -> TestCase {
         TestCase::new("file_name", async {
-            const PATH: &str = "/tmp/file_name_1";
+            let path = std::env::temp_dir().join("file_name_1");
             TestRunner::with_ebpf(program)
-                .run(|| { std::fs::File::create(PATH); } )
+                .run(|| { std::fs::File::create(&path); } )
                 .await
                 .expect_event(event_check!(
                     FsEvent::FileCreated,
-                    (filename, PATH.into(), "filename")
+                    (filename, path.to_str().unwrap().into(), "filename")
                 ))
                 .report()
         })

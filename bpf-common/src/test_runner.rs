@@ -1,9 +1,10 @@
 //! Test utility for eBPF programs
 //!
 //! Example usage taken from file-system-monitor:
-//! ```
+//! ```ignore
 //! #[cfg(feature = "test-suite")]
 //! pub mod test_suite {
+//!     use super::*;
 //!     use bpf_common::{
 //!         event_check,
 //!         test_runner::{TestCase, TestRunner, TestSuite},
@@ -16,15 +17,15 @@
 //!         }
 //!     }
 //!
-//!     fn file_name() -> TestCase {
+//!     fn open_file() -> TestCase {
 //!         TestCase::new("file_name", async {
-//!             const PATH: &str = "/tmp/file_name_1";
+//!             let path = std::env::temp_dir().join("file_name_1");
 //!             TestRunner::with_ebpf(program)
-//!                 .run(|| { std::fs::File::create(PATH); } )
+//!                 .run(|| { std::fs::File::create(&path); } )
 //!                 .await
 //!                 .expect_event(event_check!(
 //!                     FsEvent::FileCreated,
-//!                     (filename, PATH.into(), "filename")
+//!                     (filename, path.to_str().unwrap().into(), "filename")
 //!                 ))
 //!                 .report()
 //!         })
