@@ -17,6 +17,9 @@ pub async fn program(
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
     );
+    // LSM hooks provide the perfet intercept point for file system operations.
+    // If LSM eBPF programs is not supported, we'll attach to the same kernel
+    // functions, but using kprobes.
     if lsm_supported().await {
         log::info!("Loading LSM programs");
         builder = builder

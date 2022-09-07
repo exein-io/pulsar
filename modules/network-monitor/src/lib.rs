@@ -11,6 +11,40 @@ use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 
 const MODULE_NAME: &str = "network-monitor";
 
+// This program intercepts network bind, connect, accept, send, receive and close events.
+// If possible we use stable kernel hook points, like LSM or tracepoints. We fall back to
+// kprobes if LSM is unavailable or a feature would not be possible.
+//
+// # Bind
+// We find the address the server binds to in the `socket_bind` LSM hook.
+// The `security_*` fallback kprobe is used.
+//
+// # Connect
+// We find the address the client connects to in the `socket_connect` LSM hook.
+//
+// # Accept
+// This one harder: the kernel calls the `socket_accept` hook the moment the server
+// starts waiting for a connection, not when the connection really happens. This means
+// that we can't find the source address when the hook is called.
+// During `socket_accept` we'll save the `struct socket` pointer, but we'll read it
+// only in the `sys_exit_accept`/`sys_exit_accept4` tracepoints, immediately before
+// the kernel exists the syscall which caused the "accept" in the first place.
+//
+// # Send
+// We read the address and content of sent messages using the `socket_sendmsg` LSM hook.
+//
+// # Receive
+// We use the same strategy of "Accept": in `socket_recvmsg` we save in `args_map` the
+// `struct socket` pointer and the `iov_base` pointer, which is the user-space location
+// where the received data will be written.
+// When exiting the syscall which caused the "recvmsg", we actually read the data and
+// emit the event. Unfortunately there are many syscalls to intercept: recvmsg, recvmmsg,
+// recvfrom, read, readv.
+// Furthermore, for UDP connections, we also intercept `sys_enter_recvfrom`, where we save
+// the `struct sockaddr` pointer. It will be used when exiting to read the source address.
+//
+// # Close
+// We use the `tcp_set_state` kprobe to discover when a TCP connection is closed.
 pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<NetworkEvent>,

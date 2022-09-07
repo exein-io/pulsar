@@ -200,7 +200,7 @@ static __always_inline void on_inode_create(void *ctx, struct inode *dir,
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
     return;
-  // struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+
   get_dentry_path_str(dentry, event->filename);
   event->event = FILE_CREATED;
   event->timestamp = bpf_ktime_get_ns();
