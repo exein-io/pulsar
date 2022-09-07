@@ -534,7 +534,6 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
 SEC("tracepoint/sys_exit_recvmsg")
 int BPF_PROG(sys_exit_recvmsg, struct pt_regs *regs, int __syscall_nr,
              long ret) {
-  LOG_DEBUG("sys_exit_recvmsg %d", ret);
   do_recvmsg(ctx, ret);
   return 0;
 }
@@ -542,7 +541,6 @@ int BPF_PROG(sys_exit_recvmsg, struct pt_regs *regs, int __syscall_nr,
 SEC("tracepoint/sys_exit_recvmmsg")
 int BPF_PROG(sys_exit_recvmmsg, struct pt_regs *regs, int __syscall_nr,
              long ret) {
-  // LOG_DEBUG("sys_exit_recvmmsg %d", ret);
   do_recvmsg(ctx, ret);
   return 0;
 }
@@ -558,21 +556,18 @@ int BPF_PROG(sys_enter_recvfrom, struct pt_regs *regs, int __syscall_nr, int fd,
 SEC("tracepoint/sys_exit_recvfrom")
 int BPF_PROG(sys_exit_recvfrom, struct pt_regs *regs, int __syscall_nr,
              long ret) {
-  LOG_DEBUG("sys_exit_recvfrom %d", ret);
   do_recvmsg(ctx, ret);
   return 0;
 }
 
 SEC("tracepoint/sys_exit_read")
 int BPF_PROG(sys_exit_read, struct pt_regs *regs, int __syscall_nr, long ret) {
-  LOG_DEBUG("sys_exit_read %d", ret);
   do_recvmsg(ctx, ret);
   return 0;
 }
 
 SEC("tracepoint/sys_exit_readv")
 int BPF_PROG(sys_exit_readv, struct pt_regs *regs, int __syscall_nr, long ret) {
-  LOG_DEBUG("sys_exit_readv %d", ret);
   do_recvmsg(ctx, ret);
   return 0;
 }
@@ -615,6 +610,7 @@ int BPF_PROG(socket_recvmsg, struct socket *sock, struct msghdr *msg, int size,
 }
 
 /// Fallback kprobes if LSM programs not suported
+
 SEC("kprobe/security_socket_bind")
 int BPF_KPROBE(security_socket_bind, struct socket *sock,
                struct sockaddr *address, int addrlen) {
@@ -626,5 +622,26 @@ SEC("kprobe/security_socket_connect")
 int BPF_KPROBE(security_socket_connect, struct socket *sock,
                struct sockaddr *address, int addrlen) {
   on_socket_connect(ctx, sock, address, addrlen);
+  return 0;
+}
+
+SEC("kprobe/security_socket_accept")
+int BPF_KPROBE(security_socket_accept, struct socket *sock,
+               struct socket *newsock) {
+  on_socket_accept(ctx, sock, newsock);
+  return 0;
+}
+
+SEC("kprobe/security_socket_sendmsg")
+int BPF_KPROBE(security_socket_sendmsg, struct socket *sock, struct msghdr *msg,
+               int size) {
+  do_sendmsg(ctx, sock, msg, size);
+  return 0;
+}
+
+SEC("kprobe/security_socket_recvmsg")
+int BPF_KPROBE(security_socket_recvmsg, struct socket *sock, struct msghdr *msg,
+               int size, int flags) {
+  save_recvmsg(ctx, sock, msg);
   return 0;
 }
