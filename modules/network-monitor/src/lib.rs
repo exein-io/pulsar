@@ -19,46 +19,30 @@ pub async fn program(
         ctx,
         MODULE_NAME,
         include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-    );
+    )
+    .tracepoint("syscalls", "sys_exit_accept4")
+    .tracepoint("syscalls", "sys_exit_accept")
+    .tracepoint("syscalls", "sys_exit_recvmsg")
+    .tracepoint("syscalls", "sys_exit_recvmmsg")
+    .tracepoint("syscalls", "sys_enter_recvfrom")
+    .tracepoint("syscalls", "sys_exit_recvfrom")
+    .tracepoint("syscalls", "sys_exit_read")
+    .tracepoint("syscalls", "sys_exit_readv")
+    .kprobe("tcp_set_state");
     if lsm_supported().await {
         builder = builder
-            // ok
             .lsm("socket_bind")
-
-            // connect
             .lsm("socket_connect")
-
-            // serve tracepoint all'uscita
             .lsm("socket_accept")
-            .tracepoint("syscalls", "sys_exit_accept4")
-            .tracepoint("syscalls", "sys_exit_accept")
-
             .lsm("socket_sendmsg")
-
-            .lsm("socket_recvmsg")
-            .tracepoint("syscalls", "sys_exit_recvmsg")
-            .tracepoint("syscalls", "sys_exit_recvmmsg")
-            .tracepoint("syscalls", "sys_enter_recvfrom")
-            .tracepoint("syscalls", "sys_exit_recvfrom")
-            .tracepoint("syscalls", "sys_exit_read")
-            .tracepoint("syscalls", "sys_exit_readv")
-
-            //.kprobe("tcp_set_state")
-            ;
+            .lsm("socket_recvmsg");
     } else {
         builder = builder
             .kprobe("security_socket_bind")
             .kprobe("security_socket_connect")
-            .kprobe("udp_sendmsg")
-            .kprobe("udp_recvmsg")
-            .kretprobe("udp_recvmsg")
-            .kprobe("udpv6_sendmsg")
-            .kprobe("udpv6_recvmsg")
-            .kretprobe("udpv6_recvmsg")
-            .kprobe("tcp_sendmsg")
-            .kprobe("tcp_recvmsg")
-            .kretprobe("tcp_recvmsg")
-            .kprobe("tcp_set_state");
+            .kprobe("security_socket_accept")
+            .kprobe("security_socket_sendmsg")
+            .kprobe("security_socket_recvmsg");
     }
     let program = builder.start().await?;
     program.read_events("events", sender).await?;
