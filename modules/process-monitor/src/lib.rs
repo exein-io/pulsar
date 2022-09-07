@@ -13,8 +13,8 @@ pub async fn program(
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
     let program = ProgramBuilder::new(ctx, MODULE_NAME, PROCESS_MONITOR_PROBE.into())
-        .tracepoint("sched", "sched_process_exec")
-        .tracepoint("sched", "sched_process_exit")
+        .raw_tracepoint("sched_process_exec")
+        .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
         .start()
         .await?;
@@ -134,7 +134,7 @@ pub mod pulsar {
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
     use crate::filtering::maps::PolicyDecision;
-    use bpf_common::aya::programs::{RawTracePoint, TracePoint};
+    use bpf_common::aya::programs::RawTracePoint;
     use bpf_common::aya::Bpf;
     use bpf_common::program::load_test_program;
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
@@ -292,7 +292,7 @@ pub mod test_suite {
             ] {
                 // load ebpf and clear interest map
                 let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
-                attach_fork_tracepoint(&mut bpf);
+                attach_raw_tracepoint(&mut bpf, "sched_process_fork");
                 let mut interest_map = InterestMap::load(&mut bpf).unwrap();
                 interest_map.clear().unwrap();
 
@@ -342,7 +342,7 @@ pub mod test_suite {
             {
                 // load ebpf and clear interest map
                 let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
-                attach_tracepoint(&mut bpf, "sched_process_exec");
+                attach_raw_tracepoint(&mut bpf, "sched_process_exec");
                 let mut interest_map = InterestMap::load(&mut bpf).unwrap();
                 interest_map.clear().unwrap();
 
@@ -413,25 +413,15 @@ pub mod test_suite {
     }
 
     // attach a single tracepoint for test purposes
-    fn attach_tracepoint(bpf: &mut Bpf, tp: &str) {
-        let tracepoint: &mut TracePoint = bpf
+    fn attach_raw_tracepoint(bpf: &mut Bpf, tp: &str) {
+        let tracepoint: &mut RawTracePoint = bpf
             .program_mut(tp)
             .ok_or_else(|| ProgramError::ProgramNotFound(tp.to_string()))
             .unwrap()
             .try_into()
             .unwrap();
         tracepoint.load().unwrap();
-        tracepoint.attach("sched", tp).unwrap();
-    }
-
-    fn attach_fork_tracepoint(bpf: &mut Bpf) {
-        let tracepoint: &mut RawTracePoint = bpf
-            .program_mut("sched_process_fork")
-            .unwrap()
-            .try_into()
-            .unwrap();
-        tracepoint.load().unwrap();
-        tracepoint.attach("sched_process_fork").unwrap();
+        tracepoint.attach(tp).unwrap();
     }
 
     /// map_interest should not include thread entries because it would
@@ -440,7 +430,7 @@ pub mod test_suite {
         TestCase::new("threads_are_ignored", async {
             // load ebpf and clear interest map
             let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
-            attach_fork_tracepoint(&mut bpf);
+            attach_raw_tracepoint(&mut bpf, "sched_process_fork");
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
 
@@ -480,7 +470,7 @@ pub mod test_suite {
         TestCase::new("exit_cleans_up_resources", async {
             // setup
             let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
-            attach_tracepoint(&mut bpf, "sched_process_exit");
+            attach_raw_tracepoint(&mut bpf, "sched_process_exit");
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
 

@@ -32,7 +32,7 @@ struct process_event {
 };
 
 // used to send events to userspace
-struct bpf_map_def SEC("maps/events") events = {
+struct bpf_map_def_aya SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(int),
     .value_size = sizeof(u32),
@@ -41,14 +41,14 @@ struct bpf_map_def SEC("maps/events") events = {
 
 #define MAX_IMAGE_LEN 100
 
-struct bpf_map_def SEC("maps/target") target = {
+struct bpf_map_def_aya SEC("maps/target") target = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = MAX_IMAGE_LEN,
     .value_size = sizeof(u8),
     .max_entries = 100,
 };
 
-struct bpf_map_def SEC("maps/whitelist") whitelist = {
+struct bpf_map_def_aya SEC("maps/whitelist") whitelist = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = MAX_IMAGE_LEN,
     .value_size = sizeof(u8),
@@ -84,16 +84,9 @@ int BPF_PROG(process_fork, struct task_struct *parent,
   return 0;
 }
 
-// This is attached to tracepoint:sched:sched_process_exec, with input:
-// struct trace_event_raw_sched_process_exec {
-//         struct trace_entry ent;
-//         u32 __data_loc_filename;
-//         pid_t pid;
-//         pid_t old_pid;
-//         char __data[0];
-// };
-SEC("tracepoint/sched_process_exec")
-int sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {
+SEC("raw_tracepoint/sched_process_exec")
+int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
+             struct linux_binprm *bprm) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
   struct process_event event = {};
@@ -103,15 +96,15 @@ int sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {
 
   //  data_loc_filename is the offset from the beginning of the ctx structure
   //  of the executable filename
-  u16 off = ctx->__data_loc_filename & 0xFFFF;
-  bpf_core_read_str(&event.exec.filename, NAME_MAX, (char *)ctx + off);
+  char *filename = BPF_CORE_READ(bprm, filename);
+  bpf_core_read_str(&event.exec.filename, NAME_MAX, filename);
 
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
                         sizeof(struct process_event));
 
   char image[MAX_IMAGE_LEN];
   __builtin_memset(&image, 0, sizeof(image));
-  bpf_core_read_str(&image, MAX_IMAGE_LEN, (char *)ctx + off);
+  bpf_core_read_str(&image, MAX_IMAGE_LEN, filename);
 
   // Check whitelist
   char *res = bpf_map_lookup_elem(&whitelist, image);
@@ -131,8 +124,8 @@ int sched_process_exec(struct trace_event_raw_sched_process_exec *ctx) {
 }
 
 // This is attached to tracepoint:sched:sched_process_exit
-SEC("tracepoint/sched_process_exit")
-int sched_process_exit(void *ctx) {
+SEC("raw_tracepoint/sched_process_exit")
+int BPF_PROG(sched_process_exit, struct task_struct *p) {
   pid_t tgid;
   // If the thread id (pid) is different from the process id (tgid)
   // a thread exited and we ignore the event.
