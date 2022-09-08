@@ -22,8 +22,8 @@ pub async fn start() -> StopHandle {
             log::info!("Logging events from {}", PATH);
 
             tokio::pin!(rx);
+            let mut buf = BytesMut::with_capacity(512);
             loop {
-                let mut buf = BytesMut::with_capacity(512);
                 let file_event = tokio::select! {
                     // wait for a new event
                     f = async_fd.read_buf(&mut buf) => f,
@@ -34,7 +34,10 @@ pub async fn start() -> StopHandle {
                     log::warn!("Error reading from {}: {:?}", PATH, e);
                     return;
                 }
-                print_buffer(&buf[..]);
+                if let Some(last_newline) = buf[..].iter().rposition(|&x| x == b'\n') {
+                    let completed_lines = buf.split_to(last_newline);
+                    print_buffer(&completed_lines[..]);
+                }
             }
         }
     });
