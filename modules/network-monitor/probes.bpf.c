@@ -105,7 +105,7 @@ struct bpf_map_def_aya SEC("maps/args_map") args_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(u64),                // bpf_get_current_pid_tgid()
     .value_size = sizeof(struct arguments), // data
-    .max_entries = 3,
+    .max_entries = 1024,
 };
 
 const int IPV6_NUM_OCTECTS = 16;
