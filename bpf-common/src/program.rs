@@ -136,8 +136,8 @@ impl ProgramBuilder {
         self
     }
 
-    pub fn raw_tracepoint(mut self, raw_tracepoint: &str) -> Self {
-        self.raw_tracepoints.push(raw_tracepoint.to_string());
+    pub fn raw_tracepoint(mut self, name: &str) -> Self {
+        self.raw_tracepoints.push(name.to_string());
         self
     }
 
