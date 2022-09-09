@@ -28,7 +28,7 @@ const MODULE_NAME: &str = "network-monitor";
 // that we can't find the source address when the hook is called.
 // During `socket_accept` we'll save the `struct socket` pointer, but we'll read it
 // only in the `sys_exit_accept`/`sys_exit_accept4` tracepoints, immediately before
-// the kernel exists the syscall which caused the "accept" in the first place.
+// the kernel exits the syscall which caused the "accept" in the first place.
 //
 // # Send
 // We read the address and content of sent messages using the `socket_sendmsg` LSM hook.

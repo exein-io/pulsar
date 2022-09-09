@@ -72,7 +72,7 @@ struct network_event {
 };
 
 struct arguments {
-  unsigned long data[3];
+  void *data[3];
 };
 
 // used to send events to userspace
@@ -129,31 +129,38 @@ static __always_inline struct network_event *new_event() {
 static __always_inline void copy_sockaddr(struct sockaddr *addr,
                                           struct address *dest,
                                           bool is_user_memory) {
-  long (*read)(void *, __u32, const void *) = NULL;
-  if (is_user_memory)
-    read = bpf_probe_read_user;
-  else
-    read = bpf_probe_read_kernel;
+  int r;
 
   u16 family = 0;
-  int r = read(&family, sizeof(family), &addr->sa_family);
+  if (is_user_memory)
+    r = bpf_core_read_user(&family, sizeof(family), &addr->sa_family);
+  else
+    r = bpf_core_read(&family, sizeof(family), &addr->sa_family);
   if (r != 0) {
-    LOG_ERROR("Error copying sockaddr: %d", r);
+    LOG_ERROR("Error reading sockaddr family: %d", r);
+    return;
   }
+
   switch (family) {
   case AF_INET: {
     dest->ip_ver = 0;
-    r = read(&dest->v4, sizeof(struct sockaddr_in), addr);
+    if (is_user_memory)
+      r = bpf_core_read_user(&dest->v4, sizeof(struct sockaddr_in), addr);
+    else
+      r = bpf_core_read(&dest->v4, sizeof(struct sockaddr_in), addr);
     if (r != 0) {
-      LOG_ERROR("Error 2 copying sockaddr: %d", r);
+      LOG_ERROR("Error copying sockaddr_in: %d", r);
     }
     break;
   }
   case AF_INET6: {
     dest->ip_ver = 1;
-    r = read(&dest->v6, sizeof(struct sockaddr_in6), addr);
+    if (is_user_memory)
+      r = bpf_core_read_user(&dest->v6, sizeof(struct sockaddr_in6), addr);
+    else
+      r = bpf_core_read(&dest->v6, sizeof(struct sockaddr_in6), addr);
     if (r != 0) {
-      LOG_ERROR("Error 3 copying sockaddr: %d", r);
+      LOG_ERROR("Error copying sockaddr_in6: %d", r);
     }
     break;
   }
@@ -260,7 +267,7 @@ static __always_inline void on_socket_accept(void *ctx, struct socket *sock,
   // the accept syscall exits.
   if (interesting_tgid() >= 0) {
     struct arguments args = {0};
-    args.data[0] = (unsigned long)newsock;
+    args.data[0] = newsock;
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
   }
@@ -369,7 +376,7 @@ static __always_inline void save_recvmsg_addr(void *ctx,
   if (tgid < 0)
     return;
   struct arguments args = {0};
-  args.data[2] = (unsigned long)addr;
+  args.data[2] = addr;
   u64 pid_tgid = bpf_get_current_pid_tgid();
   bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
 }
@@ -384,8 +391,8 @@ static __always_inline void save_recvmsg(void *ctx, struct socket *sock,
   void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
 
   struct arguments args = {0};
-  args.data[0] = (unsigned long)sk;
-  args.data[1] = (unsigned long)iov_base;
+  args.data[0] = sk;
+  args.data[1] = iov_base;
 
   struct arguments *old_args = bpf_map_lookup_elem(&args_map, &pid_tgid);
   if (old_args) {
