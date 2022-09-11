@@ -1,13 +1,13 @@
-mod rotation;
 mod error;
+mod rotation;
 
 use pulsar_core::pdk::{
     CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
     ShutdownSignal, Version,
 };
 use rotation::{FileRotation, RotationMode};
-use tokio::sync::watch;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::watch;
 
 const MODULE_NAME: &str = "logger";
 
@@ -45,10 +45,10 @@ struct Config {
 
     /// Log file configuration
     file: bool,
-    file_dir: String,   // root directory for log files, default is /var/log/pulsar/
+    file_path: String, // path to log files, default is /var/log/pulsar/pulsard.log
     rotation_size: usize, // Max size (in kilobytes) of the file after which it will rotate, default: 10MB
 
-    // syslog: bool, //TODO:
+                          // syslog: bool, //TODO:
 }
 
 impl TryFrom<&ModuleConfig> for Config {
@@ -60,7 +60,8 @@ impl TryFrom<&ModuleConfig> for Config {
             console: config.required("console").unwrap_or(true),
 
             file: config.with_default("file", false)?,
-            file_dir: config.with_default("file_dir", "/var/log/pulsar/".to_string())?,
+            file_path: config
+                .with_default("file_dir", "/var/log/pulsar/pulsard.log".to_string())?,
             rotation_size: config.with_default("rotation_size", 10 * 1024)?,
             // syslog: config.required("syslog")?,
         })
@@ -77,27 +78,30 @@ impl Logger {
     async fn from_config(
         rx_config: &watch::Receiver<Result<Config, ConfigError>>,
     ) -> Result<Self, ModuleError> {
-        let Config { 
-            console, 
-            file, 
-            file_dir, 
-            rotation_size, 
+        let Config {
+            console,
+            file,
+            file_path,
+            rotation_size,
         } = rx_config.borrow().clone()?;
         //handle file logging
         let mut file_rotation = None;
         if file {
             // tokio::spawn(async move {
-                file_rotation = Some(FileRotation::new(
-                    &file_dir,
+            file_rotation = Some(
+                FileRotation::new(
+                    &file_path,
                     RotationMode::SizeExceeded(rotation_size),
-                    5 //TODO: make this configurable
-                ).await?);
+                    5, //TODO: make this configurable
+                )
+                .await?,
+            );
             // });
         }
-        Ok(Self { 
-            console, 
-            file, 
-            file_rotation
+        Ok(Self {
+            console,
+            file,
+            file_rotation,
         })
     }
 
@@ -106,10 +110,11 @@ impl Logger {
             println!("{:?}", event);
         }
         if self.file {
+            log::info!("{:?}", event);
             let event_bytes = serde_json::to_vec(event)?;
-            //TODO: im getting the error here - cannot move out of `self.file_rotation` which is behind a mutable reference
-            // if possible, can you advise how to fix it?
-            // self.file_rotation.expect("file_rotation is not empty").write(&event_bytes).await?;
+            if let Some(file_rotation) = &mut self.file_rotation {
+                file_rotation.write_all(&event_bytes).await?;
+            }
         }
         Ok(())
     }

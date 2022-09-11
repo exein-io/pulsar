@@ -1,6 +1,6 @@
 //! Write output to a file and rotate the files when limits have been exceeded.
-//! When a rotation occurs, it attempts to open a file in the specific configuration path. 
-//! It just does its job (logging) if possible. 
+//! When a rotation occurs, it attempts to open a file in the specific configuration path.
+//! It just does its job (logging) if possible.
 //! This simple file rotation is inspired by tracing crate.
 
 use crate::error;
@@ -78,9 +78,11 @@ impl FileRotation {
         Ok(Self {
             basename: path.as_ref().to_path_buf(),
             count: 0,
-            file: Some(Box::pin(File::create(&path).await.map_err(|e| {
-                error::LoggerError::IoError(e)
-            })?)),
+            file: Some(Box::pin(
+                File::create(&path)
+                    .await
+                    .map_err(|e| error::LoggerError::IoError(e))?,
+            )),
             file_number: 0,
             max_file_number,
             mode: rotation_mode,
@@ -111,7 +113,8 @@ impl FileRotation {
                 let basename = self.basename.clone();
                 let mut path = self.basename.clone();
                 path.set_extension(self.file_number.to_string());
-                self.rotate_state = RotationState::PendingRename(Box::pin(fs::rename(basename, path)));
+                self.rotate_state =
+                    RotationState::PendingRename(Box::pin(fs::rename(basename, path)));
                 return self.poll_rotate(ctx);
             };
         }
@@ -345,8 +348,7 @@ mod tests {
         let zerolineserr =
             FileRotation::new("/tmp/async_zero_lines.log", RotationMode::ExactLines(0), 0).await;
         match zerolineserr {
-            Err(error::LoggerError::ZeroLines) => {
-            }
+            Err(error::LoggerError::ZeroLines) => {}
             _ => panic!("Expected ZeroLines error"),
         };
     }
@@ -360,8 +362,7 @@ mod tests {
         )
         .await;
         match zerobyteserr {
-            Err(error::LoggerError::ZeroBytes) => {
-            }
+            Err(error::LoggerError::ZeroBytes) => {}
             _ => panic!("Expected ZeroBytes error"),
         };
     }
@@ -371,13 +372,16 @@ mod tests {
         let _ = fs::remove_dir_all("/tmp/async_rotate").await;
         fs::create_dir("/tmp/async_rotate").await.unwrap();
 
-        let mut rot = FileRotation::new("/tmp/async_rotate/test.log", RotationMode::ExactLines(1), 0)
-            .await
-            .unwrap();
+        let mut rot =
+            FileRotation::new("/tmp/async_rotate/test.log", RotationMode::ExactLines(1), 0)
+                .await
+                .unwrap();
         rot.write(b"a\n").await.unwrap();
         assert_eq!(
             "",
-            fs::read_to_string("/tmp/async_rotate/test.log").await.unwrap()
+            fs::read_to_string("/tmp/async_rotate/test.log")
+                .await
+                .unwrap()
         );
         assert_eq!(
             "a\n",
@@ -398,13 +402,17 @@ mod tests {
         rot.write(b"c\n").await.unwrap();
         assert_eq!(
             "",
-            fs::read_to_string("/tmp/async_rotate/test.log").await.unwrap()
+            fs::read_to_string("/tmp/async_rotate/test.log")
+                .await
+                .unwrap()
         );
 
         rot.write(b"d\n").await.unwrap();
         assert_eq!(
             "",
-            fs::read_to_string("/tmp/async_rotate/test.log").await.unwrap()
+            fs::read_to_string("/tmp/async_rotate/test.log")
+                .await
+                .unwrap()
         );
         assert_eq!(
             "d\n",
@@ -417,9 +425,7 @@ mod tests {
     #[tokio::test]
     async fn write_record_until_bytes_exceeded() {
         let _ = fs::remove_dir_all("/tmp/async_exceeded_bytes").await;
-        fs::create_dir("/tmp/async_exceeded_bytes")
-            .await
-            .unwrap();
+        fs::create_dir("/tmp/async_exceeded_bytes").await.unwrap();
 
         let mut rot = FileRotation::new(
             "/tmp/async_exceeded_bytes/test.log",
@@ -429,14 +435,18 @@ mod tests {
         .await
         .unwrap();
 
-        rot.write(b"This is exceeded byte data already").await.unwrap();
+        rot.write(b"This is exceeded byte data already")
+            .await
+            .unwrap();
         rot.flush().await.unwrap();
         assert!(Path::new("/tmp/async_exceeded_bytes/test.log.0").exists());
         // its exist yet - because the complete record was written single-shot
         assert!(!Path::new("/tmp/async_exceeded_bytes/test.log.1").exists());
 
         // This should create the 2nd file
-        rot.write(b"This is exceeded byte data already - 2nd time").await.unwrap();
+        rot.write(b"This is exceeded byte data already - 2nd time")
+            .await
+            .unwrap();
         rot.flush().await.unwrap();
         assert!(Path::new("/tmp/async_exceeded_bytes/test.log.1").exists());
 
