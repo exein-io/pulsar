@@ -3,7 +3,7 @@
 //! - allows to read events events.
 //!
 use core::fmt;
-use std::{mem::size_of, sync::Arc, time::Duration};
+use std::{convert::TryFrom, fmt::Display, mem::size_of, sync::Arc, time::Duration};
 
 use aya::{
     maps::{
@@ -91,8 +91,20 @@ pub enum ProgramError {
     LoadingProbe(#[from] aya::BpfError),
     #[error("program not found {0}")]
     ProgramNotFound(String),
-    #[error(transparent)]
-    ProgramError(#[from] aya::programs::ProgramError),
+    #[error("incorrect program type {0}")]
+    ProgramTypeError(String),
+    #[error("failed program load {program}")]
+    ProgramLoadError {
+        program: String,
+        #[source]
+        program_error: aya::programs::ProgramError,
+    },
+    #[error("failed program attach {program}")]
+    ProgramAttachError {
+        program: String,
+        #[source]
+        program_error: aya::programs::ProgramError,
+    },
     #[error(transparent)]
     MapError(#[from] aya::maps::MapError),
     #[error("perf buffer error {0}")]
@@ -109,11 +121,7 @@ pub struct ProgramBuilder {
     /// Probe configuration
     ctx: BpfContext,
     probe: Vec<u8>,
-    tracepoints: Vec<(String, String)>,
-    raw_tracepoints: Vec<String>,
-    kprobes: Vec<String>,
-    kretprobes: Vec<String>,
-    lsms: Vec<String>,
+    programs: Vec<ProgramType>,
 }
 
 impl ProgramBuilder {
@@ -122,37 +130,36 @@ impl ProgramBuilder {
             ctx,
             name,
             probe,
-            tracepoints: Vec::new(),
-            raw_tracepoints: Vec::new(),
-            kprobes: Vec::new(),
-            kretprobes: Vec::new(),
-            lsms: Vec::new(),
+            programs: Vec::new(),
         }
     }
 
     pub fn tracepoint(mut self, section: &str, tracepoint: &str) -> Self {
-        self.tracepoints
-            .push((section.to_string(), tracepoint.to_string()));
+        self.programs.push(ProgramType::TracePoint(
+            section.to_string(),
+            tracepoint.to_string(),
+        ));
         self
     }
 
     pub fn raw_tracepoint(mut self, name: &str) -> Self {
-        self.raw_tracepoints.push(name.to_string());
+        self.programs
+            .push(ProgramType::RawTracePoint(name.to_string()));
         self
     }
 
     pub fn kprobe(mut self, name: &str) -> Self {
-        self.kprobes.push(name.to_string());
+        self.programs.push(ProgramType::Kprobe(name.to_string()));
         self
     }
 
     pub fn kretprobe(mut self, name: &str) -> Self {
-        self.kretprobes.push(name.to_string());
+        self.programs.push(ProgramType::Kretprobe(name.to_string()));
         self
     }
 
     pub fn lsm(mut self, name: &str) -> Self {
-        self.lsms.push(name.to_string());
+        self.programs.push(ProgramType::Lsm(name.to_string()));
         self
     }
 
@@ -176,46 +183,8 @@ impl ProgramBuilder {
                 .btf(Some(btf.as_ref()))
                 .set_global("log_level", &(self.ctx.log_level as i32))
                 .load(&self.probe)?;
-            for (section, tracepoint) in self.tracepoints {
-                let tp: &mut TracePoint = bpf
-                    .program_mut(&tracepoint)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(tracepoint.clone()))?
-                    .try_into()?;
-                tp.load()?;
-                tp.attach(&section, &tracepoint)?;
-            }
-            for raw_tracepoint in self.raw_tracepoints {
-                let tp: &mut RawTracePoint = bpf
-                    .program_mut(&raw_tracepoint)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(raw_tracepoint.clone()))?
-                    .try_into()?;
-                tp.load()?;
-                tp.attach(&raw_tracepoint)?;
-            }
-            for kprobe in self.kprobes {
-                let tp: &mut KProbe = bpf
-                    .program_mut(&kprobe)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(kprobe.clone()))?
-                    .try_into()?;
-                tp.load()?;
-                tp.attach(&kprobe, 0)?;
-            }
-            for kretprobe in self.kretprobes {
-                let program = format!("{kretprobe}_return");
-                let tp: &mut KProbe = bpf
-                    .program_mut(&program)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(program.clone()))?
-                    .try_into()?;
-                tp.load()?;
-                tp.attach(&kretprobe, 0)?;
-            }
-            for lsm in self.lsms {
-                let tp: &mut Lsm = bpf
-                    .program_mut(&lsm)
-                    .ok_or_else(|| ProgramError::ProgramNotFound(lsm.clone()))?
-                    .try_into()?;
-                tp.load(&lsm, &btf)?;
-                tp.attach()?;
+            for program in self.programs {
+                program.attach(&mut bpf, &btf)?;
             }
             Result::<Bpf, ProgramError>::Ok(bpf)
         })
@@ -229,6 +198,75 @@ impl ProgramBuilder {
             bpf,
         })
     }
+}
+
+enum ProgramType {
+    TracePoint(String, String),
+    RawTracePoint(String),
+    Kprobe(String),
+    Kretprobe(String),
+    Lsm(String),
+}
+
+impl Display for ProgramType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProgramType::TracePoint(section, tracepoint) => {
+                write!(f, "tracepoint {section}/{tracepoint}")
+            }
+            ProgramType::RawTracePoint(tracepoint) => write!(f, "raw_tracepoint {tracepoint}"),
+            ProgramType::Kprobe(kprobe) => write!(f, "kprobe {kprobe}"),
+            ProgramType::Kretprobe(kretprobe) => write!(f, "kretprobe {kretprobe}"),
+            ProgramType::Lsm(lsm) => write!(f, "lsm {lsm}"),
+        }
+    }
+}
+
+impl ProgramType {
+    fn attach(&self, bpf: &mut Bpf, btf: &Btf) -> Result<(), ProgramError> {
+        let load_err = |program_error| ProgramError::ProgramLoadError {
+            program: self.to_string(),
+            program_error,
+        };
+        let attach_err = |program_error| ProgramError::ProgramAttachError {
+            program: self.to_string(),
+            program_error,
+        };
+        match self {
+            ProgramType::TracePoint(section, tracepoint) => {
+                let program: &mut TracePoint = extract_program(bpf, tracepoint)?;
+                program.load().map_err(load_err)?;
+                program.attach(section, tracepoint).map_err(attach_err)?;
+            }
+            ProgramType::RawTracePoint(tracepoint) => {
+                let program: &mut RawTracePoint = extract_program(bpf, tracepoint)?;
+                program.load().map_err(load_err)?;
+                program.attach(tracepoint).map_err(attach_err)?;
+            }
+            ProgramType::Kretprobe(kprobe) | ProgramType::Kprobe(kprobe) => {
+                let program: &mut KProbe = extract_program(bpf, kprobe)?;
+                program.load().map_err(load_err)?;
+                program.attach(kprobe, 0).map_err(attach_err)?;
+            }
+            ProgramType::Lsm(lsm) => {
+                let program: &mut Lsm = extract_program(bpf, lsm)?;
+                program.load(lsm, btf).map_err(load_err)?;
+                program.attach().map_err(attach_err)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn extract_program<'a, T>(bpf: &'a mut Bpf, program: &str) -> Result<&'a mut T, ProgramError>
+where
+    T: 'a,
+    &'a mut T: TryFrom<&'a mut aya::programs::Program>,
+{
+    bpf.program_mut(program)
+        .ok_or_else(|| ProgramError::ProgramNotFound(program.to_string()))?
+        .try_into()
+        .map_err(|_err| ProgramError::ProgramTypeError(program.to_string()))
 }
 
 pub struct Program {
