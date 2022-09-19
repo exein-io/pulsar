@@ -65,7 +65,9 @@ concerns.
 The [probe tutorial](./bpf-common/ProbeTutorial.md) highlights how to build an 
 eBPF probe and integrate it into Pulsar via the module system.
 
-## Minimum Kernel Requirements
+## Kernel Requirements
+
+### Minimum
 
 Currently Pulsar requires at least kernel version 5.5 with BPF and BTF enabled.
 
@@ -73,18 +75,29 @@ We're requiring 5.5 because we use `BPF_CORE_READ`, which under the hood uses
 `bpf_probe_read_kernel`. To support older kernel versions we may use the older
 and generic `bpf_probe_read`.
 
-For the best results, make sure these kernel configurations are enabled:
+The following kernel configurations must be enabled:
 ```
 CONFIG_DEBUG_INFO=y
 CONFIG_DEBUG_INFO_BTF=y
 CONFIG_SECURITY=y
 CONFIG_SECURITYFS=y
-CONFIG_BPF_LSM=y
+CONFIG_SECURITY_NETWORK=y
 CONFIG_FUNCTION_TRACER=y
 CONFIG_FTRACE_SYSCALLS=y
 ```
 
 See <https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md>
+
+### Recommended
+
+For best results we recommend a kernel >= 5.7 with all the above configuration enabled plus the following: 
+```
+CONFIG_BPF_LSM=y
+```
+
+This configuration only is available from 5.7.
+
+With this configuration enabled Pulsar uses the more powerful and stable BPF LSM hooks. If you use have BPF_LSM disabled it uses Kprobes as fallback.
 
 ## Advanced
 
