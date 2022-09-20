@@ -1,14 +1,9 @@
 use std::time::Duration;
 
-use bpf_common::{
-    aya::{maps::MapError, Bpf},
-    Pid,
-};
+use anyhow::Result;
+use bpf_common::{aya::Bpf, Pid};
 use pulsar_core::{
-    pdk::{
-        process_tracker::{ProcessTrackerHandle, TrackerUpdate},
-        ModuleError,
-    },
+    pdk::process_tracker::{ProcessTrackerHandle, TrackerUpdate},
     Timestamp,
 };
 use tokio::sync::mpsc;
@@ -39,7 +34,7 @@ pub(crate) async fn setup_events_filter(
     config: Config,
     process_tracker: &ProcessTrackerHandle,
     rx_processes: &mut mpsc::UnboundedReceiver<TrackerUpdate>,
-) -> Result<(), ModuleError> {
+) -> Result<()> {
     // setup targets map
     let mut target_map = RuleMap::target(bpf)?;
     target_map.clear()?;
@@ -69,7 +64,7 @@ pub(crate) async fn setup_events_filter(
     }
 
     // apply pending changes
-    let mut apply_new_events = || -> Result<(), ModuleError> {
+    let mut apply_new_events = || -> Result<()> {
         while let Ok(update) = rx_processes.try_recv() {
             match &update {
                 TrackerUpdate::Fork { pid, ppid, .. } => {
@@ -103,7 +98,7 @@ struct Initializer {
 }
 
 impl Initializer {
-    fn new(bpf: &mut Bpf, config: Config) -> Result<Self, MapError> {
+    fn new(bpf: &mut Bpf, config: Config) -> Result<Self> {
         // clear whitelist map
         let mut interest_map = InterestMap::load(bpf)?;
         interest_map.clear()?;
@@ -119,7 +114,7 @@ impl Initializer {
         })
     }
 
-    fn update(&mut self, process: &ProcessData) -> Result<(), MapError> {
+    fn update(&mut self, process: &ProcessData) -> Result<()> {
         let parent_result = self.cache.get(&process.parent).copied().unwrap_or_else(|| {
             if process.pid != PID_0 {
                 log::warn!(

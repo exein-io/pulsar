@@ -1,5 +1,6 @@
 use std::fmt;
 
+use anyhow::Context;
 use bpf_common::{
     aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
@@ -103,7 +104,8 @@ pub mod pulsar {
             &process_tracker,
             &mut rx_processes,
         )
-        .await?;
+        .await
+        .context("Error initializing process filtering")?;
 
         // rx_processes will first be used during initialization,
         // than it will be used to keep the process tracker updated
