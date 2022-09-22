@@ -123,14 +123,33 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   return 0;
 }
 
+#define PF_EXITING 4
+
 // This is attached to tracepoint:sched:sched_process_exit
 SEC("raw_tracepoint/sched_process_exit")
 int BPF_PROG(sched_process_exit, struct task_struct *p) {
-  pid_t tgid;
-  // If the thread id (pid) is different from the process id (tgid)
-  // a thread exited and we ignore the event.
-  if (is_thread(&tgid))
-    return 0;
+  pid_t tgid = BPF_CORE_READ(p, group_leader, pid);
+
+  // We want to ignore threads and focus on whole processes, so we have
+  // to wait for the whole process group to exit. Unfortunately, checking
+  // if the current task's pid matches its tgid is not enough because
+  // the main thread could exit before the child one.
+  // To make sure we're the last standing thread, we search the
+  // thread_group linked list for a task still alive.
+  struct task_struct *next = p;
+  struct list_head *lnext;
+  int i = 0;
+  for (i = 0; i < 20; i = i + 1) {
+    lnext = BPF_CORE_READ(next, thread_group.next);
+    next = container_of(lnext, struct task_struct, thread_group);
+    // if we've iterated all threads and they're all exited, we can continue
+    if (next == p)
+      break;
+    int flags = BPF_CORE_READ(next, flags);
+    // if we've find a thread still alive, we'll don't emit a signal yet
+    if (!(flags & PF_EXITING))
+      return 0;
+  }
 
   // cleanup resources from map_interest
   if (bpf_map_delete_elem(&map_interest, &tgid) != 0) {
@@ -140,10 +159,10 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   struct process_event event = {};
   event.event_type = EVENT_EXIT;
   event.timestamp = bpf_ktime_get_ns();
+  // The PID is the thread id of the progress group leader
   event.pid = tgid;
-
-  struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-  event.exit.exit_code = BPF_CORE_READ(task, exit_code) >> 8;
+  // NOTE: here we're assuming the exit code is set by the last exiting thread
+  event.exit.exit_code = BPF_CORE_READ(p, exit_code) >> 8;
 
   LOG_DEBUG("exitited at %ld with code %d", event.timestamp,
             event.exit.exit_code);

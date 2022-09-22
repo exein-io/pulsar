@@ -318,12 +318,17 @@ pub mod test_suite {
                     children_interesting: interest_in_child,
                 }
                 .as_raw();
-                let actual_interest = interest_map.0.get(&child_pid, 0).unwrap();
-                if expected_interest != actual_interest {
+                let actual_interest = interest_map.0.get(&child_pid, 0).ok();
+                if Some(expected_interest) != actual_interest {
+                    report.lines.push(format!(
+                        "expecting {}={} (was {:?})",
+                        child_pid, expected_interest, actual_interest
+                    ));
+                    report.success = false;
+                } else {
                     report
                         .lines
-                        .push(format!("expecting {child_pid}={expected_interest}"));
-                    report.success = false;
+                        .push(format!("ok {}={}", child_pid, expected_interest));
                 }
             }
             report
