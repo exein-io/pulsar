@@ -24,6 +24,6 @@ fn try_load() -> Result<()> {
         .with_context(|| format!("Reading {PATH} failed"))?
         .split(',')
         .any(|lsm_subsystem| lsm_subsystem == "bpf")
-        .then(|| ())
+        .then_some(())
         .ok_or_else(|| anyhow!("eBPF LSM programs disabled"))
 }
