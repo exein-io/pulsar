@@ -466,8 +466,11 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
 
 SEC("kprobe/tcp_set_state")
 int tcp_set_state(struct pt_regs *regs) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
+  pid_t tgid = bpf_get_current_pid_tgid() >> 32;
+  // this function may be called after the process has already exited,
+  // so we don't want to log errors in case tgid has already been
+  // deleted from map_interest
+  if (!is_interesting(tgid, __func__, false))
     return 0;
 
   int ret;

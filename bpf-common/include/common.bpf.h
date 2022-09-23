@@ -58,18 +58,20 @@ struct bpf_map_def_aya SEC("maps/map_interest") map_interest = {
 #define POLICY_INTERESTING 1
 #define POLICY_CHILDREN_INTERESTING 2
 
-// Return if we should generate events for this process
-static __always_inline bool interesting(u32 tgid) {
+// Return if we should generate events for this process.
+// Takes a caller name which will be logged in case of error.
+static __always_inline bool is_interesting(u32 tgid, const char *caller,
+                                           bool do_warning) {
   u8 *value = (u8 *)bpf_map_lookup_elem(&map_interest, &tgid);
   // If we can't find an element, we process it
   if (value == NULL) {
-    if (log_level >= LOG_LEVEL_ERROR) {
+    if (do_warning && log_level >= LOG_LEVEL_ERROR) {
       // We want to warn about missing entries in map_interest, but only
       // if process tracking is running. We check if map_interest contains
       // pid 1, which should always exist.
       u32 pid_init = 1;
       if (bpf_map_lookup_elem(&map_interest, &pid_init)) {
-        LOG_ERROR("missing entry for pid %d", tgid);
+        LOG_ERROR("[%s] missing entry for pid %d", caller, tgid);
       }
     }
     return true;
@@ -79,12 +81,13 @@ static __always_inline bool interesting(u32 tgid) {
 }
 
 // Return tgid if we're interested in this process. Returns -1 if we're not.
-static __always_inline pid_t interesting_tgid() {
-  pid_t tgid = bpf_get_current_pid_tgid() >> 32;
-  if (!interesting(tgid))
-    return -1;
-  return tgid;
-}
+#define interesting_tgid()                                                     \
+  ({                                                                           \
+    pid_t tgid = bpf_get_current_pid_tgid() >> 32;                             \
+    if (!is_interesting(tgid, __func__, true))                                 \
+      tgid = -1;                                                               \
+    tgid;                                                                      \
+  })
 
 // Propagate interest about a child from the parent
 static __always_inline void inherit_interest(u32 parent, u32 child) {
