@@ -154,6 +154,11 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   // cleanup resources from map_interest
   if (bpf_map_delete_elem(&map_interest, &tgid) != 0) {
     LOG_DEBUG("%d not found in map_interest during exit", tgid);
+    // Multiple threads may exit at the same time, causing the loop above
+    // to pass multiple times. Since we want to generate only one event,
+    // we'll consider a missing entry in map_interest as a signal that
+    // we've already emitted the exit event.
+    return 0;
   }
 
   struct process_event event = {};
