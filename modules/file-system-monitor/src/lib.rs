@@ -25,13 +25,17 @@ pub async fn program(
         builder = builder
             .lsm("inode_create")
             .lsm("inode_unlink")
-            .lsm("file_open");
+            .lsm("file_open")
+            .lsm("path_link")
+            .lsm("path_symlink");
     } else {
         log::info!("LSM programs not supported. Falling back to kprobes");
         builder = builder
             .kprobe("security_inode_create")
             .kprobe("security_inode_unlink")
-            .kprobe("security_file_open");
+            .kprobe("security_file_open")
+            .kprobe("security_path_link")
+            .kprobe("security_path_symlink");
     }
     let program = builder.start().await?;
     program.read_events("events", sender).await?;
@@ -51,6 +55,12 @@ pub enum FsEvent {
         filename: StringArray<NAME_MAX>,
         flags: Flags,
     },
+    #[allow(clippy::large_enum_variant)]
+    FileLink {
+        source: StringArray<NAME_MAX>,
+        destination: StringArray<NAME_MAX>,
+        hard_link: bool,
+    },
 }
 
 impl fmt::Display for FsEvent {
@@ -61,6 +71,17 @@ impl fmt::Display for FsEvent {
             FsEvent::FileOpened { filename, flags } => {
                 write!(f, "open {} ({})", filename, flags.0)
             }
+            FsEvent::FileLink {
+                source,
+                destination,
+                hard_link,
+            } => write!(
+                f,
+                "{} {} -> {}",
+                if *hard_link { "hardlink" } else { "symlink" },
+                source,
+                destination
+            ),
         }
     }
 }
@@ -172,6 +193,15 @@ pub mod pulsar {
                     filename: filename.to_string(),
                     flags: flags.0,
                 },
+                FsEvent::FileLink {
+                    source,
+                    destination,
+                    hard_link,
+                } => Payload::FileLink {
+                    source: source.to_string(),
+                    destination: destination.to_string(),
+                    hard_link,
+                },
             }
         }
     }
@@ -270,7 +300,13 @@ pub mod test_suite {
     pub fn tests() -> TestSuite {
         TestSuite {
             name: "file-system-monitor",
-            tests: vec![open_file(), create_file(), unlink_file()],
+            tests: vec![
+                open_file(),
+                create_file(),
+                unlink_file(),
+                symlink(),
+                hardlink(),
+            ],
         }
     }
 
@@ -324,6 +360,58 @@ pub mod test_suite {
                     FsEvent::FileOpened,
                     (filename, path.to_str().unwrap().into(), "filename"),
                     (flags, Flags(libc::O_RDWR | FMODE_OPENED), "open flags")
+                ))
+                .report()
+        })
+    }
+
+    fn symlink() -> TestCase {
+        TestCase::new("symlink", async {
+            let source = temp_dir().join("source");
+            let destination = temp_dir().join("destination");
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    let _ = std::fs::remove_file(&source);
+                    let _ = std::fs::remove_file(&destination);
+                    std::os::unix::fs::symlink(&destination, &source).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::FileLink,
+                    (source, source.to_str().unwrap().into(), "source"),
+                    (
+                        destination,
+                        destination.to_str().unwrap().into(),
+                        "destination"
+                    ),
+                    (hard_link, false, "hard_link")
+                ))
+                .report()
+        })
+    }
+
+    fn hardlink() -> TestCase {
+        TestCase::new("hardlink", async {
+            let source = temp_dir().join("source");
+            let destination = temp_dir().join("destination");
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    let _ = std::fs::remove_file(&source);
+                    let _ = std::fs::remove_file(&destination);
+                    // destination must exist for an hardlink to be created
+                    std::fs::write(&destination, b"hello world").unwrap();
+                    std::fs::hard_link(&destination, &source).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::FileLink,
+                    (source, source.to_str().unwrap().into(), "source"),
+                    (
+                        destination,
+                        destination.to_str().unwrap().into(),
+                        "destination"
+                    ),
+                    (hard_link, true, "hard_link")
                 ))
                 .report()
         })

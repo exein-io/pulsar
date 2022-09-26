@@ -83,6 +83,11 @@ pub enum Payload {
         filename: String,
         flags: i32,
     },
+    FileLink {
+        source: String,
+        destination: String,
+        hard_link: bool,
+    },
     ElfOpened {
         filename: String,
         flags: i32,
