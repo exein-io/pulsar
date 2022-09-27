@@ -163,7 +163,7 @@ static __always_inline void on_inode_create(void *ctx, struct inode *dir,
                         sizeof(struct event_t));
 }
 
-static __always_inline void on_inode_unlink(void *ctx, struct inode *dir,
+static __always_inline void on_path_unlink(void *ctx, struct path *dir,
                                             struct dentry *dentry) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
@@ -173,7 +173,8 @@ static __always_inline void on_inode_unlink(void *ctx, struct inode *dir,
   struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
   if (!event)
     return;
-  get_path_str(dentry, NULL, event->deleted);
+  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
+  get_path_str(dentry, vfsmnt, event->deleted);
   event->event_type = FILE_DELETED;
   event->timestamp = bpf_ktime_get_ns();
   event->pid = tgid;
@@ -266,9 +267,9 @@ int BPF_PROG(inode_create, struct inode *dir, struct dentry *dentry,
   return ret;
 }
 
-SEC("lsm/inode_unlink")
-int BPF_PROG(inode_unlink, struct inode *dir, struct dentry *dentry, int ret) {
-  on_inode_unlink(ctx, dir, dentry);
+SEC("lsm/path_unlink")
+int BPF_PROG(path_unlink, struct path *dir, struct dentry *dentry, int ret) {
+  on_path_unlink(ctx, dir, dentry);
   return ret;
 }
 
@@ -301,10 +302,10 @@ int BPF_KPROBE(security_inode_create, struct inode *dir, struct dentry *dentry,
   return 0;
 }
 
-SEC("kprobe/security_inode_unlink")
-int BPF_KPROBE(security_inode_unlink, struct inode *dir,
+SEC("kprobe/security_path_unlink")
+int BPF_KPROBE(security_path_unlink, struct path *dir,
                struct dentry *dentry) {
-  on_inode_unlink(ctx, dir, dentry);
+  on_path_unlink(ctx, dir, dentry);
   return 0;
 }
 
