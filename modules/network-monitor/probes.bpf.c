@@ -337,8 +337,8 @@ static __always_inline u16 get_sock_protocol(struct sock *sk) {
   }
 }
 
-static __always_inline void do_sendmsg(void *ctx, struct socket *sock,
-                                       struct msghdr *msg, int size) {
+static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
+                                              struct msghdr *msg, int size) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -381,8 +381,9 @@ static __always_inline void save_recvmsg_addr(void *ctx,
   bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
 }
 
-static __always_inline void save_recvmsg(void *ctx, struct socket *sock,
-                                         struct msghdr *msg) {
+static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
+                                              struct msghdr *msg, int size,
+                                              int flags) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -583,75 +584,12 @@ int BPF_PROG(sys_exit_readv, struct pt_regs *regs, int __syscall_nr, long ret) {
 }
 
 /// LSM hook points
-
-SEC("lsm/socket_bind")
-int BPF_PROG(socket_bind, struct socket *sock, struct sockaddr *address,
-             int addrlen, int ret) {
-  on_socket_bind(ctx, sock, address, addrlen);
-  return ret;
-}
-
-SEC("lsm/socket_connect")
-int BPF_PROG(socket_connect, struct socket *sock, struct sockaddr *address,
-             int addrlen, int ret) {
-  on_socket_connect(ctx, sock, address, addrlen);
-  return ret;
-}
-
-SEC("lsm/socket_accept")
-int BPF_PROG(socket_accept, struct socket *sock, struct socket *newsock,
-             int ret) {
-  on_socket_accept(ctx, sock, newsock);
-  return ret;
-}
-
-SEC("lsm/socket_sendmsg")
-int BPF_PROG(socket_sendmsg, struct socket *sock, struct msghdr *msg, int size,
-             int ret) {
-  do_sendmsg(ctx, sock, msg, size);
-  return ret;
-}
-
-SEC("lsm/socket_recvmsg")
-int BPF_PROG(socket_recvmsg, struct socket *sock, struct msghdr *msg, int size,
-             int flags, int ret) {
-  save_recvmsg(ctx, sock, msg);
-  return ret;
-}
-
-/// Fallback kprobes if LSM programs not suported
-
-SEC("kprobe/security_socket_bind")
-int BPF_KPROBE(security_socket_bind, struct socket *sock,
-               struct sockaddr *address, int addrlen) {
-  on_socket_bind(ctx, sock, address, addrlen);
-  return 0;
-}
-
-SEC("kprobe/security_socket_connect")
-int BPF_KPROBE(security_socket_connect, struct socket *sock,
-               struct sockaddr *address, int addrlen) {
-  on_socket_connect(ctx, sock, address, addrlen);
-  return 0;
-}
-
-SEC("kprobe/security_socket_accept")
-int BPF_KPROBE(security_socket_accept, struct socket *sock,
-               struct socket *newsock) {
-  on_socket_accept(ctx, sock, newsock);
-  return 0;
-}
-
-SEC("kprobe/security_socket_sendmsg")
-int BPF_KPROBE(security_socket_sendmsg, struct socket *sock, struct msghdr *msg,
-               int size) {
-  do_sendmsg(ctx, sock, msg, size);
-  return 0;
-}
-
-SEC("kprobe/security_socket_recvmsg")
-int BPF_KPROBE(security_socket_recvmsg, struct socket *sock, struct msghdr *msg,
-               int size, int flags) {
-  save_recvmsg(ctx, sock, msg);
-  return 0;
-}
+PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
+                int, addrlen);
+PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
+                address, int, addrlen);
+PULSAR_LSM_HOOK(socket_accept, struct socket *, sock, struct socket *, newsock);
+PULSAR_LSM_HOOK(socket_sendmsg, struct socket *, sock, struct msghdr *, msg,
+                int, size);
+PULSAR_LSM_HOOK(socket_recvmsg, struct socket *, sock, struct msghdr *, msg,
+                int, size, int, flags);
