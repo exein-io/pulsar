@@ -24,7 +24,7 @@ pub async fn program(
         log::info!("Loading LSM programs");
         builder = builder
             .lsm("inode_create")
-            .lsm("inode_unlink")
+            .lsm("path_unlink")
             .lsm("file_open")
             .lsm("path_link")
             .lsm("path_symlink");
@@ -32,7 +32,7 @@ pub async fn program(
         log::info!("LSM programs not supported. Falling back to kprobes");
         builder = builder
             .kprobe("security_inode_create")
-            .kprobe("security_inode_unlink")
+            .kprobe("security_path_unlink")
             .kprobe("security_file_open")
             .kprobe("security_path_link")
             .kprobe("security_path_symlink");
@@ -315,7 +315,7 @@ pub mod test_suite {
             let path = temp_dir().join("file_name_1");
             TestRunner::with_ebpf(program)
                 .run(|| {
-                    let _ = std::fs::remove_file(&path);
+                    _ = std::fs::remove_file(&path);
                     std::fs::File::create(&path).expect("creating file failed");
                 })
                 .await
@@ -330,6 +330,7 @@ pub mod test_suite {
     fn unlink_file() -> TestCase {
         TestCase::new("unlink_file", async {
             let path = temp_dir().join("unlink_file");
+            _ = std::fs::remove_file(&path);
             std::fs::write(&path, b"").unwrap();
             TestRunner::with_ebpf(program)
                 .run(|| nix::unistd::unlink(path.to_str().unwrap()).unwrap())
@@ -348,6 +349,7 @@ pub mod test_suite {
             // See include/linux/fs.h
             const FMODE_OPENED: i32 = 32768;
 
+            _ = std::fs::remove_file(&path);
             std::fs::write(&path, b"hello_world").unwrap();
             let mut options = OpenOptions::new();
             options.read(true).write(true);
@@ -371,8 +373,8 @@ pub mod test_suite {
             let destination = temp_dir().join("destination");
             TestRunner::with_ebpf(program)
                 .run(|| {
-                    let _ = std::fs::remove_file(&source);
-                    let _ = std::fs::remove_file(&destination);
+                    _ = std::fs::remove_file(&source);
+                    _ = std::fs::remove_file(&destination);
                     std::os::unix::fs::symlink(&destination, &source).unwrap();
                 })
                 .await
@@ -396,8 +398,8 @@ pub mod test_suite {
             let destination = temp_dir().join("destination");
             TestRunner::with_ebpf(program)
                 .run(|| {
-                    let _ = std::fs::remove_file(&source);
-                    let _ = std::fs::remove_file(&destination);
+                    _ = std::fs::remove_file(&source);
+                    _ = std::fs::remove_file(&destination);
                     // destination must exist for an hardlink to be created
                     std::fs::write(&destination, b"hello world").unwrap();
                     std::fs::hard_link(&destination, &source).unwrap();
