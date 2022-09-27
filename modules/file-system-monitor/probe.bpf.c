@@ -228,7 +228,7 @@ void __always_inline on_file_link(void *ctx, struct dentry *old_dentry,
   event->pid = tgid;
   event->link.hard_link = true;
 
-  LOG_DEBUG("symlink %s -> %s", event->link.source, event->link.destination);
+  LOG_DEBUG("hardlink %s -> %s", event->link.source, event->link.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
   return;
@@ -316,14 +316,14 @@ int BPF_KPROBE(security_file_open, struct file *file) {
 }
 
 SEC("kprobe/security_path_link")
-int BPF_PROG(security_path_link, struct dentry *old_dentry,
+int BPF_KPROBE(security_path_link, struct dentry *old_dentry,
              struct path *new_dir, struct dentry *new_dentry) {
   on_file_link(ctx, old_dentry, new_dir, new_dentry);
   return 0;
 }
 
 SEC("kprobe/security_path_symlink")
-int BPF_PROG(security_path_symlink, struct path *dir, struct dentry *dentry,
+int BPF_KPROBE(security_path_symlink, struct path *dir, struct dentry *dentry,
              char *old_name) {
   on_file_symlink(ctx, dir, dentry, old_name);
   return 0;
