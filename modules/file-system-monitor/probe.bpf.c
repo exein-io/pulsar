@@ -208,7 +208,7 @@ void __always_inline on_file_open(void *ctx, struct file *file) {
   return;
 }
 
-void __always_inline on_file_link(void *ctx, struct dentry *old_dentry,
+void __always_inline on_path_link(void *ctx, struct dentry *old_dentry,
                                   struct path *new_dir,
                                   struct dentry *new_dentry) {
   pid_t tgid = interesting_tgid();
@@ -234,7 +234,7 @@ void __always_inline on_file_link(void *ctx, struct dentry *old_dentry,
   return;
 }
 
-void __always_inline on_file_symlink(void *ctx, struct path *dir,
+void __always_inline on_path_symlink(void *ctx, struct path *dir,
                                      struct dentry *dentry, char *old_name) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
@@ -259,72 +259,11 @@ void __always_inline on_file_symlink(void *ctx, struct path *dir,
   return;
 }
 
-/// LSM hook points
-
-SEC("lsm/path_mknod")
-int BPF_PROG(path_mknod, struct path *dir, struct dentry *dentry, umode_t mode,
-             unsigned int dev, int ret) {
-  on_path_mknod(ctx, dir, dentry, mode, dev);
-  return ret;
-}
-
-SEC("lsm/path_unlink")
-int BPF_PROG(path_unlink, struct path *dir, struct dentry *dentry, int ret) {
-  on_path_unlink(ctx, dir, dentry);
-  return ret;
-}
-
-SEC("lsm/file_open")
-int BPF_PROG(file_open, struct file *file, int ret) {
-  on_file_open(ctx, file);
-  return ret;
-}
-
-SEC("lsm/path_link")
-int BPF_PROG(path_link, struct dentry *old_dentry, struct path *new_dir,
-             struct dentry *new_dentry, int ret) {
-  on_file_link(ctx, old_dentry, new_dir, new_dentry);
-  return ret;
-}
-
-SEC("lsm/path_symlink")
-int BPF_PROG(path_symlink, struct path *dir, struct dentry *dentry,
-             char *old_name, int ret) {
-  on_file_symlink(ctx, dir, dentry, old_name);
-  return ret;
-}
-
-/// Fallback kprobes
-
-SEC("kprobe/security_path_mknod")
-int BPF_KPROBE(security_path_mknod, struct path *dir, struct dentry *dentry,
-               umode_t mode, unsigned int dev) {
-  on_path_mknod(ctx, dir, dentry, mode, dev);
-  return 0;
-}
-
-SEC("kprobe/security_path_unlink")
-int BPF_KPROBE(security_path_unlink, struct path *dir, struct dentry *dentry) {
-  on_path_unlink(ctx, dir, dentry);
-  return 0;
-}
-
-SEC("kprobe/security_file_open")
-int BPF_KPROBE(security_file_open, struct file *file) {
-  on_file_open(ctx, file);
-  return 0;
-}
-
-SEC("kprobe/security_path_link")
-int BPF_KPROBE(security_path_link, struct dentry *old_dentry,
-             struct path *new_dir, struct dentry *new_dentry) {
-  on_file_link(ctx, old_dentry, new_dir, new_dentry);
-  return 0;
-}
-
-SEC("kprobe/security_path_symlink")
-int BPF_KPROBE(security_path_symlink, struct path *dir, struct dentry *dentry,
-             char *old_name) {
-  on_file_symlink(ctx, dir, dentry, old_name);
-  return 0;
-}
+PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
+                umode_t, mode, unsigned int, dev);
+PULSAR_LSM_HOOK(path_unlink, struct path *, dir, struct dentry *, dentry);
+PULSAR_LSM_HOOK(file_open, struct file *, file);
+PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
+                struct dentry *, new_dentry);
+PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
+                char *, old_name);
