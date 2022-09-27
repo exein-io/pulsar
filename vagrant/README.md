@@ -32,6 +32,15 @@ $ vagrant halt
 
 # Common issues
 
+## Missing IPv6
+
+Many network monitor tests require an IPv6 address, which is unconfigured on
+most vagrant boxes. It's adviced to run this before executing the test-suite:
+
+```bash
+sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+```
+
 ## ssh issues
 
 If `vagrant up` doesn't complete, make sure ssh-rsa keys are enabled:
