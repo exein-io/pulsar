@@ -371,10 +371,10 @@ pub mod test_suite {
         TestCase::new("symlink", async {
             let source = temp_dir().join("source");
             let destination = temp_dir().join("destination");
+            _ = std::fs::remove_file(&source);
+            _ = std::fs::remove_file(&destination);
             TestRunner::with_ebpf(program)
                 .run(|| {
-                    _ = std::fs::remove_file(&source);
-                    _ = std::fs::remove_file(&destination);
                     std::os::unix::fs::symlink(&destination, &source).unwrap();
                 })
                 .await
@@ -396,12 +396,12 @@ pub mod test_suite {
         TestCase::new("hardlink", async {
             let source = temp_dir().join("source");
             let destination = temp_dir().join("destination");
+            _ = std::fs::remove_file(&source);
+            _ = std::fs::remove_file(&destination);
+            // destination must exist for an hardlink to be created
+            std::fs::write(&destination, b"hello world").unwrap();
             TestRunner::with_ebpf(program)
                 .run(|| {
-                    _ = std::fs::remove_file(&source);
-                    _ = std::fs::remove_file(&destination);
-                    // destination must exist for an hardlink to be created
-                    std::fs::write(&destination, b"hello world").unwrap();
                     std::fs::hard_link(&destination, &source).unwrap();
                 })
                 .await
