@@ -23,7 +23,7 @@ pub async fn program(
     if lsm_supported().await {
         log::info!("Loading LSM programs");
         builder = builder
-            .lsm("inode_create")
+            .lsm("path_mknod")
             .lsm("path_unlink")
             .lsm("file_open")
             .lsm("path_link")
@@ -31,7 +31,7 @@ pub async fn program(
     } else {
         log::info!("LSM programs not supported. Falling back to kprobes");
         builder = builder
-            .kprobe("security_inode_create")
+            .kprobe("security_path_mknod")
             .kprobe("security_path_unlink")
             .kprobe("security_file_open")
             .kprobe("security_path_link")

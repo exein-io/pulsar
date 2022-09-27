@@ -141,9 +141,9 @@ static __always_inline void get_path_str(struct dentry *dentry,
   }
 }
 
-static __always_inline void on_inode_create(void *ctx, struct inode *dir,
-                                            struct dentry *dentry,
-                                            umode_t mode) {
+static __always_inline void on_path_mknod(void *ctx, struct path *dir,
+                                          struct dentry *dentry, umode_t mode,
+                                          unsigned int dev) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -153,7 +153,8 @@ static __always_inline void on_inode_create(void *ctx, struct inode *dir,
   if (!event)
     return;
 
-  get_path_str(dentry, NULL, event->created);
+  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
+  get_path_str(dentry, vfsmnt, event->created);
   event->event_type = FILE_CREATED;
   event->timestamp = bpf_ktime_get_ns();
   event->pid = tgid;
@@ -164,7 +165,7 @@ static __always_inline void on_inode_create(void *ctx, struct inode *dir,
 }
 
 static __always_inline void on_path_unlink(void *ctx, struct path *dir,
-                                            struct dentry *dentry) {
+                                           struct dentry *dentry) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -260,10 +261,10 @@ void __always_inline on_file_symlink(void *ctx, struct path *dir,
 
 /// LSM hook points
 
-SEC("lsm/inode_create")
-int BPF_PROG(inode_create, struct inode *dir, struct dentry *dentry,
-             umode_t mode, int ret) {
-  on_inode_create(ctx, dir, dentry, mode);
+SEC("lsm/path_mknod")
+int BPF_PROG(path_mknod, struct path *dir, struct dentry *dentry, umode_t mode,
+             unsigned int dev, int ret) {
+  on_path_mknod(ctx, dir, dentry, mode, dev);
   return ret;
 }
 
@@ -295,16 +296,15 @@ int BPF_PROG(path_symlink, struct path *dir, struct dentry *dentry,
 
 /// Fallback kprobes
 
-SEC("kprobe/security_inode_create")
-int BPF_KPROBE(security_inode_create, struct inode *dir, struct dentry *dentry,
-               umode_t mode) {
-  on_inode_create(ctx, dir, dentry, mode);
+SEC("kprobe/security_path_mknod")
+int BPF_KPROBE(security_path_mknod, struct path *dir, struct dentry *dentry,
+               umode_t mode, unsigned int dev) {
+  on_path_mknod(ctx, dir, dentry, mode, dev);
   return 0;
 }
 
 SEC("kprobe/security_path_unlink")
-int BPF_KPROBE(security_path_unlink, struct path *dir,
-               struct dentry *dentry) {
+int BPF_KPROBE(security_path_unlink, struct path *dir, struct dentry *dentry) {
   on_path_unlink(ctx, dir, dentry);
   return 0;
 }
