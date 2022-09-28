@@ -274,3 +274,82 @@ static __always_inline void on_path_symlink(void *ctx, struct path *dir,
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
 }
+
+PULSAR_LSM_HOOK(path_mkdir, struct path *, dir, struct dentry *, dentry,
+                umode_t, mode);
+static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
+                                          struct dentry *dentry, umode_t mode) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return;
+
+  u32 key = 0;
+  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  if (!event)
+    return;
+
+  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
+  get_path_str(dentry, vfsmnt, event->dir_created);
+  event->event_type = DIR_CREATED;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+
+  LOG_DEBUG("mkdir %s", event->dir_created);
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                        sizeof(struct event_t));
+}
+
+PULSAR_LSM_HOOK(path_rmdir, struct path *, dir, struct dentry *, dentry);
+static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
+                                          struct dentry *dentry) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return;
+
+  u32 key = 0;
+  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  if (!event)
+    return;
+
+  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
+  get_path_str(dentry, vfsmnt, event->dir_deleted);
+  event->event_type = DIR_DELETED;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+
+  LOG_DEBUG("mkdir %s", event->dir_deleted);
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                        sizeof(struct event_t));
+}
+
+PULSAR_LSM_HOOK(path_rename, struct path *, old_dir, struct dentry *,
+                old_dentry, struct path *, new_dir, struct dentry *,
+                new_dentry);
+static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
+                                           struct dentry *old_dentry,
+                                           struct path *new_dir,
+                                           struct dentry *new_dentry) {
+
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return;
+
+  u32 key = 0;
+  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  if (!event)
+    return;
+
+  struct vfsmount *vfsmnt;
+  vfsmnt = BPF_CORE_READ(old_dir, mnt);
+  get_path_str(old_dentry, vfsmnt, event->rename.source);
+  vfsmnt = BPF_CORE_READ(new_dir, mnt);
+  get_path_str(new_dentry, vfsmnt, event->rename.destination);
+
+  event->event_type = FILE_RENAME;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+
+  LOG_DEBUG("rename %s -> %s", event->rename.source, event->rename.destination);
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                        sizeof(struct event_t));
+}
