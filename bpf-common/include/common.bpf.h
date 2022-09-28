@@ -195,6 +195,8 @@ static __always_inline int is_thread(pid_t *out_tgid) {
   ___bpf_apply(UNTYPED_ARGS_, ___bpf_narg(args))(args)
 
 #define PULSAR_LSM_HOOK(hook_point, args...)                                   \
+  static __always_inline void on_##hook_point(void *ctx, TYPED_ARGS(args));    \
+                                                                               \
   SEC("lsm/" #hook_point)                                                      \
   int BPF_PROG(hook_point, TYPED_ARGS(args), int ret) {                        \
     on_##hook_point(ctx, UNTYPED_ARGS(args));                                  \
