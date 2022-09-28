@@ -61,21 +61,31 @@ struct bpf_map_def SEC("maps/events") events = {
     .max_entries = 0,
 };
 
+static __always_inline struct event_t *init_event(int event_type) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return NULL;
+
+  u32 key = 0;
+  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  if (!event)
+    return NULL;
+
+  event->event_type = event_type;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+
+  return event;
+}
+
 // get_path_str was copied and adapted from Tracee
-// vfsmnt is used to get the path of the mount point. If NULL, we can only get
-// the path up to the mount point.
-static __always_inline void get_path_str(struct dentry *dentry,
-                                         struct vfsmount *vfsmnt,
-                                         char buf[NAME_MAX]) {
+static __always_inline void
+get_path_str(struct dentry *dentry, struct path *path, char buf[NAME_MAX]) {
   char slash = '/';
   int zero = 0;
-  struct mount *mnt_parent_p = NULL;
-  struct mount *mnt_p = NULL;
-  if (vfsmnt) {
-    mnt_p = container_of(vfsmnt, struct mount, mnt);
-    bpf_probe_read_kernel(&mnt_parent_p, sizeof(struct mount *),
-                          &mnt_p->mnt_parent);
-  }
+  struct vfsmount *vfsmnt = BPF_CORE_READ(path, mnt);
+  struct mount *mnt_p = container_of(vfsmnt, struct mount, mnt);
+  struct mount *mnt_parent_p = BPF_CORE_READ(mnt_p, mnt_parent);
 
   u32 buf_off = (NAME_MAX >> 1);
 
@@ -85,9 +95,7 @@ static __always_inline void get_path_str(struct dentry *dentry,
 #pragma unroll
   for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
     struct dentry *mnt_root = NULL;
-    if (vfsmnt) {
-      mnt_root = (struct dentry *)BPF_CORE_READ(vfsmnt, mnt_root);
-    }
+    mnt_root = (struct dentry *)BPF_CORE_READ(vfsmnt, mnt_root);
     struct dentry *d_parent = BPF_CORE_READ(dentry, d_parent);
     if (dentry == mnt_root || dentry == d_parent) {
       if (dentry != mnt_root) {
@@ -157,21 +165,10 @@ PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
 static __always_inline void on_path_mknod(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode,
                                           unsigned int dev) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(FILE_CREATED);
   if (!event)
     return;
-
-  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
-  get_path_str(dentry, vfsmnt, event->created);
-  event->event_type = FILE_CREATED;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-
+  get_path_str(dentry, dir, event->created);
   LOG_DEBUG("create %s", event->created);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -180,20 +177,10 @@ static __always_inline void on_path_mknod(void *ctx, struct path *dir,
 PULSAR_LSM_HOOK(path_unlink, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_unlink(void *ctx, struct path *dir,
                                            struct dentry *dentry) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(FILE_DELETED);
   if (!event)
     return;
-  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
-  get_path_str(dentry, vfsmnt, event->deleted);
-  event->event_type = FILE_DELETED;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-
+  get_path_str(dentry, dir, event->deleted);
   LOG_DEBUG("unlink %s", event->deleted);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -201,21 +188,12 @@ static __always_inline void on_path_unlink(void *ctx, struct path *dir,
 
 PULSAR_LSM_HOOK(file_open, struct file *, file);
 static __always_inline void on_file_open(void *ctx, struct file *file) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(FILE_OPENED);
   if (!event)
     return;
   struct path path = BPF_CORE_READ(file, f_path);
-  get_path_str(path.dentry, path.mnt, event->opened.filename);
-  event->event_type = FILE_OPENED;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
+  get_path_str(path.dentry, &path, event->opened.filename);
   event->opened.flags = BPF_CORE_READ(file, f_flags);
-
   LOG_DEBUG("open %s", event->opened.filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -226,23 +204,12 @@ PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
 static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
                                          struct path *new_dir,
                                          struct dentry *new_dentry) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(FILE_LINK);
   if (!event)
     return;
-
-  struct vfsmount *vfsmnt = BPF_CORE_READ(new_dir, mnt);
-  get_path_str(new_dentry, vfsmnt, event->link.source);
-  get_path_str(old_dentry, vfsmnt, event->link.destination);
-  event->event_type = FILE_LINK;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
+  get_path_str(new_dentry, new_dir, event->link.source);
+  get_path_str(old_dentry, new_dir, event->link.destination);
   event->link.hard_link = true;
-
   LOG_DEBUG("hardlink %s -> %s", event->link.source, event->link.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -253,23 +220,12 @@ PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
 static __always_inline void on_path_symlink(void *ctx, struct path *dir,
                                             struct dentry *dentry,
                                             char *old_name) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(FILE_LINK);
   if (!event)
     return;
-
-  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
-  get_path_str(dentry, vfsmnt, event->link.source);
+  get_path_str(dentry, dir, event->link.source);
   bpf_probe_read_kernel_str(event->link.destination, NAME_MAX, old_name);
-  event->event_type = FILE_LINK;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
   event->link.hard_link = false;
-
   LOG_DEBUG("symlink %s -> %s", event->link.source, event->link.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -279,21 +235,10 @@ PULSAR_LSM_HOOK(path_mkdir, struct path *, dir, struct dentry *, dentry,
                 umode_t, mode);
 static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(DIR_CREATED);
   if (!event)
     return;
-
-  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
-  get_path_str(dentry, vfsmnt, event->dir_created);
-  event->event_type = DIR_CREATED;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-
+  get_path_str(dentry, dir, event->dir_created);
   LOG_DEBUG("mkdir %s", event->dir_created);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -302,21 +247,11 @@ static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
 PULSAR_LSM_HOOK(path_rmdir, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
                                           struct dentry *dentry) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(DIR_DELETED);
   if (!event)
     return;
-
-  struct vfsmount *vfsmnt = BPF_CORE_READ(dir, mnt);
-  get_path_str(dentry, vfsmnt, event->dir_deleted);
+  get_path_str(dentry, dir, event->dir_deleted);
   event->event_type = DIR_DELETED;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-
   LOG_DEBUG("mkdir %s", event->dir_deleted);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
@@ -329,26 +264,11 @@ static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
                                            struct dentry *old_dentry,
                                            struct path *new_dir,
                                            struct dentry *new_dentry) {
-
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
+  struct event_t *event = init_event(FILE_RENAME);
   if (!event)
     return;
-
-  struct vfsmount *vfsmnt;
-  vfsmnt = BPF_CORE_READ(old_dir, mnt);
-  get_path_str(old_dentry, vfsmnt, event->rename.source);
-  vfsmnt = BPF_CORE_READ(new_dir, mnt);
-  get_path_str(new_dentry, vfsmnt, event->rename.destination);
-
-  event->event_type = FILE_RENAME;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-
+  get_path_str(old_dentry, old_dir, event->rename.source);
+  get_path_str(new_dentry, new_dir, event->rename.destination);
   LOG_DEBUG("rename %s -> %s", event->rename.source, event->rename.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
