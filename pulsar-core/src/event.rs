@@ -79,6 +79,12 @@ pub enum Payload {
     FileDeleted {
         filename: String,
     },
+    DirCreated {
+        dirname: String,
+    },
+    DirDeleted {
+        dirname: String,
+    },
     FileOpened {
         filename: String,
         flags: i32,
@@ -87,6 +93,10 @@ pub enum Payload {
         source: String,
         destination: String,
         hard_link: bool,
+    },
+    FileRename {
+        source: String,
+        destination: String,
     },
     ElfOpened {
         filename: String,
@@ -154,9 +164,10 @@ pub enum Payload {
     },
     AnomalyDetection {
         score: f32,
-    }, // CustomJson { ty: i32, data: Vec<u8> },
-       // CustomProto { ty: i32, data: Vec<u8> },
-       // CustomRaw { ty: i32, data: Vec<u8> }
+    },
+    // CustomJson { ty: i32, data: Vec<u8> },
+    // CustomProto { ty: i32, data: Vec<u8> },
+    // CustomRaw { ty: i32, data: Vec<u8> }
 }
 
 /// Encapsulates data of a DNS question.

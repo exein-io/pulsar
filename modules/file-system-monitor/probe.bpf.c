@@ -7,8 +7,11 @@ int my_pid = 0;
 
 #define FILE_CREATED 0
 #define FILE_DELETED 1
-#define FILE_OPENED 2
-#define FILE_LINK 3
+#define DIR_CREATED 2
+#define DIR_DELETED 3
+#define FILE_OPENED 4
+#define FILE_LINK 5
+#define FILE_RENAME 6
 #define NAME_MAX 1024
 #define MAX_PATH_COMPONENTS 20
 
@@ -23,6 +26,11 @@ struct file_link_event {
   bool hard_link;
 };
 
+struct file_rename_event {
+  char source[NAME_MAX];
+  char destination[NAME_MAX];
+};
+
 struct event_t {
   u64 timestamp;
   pid_t pid;
@@ -30,8 +38,11 @@ struct event_t {
   union {
     char created[NAME_MAX];
     char deleted[NAME_MAX];
+    char dir_created[NAME_MAX];
+    char dir_deleted[NAME_MAX];
     struct file_opened_event opened;
     struct file_link_event link;
+    struct file_rename_event rename;
   };
 };
 
@@ -141,6 +152,8 @@ static __always_inline void get_path_str(struct dentry *dentry,
   }
 }
 
+PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
+                umode_t, mode, unsigned int, dev);
 static __always_inline void on_path_mknod(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode,
                                           unsigned int dev) {
@@ -164,6 +177,7 @@ static __always_inline void on_path_mknod(void *ctx, struct path *dir,
                         sizeof(struct event_t));
 }
 
+PULSAR_LSM_HOOK(path_unlink, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_unlink(void *ctx, struct path *dir,
                                            struct dentry *dentry) {
   pid_t tgid = interesting_tgid();
@@ -183,10 +197,10 @@ static __always_inline void on_path_unlink(void *ctx, struct path *dir,
   LOG_DEBUG("unlink %s", event->deleted);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
-  return;
 }
 
-void __always_inline on_file_open(void *ctx, struct file *file) {
+PULSAR_LSM_HOOK(file_open, struct file *, file);
+static __always_inline void on_file_open(void *ctx, struct file *file) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -205,12 +219,13 @@ void __always_inline on_file_open(void *ctx, struct file *file) {
   LOG_DEBUG("open %s", event->opened.filename);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
-  return;
 }
 
-void __always_inline on_path_link(void *ctx, struct dentry *old_dentry,
-                                  struct path *new_dir,
-                                  struct dentry *new_dentry) {
+PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
+                struct dentry *, new_dentry);
+static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
+                                         struct path *new_dir,
+                                         struct dentry *new_dentry) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -231,11 +246,13 @@ void __always_inline on_path_link(void *ctx, struct dentry *old_dentry,
   LOG_DEBUG("hardlink %s -> %s", event->link.source, event->link.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
-  return;
 }
 
-void __always_inline on_path_symlink(void *ctx, struct path *dir,
-                                     struct dentry *dentry, char *old_name) {
+PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
+                char *, old_name);
+static __always_inline void on_path_symlink(void *ctx, struct path *dir,
+                                            struct dentry *dentry,
+                                            char *old_name) {
   pid_t tgid = interesting_tgid();
   if (tgid < 0)
     return;
@@ -256,14 +273,4 @@ void __always_inline on_path_symlink(void *ctx, struct path *dir,
   LOG_DEBUG("symlink %s -> %s", event->link.source, event->link.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct event_t));
-  return;
 }
-
-PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
-                umode_t, mode, unsigned int, dev);
-PULSAR_LSM_HOOK(path_unlink, struct path *, dir, struct dentry *, dentry);
-PULSAR_LSM_HOOK(file_open, struct file *, file);
-PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
-                struct dentry *, new_dentry);
-PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
-                char *, old_name);

@@ -219,6 +219,8 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
+PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
+                int, addrlen);
 void __always_inline on_socket_bind(void *ctx, struct socket *sock,
                                     struct sockaddr *address, int addrlen) {
   pid_t tgid = interesting_tgid();
@@ -238,6 +240,8 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
   return;
 }
 
+PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
+                address, int, addrlen);
 static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
                                               struct sockaddr *address,
                                               int addrlen) {
@@ -258,6 +262,7 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
                         sizeof(struct network_event));
 }
 
+PULSAR_LSM_HOOK(socket_accept, struct socket *, sock, struct socket *, newsock);
 static __always_inline void on_socket_accept(void *ctx, struct socket *sock,
                                              struct socket *newsock) {
   // This LSM hook is invoked on accept calls, which happens before
@@ -337,6 +342,8 @@ static __always_inline u16 get_sock_protocol(struct sock *sk) {
   }
 }
 
+PULSAR_LSM_HOOK(socket_sendmsg, struct socket *, sock, struct msghdr *, msg,
+                int, size);
 static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
                                               struct msghdr *msg, int size) {
   pid_t tgid = interesting_tgid();
@@ -381,6 +388,8 @@ static __always_inline void save_recvmsg_addr(void *ctx,
   bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
 }
 
+PULSAR_LSM_HOOK(socket_recvmsg, struct socket *, sock, struct msghdr *, msg,
+                int, size, int, flags);
 static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
                                               struct msghdr *msg, int size,
                                               int flags) {
@@ -583,13 +592,3 @@ int BPF_PROG(sys_exit_readv, struct pt_regs *regs, int __syscall_nr, long ret) {
   return 0;
 }
 
-/// LSM hook points
-PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
-                int, addrlen);
-PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
-                address, int, addrlen);
-PULSAR_LSM_HOOK(socket_accept, struct socket *, sock, struct socket *, newsock);
-PULSAR_LSM_HOOK(socket_sendmsg, struct socket *, sock, struct msghdr *, msg,
-                int, size);
-PULSAR_LSM_HOOK(socket_recvmsg, struct socket *, sock, struct msghdr *, msg,
-                int, size, int, flags);

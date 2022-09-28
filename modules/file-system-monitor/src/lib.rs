@@ -51,6 +51,12 @@ pub enum FsEvent {
     FileDeleted {
         filename: StringArray<NAME_MAX>,
     },
+    DirCreated {
+        filename: StringArray<NAME_MAX>,
+    },
+    DirDeleted {
+        filename: StringArray<NAME_MAX>,
+    },
     FileOpened {
         filename: StringArray<NAME_MAX>,
         flags: Flags,
@@ -61,6 +67,11 @@ pub enum FsEvent {
         destination: StringArray<NAME_MAX>,
         hard_link: bool,
     },
+    #[allow(clippy::large_enum_variant)]
+    FileRename {
+        source: StringArray<NAME_MAX>,
+        destination: StringArray<NAME_MAX>,
+    },
 }
 
 impl fmt::Display for FsEvent {
@@ -68,6 +79,8 @@ impl fmt::Display for FsEvent {
         match self {
             FsEvent::FileCreated { filename } => write!(f, "created {}", filename),
             FsEvent::FileDeleted { filename } => write!(f, "deleted {}", filename),
+            FsEvent::DirCreated { filename } => write!(f, "created dir {}", filename),
+            FsEvent::DirDeleted { filename } => write!(f, "deleted dir {}", filename),
             FsEvent::FileOpened { filename, flags } => {
                 write!(f, "open {} ({})", filename, flags.0)
             }
@@ -82,6 +95,10 @@ impl fmt::Display for FsEvent {
                 source,
                 destination
             ),
+            FsEvent::FileRename {
+                source,
+                destination,
+            } => write!(f, "rename {} -> {}", source, destination),
         }
     }
 }
@@ -189,6 +206,12 @@ pub mod pulsar {
                 FsEvent::FileDeleted { filename } => Payload::FileDeleted {
                     filename: filename.to_string(),
                 },
+                FsEvent::DirCreated { filename } => Payload::DirCreated {
+                    dirname: filename.to_string(),
+                },
+                FsEvent::DirDeleted { filename } => Payload::DirDeleted {
+                    dirname: filename.to_string(),
+                },
                 FsEvent::FileOpened { filename, flags } => Payload::FileOpened {
                     filename: filename.to_string(),
                     flags: flags.0,
@@ -201,6 +224,13 @@ pub mod pulsar {
                     source: source.to_string(),
                     destination: destination.to_string(),
                     hard_link,
+                },
+                FsEvent::FileRename {
+                    source,
+                    destination,
+                } => Payload::FileRename {
+                    source: source.to_string(),
+                    destination: destination.to_string(),
                 },
             }
         }
