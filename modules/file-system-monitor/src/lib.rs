@@ -25,6 +25,9 @@ pub async fn program(
         builder = builder
             .lsm("path_mknod")
             .lsm("path_unlink")
+            .lsm("path_mkdir")
+            .lsm("path_rmdir")
+            .lsm("path_rename")
             .lsm("file_open")
             .lsm("path_link")
             .lsm("path_symlink");
@@ -33,6 +36,9 @@ pub async fn program(
         builder = builder
             .kprobe("security_path_mknod")
             .kprobe("security_path_unlink")
+            .kprobe("security_path_mkdir")
+            .kprobe("security_path_rmdir")
+            .kprobe("security_path_rename")
             .kprobe("security_file_open")
             .kprobe("security_path_link")
             .kprobe("security_path_symlink");
@@ -336,6 +342,9 @@ pub mod test_suite {
                 unlink_file(),
                 symlink(),
                 hardlink(),
+                mkdir(),
+                rmdir(),
+                rename(),
             ],
         }
     }
@@ -444,6 +453,66 @@ pub mod test_suite {
                         "destination"
                     ),
                     (hard_link, true, "hard_link")
+                ))
+                .report()
+        })
+    }
+
+    fn mkdir() -> TestCase {
+        TestCase::new("mkdir", async {
+            let dirname = temp_dir().join("mkdir");
+            _ = std::fs::remove_dir_all(&dirname);
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    std::fs::create_dir(&dirname).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::DirCreated,
+                    (filename, dirname.to_str().unwrap().into(), "name")
+                ))
+                .report()
+        })
+    }
+
+    fn rmdir() -> TestCase {
+        TestCase::new("rmdir", async {
+            let dirname = temp_dir().join("rmdir");
+            _ = std::fs::remove_dir_all(&dirname);
+            std::fs::create_dir(&dirname).unwrap();
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    std::fs::remove_dir_all(&dirname).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::DirDeleted,
+                    (filename, dirname.to_str().unwrap().into(), "name")
+                ))
+                .report()
+        })
+    }
+
+    fn rename() -> TestCase {
+        TestCase::new("rename", async {
+            let source = temp_dir().join("rename_source");
+            let destination = temp_dir().join("rename_destination");
+            _ = std::fs::remove_file(&source);
+            _ = std::fs::remove_file(&destination);
+            std::fs::write(&source, b"hello world").unwrap();
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    std::fs::rename(&source, &destination).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::FileRename,
+                    (source, source.to_str().unwrap().into(), "source"),
+                    (
+                        destination,
+                        destination.to_str().unwrap().into(),
+                        "destination"
+                    )
                 ))
                 .report()
         })
