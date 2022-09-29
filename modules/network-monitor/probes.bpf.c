@@ -5,11 +5,12 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 #define ADDR_SIZE 16
 #define EVENT_BIND 0
-#define EVENT_CONNECT 1
-#define EVENT_ACCEPT 2
-#define EVENT_SEND 3
-#define EVENT_RECV 4
-#define EVENT_CLOSE 5
+#define EVENT_LISTEN 1
+#define EVENT_CONNECT 2
+#define EVENT_ACCEPT 3
+#define EVENT_SEND 4
+#define EVENT_RECV 5
+#define EVENT_CLOSE 6
 
 #define PROTO_TCP 0
 #define PROTO_UDP 1
@@ -63,6 +64,7 @@ struct network_event {
   u32 event_type;
   union {
     struct bind_event bind;
+    struct address listen;
     struct connect_event connect;
     struct accept_event accept;
     struct msg_event send;
@@ -234,6 +236,27 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
   copy_sockaddr(address, &event->bind.addr, false);
+
+  int r = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                                sizeof(struct network_event));
+  return;
+}
+
+PULSAR_LSM_HOOK(socket_listen, struct socket *, sock, int, backlog);
+void __always_inline on_socket_listen(void *ctx, struct socket *sock,
+                                      int backlog) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return;
+
+  struct network_event *event = new_event();
+  if (!event)
+    return;
+  event->event_type = EVENT_LISTEN;
+  event->pid = tgid;
+  event->timestamp = bpf_ktime_get_ns();
+  struct sock *sk = BPF_CORE_READ(sock, sk);
+  copy_skc_source(&sk->__sk_common, &event->listen);
 
   int r = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                                 sizeof(struct network_event));
@@ -591,4 +614,3 @@ int BPF_PROG(sys_exit_readv, struct pt_regs *regs, int __syscall_nr, long ret) {
   do_recvmsg(ctx, ret);
   return 0;
 }
-

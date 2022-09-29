@@ -118,6 +118,9 @@ pub enum Payload {
     Bind {
         address: SocketAddr,
     },
+    Listen {
+        address: SocketAddr,
+    },
     Connect {
         destination: SocketAddr,
     },
