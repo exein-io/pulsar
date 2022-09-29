@@ -66,6 +66,7 @@ pub async fn program(
     if lsm_supported().await {
         builder = builder
             .lsm("socket_bind")
+            .lsm("socket_listen")
             .lsm("socket_connect")
             .lsm("socket_accept")
             .lsm("socket_sendmsg")
@@ -73,6 +74,7 @@ pub async fn program(
     } else {
         builder = builder
             .kprobe("security_socket_bind")
+            .kprobe("security_socket_listen")
             .kprobe("security_socket_connect")
             .kprobe("security_socket_accept")
             .kprobe("security_socket_sendmsg")
@@ -89,6 +91,9 @@ const MAX_DATA_SIZE: usize = 4096;
 #[repr(C)]
 pub enum NetworkEvent {
     Bind {
+        addr: Addr,
+    },
+    Listen {
         addr: Addr,
     },
     Connect {
@@ -175,6 +180,7 @@ impl fmt::Display for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NetworkEvent::Bind { addr } => write!(f, "bind on {}", addr),
+            NetworkEvent::Listen { addr } => write!(f, "listen on {}", addr),
             NetworkEvent::Connect { dst } => {
                 write!(f, "connect  -> {}", dst)
             }
@@ -232,6 +238,9 @@ pub mod pulsar {
         fn from(data: NetworkEvent) -> Self {
             match data {
                 NetworkEvent::Bind { addr } => Payload::Bind {
+                    address: addr.into(),
+                },
+                NetworkEvent::Listen { addr } => Payload::Listen {
                     address: addr.into(),
                 },
                 NetworkEvent::Connect { dst } => Payload::Connect {
@@ -350,6 +359,8 @@ pub mod test_suite {
                 bind_ipv6(),
                 connect_ipv4(),
                 connect_ipv6(),
+                listen_ipv4(),
+                listen_ipv6(),
                 accept_ipv4(),
                 accept_ipv6(),
                 udp_ipv4_sendmsg_recvmsg(),
@@ -403,6 +414,29 @@ pub mod test_suite {
             .expect_event(event_check!(
                 NetworkEvent::Connect,
                 (dst, dest.into(), "destination address")
+            ))
+            .report()
+    }
+
+    fn listen_ipv4() -> TestCase {
+        TestCase::new("listen_ipv4", run_listen_test("127.0.0.1:18035"))
+    }
+
+    fn listen_ipv6() -> TestCase {
+        TestCase::new("listen_ipv6", run_listen_test("[::1]:18035"))
+    }
+
+    async fn run_listen_test(bind_addr: &str) -> TestReport {
+        // This is identical to the bind test
+        let bind_addr: SocketAddr = bind_addr.parse().unwrap();
+        TestRunner::with_ebpf(program)
+            .run(|| {
+                let _listener = TcpListener::bind(&bind_addr).unwrap();
+            })
+            .await
+            .expect_event(event_check!(
+                NetworkEvent::Listen,
+                (addr, bind_addr.into(), "address")
             ))
             .report()
     }
