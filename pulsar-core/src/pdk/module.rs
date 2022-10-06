@@ -188,6 +188,7 @@ impl ModuleSender {
                     image,
                     ppid,
                     fork_time,
+                    argv: _,
                 }) => {
                     header.image = image;
                     header.parent = ppid.as_raw();

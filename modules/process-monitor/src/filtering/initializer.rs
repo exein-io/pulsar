@@ -60,6 +60,7 @@ pub(crate) async fn setup_events_filter(
             pid: process.pid,
             image: process.image.to_string(),
             timestamp: Timestamp::from(0),
+            argv: Vec::new(),
         });
     }
 
