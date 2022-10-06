@@ -3,7 +3,9 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-#define NAME_MAX 264
+// Max size of filename and argv. Must be a power of 2 since it's used as
+// a bitmask for copy operations.
+#define NAME_MAX 256
 #define EVENT_FORK 0
 #define EVENT_EXEC 1
 #define EVENT_EXIT 2
@@ -14,6 +16,9 @@ struct fork_event {
 
 struct exec_event {
   char filename[NAME_MAX];
+  int argc;
+  int data_len;
+  char argv[NAME_MAX];
 };
 
 struct exit_event {
@@ -55,6 +60,25 @@ struct bpf_map_def_aya SEC("maps/whitelist") whitelist = {
     .max_entries = 100,
 };
 
+// The BPF stack limit of 512 bytes is exceeded by process_event, so we use
+// a per-cpu array as a workaround
+struct bpf_map_def_aya SEC("maps/event") eventmem = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct process_event),
+    .max_entries = 1,
+};
+
+static __always_inline struct process_event *new_event() {
+  u32 key = 0;
+  struct process_event *event = bpf_map_lookup_elem(&eventmem, &key);
+  if (!event) {
+    LOG_ERROR("can't get event memory");
+    return 0;
+  }
+  return event;
+}
+
 // This hook intercepts new process creations, inherits interest for the child
 // from the parent and emits a fork event.
 SEC("raw_tracepoint/sched_process_fork")
@@ -72,13 +96,15 @@ int BPF_PROG(process_fork, struct task_struct *parent,
   inherit_interest(parent_tgid, child_tgid);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
-  struct process_event event = {};
-  event.event_type = EVENT_FORK;
-  event.timestamp = bpf_ktime_get_ns();
-  event.pid = child_tgid;
-  event.fork.ppid = parent_tgid;
+  struct process_event *event = new_event();
+  if (!event)
+    return 0;
+  event->event_type = EVENT_FORK;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = child_tgid;
+  event->fork.ppid = parent_tgid;
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));
 
   return 0;
@@ -89,17 +115,32 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
              struct linux_binprm *bprm) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
-  struct process_event event = {};
-  event.event_type = EVENT_EXEC;
-  event.timestamp = bpf_ktime_get_ns();
-  event.pid = tgid;
+  struct process_event *event = new_event();
+  if (!event)
+    return 0;
+  event->event_type = EVENT_EXEC;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+  event->exec.argc = BPF_CORE_READ(bprm, argc);
 
   //  data_loc_filename is the offset from the beginning of the ctx structure
   //  of the executable filename
-  char *filename = BPF_CORE_READ(bprm, filename);
-  bpf_core_read_str(&event.exec.filename, NAME_MAX, filename);
+  const char *filename = BPF_CORE_READ(bprm, filename);
+  bpf_core_read_str(&event->exec.filename, NAME_MAX, filename);
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
+  struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+  struct mm_struct *mm = BPF_CORE_READ(task, mm);
+  long start = BPF_CORE_READ(mm, arg_start);
+  long end = BPF_CORE_READ(mm, arg_end);
+  int len = end - start;
+  if (len < 0 || len >= NAME_MAX) {
+    LOG_ERROR("invalid image len: %d", len);
+  } else {
+    event->exec.data_len = len;
+    bpf_core_read_user(event->exec.argv, len & (NAME_MAX - 1), (void *)start);
+  }
+
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));
 
   char image[MAX_IMAGE_LEN];
@@ -148,17 +189,19 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
     return 0;
   }
 
-  struct process_event event = {};
-  event.event_type = EVENT_EXIT;
-  event.timestamp = bpf_ktime_get_ns();
+  struct process_event *event = new_event();
+  if (!event)
+    return 0;
+  event->event_type = EVENT_EXIT;
+  event->timestamp = bpf_ktime_get_ns();
   // The PID is the thread id of the progress group leader
-  event.pid = tgid;
+  event->pid = tgid;
   // NOTE: here we're assuming the exit code is set by the last exiting thread
-  event.exit.exit_code = BPF_CORE_READ(p, exit_code) >> 8;
+  event->exit.exit_code = BPF_CORE_READ(p, exit_code) >> 8;
 
-  LOG_DEBUG("exitited at %ld with code %d", event.timestamp,
-            event.exit.exit_code);
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event,
+  LOG_DEBUG("exitited at %ld with code %d", event->timestamp,
+            event->exit.exit_code);
+  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));
   return 0;
 }

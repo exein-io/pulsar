@@ -2,8 +2,10 @@ use std::fmt;
 
 use anyhow::Context;
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Pid, Program,
-    ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned,
+    parsing::{DataArray, StringArray},
+    program::BpfContext,
+    BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 mod filtering;
 
@@ -26,7 +28,7 @@ pub async fn program(
 static PROCESS_MONITOR_PROBE: &[u8] =
     include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o"));
 
-const NAME_MAX: usize = 264;
+const NAME_MAX: usize = 256;
 
 // The events sent from eBPF to userspace must be byte by byte
 // re-interpretable as Rust types. So pointers to the heap are
@@ -35,21 +37,48 @@ const NAME_MAX: usize = 264;
 #[derive(Debug)]
 #[repr(C)]
 pub enum ProcessEvent {
-    Fork { ppid: Pid },
-    Exec { filename: StringArray<NAME_MAX> },
-    Exit { exit_code: u32 },
+    Fork {
+        ppid: Pid,
+    },
+    Exec {
+        filename: StringArray<NAME_MAX>,
+        argc: u32,
+        argv: DataArray<NAME_MAX>, // 0 separated strings
+    },
+    // parameters will loose a lot of space
+    Exit {
+        exit_code: u32,
+    },
 }
 
 impl fmt::Display for ProcessEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProcessEvent::Fork { ppid } => write!(f, "forked from {}", ppid),
-            ProcessEvent::Exec { filename } => {
-                write!(f, "exec {}", filename,)
+            ProcessEvent::Exec {
+                filename,
+                argc,
+                argv,
+            } => {
+                write!(
+                    f,
+                    "exec {} (argc: {}, argv: {:?})",
+                    filename,
+                    argc,
+                    extract_parameters(argv)
+                )
             }
             ProcessEvent::Exit { exit_code } => write!(f, "exit({})", exit_code),
         }
     }
+}
+
+fn extract_parameters(argv: &DataArray<NAME_MAX>) -> Vec<String> {
+    argv.as_ref()
+        .split(|x| *x == 0)
+        .map(String::from_utf8_lossy)
+        .map(String::from)
+        .collect()
 }
 
 pub mod pulsar {
@@ -84,7 +113,11 @@ pub mod pulsar {
                         ppid,
                         timestamp: event.timestamp,
                     },
-                    ProcessEvent::Exec { ref filename } => TrackerUpdate::Exec {
+                    ProcessEvent::Exec {
+                        ref filename,
+                        argc: _,
+                        argv: _,
+                    } => TrackerUpdate::Exec {
                         pid: event.pid,
                         image: filename.to_string(),
                         timestamp: event.timestamp,
@@ -124,8 +157,14 @@ pub mod pulsar {
                 ProcessEvent::Fork { ppid } => Payload::Fork {
                     ppid: ppid.as_raw(),
                 },
-                ProcessEvent::Exec { filename } => Payload::Exec {
+                ProcessEvent::Exec {
+                    filename,
+                    argc,
+                    argv,
+                } => Payload::Exec {
                     filename: filename.to_string(),
+                    argc: argc as usize,
+                    argv: extract_parameters(&argv),
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
             }
@@ -203,7 +242,12 @@ pub mod test_suite {
                 .await
                 .expect_event_from_pid(
                     child_pid,
-                    event_check!(ProcessEvent::Exec, (filename, echo_path, "exec filename")),
+                    event_check!(
+                        ProcessEvent::Exec,
+                        (filename, echo_path, "exec filename"),
+                        (argc, 2, "number of arguments"),
+                        (argv, DataArray::from(&b"echo\0-n\0"[..]), "arguments")
+                    ),
                 )
                 .report()
         })
