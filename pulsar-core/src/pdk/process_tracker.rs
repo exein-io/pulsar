@@ -35,6 +35,7 @@ pub enum TrackerUpdate {
         pid: Pid,
         timestamp: Timestamp,
         image: String,
+        argv: Vec<String>,
     },
     Exit {
         pid: Pid,
@@ -63,6 +64,7 @@ pub struct ProcessInfo {
     pub image: String,
     pub ppid: Pid,
     pub fork_time: Timestamp,
+    pub argv: Vec<String>,
 }
 
 impl ProcessTrackerHandle {
@@ -108,6 +110,7 @@ struct ProcessData {
         Timestamp, // exec event timestamp
         String,    // new image name
     >,
+    argv: Vec<String>,
 }
 
 /// Cleanup timeout in nanoseconds. This is how long an exited process
@@ -130,6 +133,7 @@ impl ProcessTracker {
                 exit_time: None,
                 original_image: "kernel".to_string(),
                 exec_changes: BTreeMap::new(),
+                argv: Vec::new(),
             },
         );
         Self {
@@ -189,7 +193,7 @@ impl ProcessTracker {
         }
     }
 
-    fn handle_update(&mut self, update: TrackerUpdate) {
+    fn handle_update(&mut self, mut update: TrackerUpdate) {
         match update {
             TrackerUpdate::Fork {
                 pid,
@@ -204,6 +208,7 @@ impl ProcessTracker {
                         exit_time: None,
                         original_image: self.get_image(ppid, timestamp),
                         exec_changes: BTreeMap::new(),
+                        argv: Vec::new(),
                     },
                 );
                 if let Some(pending_updates) = self.pending_updates.remove(&pid) {
@@ -215,10 +220,12 @@ impl ProcessTracker {
             TrackerUpdate::Exec {
                 pid,
                 timestamp,
-                ref image,
+                ref mut image,
+                ref mut argv,
             } => {
                 if let Some(p) = self.data.get_mut(&pid) {
-                    p.exec_changes.insert(timestamp, image.to_string());
+                    p.exec_changes.insert(timestamp, std::mem::take(image));
+                    p.argv = std::mem::take(argv)
                 } else {
                     // if exec arrived before the fork, we save the event as pending
                     log::debug!("(exec) Process {pid} not found in process tree, saving for later");
@@ -259,6 +266,7 @@ impl ProcessTracker {
             image: self.get_image(pid, ts),
             ppid: process.ppid,
             fork_time: process.fork_time,
+            argv: process.argv.clone(),
         })
     }
 
@@ -360,6 +368,7 @@ mod tests {
             pid: PID_2,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
+            argv: Vec::new(),
         });
         process_tracker.update(TrackerUpdate::Exit {
             pid: PID_2,
@@ -375,7 +384,8 @@ mod tests {
             ProcessInfo {
                 image: String::new(),
                 ppid: PID_1,
-                fork_time: 10.into()
+                fork_time: 10.into(),
+                argv: Vec::new(),
             }
         );
         assert_eq!(
@@ -383,7 +393,8 @@ mod tests {
             ProcessInfo {
                 image: "/bin/after_exec".to_string(),
                 ppid: PID_1,
-                fork_time: 10.into()
+                fork_time: 10.into(),
+                argv: Vec::new(),
             }
         );
         assert_eq!(
@@ -406,6 +417,7 @@ mod tests {
             pid: PID_2,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
+            argv: Vec::new(),
         });
         process_tracker.update(TrackerUpdate::Fork {
             ppid: PID_1,
@@ -421,7 +433,8 @@ mod tests {
             Ok(ProcessInfo {
                 image: "".to_string(),
                 ppid: PID_1,
-                fork_time: 10.into()
+                fork_time: 10.into(),
+                argv: Vec::new(),
             })
         );
         assert_eq!(
@@ -429,7 +442,8 @@ mod tests {
             Ok(ProcessInfo {
                 image: "/bin/after_exec".to_string(),
                 ppid: PID_1,
-                fork_time: 10.into()
+                fork_time: 10.into(),
+                argv: Vec::new(),
             })
         );
         time::sleep(time::Duration::from_millis(1)).await;

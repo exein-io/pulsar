@@ -115,13 +115,25 @@ pub mod pulsar {
                     },
                     ProcessEvent::Exec {
                         ref filename,
-                        argc: _,
-                        argv: _,
-                    } => TrackerUpdate::Exec {
-                        pid: event.pid,
-                        image: filename.to_string(),
-                        timestamp: event.timestamp,
-                    },
+                        argc,
+                        ref argv,
+                    } => {
+                        let argv = extract_parameters(argv);
+                        if argv.len() != argc as usize {
+                            log::warn!(
+                                "argc ({}) doens't match argv ({:?}) for {}",
+                                argc,
+                                argv,
+                                event.pid
+                            )
+                        }
+                        TrackerUpdate::Exec {
+                            pid: event.pid,
+                            image: filename.to_string(),
+                            timestamp: event.timestamp,
+                            argv,
+                        }
+                    }
                     ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
                         pid: event.pid,
                         timestamp: event.timestamp,
