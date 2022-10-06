@@ -107,6 +107,8 @@ pub enum Payload {
     },
     Exec {
         filename: String,
+        argc: usize,
+        argv: Vec<String>,
     },
     Exit {
         exit_code: u32,
