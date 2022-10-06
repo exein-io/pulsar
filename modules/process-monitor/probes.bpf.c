@@ -134,21 +134,8 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   // to wait for the whole process group to exit. Unfortunately, checking
   // if the current task's pid matches its tgid is not enough because
   // the main thread could exit before the child one.
-  // To make sure we're the last standing thread, we search the
-  // thread_group linked list for a task still alive.
-  struct task_struct *next = p;
-  struct list_head *lnext;
-  int i = 0;
-  for (i = 0; i < 20; i = i + 1) {
-    lnext = BPF_CORE_READ(next, thread_group.next);
-    next = container_of(lnext, struct task_struct, thread_group);
-    // if we've iterated all threads and they're all exited, we can continue
-    if (next == p)
-      break;
-    int flags = BPF_CORE_READ(next, flags);
-    // if we've find a thread still alive, we'll don't emit a signal yet
-    if (!(flags & PF_EXITING))
-      return 0;
+  if (BPF_CORE_READ(p, signal, live.counter) > 0) {
+    return 0;
   }
 
   // cleanup resources from map_interest
