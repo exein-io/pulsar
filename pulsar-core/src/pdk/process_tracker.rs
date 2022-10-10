@@ -208,7 +208,11 @@ impl ProcessTracker {
                         exit_time: None,
                         original_image: self.get_image(ppid, timestamp),
                         exec_changes: BTreeMap::new(),
-                        argv: Vec::new(),
+                        argv: self
+                            .data
+                            .get(&ppid)
+                            .map(|parent| parent.argv.clone())
+                            .unwrap_or_default(),
                     },
                 );
                 if let Some(pending_updates) = self.pending_updates.remove(&pid) {
