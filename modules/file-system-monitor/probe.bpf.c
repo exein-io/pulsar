@@ -92,7 +92,6 @@ get_path_str(struct dentry *dentry, struct path *path, char buf[NAME_MAX]) {
   if (buf == NULL)
     return;
 
-#pragma unroll
   for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
     struct dentry *mnt_root = NULL;
     mnt_root = (struct dentry *)BPF_CORE_READ(vfsmnt, mnt_root);
@@ -104,11 +103,11 @@ get_path_str(struct dentry *dentry, struct path *path, char buf[NAME_MAX]) {
       }
       if (mnt_p != mnt_parent_p) {
         // We reached root, but not global root - continue with mount point path
-        bpf_probe_read_kernel(&dentry, sizeof(struct dentry *),
+        bpf_core_read(&dentry, sizeof(struct dentry *),
                               &mnt_p->mnt_mountpoint);
-        bpf_probe_read_kernel(&mnt_p, sizeof(struct mount *),
+        bpf_core_read(&mnt_p, sizeof(struct mount *),
                               &mnt_p->mnt_parent);
-        bpf_probe_read_kernel(&mnt_parent_p, sizeof(struct mount *),
+        bpf_core_read(&mnt_parent_p, sizeof(struct mount *),
                               &mnt_p->mnt_parent);
         vfsmnt = &mnt_p->mnt;
         continue;
@@ -125,13 +124,13 @@ get_path_str(struct dentry *dentry, struct path *path, char buf[NAME_MAX]) {
     int sz = 0;
     if (off <= buf_off) { // verify no wrap occurred
       len = len & ((NAME_MAX >> 1) - 1);
-      sz = bpf_probe_read_kernel_str(&(buf[off & ((NAME_MAX >> 1) - 1)]), len,
+      sz = bpf_core_read_str(&(buf[off & ((NAME_MAX >> 1) - 1)]), len,
                                      (void *)d_name.name);
     } else
       break;
     if (sz > 1) {
       buf_off -= 1; // remove null byte termination with slash sign
-      bpf_probe_read_kernel(&(buf[buf_off & (NAME_MAX - 1)]), 1, &slash);
+      bpf_core_read(&(buf[buf_off & (NAME_MAX - 1)]), 1, &slash);
       buf_off -= sz - 1;
     } else {
       // If sz is 0 or 1 we have an error (path can't be null nor an empty
@@ -145,17 +144,17 @@ get_path_str(struct dentry *dentry, struct path *path, char buf[NAME_MAX]) {
     // memfd files have no path in the filesystem -> extract their name
     buf_off = 0;
     struct qstr d_name = BPF_CORE_READ(dentry, d_name);
-    bpf_probe_read_kernel_str(&(buf[0]), NAME_MAX, (void *)d_name.name);
+    bpf_core_read_str(&(buf[0]), NAME_MAX, (void *)d_name.name);
   } else {
     // Add leading slash
     buf_off -= 1;
-    bpf_probe_read_kernel(&(buf[buf_off & (NAME_MAX - 1)]), 1, &slash);
+    bpf_core_read(&(buf[buf_off & (NAME_MAX - 1)]), 1, &slash);
     // Null terminate the path string
-    bpf_probe_read_kernel(&(buf[(NAME_MAX >> 1) - 1]), 1, &zero);
+    bpf_core_read(&(buf[(NAME_MAX >> 1) - 1]), 1, &zero);
 
     // Copy string to the start
     int total_len = NAME_MAX - buf_off;
-    bpf_probe_read_kernel(buf, total_len & (NAME_MAX - 1),
+    bpf_core_read(buf, total_len & (NAME_MAX - 1),
                           buf + (buf_off & NAME_MAX - 1));
   }
 }
@@ -224,7 +223,7 @@ static __always_inline void on_path_symlink(void *ctx, struct path *dir,
   if (!event)
     return;
   get_path_str(dentry, dir, event->link.source);
-  bpf_probe_read_kernel_str(event->link.destination, NAME_MAX, old_name);
+  bpf_core_read_str(event->link.destination, NAME_MAX, old_name);
   event->link.hard_link = false;
   LOG_DEBUG("symlink %s -> %s", event->link.source, event->link.destination);
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
