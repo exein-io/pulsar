@@ -1,6 +1,6 @@
 use std::{env, ffi::OsString};
 
-use clap::{Arg, Command, FromArgMatches, IntoApp};
+use clap::{Arg, ArgAction, Command, CommandFactory, FromArgMatches};
 
 pub mod pulsar;
 pub mod pulsard;
@@ -44,8 +44,8 @@ where
     let daemon_template = help_template(pulsard::NAME, template_kind, true, false);
     let cli_template = help_template(pulsar::NAME, template_kind, true, true);
 
-    let daemon_app = pulsard::PulsarDaemonOpts::command().help_template(daemon_template.as_ref());
-    let cli_app = pulsar::PulsarCliOpts::command().help_template(cli_template.as_ref());
+    let daemon_app = pulsard::PulsarDaemonOpts::command().help_template(daemon_template);
+    let cli_app = pulsar::PulsarCliOpts::command().help_template(cli_template);
 
     let matches = Command::new("pulsar-exec")
         .version(crate::version())
@@ -54,7 +54,7 @@ where
         .subcommand_required(true)
         .arg_required_else_help(true)
         .disable_help_subcommand(true)
-        .help_template(template.as_ref())
+        .help_template(template)
         .subcommand(with_verbosity_flag(daemon_app))
         .subcommand(with_verbosity_flag(cli_app))
         .try_get_matches_from(args)?;
@@ -63,7 +63,7 @@ where
     let mode = match matches.subcommand() {
         Some((exec_name, matches)) => {
             // Handle verbosity flag
-            override_log_level = log_level_from_verbosity_flag_count(matches.occurrences_of("v"));
+            override_log_level = log_level_from_verbosity_flag_count(matches.get_count("v"));
 
             // Handle subcommand
             match exec_name {
@@ -88,17 +88,16 @@ fn with_verbosity_flag(app: Command) -> Command {
         Arg::new("v")
             .short('v')
             .long("verbose")
-            .multiple_occurrences(true)
-            .takes_value(false)
+            .action(ArgAction::Count)
             .help("Pass many times for a more verbose output. Passing `-v` adds debug logs, `-vv` enables trace logging"),
     )
 }
 
-fn log_level_from_verbosity_flag_count(num: u64) -> log::Level {
+fn log_level_from_verbosity_flag_count(num: u8) -> log::Level {
     match num {
-        std::u64::MIN..=0 => log::Level::Info,
+        std::u8::MIN..=0 => log::Level::Info,
         1 => log::Level::Debug,
-        2..=std::u64::MAX => log::Level::Trace,
+        2..=std::u8::MAX => log::Level::Trace,
     }
 }
 
@@ -147,7 +146,7 @@ fn help_template(
 {{about}}
 
 {{usage-heading}}
-    {}{} {} {}
+  {}{} {} {}
 
 {{all-args}}\
 ",
