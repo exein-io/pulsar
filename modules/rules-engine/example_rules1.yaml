@@ -1,7 +1,7 @@
 - name: Read sensitive file from untrusted process
   type: FileOpened
-  condition: header.image != "/usr/bin/sshd" && payload.filename == "/etc/shadow"
+  condition: header.image != "/usr/bin/sshd" AND payload.filename == "/etc/shadow"
 
 - name: Executed telnet or nc
   type: Exec
-  condition: payload.filename == "/usr/bin/telnet" || payload.filename == "/usr/bin/nc"
+  condition: payload.filename == "/usr/bin/telnet" OR payload.filename == "/usr/bin/nc"

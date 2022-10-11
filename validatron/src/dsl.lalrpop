@@ -7,13 +7,13 @@ use super::DslError;
 grammar;
 
 pub Condition: Condition = {
-    <l:Condition> "&&" <r:SignedCondition> => Condition::And{l: Box::new(l), r: Box::new(r)},
-    <l:Condition> "||" <r:SignedCondition> => Condition::Or{l: Box::new(l), r: Box::new(r)},
+    <l:Condition> "AND" <r:SignedCondition> => Condition::And{l: Box::new(l), r: Box::new(r)},
+    <l:Condition> "OR" <r:SignedCondition> => Condition::Or{l: Box::new(l), r: Box::new(r)},
     SignedCondition
 }
 
 SignedCondition: Condition = {
-    "!" <b:BaseCondition> => Condition::Not{inner: Box::new(b)},
+    "NOT" <b:BaseCondition> => Condition::Not{inner: Box::new(b)},
     BaseCondition
 }
 
@@ -23,7 +23,7 @@ BaseCondition: Condition = {
         op,
         value
     },
-    <f: Field> "in" <list: ValueList> =>? {
+    <f: Field> "IN" <list: ValueList> =>? {
         let mut iterator = list.into_iter();
 
         let first = Condition::Base {
@@ -78,10 +78,10 @@ Operator: Operator = {
     ">=" => Operator::Relational(RelationalOperator::GreaterEqual),
     "<=" => Operator::Relational(RelationalOperator::LessEqual),
     // String
-    "starts_with" => Operator::String(StringOperator::StartsWith),
-    "ends_with" => Operator::String(StringOperator::EndsWith),
+    "STARTS_WITH" => Operator::String(StringOperator::StartsWith),
+    "ENDS_WITH" => Operator::String(StringOperator::EndsWith),
     // Multi
-    "contains" => Operator::Multi(MultiOperator::Contains),
+    "CONTAINS" => Operator::Multi(MultiOperator::Contains),
 }
 
 Field: Field = {
