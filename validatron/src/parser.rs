@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn simple_field_string_op() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"image starts_with "systemd""#)
+            .parse(r#"image STARTS_WITH "systemd""#)
             .unwrap();
         let expected = Condition::Base {
             field: Field::Simple("image".to_string()),
@@ -180,7 +180,25 @@ mod tests {
     #[test]
     fn not_condition() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"!(header.image != "/usr/bin/sshd")"#)
+            .parse(r#"NOT(header.image != "/usr/bin/sshd")"#)
+            .unwrap();
+        let expected = Condition::Not {
+            inner: Box::new(Condition::Base {
+                field: Field::Struct {
+                    name: "header".to_string(),
+                    inner_field: Box::new(Field::Simple("image".to_string())),
+                },
+                op: Operator::Relational(RelationalOperator::NotEquals),
+                value: "/usr/bin/sshd".to_string(),
+            }),
+        };
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn not_condition_space() {
+        let parsed = dsl::ConditionParser::new()
+            .parse(r#"NOT (header.image != "/usr/bin/sshd")"#)
             .unwrap();
         let expected = Condition::Not {
             inner: Box::new(Condition::Base {
@@ -198,7 +216,7 @@ mod tests {
     #[test]
     fn and_condition() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"header.image != "/usr/bin/sshd" && payload.filename == "/etc/shadow""#)
+            .parse(r#"header.image != "/usr/bin/sshd" AND payload.filename == "/etc/shadow""#)
             .unwrap();
         let expected = Condition::And {
             l: Box::new(Condition::Base {
@@ -224,7 +242,7 @@ mod tests {
     #[test]
     fn or_condition() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"header.image != "/usr/bin/sshd" || payload.filename == "/etc/shadow""#)
+            .parse(r#"header.image != "/usr/bin/sshd" OR payload.filename == "/etc/shadow""#)
             .unwrap();
         let expected = Condition::Or {
             l: Box::new(Condition::Base {
@@ -250,7 +268,7 @@ mod tests {
     #[test]
     fn complex_condition() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"header.image == "/usr/bin/sshd" || !(header.image == "/usr/bin/cat" && payload.filename == "/etc/passwd")"#)
+            .parse(r#"header.image == "/usr/bin/sshd" OR NOT(header.image == "/usr/bin/cat" AND payload.filename == "/etc/passwd")"#)
             .unwrap();
         let expected = Condition::Or {
             l: Box::new(Condition::Base {
@@ -288,7 +306,7 @@ mod tests {
     #[test]
     fn list_single_string() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"header.image in ["/usr/bin/cat"]"#)
+            .parse(r#"header.image IN ["/usr/bin/cat"]"#)
             .unwrap();
         let expected = Condition::Base {
             field: Field::Struct {
@@ -304,7 +322,7 @@ mod tests {
     #[test]
     fn list_two_num() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"header.pid in [4,2]"#)
+            .parse(r#"header.pid IN [4,2]"#)
             .unwrap();
         let expected = Condition::Or {
             l: Box::new(Condition::Base {
@@ -330,7 +348,7 @@ mod tests {
     #[test]
     fn list_three_num() {
         let parsed = dsl::ConditionParser::new()
-            .parse(r#"header.pid in [6,6,6]"#)
+            .parse(r#"header.pid IN [6,6,6]"#)
             .unwrap();
         let expected = Condition::Or {
             l: Box::new(Condition::Or {
@@ -365,7 +383,7 @@ mod tests {
 
     #[test]
     fn list_void() {
-        let parsed = dsl::ConditionParser::new().parse(r#"header.pid in []"#);
+        let parsed = dsl::ConditionParser::new().parse(r#"header.pid IN []"#);
         assert!(parsed.is_err());
     }
 }
