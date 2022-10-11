@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, str::FromStr};
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+};
 
 use crate::*;
 
@@ -43,6 +46,24 @@ impl ValidatronTypeProvider for SocketAddr {
                 _ => Err(ValidatronError::OperatorNotAllowedOnType(
                     op,
                     "SocketAddr".to_string(),
+                )),
+            }),
+        })
+    }
+}
+
+impl ValidatronTypeProvider for IpAddr {
+    fn field_type() -> ValidatronType<Self> {
+        ValidatronType::Primitive(Primitive {
+            parse_fn: Box::new(move |s| {
+                IpAddr::from_str(s)
+                    .map_err(|_| ValidatronError::FieldValueParseError(s.to_string()))
+            }),
+            handle_op_fn: Box::new(|op| match op {
+                Operator::Relational(op) => Ok(Box::new(move |a, b| op.apply(a, b))),
+                _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                    op,
+                    "IpAddr".to_string(),
                 )),
             }),
         })

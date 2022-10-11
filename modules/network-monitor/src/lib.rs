@@ -1,6 +1,6 @@
 use std::{
     fmt,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{Ipv4Addr, SocketAddr},
 };
 
 use bpf_common::{
@@ -8,6 +8,7 @@ use bpf_common::{
     program::BpfContext, BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
+use pulsar_core::event::Host;
 
 const MODULE_NAME: &str = "network-monitor";
 
@@ -133,7 +134,7 @@ pub enum Addr {
     V6(SockaddrIn6),
 }
 
-impl From<Addr> for SocketAddr {
+impl From<Addr> for Host {
     fn from(value: Addr) -> Self {
         match value {
             Addr::V4(v) => {
@@ -144,9 +145,17 @@ impl From<Addr> for SocketAddr {
                     (bits >> 8) as u8,
                     bits as u8,
                 ];
-                SocketAddrV4::new(Ipv4Addr::from(octects), v.port()).into()
+
+                Host {
+                    ip: Ipv4Addr::from(octects).into(),
+                    port: v.port(),
+                }
             }
-            Addr::V6(v) => SocketAddr::new(v.ip().into(), v.port()),
+
+            Addr::V6(v) => Host {
+                ip: v.ip().into(),
+                port: v.port(),
+            },
         }
     }
 }

@@ -1,7 +1,7 @@
-use std::{net::SocketAddr, time::SystemTime};
+use std::{net::IpAddr, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
-use validatron::{ValidatronStruct, ValidatronVariant};
+use validatron::{ValidatronStruct, ValidatronTypeProvider, ValidatronVariant};
 
 use crate::pdk::ModuleName;
 
@@ -118,25 +118,25 @@ pub enum Payload {
         histogram: Vec<u64>,
     },
     Bind {
-        address: SocketAddr,
+        address: Host,
     },
     Listen {
-        address: SocketAddr,
+        address: Host,
     },
     Connect {
-        destination: SocketAddr,
+        destination: Host,
     },
     Accept {
-        source: SocketAddr,
-        destination: SocketAddr,
+        source: Host,
+        destination: Host,
     },
     Close {
-        source: SocketAddr,
-        destination: SocketAddr,
+        source: Host,
+        destination: Host,
     },
     Receive {
-        source: SocketAddr,
-        destination: SocketAddr,
+        source: Host,
+        destination: Host,
         len: usize,
         is_tcp: bool,
     },
@@ -151,8 +151,8 @@ pub enum Payload {
         answers: Vec<DnsAnswer>,
     },
     Send {
-        source: SocketAddr,
-        destination: SocketAddr,
+        source: Host,
+        destination: Host,
         len: usize,
         is_tcp: bool,
     },
@@ -173,6 +173,24 @@ pub enum Payload {
     // CustomJson { ty: i32, data: Vec<u8> },
     // CustomProto { ty: i32, data: Vec<u8> },
     // CustomRaw { ty: i32, data: Vec<u8> }
+}
+
+/// Encapsulates IP and port.
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    ValidatronStruct,
+    ValidatronTypeProvider,
+)]
+pub struct Host {
+    pub ip: IpAddr,
+    pub port: u16,
 }
 
 /// Encapsulates data of a DNS question.
