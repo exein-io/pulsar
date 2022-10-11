@@ -134,11 +134,13 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   long end = BPF_CORE_READ(mm, arg_end);
   int len = end - start;
   if (len < 0 || len >= NAME_MAX) {
-    LOG_ERROR("invalid image len: %d", len);
-  } else {
-    event->exec.data_len = len;
-    bpf_core_read_user(event->exec.argv, len & (NAME_MAX - 1), (void *)start);
+    LOG_ERROR("Argument list is too long (%d) and will be truncated. "
+              "See https://github.com/Exein-io/pulsar/issues/73",
+              len);
+    len = NAME_MAX - 1;
   }
+  event->exec.data_len = len;
+  bpf_core_read_user(event->exec.argv, len & (NAME_MAX - 1), (void *)start);
 
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));
