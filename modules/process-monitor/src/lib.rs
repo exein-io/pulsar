@@ -74,7 +74,14 @@ impl fmt::Display for ProcessEvent {
 }
 
 fn extract_parameters(argv: &DataArray<NAME_MAX>) -> Vec<String> {
-    argv.as_ref()
+    // Ignore the last byte as it's always a 0. Not doing this would
+    // produce a trailing "" argument.
+    let len = if argv.as_ref().last() == Some(&0) {
+        argv.len() - 1
+    } else {
+        argv.len()
+    };
+    argv.as_ref()[..len]
         .split(|x| *x == 0)
         .map(String::from_utf8_lossy)
         .map(String::from)
