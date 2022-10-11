@@ -108,6 +108,7 @@ pub enum Payload {
     Exec {
         filename: String,
         argc: usize,
+        #[validatron(skip)]
         argv: Vec<String>,
     },
     Exit {
