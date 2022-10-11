@@ -50,7 +50,7 @@ pub struct Config {
     pub module: Option<String>,
 
     /// Set/Update configuration for a specified module: syntax is 'MODULE.KEY=VALUE'
-    #[clap(long, short, parse(try_from_str=parse_mc_key_value), value_name = "MODULE.KEY=VALUE")]
+    #[clap(long, short, value_parser=parse_mc_key_value, value_name = "MODULE.KEY=VALUE")]
     pub set: Option<ModuleConfigKV>,
 }
 
