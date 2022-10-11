@@ -1,9 +1,7 @@
 <div align="center">
   <img width="300" src="res/pulsar-logo-black.png#gh-light-mode-only" alt="Pulsar dark logo">
   <img width="300" src="res/pulsar-logo-white.png#gh-dark-mode-only" alt="Pulsar light logo">
-  <p>
-  A highly modular and blazing fast eBPF-based runtime security agent framework for the IoT.
-  </p>
+
   <p>
     <a href="https://github.com/Exein-io/pulsar/actions/workflows/test.yml">
       <img src="https://github.com/Exein-io/pulsar/actions/workflows/test.yml/badge.svg?branch=main" alt="Lint and Tests">
@@ -15,6 +13,17 @@
     </a>
   </p>
 </div>
+
+Pulsar is an event-driven framework for monitoring the activity of Linux devices at runtime, powered by [eBPF](https://ebpf.io/). 
+
+The Pulsar core modules use eBPF probes to collect events from the following sources:
+
+- File I/O: I/O operations on disk and memory.
+- Network: data from the network stack.
+- Processes: processes information, including file execution and file opening.
+- System Activity: device activity, including system calls.
+
+Pulsar is built with a modular design that makes it easy to adapt the core architecture to new use cases, create new modules or write custom rules.
 
 ## Quickstart
 
