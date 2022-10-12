@@ -37,6 +37,7 @@ struct bind_event {
 
 struct connect_event {
   struct address destination;
+  u8 proto;
 };
 
 struct accept_event {
@@ -292,6 +293,7 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
   event->timestamp = bpf_ktime_get_ns();
 
   copy_sockaddr(address, &event->connect.destination, false);
+  event->connect.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
 
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct network_event));
