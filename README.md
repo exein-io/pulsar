@@ -46,6 +46,15 @@ pulsar monitor
 
 Visit [this page](https://pulsar.sh/docs/installation) for all the installation options available or [this page](htpps://pulsar.sh/docs/tutorial) for an in-depth tutorial.
 
+
+## Resources
+
+- [Read the docs](https://pulsar.sh/docs): understand how to set up and run Pulsar;
+- [Tutorials](https://pulsar.sh/docs/tutorial): learn to use Pulsar step by step;
+- [Roadmap](https://github.com/Exein-io/projects/6): check out the plan for the next releases;
+- [Support](https://discord.gg/MQgaTPef7a): join the Discord server for community support.
+
+
 ## Contributing
 
 If you're interested in contributing to Pulsar — thank you!
