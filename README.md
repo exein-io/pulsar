@@ -16,12 +16,12 @@
 
 Pulsar is an event-driven framework for monitoring the activity of Linux devices at runtime, powered by [eBPF](https://ebpf.io/). 
 
-The Pulsar core modules use eBPF probes to collect events from the following sources:
+The Pulsar core modules use eBPF probes to collect events from the kernel in a safe and efficient way. Pulsar events can be categorized in the four main following areas:
 
-- File I/O: I/O operations on disk and memory.
-- Network: data from the network stack.
-- Processes: processes information, including file execution and file opening.
-- System Activity: device activity, including system calls.
+- **File I/O**: I/O operations on disk and memory.
+- **Network**: data from the network stack.
+- **Processes**: processes information, including file execution and file opening.
+- **System Activity**: device activity, including system calls.
 
 Pulsar is built with a modular design that makes it easy to adapt the core architecture to new use cases, create new modules or write custom rules.
 
@@ -33,28 +33,24 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 To download, install and run Pulsar, run the following in your terminal.
 
 ```sh
+# install and run the pulsar daemon
 <command to fetch and execute the auto-install script>
 sudo pulsard
 ```
 
-You can use the Pulsar CLI to start/stop modules, log events or update the Pulsar rules and configs:
-
-```sh
-# show status of all modules
-pulsar status
-
-# view all events tracked by Pulsar
-pulsar monitor
-```
-
-Visit [this page](https://pulsar.sh/docs/installation) for all the installation options available or [this page](htpps://pulsar.sh/docs/tutorial) for an in-depth tutorial.
-
+TODO - here we want a quick tour of Pulsar, including:
+- showing events being monitored
+- simple rule example
+- simple detection example
+- very simple step-by-step explanation of what is going on
 
 ## Resources
 
-- [Read the docs](https://pulsar.sh/docs): understand how to set up and run Pulsar;
-- [Tutorials](https://pulsar.sh/docs/tutorial): learn to use Pulsar step by step;
-- [Roadmap](https://github.com/Exein-io/projects/6): check out the plan for the next releases;
+- [Read the docs](https://pulsar.sh/docs): understand how to install and set up Pulsar.
+- [Concepts](https://pulsar.sh/docs/concepts): dive deep into Pulsar architecture and main concepts.
+- [Tutorials](https://pulsar.sh/docs/tutorial): learn how to use Pulsar with practical examples.
+- [Develop new modules](https://github.com/Exein-io/pulsar/blob/main/bpf-common/ProbeTutorial.md): build new eBPF probes and integrate them into Pulsar through the modules system;
+- [Roadmap](https://github.com/Exein-io/projects/6): check out the plan for next Pulsar releases;
 - [Support](https://discord.gg/MQgaTPef7a): join the Discord server for community support.
 
 
