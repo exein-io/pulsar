@@ -27,132 +27,24 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 
 ## Quickstart
 
-The following are a set of steps to quickly get started with Pulsar on a
-Debian-based distribution running kernel version 5.5 or higher with BPF
-and BTF enabled ([requirements](#minimum-kernel-requirements)).
+To download, install and run Pulsar on a Debian-based distribution running kernel version 5.5 or higher with BPF and BTF enabled, run the following in your terminal. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/requirements).
 
 ```sh
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-
-# Install Clang (needed for eBPF compilation)
-sudo apt install clang
-
-# Get and build Pulsar
-git clone https://github.com/Exein-io/pulsar.git
-cd pulsar
-cargo test
-cargo xtask test
-cargo build --release
-
-# Install files
-sudo cp scripts/pulsar scripts/pulsard target/release/pulsar-exec /usr/bin/
-sudo chmod +x /usr/bin/pulsar /usr/bin/pulsard
-
-# Run it
+<command to fetch and execute the auto-install script>
 sudo pulsard
 ```
 
-## Architecture
-
-Pulsar is powered by the [`pulsard`](./pulsar/src/pulsard/daemon.rs) 
-daemon — responsible for managing the state of [modules](./modules/) 
-that come with Pulsar.
-
-Functionality is enabled through the use of Pulsar modules. Modules are sub-
-programs that perform specific operations (e.g. monitoring filesystem access) 
-that are loaded into Pulsar at runtime and enable the use of eBPF to power
-most modules.
-
-Internally every module has access to the shared message bus and can either 
-produce or consume [events](./pulsar-core/src/event.rs). It's a broadcast MPMC 
-channel (multi-producer, multi consumer) where every subscriber will receive 
-every message. This allows to build modular code with a clear separation of 
-concerns.
-
-The [probe tutorial](./bpf-common/ProbeTutorial.md) highlights how to build an 
-eBPF probe and integrate it into Pulsar via the module system.
-
-## Kernel Requirements
-
-### Minimum
-
-Currently Pulsar requires at least kernel version 5.5 with BPF and BTF enabled.
-
-We're requiring 5.5 because we use `BPF_CORE_READ`, which under the hood uses
-`bpf_probe_read_kernel`. To support older kernel versions we may use the older
-and generic `bpf_probe_read`.
-
-The following kernel configurations must be enabled:
-```
-CONFIG_DEBUG_INFO=y
-CONFIG_DEBUG_INFO_BTF=y
-CONFIG_SECURITY=y
-CONFIG_SECURITYFS=y
-CONFIG_SECURITY_NETWORK=y
-CONFIG_FUNCTION_TRACER=y
-CONFIG_FTRACE_SYSCALLS=y
-```
-
-See <https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md>
-
-### Recommended
-
-For best results we recommend a kernel >= 5.7 with all the above configuration enabled plus the following: 
-```
-CONFIG_BPF_LSM=y
-```
-
-This configuration only is available from 5.7.
-
-With this configuration enabled Pulsar uses the more powerful and stable BPF LSM hooks. If you use have BPF_LSM disabled it uses Kprobes as fallback.
-
-## Advanced
-
-### Running without installing
+You can use the Pulsar CLI to start/stop modules, log events or update the Pulsar rules and configs:
 
 ```sh
-cargo xtask pulsard
+# show status of all modules
+pulsar status
+
+# view all events tracked by Pulsar
+pulsar monitor
 ```
 
-Which is the same as
-
-```sh
-cargo build
-sudo ./target/debug/pulsar-exec pulsard
-```
-
-### Integration tests
-
-In order to make sure your system is fully surpported, run the [test
-suite](./test-suite).
-
-```sh
-cargo xtask test
-```
-
-Which is the same as
-
-```sh
-cargo build
-sudo ./target/debug/test-suite
-```
-
-### Single probe runner
-
-Probes can be run in isolation by running the following. 
-
-```sh
-cargo xtask probe file-system-monitor
-```
-
-Which is the same as
-
-```sh
-cargo build
-sudo ./target/debug/probe file-system-monitor
-```
+Visit [this page](https://pulsar.sh/docs/installation) for all the installation options available or [this page](htpps://pulsar.sh/docs/tutorial) for an in-depth tutorial.
 
 ## Contributing
 
