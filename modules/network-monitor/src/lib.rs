@@ -92,6 +92,7 @@ const MAX_DATA_SIZE: usize = 4096;
 pub enum NetworkEvent {
     Bind {
         addr: Addr,
+        proto: Proto,
     },
     Listen {
         addr: Addr,
@@ -161,7 +162,7 @@ pub enum Proto {
 impl fmt::Display for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkEvent::Bind { addr } => write!(f, "bind on {}", addr),
+            NetworkEvent::Bind { addr, proto } => write!(f, "bind on {} ({:?})", addr, proto),
             NetworkEvent::Listen { addr } => write!(f, "listen on {}", addr),
             NetworkEvent::Connect { dst } => {
                 write!(f, "connect  -> {}", dst)
@@ -245,8 +246,9 @@ pub mod pulsar {
     impl From<NetworkEvent> for Payload {
         fn from(data: NetworkEvent) -> Self {
             match data {
-                NetworkEvent::Bind { addr } => Payload::Bind {
+                NetworkEvent::Bind { addr, proto } => Payload::Bind {
                     address: addr.into(),
+                    is_tcp: matches!(proto, Proto::TCP),
                 },
                 NetworkEvent::Listen { addr } => Payload::Listen {
                     address: addr.into(),
@@ -365,6 +367,7 @@ pub mod test_suite {
             tests: vec![
                 bind_ipv4(),
                 bind_ipv6(),
+                bind_udp(),
                 connect_ipv4(),
                 connect_ipv6(),
                 listen_ipv4(),
@@ -398,9 +401,27 @@ pub mod test_suite {
             .await
             .expect_event(event_check!(
                 NetworkEvent::Bind,
-                (addr, bind_addr.into(), "address")
+                (addr, bind_addr.into(), "address"),
+                (proto, Proto::TCP, "protocol")
             ))
             .report()
+    }
+
+    fn bind_udp() -> TestCase {
+        TestCase::new("bind_udp", async {
+            let bind_addr: SocketAddr = "127.0.0.1:18001".parse().unwrap();
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    let _listener = UdpSocket::bind(&bind_addr).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    NetworkEvent::Bind,
+                    (addr, bind_addr.into(), "address"),
+                    (proto, Proto::UDP, "protocol")
+                ))
+                .report()
+        })
     }
 
     fn connect_ipv4() -> TestCase {

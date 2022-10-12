@@ -32,6 +32,7 @@ struct address {
 
 struct bind_event {
   struct address addr;
+  u8 proto;
 };
 
 struct connect_event {
@@ -221,6 +222,16 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
+static __always_inline u16 get_sock_protocol(struct sock *sk) {
+  u16 proto = BPF_CORE_READ(sk, sk_protocol);
+  // TODO: clean this up
+  if (proto == IPPROTO_UDP) {
+    return PROTO_UDP;
+  } else {
+    return PROTO_TCP;
+  }
+}
+
 PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
                 int, addrlen);
 void __always_inline on_socket_bind(void *ctx, struct socket *sock,
@@ -236,6 +247,7 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
   event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
   copy_sockaddr(address, &event->bind.addr, false);
+  event->bind.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
 
   int r = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                                 sizeof(struct network_event));
@@ -353,16 +365,6 @@ static __always_inline void read_iovec(struct msg_event *output,
   }
   output->copied_data_len = len;
   LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
-}
-
-static __always_inline u16 get_sock_protocol(struct sock *sk) {
-  u16 proto = BPF_CORE_READ(sk, sk_protocol);
-  // TODO: clean this up
-  if (proto == IPPROTO_UDP) {
-    return PROTO_UDP;
-  } else {
-    return PROTO_TCP;
-  }
 }
 
 PULSAR_LSM_HOOK(socket_sendmsg, struct socket *, sock, struct msghdr *, msg,
