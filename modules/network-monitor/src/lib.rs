@@ -8,7 +8,6 @@ use bpf_common::{
     program::BpfContext, BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
-use pulsar_core::event::Host;
 
 const MODULE_NAME: &str = "network-monitor";
 
@@ -134,32 +133,6 @@ pub enum Addr {
     V6(SockaddrIn6),
 }
 
-impl From<Addr> for Host {
-    fn from(value: Addr) -> Self {
-        match value {
-            Addr::V4(v) => {
-                let bits = v.ip();
-                let octects = [
-                    (bits >> 24) as u8,
-                    (bits >> 16) as u8,
-                    (bits >> 8) as u8,
-                    bits as u8,
-                ];
-
-                Host {
-                    ip: Ipv4Addr::from(octects).into(),
-                    port: v.port(),
-                }
-            }
-
-            Addr::V6(v) => Host {
-                ip: v.ip().into(),
-                port: v.port(),
-            },
-        }
-    }
-}
-
 impl From<SocketAddr> for Addr {
     fn from(value: SocketAddr) -> Self {
         match value {
@@ -217,7 +190,7 @@ pub mod pulsar {
     use super::*;
     use bpf_common::{program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::{
-        event::{DnsAnswer, DnsQuestion},
+        event::{DnsAnswer, DnsQuestion, Host},
         pdk::{
             CleanExit, ModuleContext, ModuleError, Payload, PulsarModule, ShutdownSignal, Version,
         },
@@ -241,6 +214,32 @@ pub mod pulsar {
         });
         let _program = program(ctx.get_bpf_context(), sender).await?;
         shutdown.recv().await
+    }
+
+    impl From<Addr> for Host {
+        fn from(value: Addr) -> Self {
+            match value {
+                Addr::V4(v) => {
+                    let bits = v.ip();
+                    let octects = [
+                        (bits >> 24) as u8,
+                        (bits >> 16) as u8,
+                        (bits >> 8) as u8,
+                        bits as u8,
+                    ];
+
+                    Host {
+                        ip: Ipv4Addr::from(octects).into(),
+                        port: v.port(),
+                    }
+                }
+
+                Addr::V6(v) => Host {
+                    ip: v.ip().into(),
+                    port: v.port(),
+                },
+            }
+        }
     }
 
     impl From<NetworkEvent> for Payload {
