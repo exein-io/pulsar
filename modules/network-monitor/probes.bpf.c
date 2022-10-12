@@ -195,7 +195,7 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     break;
   }
   default:
-    LOG_DEBUG("ignored sockaddr famility %d", family);
+    LOG_DEBUG("ignored sockaddr family %d", family);
   }
 }
 
@@ -219,7 +219,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     break;
   }
   default:
-    LOG_DEBUG("ignored sockaddr famility %d", family);
+    LOG_DEBUG("ignored sockaddr family %d", family);
   }
 }
 
