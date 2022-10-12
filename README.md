@@ -27,7 +27,10 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 
 ## Quickstart
 
-To download, install and run Pulsar on a Debian-based distribution running kernel version 5.5 or higher with BPF and BTF enabled, run the following in your terminal. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/requirements).
+> **Note**
+The following guide assumes you are on a Debian-based distribution running kernel version 5.5 or higher with BPF and BTF enabled. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/requirements) and [installation options](https://pulsar.sh/docs/installation) available.
+
+To download, install and run Pulsar, run the following in your terminal.
 
 ```sh
 <command to fetch and execute the auto-install script>
