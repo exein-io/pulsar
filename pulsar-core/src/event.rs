@@ -127,6 +127,7 @@ pub enum Payload {
     },
     Connect {
         destination: Host,
+        is_tcp: bool,
     },
     Accept {
         source: Host,

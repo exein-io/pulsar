@@ -96,13 +96,16 @@ pub enum NetworkEvent {
     },
     Listen {
         addr: Addr,
+        // TCP-only
     },
     Connect {
         dst: Addr,
+        proto: Proto,
     },
     Accept {
         src: Addr,
         dst: Addr,
+        // TCP-only
     },
     // NOTE: source/destination here indicate the communication side rather
     // than the source of the message.
@@ -124,6 +127,7 @@ pub enum NetworkEvent {
         original_pid: Pid,
         src: Addr,
         dst: Addr,
+        // TCP-only
     },
 }
 
@@ -164,8 +168,8 @@ impl fmt::Display for NetworkEvent {
         match self {
             NetworkEvent::Bind { addr, proto } => write!(f, "bind on {} ({:?})", addr, proto),
             NetworkEvent::Listen { addr } => write!(f, "listen on {}", addr),
-            NetworkEvent::Connect { dst } => {
-                write!(f, "connect  -> {}", dst)
+            NetworkEvent::Connect { dst, proto } => {
+                write!(f, "connect  -> {} ({:?})", dst, proto)
             }
             NetworkEvent::Accept { src, dst } => {
                 write!(f, "accept {} -> {}", src, dst)
@@ -253,8 +257,9 @@ pub mod pulsar {
                 NetworkEvent::Listen { addr } => Payload::Listen {
                     address: addr.into(),
                 },
-                NetworkEvent::Connect { dst } => Payload::Connect {
+                NetworkEvent::Connect { dst, proto } => Payload::Connect {
                     destination: dst.into(),
+                    is_tcp: matches!(proto, Proto::TCP),
                 },
                 NetworkEvent::Accept { src, dst } => Payload::Accept {
                     source: src.into(),
@@ -370,6 +375,7 @@ pub mod test_suite {
                 bind_udp(),
                 connect_ipv4(),
                 connect_ipv6(),
+                connect_udp(),
                 listen_ipv4(),
                 listen_ipv6(),
                 accept_ipv4(),
@@ -442,9 +448,32 @@ pub mod test_suite {
             .await
             .expect_event(event_check!(
                 NetworkEvent::Connect,
-                (dst, dest.into(), "destination address")
+                (dst, dest.into(), "destination address"),
+                (proto, Proto::TCP, "protocol")
             ))
             .report()
+    }
+
+    fn connect_udp() -> TestCase {
+        TestCase::new("connect_udp", async {
+            let bind_addr1: SocketAddr = "127.0.0.1:18021".parse().unwrap();
+            let bind_addr2: SocketAddr = "127.0.0.1:18022".parse().unwrap();
+            let _listener = UdpSocket::bind(&bind_addr1).unwrap();
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    UdpSocket::bind(bind_addr2)
+                        .unwrap()
+                        .connect(bind_addr1)
+                        .unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    NetworkEvent::Connect,
+                    (dst, bind_addr1.into(), "address"),
+                    (proto, Proto::UDP, "protocol")
+                ))
+                .report()
+        })
     }
 
     fn listen_ipv4() -> TestCase {
