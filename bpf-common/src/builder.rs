@@ -18,6 +18,7 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => String::from(CLANG_DEFAULT),
     };
 
+    // Compile
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     let include_path = PathBuf::from(INCLUDE_PATH);
     let status = Command::new(clang)
@@ -46,7 +47,7 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
         Err("Failed to compile eBPF program")?;
     }
 
-    //
+    // Strip debug symbols
     let status = Command::new(LLVM_STRIP)
         .arg("-g")
         .arg(out_object)
