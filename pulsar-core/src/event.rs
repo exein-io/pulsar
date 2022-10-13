@@ -1,4 +1,4 @@
-use std::{net::IpAddr, time::SystemTime};
+use std::{fmt, net::IpAddr, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
 use validatron::{
@@ -90,7 +90,7 @@ pub enum Payload {
     },
     FileOpened {
         filename: String,
-        flags: i32,
+        flags: FileFlags,
     },
     FileLink {
         source: String,
@@ -103,7 +103,7 @@ pub enum Payload {
     },
     ElfOpened {
         filename: String,
-        flags: i32,
+        flags: FileFlags,
     },
     Fork {
         ppid: i32,
@@ -224,27 +224,40 @@ pub struct DnsAnswer {
 }
 
 // High level abstraction for file flags bitmask
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[repr(C)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FileFlags(i32);
+
+impl FileFlags {
+    pub fn from_raw_unchecked(flags: i32) -> Self {
+        Self(flags)
+    }
+}
+
+impl FileFlags {
+    const MAPPING: [(&str, i32); 10] = [
+        ("O_RDONLY", kernel::file::flags::O_RDONLY),
+        ("O_WRONLY", kernel::file::flags::O_WRONLY),
+        ("O_RDWR", kernel::file::flags::O_RDWR),
+        ("O_CREAT", kernel::file::flags::O_CREAT),
+        ("O_EXCL", kernel::file::flags::O_EXCL),
+        ("O_NOCTTY", kernel::file::flags::O_NOCTTY),
+        ("O_TRUNC", kernel::file::flags::O_TRUNC),
+        ("O_APPEND", kernel::file::flags::O_APPEND),
+        ("O_NONBLOCK", kernel::file::flags::O_NONBLOCK),
+        ("O_DIRECTORY", kernel::file::flags::O_DIRECTORY),
+    ];
+}
 
 impl ValidatronTypeProvider for FileFlags {
     fn field_type() -> validatron::ValidatronType<Self> {
         validatron::ValidatronType::Primitive(Primitive {
             parse_fn: Box::new(|s| {
-                let flag = match s {
-                    "O_RDONLY" => kernel::file::flags::O_RDONLY,
-                    "O_WRONLY" => kernel::file::flags::O_WRONLY,
-                    "O_RDWR" => kernel::file::flags::O_RDWR,
-                    "O_CREAT" => kernel::file::flags::O_CREAT,
-                    "O_EXCL" => kernel::file::flags::O_EXCL,
-                    "O_NOCTTY" => kernel::file::flags::O_NOCTTY,
-                    "O_TRUNC" => kernel::file::flags::O_TRUNC,
-                    "O_APPEND" => kernel::file::flags::O_APPEND,
-                    "O_NONBLOCK" => kernel::file::flags::O_NONBLOCK,
-                    "O_DIRECTORY" => kernel::file::flags::O_DIRECTORY,
-                    _ => return Err(ValidatronError::FieldValueParseError(s.to_string())),
-                };
-                Ok(Self(flag))
+                FileFlags::MAPPING
+                    .iter()
+                    .find(|(name, _)| *name == s)
+                    .map(|(_, flag)| Self(*flag))
+                    .ok_or_else(|| ValidatronError::FieldValueParseError(s.to_string()))
             }),
             handle_op_fn: Box::new(|op| match op {
                 Operator::Multi(op) => match op {
@@ -256,5 +269,29 @@ impl ValidatronTypeProvider for FileFlags {
                 )),
             }),
         })
+    }
+}
+
+impl fmt::Debug for FileFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.0, self)
+    }
+}
+
+impl fmt::Display for FileFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(")?;
+        for (name, flag) in FileFlags::MAPPING {
+            if (flag & self.0) != 0 {
+                write!(f, "{};", name)?;
+            }
+        }
+        write!(f, ")")
+    }
+}
+
+impl From<FileFlags> for i32 {
+    fn from(f_flags: FileFlags) -> Self {
+        f_flags.0
     }
 }

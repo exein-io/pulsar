@@ -4,7 +4,6 @@ use bpf_common::{
     aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::StringArray,
     program::BpfContext, BpfSender, Program, ProgramBuilder, ProgramError,
 };
-use nix::libc;
 
 const MODULE_NAME: &str = "file-system-monitor";
 
@@ -65,7 +64,7 @@ pub enum FsEvent {
     },
     FileOpened {
         filename: StringArray<NAME_MAX>,
-        flags: Flags,
+        flags: i32,
     },
     #[allow(clippy::large_enum_variant)]
     FileLink {
@@ -88,7 +87,7 @@ impl fmt::Display for FsEvent {
             FsEvent::DirCreated { filename } => write!(f, "created dir {}", filename),
             FsEvent::DirDeleted { filename } => write!(f, "deleted dir {}", filename),
             FsEvent::FileOpened { filename, flags } => {
-                write!(f, "open {} ({})", filename, flags.0)
+                write!(f, "open {} ({})", filename, flags)
             }
             FsEvent::FileLink {
                 source,
@@ -109,52 +108,6 @@ impl fmt::Display for FsEvent {
     }
 }
 
-const FLAGS: [(i32, &str); 22] = [
-    (libc::O_APPEND, "APPEND"),
-    (libc::O_ASYNC, "ASYNC"),
-    (libc::O_CLOEXEC, "CLOEXEC"),
-    (libc::O_CREAT, "CREAT"),
-    (libc::O_DIRECT, "DIRECT"),
-    (libc::O_DIRECTORY, "DIRECTORY"),
-    (libc::O_DSYNC, "DSYNC"),
-    (libc::O_EXCL, "EXCL"),
-    (libc::O_LARGEFILE, "LARGEFILE"),
-    (libc::O_NDELAY, "NDELAY"),
-    (libc::O_NOATIME, "NOATIME"),
-    (libc::O_NOCTTY, "NOCTTY"),
-    (libc::O_NOFOLLOW, "NOFOLLOW"),
-    (libc::O_NONBLOCK, "NONBLOCK"),
-    (libc::O_PATH, "PATH"),
-    (libc::O_RDONLY, "RDONLY"),
-    (libc::O_RDWR, "RDWR"),
-    (libc::O_RSYNC, "RSYNC"),
-    (libc::O_SYNC, "SYNC"),
-    (libc::O_TMPFILE, "TMPFILE"),
-    (libc::O_TRUNC, "TRUNC"),
-    (libc::O_WRONLY, "WRONLY"),
-];
-
-#[derive(PartialEq, Eq)]
-pub struct Flags(i32);
-
-impl fmt::Display for Flags {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (flag, name) in FLAGS {
-            if (flag & self.0) != 0 {
-                write!(f, "{};", name)?;
-            }
-        }
-        write!(f, ")")
-    }
-}
-
-impl fmt::Debug for Flags {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.0, self)
-    }
-}
-
 pub mod pulsar {
 
     use std::{
@@ -163,9 +116,12 @@ pub mod pulsar {
     };
 
     use super::*;
-    use pulsar_core::pdk::{
-        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSender,
-        Payload, PulsarModule, ShutdownSignal, Version,
+    use pulsar_core::{
+        event::FileFlags,
+        pdk::{
+            CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSender,
+            Payload, PulsarModule, ShutdownSignal, Version,
+        },
     };
     use tokio::{fs::File, io::AsyncReadExt};
 
@@ -220,7 +176,7 @@ pub mod pulsar {
                 },
                 FsEvent::FileOpened { filename, flags } => Payload::FileOpened {
                     filename: filename.to_string(),
-                    flags: flags.0,
+                    flags: FileFlags::from_raw_unchecked(flags),
                 },
                 FsEvent::FileLink {
                     source,
@@ -279,7 +235,7 @@ pub mod pulsar {
                     event,
                     Payload::ElfOpened {
                         filename: filename.to_string(),
-                        flags: *flags,
+                        flags: flags.clone(),
                     },
                 );
             }
@@ -332,6 +288,7 @@ pub mod test_suite {
         event_check,
         test_runner::{TestCase, TestRunner, TestSuite},
     };
+    use pulsar_core::kernel;
 
     pub fn tests() -> TestSuite {
         TestSuite {
@@ -400,7 +357,11 @@ pub mod test_suite {
                 .expect_event(event_check!(
                     FsEvent::FileOpened,
                     (filename, path.to_str().unwrap().into(), "filename"),
-                    (flags, Flags(libc::O_RDWR | FMODE_OPENED), "open flags")
+                    (
+                        flags,
+                        kernel::file::flags::O_RDWR | FMODE_OPENED,
+                        "open flags"
+                    )
                 ))
                 .report()
         })
