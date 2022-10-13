@@ -1,9 +1,12 @@
 use std::{net::IpAddr, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
-use validatron::{ValidatronStruct, ValidatronTypeProvider, ValidatronVariant};
+use validatron::{
+    Operator, Primitive, ValidatronError, ValidatronStruct, ValidatronTypeProvider,
+    ValidatronVariant,
+};
 
-use crate::pdk::ModuleName;
+use crate::{kernel, pdk::ModuleName};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 
@@ -218,4 +221,40 @@ pub struct DnsAnswer {
     pub ttl: u32,
     /// Record data.
     pub data: String,
+}
+
+// High level abstraction for file flags bitmask
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileFlags(i32);
+
+impl ValidatronTypeProvider for FileFlags {
+    fn field_type() -> validatron::ValidatronType<Self> {
+        validatron::ValidatronType::Primitive(Primitive {
+            parse_fn: Box::new(|s| {
+                let flag = match s {
+                    "O_RDONLY" => kernel::file::flags::O_RDONLY,
+                    "O_WRONLY" => kernel::file::flags::O_WRONLY,
+                    "O_RDWR" => kernel::file::flags::O_RDWR,
+                    "O_CREAT" => kernel::file::flags::O_CREAT,
+                    "O_EXCL" => kernel::file::flags::O_EXCL,
+                    "O_NOCTTY" => kernel::file::flags::O_NOCTTY,
+                    "O_TRUNC" => kernel::file::flags::O_TRUNC,
+                    "O_APPEND" => kernel::file::flags::O_APPEND,
+                    "O_NONBLOCK" => kernel::file::flags::O_NONBLOCK,
+                    "O_DIRECTORY" => kernel::file::flags::O_DIRECTORY,
+                    _ => return Err(ValidatronError::FieldValueParseError(s.to_string())),
+                };
+                Ok(Self(flag))
+            }),
+            handle_op_fn: Box::new(|op| match op {
+                Operator::Multi(op) => match op {
+                    validatron::MultiOperator::Contains => Ok(Box::new(|a, b| (a.0 & b.0) == b.0)),
+                },
+                _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                    op,
+                    "FileFlags".to_string(),
+                )),
+            }),
+        })
+    }
 }
