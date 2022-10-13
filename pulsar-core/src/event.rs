@@ -261,7 +261,17 @@ impl ValidatronTypeProvider for FileFlags {
             }),
             handle_op_fn: Box::new(|op| match op {
                 Operator::Multi(op) => match op {
-                    validatron::MultiOperator::Contains => Ok(Box::new(|a, b| (a.0 & b.0) == b.0)),
+                    validatron::MultiOperator::Contains => {
+                        Ok(Box::new(
+                            |a, b| {
+                                if b.0 == 0 {
+                                    a.0 == 0
+                                } else {
+                                    (a.0 & b.0) > 0
+                                }
+                            },
+                        ))
+                    }
                 },
                 _ => Err(ValidatronError::OperatorNotAllowedOnType(
                     op,
@@ -281,11 +291,18 @@ impl fmt::Debug for FileFlags {
 impl fmt::Display for FileFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(")?;
+
         for (name, flag) in FileFlags::MAPPING {
-            if (flag & self.0) != 0 {
+            if flag == 0 {
+                if self.0 == 0 {
+                    write!(f, "{};", name)?;
+                    break;
+                }
+            } else if (self.0 & flag) > 0 {
                 write!(f, "{};", name)?;
             }
         }
+
         write!(f, ")")
     }
 }
