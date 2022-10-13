@@ -3,6 +3,7 @@ use std::{env, path::PathBuf, process::Command, string::String};
 use anyhow::Context;
 
 static CLANG_DEFAULT: &str = "clang";
+static LLVM_STRIP: &str = "llvm-strip";
 static INCLUDE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/include");
 
 pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -37,12 +38,23 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
         ))
         .arg(probe)
         .arg("-o")
-        .arg(out_object)
+        .arg(&out_object)
         .status()
         .context("Failed to execute clang")?;
 
     if !status.success() {
         Err("Failed to compile eBPF program")?;
+    }
+
+    //
+    let status = Command::new(LLVM_STRIP)
+        .arg("-g")
+        .arg(out_object)
+        .status()
+        .context("Failed to execute llvm-strip")?;
+
+    if !status.success() {
+        Err("Failed strip eBPF program")?;
     }
 
     Ok(())
