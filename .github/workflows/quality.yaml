@@ -61,7 +61,7 @@ jobs:
           submodules: recursive
 
       - name: Install musl-gcc
-        run: sudo apt install -y musl-tools
+        run: sudo apt install -y musl-tools llvm
 
       - name: Install Rust toolchain (${{ matrix.rust }})
         uses: actions-rs/toolchain@v1
