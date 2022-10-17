@@ -30,21 +30,42 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 > **Warning**  
 > A kernel 5.5 or higher with BPF and BTF enabled is required. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/requirements) and [installation options](https://pulsar.sh/docs/installation) available.
 
-To download, install and run Pulsar, run the following in your terminal.
+To download and install Pulsar, run the following in your terminal:
 
 ```sh
-# Run the installer
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/Exein-io/pulsar/main/pulsar-install.sh | sh
-
-# Launch the pulsar daemon
-sudo pulsard
 ```
 
-TODO - here we want a quick tour of Pulsar, including:
-- showing events being monitored
-- simple rule example
-- simple detection example
-- very simple step-by-step explanation of what is going on
+Crate an example rule file in `/var/lib/pulsar/rules/demo.yaml` with the following content:
+
+```yaml
+- name: Opened /etc/lsb-release
+  type: FileOpened
+  condition: payload.filename == "/etc/lsb-release"
+```
+
+Launch the pulsar daemon in a terminal **with administrator privileges**:
+
+```sh
+pulsard
+```
+
+Trigger the event, for example running the following command in another terminal:
+
+```sh
+cat /etc/lsb-release
+```
+
+In the pulsar terminal you should see something similar to:
+
+```
+Event { header: Header { pid: 40774, is_threat: true, source: ModuleName("rules-engine"), timestamp: SystemTime { tv_sec: 1666016802, tv_nsec: 693847099 }, image: "/usr/bin/cat", parent: 38078, fork_time: SystemTime { tv_sec: 1666016802, tv_nsec: 691725689 } }, payload: RuleEngineDetection { rule_name: "Opened /etc/lsb-release", payload: FileOpened { filename: "/etc/lsb-release", flags: 32768: () } } }  
+```
+
+Behind the scenes when you open the file, the kernel executes the the Pulsar BPF probe capturing the event
+and sending it to the userspace. There the rule engine processes the event and after a success match
+on the previously specified rule, it emits a new event, marked as a threat. Finally a logger module
+log prints threat events on the terminal.
 
 ## Resources
 
