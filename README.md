@@ -33,8 +33,10 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 To download, install and run Pulsar, run the following in your terminal.
 
 ```sh
-# install and run the pulsar daemon
-<command to fetch and execute the auto-install script>
+# Run the installer
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/Exein-io/pulsar/main/pulsar-install.sh | sh
+
+# Launch the pulsar daemon
 sudo pulsard
 ```
 
