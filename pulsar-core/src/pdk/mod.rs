@@ -5,12 +5,11 @@
 //! - the module name
 //! - additional details in [`ModuleDetails`] struct
 //!
-//! and a function to initialize the task of the module:
-//!
-//! - `Fn(&ModuleContext<B>) -> impl PulsarModuleTask` [^note]
+//! and a [function](module::ModuleStartFn) to initialize the task of the module.
 //!
 //! This functions is the `main` function of the module and must return an implementation of [`PulsarModuleTask`].
-//! The concrete type must implement [`PulsarModuleTask::stop`] if some parts of the task need a graceful shutdown or if the task have some asynchronous jobs running.
+//! The concrete type must implement an handler fot [`ShutdownSignal`] if some parts of the task need a graceful
+//! shutdown or if the task have some asynchronous jobs running.
 //!
 //! The [`ModuleContext`] is the entrypoint to access all the functions available to the module. It provides instances of:
 //! - [`ModuleSender`] to send events
@@ -22,7 +21,7 @@
 //!
 //! # Example
 //!
-//! In this following lines the custom implementation of [`PulsarModuleTask::stop`] is needed to stop the asynchronous job.
+//! In this following lines an implementation of a modules emitting a fake event.
 //!
 //! ```
 //! use pulsar_core::pdk::{

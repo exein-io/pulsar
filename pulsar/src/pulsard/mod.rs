@@ -10,9 +10,11 @@ mod config;
 mod daemon;
 mod module_manager;
 
-use config::PulsarConfig;
-
 use daemon::start_daemon;
+
+pub use config::PulsarConfig;
+pub use daemon::PulsarDaemon;
+pub use module_manager::{ModuleManager, ModuleManagerHandle};
 
 /// General configuration section for settings shared by all modules.
 const GENERAL_CONFIG: &str = "pulsar";

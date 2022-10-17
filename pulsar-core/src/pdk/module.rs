@@ -21,7 +21,7 @@ use super::{
 
 pub type PulsarModuleTask = dyn Future<Output = Result<CleanExit, ModuleError>> + Send;
 
-type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModuleTask> + Send;
+pub type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModuleTask> + Send;
 
 /// Main implementation of [`TaskLauncher`] for creating Pulsar pluggable modules.
 ///
@@ -154,8 +154,9 @@ pub struct ModuleSender {
 
 /// Raises unrecoverable errors from the module to the upper layer.
 ///
-/// Sending an error leads to a graceful shutdown of the module, the upper layer will stop the module via [`PulsarModuleTask::stop`].
-pub(crate) type ErrorSender = mpsc::Sender<ModuleError>;
+/// Sending an error leads to a graceful shutdown of the module after [issue #7](https://github.com/Exein-io/pulsar/issues/7)
+/// will be closed.
+pub type ErrorSender = mpsc::Sender<ModuleError>;
 pub type ModuleError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 impl ModuleSender {
