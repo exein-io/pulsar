@@ -1,11 +1,39 @@
-//! A highly modular XDR agent framework.
+//! Pulsar is a runtime security observability framework powered by eBPF.
+//! At high level it provides two components:
 //!
-//! Pulsar is an runtime security observability tool powered by eBPF.
-//! At high level it provides few major components:
+//! - a modular [daemon](crate::pulsard::PulsarDaemon) that should be run as a service on the machine
+//!   and it's responsible for managing the state of [modules](#modules) that come with Pulsar 
+//! - a [cli](crate::cli::pulsar) to interact with the daemon to do administration operations
+//! 
+//! Both components are embedded in a single binary application and are executed through subcommands of the
+//! main application `pulsar-exec`. Example:
+//! 
+//! ```sh
+//! # Execute the daemon
+//! pulsar-exec pulsard
+//! 
+//! # Execute the cli
+//! pulsar-exec pulsar
+//! ```
+//! 
+//! **Note**: Simple scripts are provided in the repository for an easy access.
 //!
-//! - a modular daemon that should be run as a service on the machine  
-//! - a cli to interact with the daemon to do administration operations
-//!
+//! ## Modules
+//! 
+//! Functionality is enabled through the use of Pulsar [modules](pulsar_core::pdk).
+//! Modules are sub-programs that perform specific operations (e.g. monitoring filesystem access) 
+//! that are loaded into Pulsar at runtime and enable the use of eBPF to power
+//! most modules.
+//! 
+//! Internally every module has access to the shared message [bus](pulsar_core::bus)
+//! and can either produce or consume [events](pulsar_core::event). It's a broadcast MPMC 
+//! channel (multi-producer, multi consumer) where every subscriber will receive 
+//! every message. This allows to build modular code with a clear separation of 
+//! concerns.
+//! 
+//! Check the [example](pulsar_core::pdk#example) in the modules documentation
+//! to discover how to implement a simple Pulsar module.
+//! 
 //! ## Feature flags
 //!
 //! Pulsar uses a set of [feature flags] to reduce the amount of compiled code. It

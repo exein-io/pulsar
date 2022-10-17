@@ -18,12 +18,12 @@ use super::module_manager::{create_module_manager, ModuleManagerHandle};
 
 /// Main component of Pulsar framework. It's implemented with the actor pattern and its entrypoint is its [`PulsarDaemonHandle`]
 ///
-/// Contains references to all loaded modules. Each module is wrapped inside a [`ModuleManager`] actor to manage its lifecycle.
+/// Contains references to all loaded modules. Each module is wrapped inside a [`super::ModuleManager`] actor to manage its lifecycle.
 ///
 /// [`PulsarDaemon`] can:
 /// - administrate loaded modules using the relative [`ModuleManagerHandle`]
 /// - manage module configurations using [`PulsarConfig`]
-struct PulsarDaemon {
+pub struct PulsarDaemon {
     modules: HashMap<String, (ModuleDetails, ModuleManagerHandle)>,
     config: PulsarConfig,
 

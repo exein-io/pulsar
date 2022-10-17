@@ -29,7 +29,7 @@ enum ModuleManagerCommand {
 /// Module is stored as pointer to dynamic [`TaskLauncher`] trait object. This is the "receipe" to start the module every time is requested by upper layer.
 ///
 /// Once started, the running module will be managed through its [`PulsarModuleTask`] implementation.
-struct ModuleManager {
+pub struct ModuleManager {
     tx_err: mpsc::Sender<ModuleError>,
     rx_err: mpsc::Receiver<ModuleError>,
     rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
