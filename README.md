@@ -79,66 +79,7 @@ Another approach to install Pulsar is by using a pre-built binary. Binaries are 
 
 ### Build from source
 
-We do not recommend build Pulsar from source. Building from source is only necessary if you wish to make modifications. If you want to play with the source code check the [Developers](#developers) section.
-
-## Developers
-
-This section is reserved to developers and people who want to play with the source code.
-
-### Prerequisites
-
-You need to install some prerequisite packages in order to build and test Pulsar. Here, all the steps are based on Ubuntu, for other Linux distributions please replace the package manager and package name.
-
-```sh
-# Install 
-# - Clang (needed for BPF compilation)
-# - LLVM (llvm-strip is needed to strip BPF binaries)
-sudo apt install git clang llvm
-
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
-
-### Clone and build
-
-```sh
-git clone https://github.com/Exein-io/pulsar.git
-cd pulsar
-cargo build --release
-```
-
-### Run without installing
-
-These are convenient `cargo xtask` commands to build and run pulsar directly from the source without installing it.
-
-```sh
-# Run the daemon
-cargo xtask pulsard
-
-# Run the cli
-cargo xtask pulsar
-```
-
-### Test
-
-Pulsar have unit tests and integration tests. Integration tests are managed by the [test suite](./test-suite).
-
-```sh
-# Unit tests
-cargo test
-
-# Integration tests
-cargo xtask test
-```
-
-### Single probe runner
-
-Probes can be run in isolation by running the following.
-
-```sh
-cargo xtask probe file-system-monitor
-```
+We do not recommend build Pulsar from source. Building from source is only necessary if you wish to make modifications. If you want to play with the source code check the [Developers](https://pulsar.sh/docs/category/developers) section of the documentation.
 
 ## Resources
 
