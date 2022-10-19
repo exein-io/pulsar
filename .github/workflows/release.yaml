@@ -75,8 +75,8 @@ jobs:
         run: |
           mkdir ../vendor-cargo-home
           export CARGO_HOME=$(realpath ../vendor-cargo-home)
-          mkdir .cargo
-          cargo vendor > .cargo/config.toml
+          mkdir -p .cargo
+          cargo vendor >> .cargo/config.toml
       - name: Create vendored source archive
         working-directory: ../
         run: tar cJf pulsar-${{ github.event.ref }}.tar.xz pulsar-${{ github.event.ref }}
