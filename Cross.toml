@@ -9,3 +9,11 @@ pre-build = ["apt install -y clang llvm"]
 [target.riscv64gc-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:main"
 pre-build = ["apt install -y clang llvm"]
+
+[target.x86_64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main"
+pre-build = ["apt install -y clang llvm"]
+
+[target.x86_64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:main"
+pre-build = ["apt install -y clang llvm"]
