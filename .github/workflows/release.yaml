@@ -1,0 +1,125 @@
+name: Pulsar Release
+on: [create]
+
+jobs:
+  release:
+    if: github.event_name == 'create' && github.event.ref_type == 'tag'
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v2
+
+      # - name: Install prerequisites
+      #   run: sudo apt install -y musl-tools clang llvm
+
+      - name: Create release directory
+        run: rsync -rv --exclude=.git . ../pulsar-${{ github.event.ref }}
+
+      # Compile x86_64
+      - name: Install Rust toolchain (x86_64-unknown-linux-gnu)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "1.64"
+          target: x86_64-unknown-linux-gnu
+      - name: Install Rust toolchain (x86_64-unknown-linux-musl)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "1.64"
+          target: x86_64-unknown-linux-musl
+      - name: Build (x86_64-unknown-linux-gnu)
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          toolchain: "1.64"
+          command: build
+          args: --bin pulsar-exec --release --target=x86_64-unknown-linux-gnu
+      - name: Build (x86_64-unknown-linux-musl)
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          toolchain: "1.64"
+          command: build
+          args: --bin pulsar-exec --release --target=x86_64-unknown-linux-musl
+
+      # Compile aarch64
+      - name: Install Rust toolchain (aarch64-unknown-linux-musl)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "1.64"
+          target: aarch64-unknown-linux-musl
+          override: true
+      - name: Build (aarch64-unknown-linux-musl)
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          toolchain: "1.64"
+          command: build
+          args: --bin pulsar-exec --release --target=aarch64-unknown-linux-musl
+
+      # Create Release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+          prerelease: true
+
+      # Create and upload vendored source
+      - name: Vendor
+        working-directory: ../pulsar-${{ github.event.ref }}
+        run: |
+          mkdir ../vendor-cargo-home
+          export CARGO_HOME=$(realpath ../vendor-cargo-home)
+          mkdir .cargo
+          cargo vendor > .cargo/config.toml
+      - name: Create vendored source archive
+        working-directory: ../
+        run: tar cJf pulsar-${{ github.event.ref }}.tar.xz pulsar-${{ github.event.ref }}
+      - name: Upload pulsar vendored source archive
+        id: upload-release-pulsar-vendored-sources
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ../pulsar-${{ github.event.ref }}.tar.xz
+          asset_name: pulsar-${{ github.event.ref }}.tar.xz
+          asset_content_type: application/x-xz
+
+      # Upload binaries
+      - name: Upload pulsar x86_64
+        id: upload-release-pulsar-x86_64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/x86_64-unknown-linux-gnu/release/pulsar-exec
+          asset_name: pulsar-exec-x86_64
+          asset_content_type: application/octet-stream
+      - name: Upload static pulsar x86_64
+        id: upload-release-static-pulsar-x86_64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/x86_64-unknown-linux-musl/release/pulsar-exec
+          asset_name: pulsar-exec-x86_64-static
+          asset_content_type: application/octet-stream
+      
+      - name: Upload static pulsar aarch64
+        id: upload-release-static-aarch64-pulsar
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: target/aarch64-unknown-linux-musl/release/pulsar-exec
+          asset_name: pulsar-exec-aarch64-static
+          asset_content_type: application/octet-stream
