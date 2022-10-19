@@ -1,5 +1,2 @@
-[target.aarch64-unknown-linux-musl]
-linker = "aarch64-linux-musl-ld"
-
 [alias]
 xtask = "run --package xtask --"
