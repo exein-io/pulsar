@@ -183,7 +183,7 @@ pub mod pulsar {
                 } => Payload::Exec {
                     filename: filename.to_string(),
                     argc: argc as usize,
-                    argv: extract_parameters(&argv),
+                    argv: extract_parameters(&argv).into(),
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
             }
