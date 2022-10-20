@@ -94,7 +94,7 @@ We do not recommend build Pulsar from source. Building from source is only neces
 
 If you're interested in contributing to Pulsar — thank you!
 
-We have a [contributing guide](CONTRIBUTING.md) which will help you getting involved in the project.
+We have a [contributing guide](CONTRIBUTING.md) which will help you getting involved in the project. Also check the [Developers](https://pulsar.sh/docs/category/developers) section of the documentation for more information on Pulsar development.
 
 ## Community
 
