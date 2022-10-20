@@ -238,15 +238,15 @@ get_release_variant() {
 
         aarch64 | arm64)
             #_cputype=aarch64
-            _arch=-static-aarch64
+            _arch=-aarch64-static
             ;;
 
         x86_64 | x86-64 | x64 | amd64)
             #_cputype=x86_64
             if [ "$_clibtype" = gnu ]; then
-                _arch=
+                _arch=-x86_64
             else
-                _arch=-static
+                _arch=-x86_64-static
             fi
             ;;
 
