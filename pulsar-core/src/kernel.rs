@@ -12,4 +12,11 @@ mod platform;
 #[path = "platform/linux-riscv64.rs"]
 mod platform;
 
-pub use platform::*;
+pub mod file {
+
+    pub mod flags {
+        pub use super::super::platform::file::flags::*;
+
+        pub const O_ACCMODE: i32 = 3;
+    }
+}

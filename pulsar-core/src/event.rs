@@ -6,7 +6,10 @@ use validatron::{
     ValidatronVariant,
 };
 
-use crate::{kernel, pdk::ModuleName};
+use crate::{
+    kernel::{self},
+    pdk::ModuleName,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 
@@ -234,10 +237,13 @@ impl FileFlags {
 }
 
 impl FileFlags {
-    const MAPPING: [(&str, i32); 10] = [
+    const ACC_MODE_FLAGS: [(&'static str, i32); 3] = [
         ("O_RDONLY", kernel::file::flags::O_RDONLY),
         ("O_WRONLY", kernel::file::flags::O_WRONLY),
         ("O_RDWR", kernel::file::flags::O_RDWR),
+    ];
+
+    const OTHER_FLAGS: [(&'static str, i32); 7] = [
         ("O_CREAT", kernel::file::flags::O_CREAT),
         ("O_EXCL", kernel::file::flags::O_EXCL),
         ("O_NOCTTY", kernel::file::flags::O_NOCTTY),
@@ -252,25 +258,26 @@ impl ValidatronTypeProvider for FileFlags {
     fn field_type() -> validatron::ValidatronType<Self> {
         validatron::ValidatronType::Primitive(Primitive {
             parse_fn: Box::new(|s| {
-                FileFlags::MAPPING
+                FileFlags::ACC_MODE_FLAGS
                     .iter()
+                    .chain(FileFlags::OTHER_FLAGS.iter())
                     .find(|(name, _)| *name == s)
                     .map(|(_, flag)| Self(*flag))
                     .ok_or_else(|| ValidatronError::FieldValueParseError(s.to_string()))
             }),
             handle_op_fn: Box::new(|op| match op {
                 Operator::Multi(op) => match op {
-                    validatron::MultiOperator::Contains => {
-                        Ok(Box::new(
-                            |a, b| {
-                                if b.0 == 0 {
-                                    a.0 == 0
-                                } else {
-                                    (a.0 & b.0) > 0
-                                }
-                            },
-                        ))
-                    }
+                    validatron::MultiOperator::Contains => Ok(Box::new(|a, b| {
+                        if FileFlags::ACC_MODE_FLAGS
+                            .iter()
+                            .any(|(_, acc_mode_flag)| acc_mode_flag == &b.0)
+                        {
+                            let mode = a.0 & kernel::file::flags::O_ACCMODE;
+                            mode == b.0
+                        } else {
+                            (a.0 & b.0) > 0
+                        }
+                    })),
                 },
                 _ => Err(ValidatronError::OperatorNotAllowedOnType(
                     op,
@@ -289,20 +296,25 @@ impl fmt::Debug for FileFlags {
 
 impl fmt::Display for FileFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
+        let mut flag_names = Vec::new();
 
-        for (name, flag) in FileFlags::MAPPING {
-            if flag == 0 {
-                if self.0 == 0 {
-                    write!(f, "{};", name)?;
-                    break;
-                }
-            } else if (self.0 & flag) > 0 {
-                write!(f, "{};", name)?;
+        let mode = self.0 & kernel::file::flags::O_ACCMODE;
+        for (name, flag) in FileFlags::ACC_MODE_FLAGS {
+            if mode == flag {
+                flag_names.push(name);
+                break; // Only one is possible
             }
         }
 
-        write!(f, ")")
+        for (name, flag) in FileFlags::OTHER_FLAGS {
+            if (self.0 & flag) > 0 {
+                flag_names.push(name);
+            }
+        }
+
+        let content = flag_names.join(",");
+
+        write!(f, "({content})")
     }
 }
 
