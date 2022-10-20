@@ -111,8 +111,7 @@ pub enum Payload {
     Exec {
         filename: String,
         argc: usize,
-        #[validatron(skip)]
-        argv: Vec<String>,
+        argv: Argv,
     },
     Exit {
         exit_code: u32,
@@ -310,5 +309,34 @@ impl fmt::Display for FileFlags {
 impl From<FileFlags> for i32 {
     fn from(f_flags: FileFlags) -> Self {
         f_flags.0
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Argv(Vec<String>);
+
+impl From<Vec<String>> for Argv {
+    fn from(argv_list: Vec<String>) -> Self {
+        Self(argv_list)
+    }
+}
+
+impl ValidatronTypeProvider for Argv {
+    fn field_type() -> validatron::ValidatronType<Self> {
+        validatron::ValidatronType::Primitive(Primitive {
+            parse_fn: Box::new(|s| Ok(Argv(vec![s.to_string()]))),
+            handle_op_fn: Box::new(|op| match op {
+                Operator::Multi(op) => match op {
+                    validatron::MultiOperator::Contains => {
+                        Ok(Box::new(|a, b| b.0.iter().all(|item| a.0.contains(item))))
+                    }
+                },
+                _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                    op,
+                    "Argv".to_string(),
+                )),
+            }),
+        })
     }
 }
