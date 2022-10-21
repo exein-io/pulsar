@@ -1,0 +1,99 @@
+- name: Read sensitive file
+  type: FileOpened
+  condition: (payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.filename STARTS_WITH "/etc/sudoers.d/" OR payload.filename STARTS_WITH "/etc/pam.d/") AND (payload.flags CONTAINS "O_RDONLY" OR payload.flags CONTAINS "O_RDWR")
+
+
+- name: Truncate log files
+  type: FileOpened
+  condition: (payload.filename STARTS_WITH "/var/log" OR payload.filename STARTS_WITH "/dev/log") AND payload.flags CONTAINS "O_TRUNC"
+
+
+# Add C2 IPs
+# https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt
+- name: Connection to C2 IPs
+  type: Connect
+  condition: payload.destination.ip IN ["1.234.21.73", "103.109.247.10", "103.124.107.109", "103.173.121.17", "103.224.241.74", "103.253.145.28"]
+
+
+- name: Create sensitive files symlink
+  type: FileLink
+  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
+
+- name: Create sensitive files hardlink
+  type: FileLink
+  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
+
+
+- name: Create files below /dev
+  type: FileCreated
+  condition: payload.filename STARTS_WITH "/dev"
+
+
+- name: Activities of management binaries
+  type: Exec
+  condition: payload.filename IN ["/usr/bin/su", "/usr/bin/sudo", "/usr/bin/lastlog", "/usr/bin/nologin", "/usr/bin/unix_chkpwd"]
+
+
+- name: Search for private keys or passwords
+  type: Exec
+  condition: (payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "id_rsa" OR  payload.argv CONTAINS "id_dsa")) # OR (payload.filename ENDS_WITH "grep" AND (payload.argv CONTAINS "BEGIN PRIVATE" OR payload.argv CONTAINS "BEGIN RSA PRIVATE" OR  payload.argv CONTAINS "BEGIN DSA PRIVATE" OR payload.argv CONTAINS "BEGIN EC PRIVATE"))
+
+
+# Add allowed files
+- name: Create files below /root
+  type: FileCreated
+  condition: payload.filename STARTS_WITH "/root" AND NOT payload.filename IN ["/root/.auth_tokens", "/root/.bash_history", "/root/.ash_history", "/root/.aws/credentials", "/root/.viminfo.tmp", "/root/.lesshst", "/root/.bzr.log", "/root/.gitconfig.lock", "/root/.babel.json", "/root/.localstack", "/root/.wget-hsts"]
+
+
+# Add allowed programs
+- name: Read SSH information
+  type: FileOpened
+  condition: payload.filename STARTS_WITH "/root/.ssh/" AND NOT header.image IN ["/usr/sbin/sshd", "/usr/bin/sftp-server", "/usr/bin/ssh-agent", "/usr/bin/ssh", "/usr/bin/scp", "/usr/bin/sftp", "/usr/bin/ssh-keygen", "/usr/bin/ssh-keysign", "/usr/bin/ssh-keyscan", "/usr/bin/ssh-add"]
+
+# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
+- name: Rename any file below binary directories
+  type: FileRename
+  condition: payload.source STARTS_WITH "/usr/bin" OR payload.source STARTS_WITH "/usr/sbin" OR payload.source STARTS_WITH "/bin" OR payload.source STARTS_WITH "/sbin"
+
+# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
+- name: Delete any file/directory below binary directories
+  type: FileDeleted
+  condition: payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin"
+
+- name: Create a directory below binary directories
+  type: DirCreated
+  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
+
+- name: Delete any directory below binary directories
+  type: DirDeleted
+  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
+
+# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
+- name: Write any file below binary directories
+  type: FileOpened
+  condition: (payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+
+
+- name: Schedule a Cron job
+  type: FileOpened
+  condition: (payload.filename STARTS_WITH "/etc/cron" OR header.image ENDS_WITH "crontab") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+
+
+- name: Shell history deletion
+  type: FileDeleted
+  condition: payload.filename ENDS_WITH "ash_history" OR payload.filename ENDS_WITH "zsh_history" OR payload.filename ENDS_WITH "fish_history" OR payload.filename ENDS_WITH "fish_read_history" OR  payload.filename ENDS_WITH "bash_history"
+
+
+- name: Shell history truncation
+  type: FileOpened
+  condition: (payload.filename ENDS_WITH "ash_history" OR payload.filename ENDS_WITH "zsh_history" OR payload.filename ENDS_WITH "fish_history" OR payload.filename ENDS_WITH "fish_read_history" OR  payload.filename ENDS_WITH "bash_history") AND  payload.flags CONTAINS "O_TRUNC"
+
+
+# Add white listed modules, e.g. rfkill, cryptd...
+- name: Linux Kernel Module Injection Detected
+  type: Exec
+  condition: payload.filename ENDS_WITH "/insmod" AND NOT ( payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
+
+- name: Linux Kernel Module Injection Detected
+  type: Exec
+  condition: payload.filename ENDS_WITH "/modprobe" AND NOT payload.argv CONTAINS "-r"
