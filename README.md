@@ -84,10 +84,10 @@ We do not recommend build Pulsar from source. Building from source is only neces
 ## Resources
 
 - [Read the docs](https://pulsar.sh/docs): understand how to install and set up Pulsar.
-- [Concepts](https://pulsar.sh/docs/concepts): dive deep into Pulsar architecture and main concepts.
-- [Tutorials](https://pulsar.sh/docs/tutorial): learn how to use Pulsar with practical examples.
-- [Develop new modules](https://github.com/Exein-io/pulsar/blob/main/bpf-common/ProbeTutorial.md): build new eBPF probes and integrate them into Pulsar through the modules system;
-- [Roadmap](https://github.com/Exein-io/projects/6): check out the plan for next Pulsar releases;
+- [Concepts](https://pulsar.sh/docs/category/concepts): dive deep into Pulsar architecture and main concepts.
+- [Tutorials](https://pulsar.sh/docs/category/tutorials): learn how to use Pulsar with practical examples.
+- [Develop new eBPF modules](https://pulsar.sh/docs/developers/tutorials/create-ebpf-probe-module): build new eBPF probes and integrate them into Pulsar through the modules system;
+- [Roadmap](https://github.com/orgs/Exein-io/projects/14): check out the plan for next Pulsar releases;
 - [Support](https://discord.gg/MQgaTPef7a): join the Discord server for community support.
 
 ## Contributing
