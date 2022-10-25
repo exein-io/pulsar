@@ -1,8 +1,8 @@
-# New eBPF probe tutorial
+# Create eBPF probe module
 
 This tutorial goes through the development of a simple Pulsar module
 that watches for new file creations. For a complete and working example,
-see the [file-system-monitor](../modules/file-system-monitor/) module.
+see the [file-system-monitor](https://github.com/Exein-io/pulsar/tree/main/modules/file-system-monitor) module.
 
 ## Locating the best hook point with bpftrace
 
@@ -12,14 +12,11 @@ various eBPF connection points. If you haven't yet, go check the
 
 When trying out new things, you start by looking for existing solutions. Key examples include the
 [bpftrace](https://github.com/iovisor/bpftrace#tools)
-and [bcc](https://github.com/iovisor/bcc/#tools) tool collections. You may then consider moving 
-to other tracing and security software using eBPF such as 
-[Tracee](https://github.com/aquasecurity/tracee/blob/main/pkg/ebpf/c/tracee.bpf.c),
-[lockc](https://github.com/lockc-project/lockc) or others.
+and [bcc](https://github.com/iovisor/bcc/#tools) tool collections.
 
 Going back to our example, it turns out we can intercept file creations using the `security_inode_create` function:
 
-```
+```sh
 sudo bpftrace -e 'kfunc:security_inode_create { printf("%s: %s\n", comm, str(args->dentry->d_name.name))}'
 ```
 
@@ -32,7 +29,7 @@ With all the necessary information gathered with the help of `bpftrace`, we can 
 
 We create a new Rust crate and we'll call it `file_created`.
 
-```
+```toml
 [package]
 name = "file_created"
 version = "0.1.0"
@@ -55,6 +52,7 @@ The most important dependency is `bpf-common`, which re-exports [aya](https://gi
 and contains some useful utilities for running, building and testing probes.
 
 Next we create write a simple eBPF program, we'll name it `probe.bpf.c`.
+
 ```c
 #include "common.bpf.h"
 
@@ -120,7 +118,7 @@ The central part of the module is the `program` function, which:
   Just pass it down to `bpf_common::ProgramBuilder::new`.
 - takes a `BpfSender`—the channel where we'll send the generated events. It's a trait so that
   you can use whatever data structure you want for your application: modules can be used inside Pulsar,
-  but can also be used by themself. The [probe](../pulsar/bin/probe.rs) binary shows how
+  but can also be used by themself. The [probe](https://github.com/Exein-io/pulsar/blob/main/pulsar/src/bin/probe.rs) binary shows how
   you can use our modules without running the full agent.
 - returns a `bpf_common::Program`. The application will keep sending `EventT` events over the `sender`
   channel until the program handle is dropped.
@@ -137,12 +135,11 @@ can be used to forward all generated events to the sender channel.
 In case it's needed, `Program` also has a `poll` method for consuming eBPF HashMaps.
 
 The application is almost ready to use and you should refer to the 
-[`probe` binary](https://github.com/Exein-io/pulsar-experiments/blob/cleanup/pulsar/bin/probe.rs) 
-for a simple way to link a and run it.
+[probe](https://github.com/Exein-io/pulsar/blob/main/pulsar/src/bin/probe.rs) binary for a simple way to link a and run it.
 
 We can now implement `probe.bpf.c` to get this example to work. 
 
-```C
+```c
 #include "common.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -240,7 +237,7 @@ pub mod test_suite {
 }
 ```
 
-Finally, since this is a new module, you have to add it to the [test-suite main file](./src/main.rs):
+Finally, since this is a new module, you have to add it to the [test-suite main file](https://github.com/Exein-io/pulsar/blob/main/test-suite/src/main.rs):
 ```rust
 // List of modules we want to test
 let modules = [
@@ -305,7 +302,7 @@ pub mod pulsar {
 `file_created_task` is the async function that runs our module until the Pulsar agent sends us
 the shutdown signal. By dropping `_program` we shut down the eBPF program and stop producing events.
 
-All modules communicate using the agent's message bus, where [events](../pulsar-core/src/event.rs)
+All modules communicate using the agent's message bus, where [events](https://github.com/Exein-io/pulsar/blob/main/pulsar-core/src/event.rs)
 are sent and received.
 Since we're writing a producer module, we'll get a sender with the `ModuleContext::get_sender()` method.
 We can use that channel as a `BpfSender` for `bpf_common::Program` because we've implemented a conversion
