@@ -100,12 +100,15 @@ main() {
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/scripts/pulsar" "${_dir}/pulsar"
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/scripts/pulsard" "${_dir}/pulsard"
 
+    # Download basic rules
+    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/basic-rules.yaml" "${_dir}/basic-rules.yaml"
+
     printf '%s\n' 'info: installing files' 1>&2
 
     local _bindir="/usr/bin"
 
     local _install="install"
-    if (( $EUID != 0 )); then
+    if [ "$(id -u)" -ne 0 ]; then
         need_cmd sudo
         _install="sudo ${_install}"
     fi
@@ -132,12 +135,10 @@ main() {
     ensure generate_basic_config "${_temp_config_file}"
     ensure $_install -m 644 ${_temp_config_file} "${_pulsar_config_dir}/pulsar.ini"
 
-    printf '%s\n' 'info: installing example rule' 1>&2
+    printf '%s\n' 'info: basic rules' 1>&2
 
-    # Install example rule
-    local _temp_rule_file="${_dir}/example_rule.yaml"
-    ensure generate_basic_rule "${_temp_rule_file}"
-    ensure $_install -m 644 ${_temp_rule_file} "${_pulsar_rules_dir}/example_rule.yaml"
+    # Install basic rules
+    ensure $_install -m 644 "${_dir}/basic-rules.yaml" ${_pulsar_rules_dir}
 
     printf '%s\n' 'info: cleaning' 1>&2
     ignore rm -rf "$_dir"
@@ -147,10 +148,6 @@ main() {
 }
 
 generate_basic_config() {
-    touch $1
-}
-
-generate_basic_rule() {
     touch $1
 }
 
