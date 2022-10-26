@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2022-10-26
+
+### Added
+- Basic rules
+- argv in events
+
+### Changed
+- Installed download basic rules
+
+### Fixed
+- Cross containers
+- FIleFlag checks and compare
+
 ## [0.3.0] - 2022-10-20
 
 ### Added

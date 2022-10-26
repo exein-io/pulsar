@@ -163,7 +163,7 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bpf-common"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "aya",
@@ -463,7 +463,7 @@ dependencies = [
 
 [[package]]
 name = "engine-api"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -502,7 +502,7 @@ dependencies = [
 
 [[package]]
 name = "file-system-monitor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bpf-common",
  "log",
@@ -916,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "logger"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "bpf-common",
  "bytes",
@@ -981,7 +981,7 @@ dependencies = [
 
 [[package]]
 name = "network-monitor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bpf-common",
  "dns-parser",
@@ -1202,7 +1202,7 @@ dependencies = [
 
 [[package]]
 name = "process-monitor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1231,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1257,7 +1257,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1388,7 +1388,7 @@ dependencies = [
 
 [[package]]
 name = "rules-engine"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "glob",
@@ -1634,7 +1634,7 @@ dependencies = [
 
 [[package]]
 name = "syscall-monitor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bpf-common",
  "log",
@@ -1678,7 +1678,7 @@ dependencies = [
 
 [[package]]
 name = "test-suite"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bpf-common",
  "file-system-monitor",
@@ -1891,7 +1891,7 @@ checksum = "957e51f3646910546462e67d5f7599b9e4fb8acdd304b087a6494730f9eebf04"
 
 [[package]]
 name = "validatron"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "lalrpop",
@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "validatron-derive"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2096,7 +2096,7 @@ checksum = "88301b56c26dd9bf5c43d858538f82d6f3f7764767defbc5d34e59459901c41a"
 
 [[package]]
 name = "xtask"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "xshell",
