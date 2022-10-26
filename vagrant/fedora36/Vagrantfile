@@ -1,0 +1,7 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+    config.vm.box = "bento/fedora-36"
+    config.vm.box_version = "202206.03.0"
+end
+  
