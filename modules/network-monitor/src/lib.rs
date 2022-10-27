@@ -202,7 +202,7 @@ pub mod pulsar {
     };
 
     pub fn module() -> PulsarModule {
-        PulsarModule::new(MODULE_NAME, Version::new(0, 0, 1), syscall_monitor_task)
+        PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), syscall_monitor_task)
     }
 
     async fn syscall_monitor_task(

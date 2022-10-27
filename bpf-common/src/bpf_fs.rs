@@ -52,7 +52,6 @@ fn mount_bpf_fs() -> Result<()> {
     }
 
     log::debug!("Mount BPF file system");
-    println!("TO MOUNT BPF {bpf_fs_path:?}");
 
     Mount::new(
         BPF,

@@ -352,3 +352,9 @@ impl ValidatronTypeProvider for Argv {
         })
     }
 }
+
+impl From<Argv> for Vec<String> {
+    fn from(argv: Argv) -> Self {
+        argv.0
+    }
+}

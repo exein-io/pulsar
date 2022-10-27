@@ -126,7 +126,7 @@ pub mod pulsar {
     use tokio::{fs::File, io::AsyncReadExt};
 
     pub fn module() -> PulsarModule {
-        PulsarModule::new(MODULE_NAME, Version::new(0, 0, 1), fs_monitor_task)
+        PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), fs_monitor_task)
     }
 
     async fn fs_monitor_task(
