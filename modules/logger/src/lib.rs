@@ -7,7 +7,7 @@ use tokio::sync::watch;
 const MODULE_NAME: &str = "logger";
 
 pub fn module() -> PulsarModule {
-    PulsarModule::new(MODULE_NAME, Version::new(0, 0, 1), logger_task)
+    PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), logger_task)
 }
 
 async fn logger_task(
