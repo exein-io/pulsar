@@ -36,36 +36,37 @@ To download and install Pulsar, run the following in your terminal:
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/Exein-io/pulsar/main/pulsar-install.sh | sh
 ```
 
-Crate an example rule file in `/var/lib/pulsar/rules/demo.yaml` with the following content:
-
-```yaml
-- name: Opened /etc/lsb-release
-  type: FileOpened
-  condition: payload.filename == "/etc/lsb-release"
-```
-
 Launch the pulsar daemon in a terminal **with administrator privileges**:
 
 ```sh
 pulsard
 ```
 
-Trigger the event, for example running the following command in another terminal:
+That's pretty much it. At this point Pulsar is actively monitoring the activity of all the target processes, and checking it against the set of security policies defined in the rules file. You can test this by triggering a threat event, for example running the following command in another terminal:
 
 ```sh
-cat /etc/lsb-release
+ln -s /etc/shadow /tmp/secret
 ```
 
 In the pulsar terminal you should see something similar to:
 
-```
-Event { header: Header { pid: 40774, is_threat: true, source: ModuleName("rules-engine"), timestamp: SystemTime { tv_sec: 1666016802, tv_nsec: 693847099 }, image: "/usr/bin/cat", parent: 38078, fork_time: SystemTime { tv_sec: 1666016802, tv_nsec: 691725689 } }, payload: RuleEngineDetection { rule_name: "Opened /etc/lsb-release", payload: FileOpened { filename: "/etc/lsb-release", flags: 32768: () } } }  
+```console
+Event { header: Header { pid: 498, is_threat: true, source: ModuleName("rules-engine"), timestamp: SystemTime { tv_sec: 1667920537, tv_nsec: 113401482 }, image: "/usr/bin/ln", parent: 487, fork_time: SystemTime { tv_sec: 1667920537, tv_nsec: 102790045 } }, payload: RuleEngineDetection { rule_name: "Create sensitive files symlink", payload: FileLink { source: "/tmp/secret", destination: "/etc/shadow", hard_link: false } } }
 ```
 
-Behind the scenes when you open the file, the kernel executes the the Pulsar BPF probe capturing the event
-and sending it to the userspace. There the rule engine processes the event and after a success match
-on the previously specified rule, it emits a new event, marked as a threat. Finally a logger module
-log prints threat events on the terminal.
+As you can see from the `is_threat` field set to `true`, Pulsar is correctly identifying the symbolic link creation as a threat event.
+
+### How does it work?
+
+Behind the scenes, when an application performs an operation, it gets intercepted at kernel level by the Pulsar BPF probes, turned into a unique event object and sent to the userspace. There, the Pulsar rule engine processes the event against the set of rules defined in the rules file and, if there is a match, it emits a new event, marked as a threat. Finally a logger module prints threat events to the terminal.
+
+In the example above, the event produced matched the following rule:
+
+```yaml
+- name: Read sensitive file
+  type: FileOpened
+  condition: (payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.filename STARTS_WITH "/etc/sudoers.d/" OR payload.filename STARTS_WITH "/etc/pam.d/") AND (payload.flags CONTAINS "O_RDONLY" OR payload.flags CONTAINS "O_RDWR")
+```
 
 ## Installation
 
