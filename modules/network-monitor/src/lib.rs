@@ -402,7 +402,7 @@ pub mod test_suite {
         let bind_addr: SocketAddr = bind_addr.parse().unwrap();
         TestRunner::with_ebpf(program)
             .run(|| {
-                let _listener = TcpListener::bind(&bind_addr).unwrap();
+                let _listener = TcpListener::bind(bind_addr).unwrap();
             })
             .await
             .expect_event(event_check!(
@@ -418,7 +418,7 @@ pub mod test_suite {
             let bind_addr: SocketAddr = "127.0.0.1:18001".parse().unwrap();
             TestRunner::with_ebpf(program)
                 .run(|| {
-                    let _listener = UdpSocket::bind(&bind_addr).unwrap();
+                    let _listener = UdpSocket::bind(bind_addr).unwrap();
                 })
                 .await
                 .expect_event(event_check!(
@@ -440,7 +440,7 @@ pub mod test_suite {
 
     async fn run_connect_test(dest: &str) -> TestReport {
         let dest: SocketAddr = dest.parse().unwrap();
-        let _listener = TcpListener::bind(&dest).unwrap();
+        let _listener = TcpListener::bind(dest).unwrap();
         TestRunner::with_ebpf(program)
             .run(|| {
                 TcpStream::connect(dest).unwrap();
@@ -458,7 +458,7 @@ pub mod test_suite {
         TestCase::new("connect_udp", async {
             let bind_addr1: SocketAddr = "127.0.0.1:18021".parse().unwrap();
             let bind_addr2: SocketAddr = "127.0.0.1:18022".parse().unwrap();
-            let _listener = UdpSocket::bind(&bind_addr1).unwrap();
+            let _listener = UdpSocket::bind(bind_addr1).unwrap();
             TestRunner::with_ebpf(program)
                 .run(|| {
                     UdpSocket::bind(bind_addr2)
@@ -489,7 +489,7 @@ pub mod test_suite {
         let bind_addr: SocketAddr = bind_addr.parse().unwrap();
         TestRunner::with_ebpf(program)
             .run(|| {
-                let _listener = TcpListener::bind(&bind_addr).unwrap();
+                let _listener = TcpListener::bind(bind_addr).unwrap();
             })
             .await
             .expect_event(event_check!(
@@ -512,7 +512,7 @@ pub mod test_suite {
         let mut source = dest;
         TestRunner::with_ebpf(program)
             .run(|| {
-                let listener = TcpListener::bind(&dest).unwrap();
+                let listener = TcpListener::bind(dest).unwrap();
                 let handle =
                     std::thread::spawn(move || TcpStream::connect(dest).unwrap().local_addr());
                 listener.accept().unwrap();
@@ -571,7 +571,7 @@ pub mod test_suite {
             .run(|| match proto {
                 Proto::UDP => {
                     source.set_port(dest.port() + 1);
-                    let receiver = UdpSocket::bind(&dest).unwrap();
+                    let receiver = UdpSocket::bind(dest).unwrap();
                     std::thread::spawn(move || {
                         let s = UdpSocket::bind(source).unwrap();
                         s.connect(dest).unwrap();
@@ -581,7 +581,7 @@ pub mod test_suite {
                     assert_eq!(receiver.recv_from(&mut buf).unwrap(), (msg.len(), source));
                 }
                 Proto::TCP => {
-                    let listener = TcpListener::bind(&dest).unwrap();
+                    let listener = TcpListener::bind(dest).unwrap();
                     let t = std::thread::spawn(move || {
                         let mut client = TcpStream::connect(dest).unwrap();
                         client.write_all(&msg).unwrap();
@@ -625,7 +625,7 @@ pub mod test_suite {
         let dest: SocketAddr = dest.parse().unwrap();
         let mut source = dest;
         let mut expected_pid = Pid::from_raw(0);
-        let listener = TcpListener::bind(&dest).unwrap();
+        let listener = TcpListener::bind(dest).unwrap();
         // The on_tcp_set_state hook may be called by a process different from
         // the original creator the connection. This happens for example if it
         // receives a SIGKILL. We test this to make sure we're still emitting

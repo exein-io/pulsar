@@ -109,7 +109,7 @@ struct RuleFile {
 impl RuleFile {
     pub fn from(path: &Path) -> Result<Self, PulsarEngineError> {
         log::debug!("loading rule {}", path.display());
-        let body = fs::read_to_string(&path).map_err(|error| PulsarEngineError::RuleLoading {
+        let body = fs::read_to_string(path).map_err(|error| PulsarEngineError::RuleLoading {
             name: path.display().to_string(),
             error,
         })?;

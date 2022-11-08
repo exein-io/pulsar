@@ -59,10 +59,10 @@ impl<T: ValidatronVariant> Engine<T> {
 
         log::debug!("Loaded {} rules", compiled_conditions.len());
 
-        let mut by_variant = HashMap::new();
+        let mut by_variant: HashMap<usize, Vec<CompiledRule<T>>> = HashMap::new();
 
         for (variant_num, c) in compiled_conditions {
-            by_variant.entry(variant_num).or_insert(Vec::new()).push(c);
+            by_variant.entry(variant_num).or_default().push(c);
         }
 
         Ok(Self(by_variant))
