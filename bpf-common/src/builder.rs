@@ -26,7 +26,7 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
         .arg(format!("-I{}", include_path.join(&arch).to_string_lossy()))
         .arg("-g")
         .arg("-O2")
-        .args(&["-target", "bpf"])
+        .args(["-target", "bpf"])
         .arg("-c")
         .arg(format!(
             "-D__TARGET_ARCH_{}",

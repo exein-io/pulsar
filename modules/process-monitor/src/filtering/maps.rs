@@ -92,7 +92,7 @@ impl RuleMap {
     /// Fill the map with a list of rules
     pub(crate) fn install(&mut self, rules: &Vec<Rule>) -> Result<()> {
         for rule in rules {
-            let value: u8 = if rule.with_children { 1 } else { 0 };
+            let value: u8 = u8::from(rule.with_children);
             self.map
                 .insert(rule.image, value, 0)
                 .with_context(|| format!("Error inserting rule in {}", self.name))?;
