@@ -1197,6 +1197,11 @@ version = "0.1.0"
 [[package]]
 name = "pulsar-module-as-library"
 version = "0.1.0"
+dependencies = [
+ "bpf-common",
+ "network-monitor",
+ "tokio",
+]
 
 [[package]]
 name = "quick-error"
