@@ -1193,6 +1193,11 @@ version = "0.1.0"
 [[package]]
 name = "pulsar-extension-module"
 version = "0.1.0"
+dependencies = [
+ "pulsar",
+ "pulsar-core",
+ "tokio",
+]
 
 [[package]]
 name = "pulsar-module-as-library"
