@@ -1189,6 +1189,13 @@ dependencies = [
 [[package]]
 name = "pulsar-embedded-agent"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "pulsar",
+ "pulsar-core",
+ "tokio",
+]
 
 [[package]]
 name = "pulsar-extension-module"
