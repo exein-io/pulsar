@@ -1,10 +1,6 @@
 # Extending Pulsar with custom modules
 
-The best way to extend Pulsar with custom behavior is to write a custom module.
-This is great for:
-- Extracting new events from the kernel
-- Inspecting existing events and identifying security threats
-- Sending these events to a remote server
+This example shows how to extend Pulsar with a custom module.
 
 ```
 $ cargo build && sudo ./target/debug/pulsar-extension-module pulsard
@@ -26,6 +22,9 @@ ection { score: 1.0 } }
 ```
 
 ## How to do it
+
+The trick here is that we're building a new binary which includes our module on
+top of Pulsar. By reusing crates, we can do just that with very few lines of code.
 
 We'll add a dependency on the main Pulsar binary and launch it with the custom
 module we wrote.
