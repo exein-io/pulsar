@@ -18,4 +18,8 @@ pub enum ValidatronError {
     FieldValueParseError(String),
     #[error("Operator {0} not allowed on type {1}")]
     OperatorNotAllowedOnType(Operator, String),
+    #[error("Type not primitive, can't parse {0}")]
+    TypeNotPrimitive(String),
+    #[error("Collection field {0} is not primitive")]
+    CollectionFieldNotPrimitive(String),
 }

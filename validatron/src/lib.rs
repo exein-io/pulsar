@@ -96,10 +96,10 @@ pub enum ValidatronType<T: 'static> {
     Collection(
         Box<
             dyn Fn(
-                &Field,
+                // &Field,
                 Operator,
                 &str,
-            ) -> Result<compiler::ValidatedCondition<T>, ValidatronError>,
+            ) -> Result<Box<dyn Fn(&T) -> bool + Send + Sync>, ValidatronError>,
         >,
     ),
 }
@@ -107,7 +107,6 @@ pub enum ValidatronType<T: 'static> {
 pub fn process_struct<F, T, S>(
     field_compare: &Field,
     field_access_fn: F,
-
     op: Operator,
     value: &str,
 ) -> Result<Box<dyn Fn(&S) -> bool + Send + Sync>, ValidatronError>
@@ -198,14 +197,31 @@ where
                 })))
             }
         },
-        crate::ValidatronType::Collection(..) => match field_compare {
-            Field::Simple(_) => {
-                // TODO:
-                todo!()
+        crate::ValidatronType::Collection(validate_fn) => match field_compare {
+            Field::Simple(field_compare_name) => {
+                if field_compare_name != field_name {
+                    return None;
+                }
+                let validated_field_fn = match validate_fn(op, value) {
+                    Ok(vcond) => vcond,
+                    Err(ValidatronError::TypeNotPrimitive(_)) => {
+                        return Some(Err(ValidatronError::CollectionFieldNotPrimitive(
+                            field_name.to_string(),
+                        )))
+                    }
+                    Err(err) => return Some(Err(err)),
+                };
+                Some(Ok(Box::new(move |s| {
+                    field_access_fn(s)
+                        .map(|f| validated_field_fn(f))
+                        .unwrap_or(false)
+                })))
             }
-            Field::Struct { .. } => {
-                // TODO:
-                todo!()
+            Field::Struct { name, .. } => {
+                if name != field_name {
+                    return None;
+                }
+                Some(Err(ValidatronError::FieldNotStruct(field_name.to_string())))
             }
         },
     }

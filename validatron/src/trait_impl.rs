@@ -113,11 +113,27 @@ impl ValidatronTypeProvider for bool {
     }
 }
 
-impl<T: ValidatronTypeProvider> ValidatronTypeProvider for Vec<T> {
+impl<T> ValidatronTypeProvider for Vec<T>
+where
+    T: ValidatronTypeProvider + PartialEq + Send + Sync,
+{
     fn field_type() -> ValidatronType<Self> {
-        ValidatronType::Collection(Box::new(move |_, _, _| {
-            // TODO:
-            todo!()
+        ValidatronType::Collection(Box::new(move |op, s| {
+            let ValidatronType::Primitive(p) = T::field_type() else {
+                    return Err(ValidatronError::TypeNotPrimitive(s.to_string()))
+                };
+
+            let parsed = (p.parse_fn)(s)?;
+
+            match op {
+                Operator::Multi(op) => match op {
+                    MultiOperator::Contains => Ok(Box::new(move |v| v.contains(&parsed))),
+                },
+                _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                    op,
+                    "vec".to_string(),
+                )),
+            }
         }))
     }
 }
