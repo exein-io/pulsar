@@ -371,7 +371,7 @@ impl fmt::Display for DnsAnswer {
 
 // High level abstraction for file flags bitmask
 #[repr(C)]
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FileFlags(i32);
 
 impl FileFlags {
@@ -469,7 +469,7 @@ impl From<FileFlags> for i32 {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Argv(Vec<String>);
 
 impl From<Vec<String>> for Argv {

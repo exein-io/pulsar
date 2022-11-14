@@ -154,7 +154,7 @@ pub fn process_field<F, T, S>(
 ) -> Option<Result<Box<dyn Fn(&S) -> bool + Send + Sync>, ValidatronError>>
 where
     F: Fn(&S) -> Option<&T> + 'static + Send + Sync,
-    T: ValidatronTypeProvider + PartialOrd + 'static + Send + Sync,
+    T: ValidatronTypeProvider + 'static + Send + Sync,
 {
     match <T as crate::ValidatronTypeProvider>::field_type() {
         crate::ValidatronType::Primitive(p) => match field_compare {
