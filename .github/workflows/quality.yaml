@@ -18,6 +18,7 @@ jobs:
           use-quiet-mode: 'no'
           use-verbose-mode: 'yes'
           check-modified-files-only: 'yes'
+          base-branch: ${{ github.head_ref }}
           # config-file: '.mlc_config.json'
 
   fmt:
