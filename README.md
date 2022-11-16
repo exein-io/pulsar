@@ -28,7 +28,7 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 ## Quickstart
 
 > **Warning**  
-> A kernel 5.5 or higher with BPF and BTF enabled is required. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/requirements) and [installation options](https://pulsar.sh/docs/installation) available.
+> A kernel 5.5 or higher with BPF and BTF enabled is required. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/faq/kernel-requirements/) and [installation options](https://pulsar.sh/docs/getting-started/installation) available.
 
 To download and install Pulsar, run the following in your terminal:
 
