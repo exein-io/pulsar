@@ -29,8 +29,6 @@ jobs:
     steps:
       - name: Code checkout
         uses: actions/checkout@v2
-        with:
-          submodules: recursive
 
       - name: Install musl-gcc
         run: sudo apt install -y musl-tools llvm
@@ -77,8 +75,6 @@ jobs:
     steps:
       - name: Code checkout
         uses: actions/checkout@v2
-        with:
-          submodules: recursive
 
       - name: Install musl-gcc
         run: sudo apt install -y musl-tools llvm

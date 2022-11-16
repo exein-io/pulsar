@@ -9,10 +9,9 @@ jobs:
     name: Broken markdown links
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+      - name: Code checkout
+        uses: actions/checkout@v2
+
       - name: Run link check
         uses: gaurav-nelson/github-action-markdown-link-check@v1
         with:
@@ -36,8 +35,7 @@ jobs:
     steps:
       - name: Code checkout
         uses: actions/checkout@v2
-        with:
-          submodules: recursive
+
       - name: Install Rust toolchain (${{ matrix.rust }})
         uses: actions-rs/toolchain@v1
         with:
@@ -73,8 +71,6 @@ jobs:
     steps:
       - name: Code checkout
         uses: actions/checkout@v2
-        with:
-          submodules: recursive
 
       - name: Install musl-gcc
         run: sudo apt install -y musl-tools llvm
