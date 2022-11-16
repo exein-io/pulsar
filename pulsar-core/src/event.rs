@@ -303,18 +303,7 @@ impl fmt::Display for Payload {
 }
 
 /// Encapsulates IP and port.
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    ValidatronStruct,
-    ValidatronTypeProvider,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, ValidatronStruct, ValidatronTypeProvider)]
 pub struct Host {
     pub ip: IpAddr,
     pub port: u16,
