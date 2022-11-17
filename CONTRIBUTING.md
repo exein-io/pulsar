@@ -16,7 +16,7 @@ For the time being to ask questions it is best to open an issue and assigning it
 
 ### Reporting a bug
 
-Before reporting a bug, please take the time to first review [existing bugs](../../issues?q=is%3Aissue+label%3Abug) to avoid creating duplicating issues, causing split discussions. Otherwise, you are free to open a bug report using the [issue template](.github/ISSUE_TEMPLATE/BUG-REPORT.yaml) provided.
+Before reporting a bug, please take the time to first review [existing bugs](https://github.com/Exein-io/pulsar/issues?q=is%3Aissue+label%3Abug) to avoid creating duplicating issues, causing split discussions. Otherwise, you are free to open a bug report using the [issue template](.github/ISSUE_TEMPLATE/BUG-REPORT.yaml) provided.
 
 Here are some guidelines for reporting a good bug:
 
@@ -30,7 +30,7 @@ Here are some guidelines for reporting a good bug:
 
 We want to keep improving the project's feature set alongside its existing features. If you have any feedback on how we may achieve that you are more than welcome to create a GitHub issue using the `feature` label! 
 
-> Similar to bug issues, please make sure that the feature or enhancement has not already been requested from the list of [features](../../issues?q=is%3Aissue+label%3Aenhancement).
+> Similar to bug issues, please make sure that the feature or enhancement has not already been requested from the list of [features](https://github.com/Exein-io/pulsar/issues?q=is%3Aissue+label%3Aenhancement).
 
 Here are some guidelines for submitting a feature request or enhancement:
 
