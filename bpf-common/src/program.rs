@@ -377,6 +377,7 @@ pub fn load_test_program(probe: &[u8]) -> Result<Bpf, ProgramError> {
     let _ = std::fs::create_dir(PINNED_MAPS_PATH);
     let bpf = BpfLoader::new()
         .map_pin_path(PINNED_MAPS_PATH)
+        .set_global("log_level", &(BpfLogLevel::Debug as i32))
         .load(probe)?;
     Ok(bpf)
 }
