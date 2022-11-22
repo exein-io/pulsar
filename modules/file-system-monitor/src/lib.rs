@@ -224,14 +224,14 @@ pub mod pulsar {
 
     /// Check if an opened file is an ELF
     async fn check_elf(sender: &ModuleSender, config: &Config, event: &Event) {
-        if let Payload::FileOpened { filename, flags } = &event.payload {
+        if let Payload::FileOpened { filename, flags } = event.payload() {
             let now = Instant::now();
             let should_check = !config
                 .elf_check_whitelist
                 .iter()
                 .any(|path| filename.starts_with(path));
             if should_check && is_elf(filename).await {
-                sender.send_derived_event(
+                sender.send_derived(
                     event,
                     Payload::ElfOpened {
                         filename: filename.to_string(),

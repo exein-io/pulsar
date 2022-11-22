@@ -27,7 +27,7 @@ async fn logger_task(
             }
             msg = receiver.recv() => {
                 let msg = msg?;
-                if msg.header.is_threat {
+                if msg.header().threat.is_some() {
                     logger.process(&msg)
                 }
             },
@@ -68,10 +68,11 @@ impl Logger {
 
     fn process(&self, event: &Event) {
         if self.console {
-            let time = DateTime::<Utc>::from(event.header.timestamp);
-            let image = &event.header.image;
-            let pid = &event.header.pid;
-            let payload = &event.payload;
+            let header = event.header();
+            let time = DateTime::<Utc>::from(header.timestamp);
+            let image = &header.image;
+            let pid = &header.pid;
+            let payload = &event.payload();
 
             println!("[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] {payload:?}")
         }

@@ -3,10 +3,11 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 
 use quote::quote;
 use syn::{
-    parse_quote, spanned::Spanned, Data, DataEnum, DeriveInput, Error, GenericParam, Generics,
+    parse_quote, spanned::Spanned, Data, DataEnum, DeriveInput, Error, FieldsNamed, GenericParam,
+    Generics,
 };
 
-use crate::utils::{ensure_named_fields, validate_fields_named};
+use crate::utils::validate_fields_named;
 
 pub fn impl_variant_validatron(input: DeriveInput) -> Result<TokenStream, Error> {
     let data_enum = ensure_enum(&input)?;
@@ -19,8 +20,6 @@ pub fn impl_variant_validatron(input: DeriveInput) -> Result<TokenStream, Error>
     let var_num_fn_body = var_num_fn_body(&input.ident, data_enum);
 
     let var_num_of_fn_body = var_num_of_fn_body(data_enum);
-
-    // println!("{validate_fn_body}");
 
     let generics = add_trait_bounds(input.generics);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -91,44 +90,23 @@ fn var_num_of_fn_body(data_enum: &DataEnum) -> TokenStream2 {
     }
 }
 
-// Generate an expression to sum up the heap size of each field.
 fn validate_fn_body(enum_ident: &Ident, data_enum: &DataEnum) -> Result<TokenStream2, Error> {
-    // let var_num_match_arms = data_enum.variants.iter().enumerate().map(|(pos, variant)| {
-    //     let variant_ident = &variant.ident.to_string();
-    //     quote! {
-    //         #variant_ident => #pos
-    //     }
-    // });
-
     let check_result_arms = data_enum
         .variants
         .iter()
         .map(|variant| {
             let variant_ident = &variant.ident;
-            let variant_ident_string = variant_ident.to_string();
 
-            let fields = ensure_named_fields(&variant.fields)?;
-
-            let extract_fn = |field_ident: &Ident| {
-                quote! {
-                    match s {
-                        #enum_ident::#variant_ident { #field_ident, .. } => Some(#field_ident),
-                        _ => None,
-                    }
+            match &variant.fields {
+                syn::Fields::Named(fields_named) => {
+                    handle_named_field_enum(enum_ident, variant_ident, fields_named)
                 }
-            };
-
-            let validate_fn_body = validate_fields_named(fields, Some(&extract_fn))?;
-
-            let token_stream = quote! {
-
-                #variant_ident_string => {
-                    #validate_fn_body
-                }
-
-            };
-
-            Ok(token_stream)
+                syn::Fields::Unit => Ok(handle_unit_enum(variant_ident)),
+                syn::Fields::Unnamed(_) => Err(Error::new(
+                    variant.fields.span(),
+                    "Unnamed fields not supported",
+                )),
+            }
         })
         .collect::<Result<Vec<TokenStream2>, Error>>()?;
 
@@ -145,6 +123,44 @@ fn validate_fn_body(enum_ident: &Ident, data_enum: &DataEnum) -> Result<TokenStr
     };
 
     Ok(token_stream)
+}
+
+fn handle_unit_enum(variant_ident: &Ident) -> TokenStream2 {
+    let variant_ident_string = variant_ident.to_string();
+    quote! {
+
+        #variant_ident_string => {
+            Err(validatron::ValidatronError::FieldNotFound(field_compare.to_string()))
+        }
+
+    }
+}
+
+fn handle_named_field_enum(
+    enum_ident: &Ident,
+    variant_ident: &Ident,
+    fields_named: &FieldsNamed,
+) -> Result<TokenStream2, Error> {
+    let variant_ident_string = variant_ident.to_string();
+
+    let extract_fn = |field_ident: &Ident| {
+        quote! {
+            match s {
+                #enum_ident::#variant_ident { #field_ident, .. } => Some(#field_ident),
+                _ => None,
+            }
+        }
+    };
+
+    let validate_fn_body = validate_fields_named(fields_named, Some(&extract_fn))?;
+
+    Ok(quote! {
+
+        #variant_ident_string => {
+            #validate_fn_body
+        }
+
+    })
 }
 
 fn var_num_fn_body(ident: &Ident, data_enum: &DataEnum) -> TokenStream2 {
