@@ -1,8 +1,10 @@
-use std::{borrow::Cow, fmt, future::Future, ops::Deref, sync::Arc, time::UNIX_EPOCH};
+use std::{
+    borrow::Cow, collections::HashMap, fmt, future::Future, ops::Deref, sync::Arc, time::UNIX_EPOCH,
+};
 
 use crate::{
     bus::{Bus, BusError},
-    event::{Event, Header, Payload},
+    event::{Event, Header, Payload, Threat},
 };
 use anyhow::Result;
 use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
@@ -161,23 +163,62 @@ pub type ModuleError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 impl ModuleSender {
     pub fn send(&self, process: Pid, timestamp: Timestamp, payload: Payload) {
-        self.send_internal(process, timestamp, payload, false)
+        self.send_internal(process, timestamp, payload, None)
     }
 
-    pub fn send_threat(&self, process: Pid, timestamp: Timestamp, payload: Payload) {
-        self.send_internal(process, timestamp, payload, true)
+    pub fn send_threat_simple(
+        &self,
+        process: Pid,
+        timestamp: Timestamp,
+        info: HashMap<String, String>,
+    ) {
+        self.send_internal(process, timestamp, Payload::Empty, Some(info))
+    }
+
+    /// Send an event which was caused by another one.
+    /// The new event shares the source headers, but has a new payload.
+    pub fn send_threat_derived(&self, source_event: &Event, info: HashMap<String, String>) {
+        let threat = Threat {
+            source: self.module_name.clone(),
+            info,
+        };
+
+        let _ = self.tx.send(Event {
+            header: Header {
+                threat: Some(threat),
+                ..source_event.header.clone()
+            },
+            payload: source_event.payload.clone(),
+        });
+    }
+
+    /// Send an event which was caused by another one.
+    /// The new event shares the source headers, but has a new payload.
+    pub fn send_derived(&self, source: &Event, payload: Payload) {
+        let header = source.header.clone();
+        let _ = self.tx.send(Event { header, payload });
     }
 
     /// Send a [`Payload`] to the [`Bus`].
-    fn send_internal(&self, process: Pid, timestamp: Timestamp, payload: Payload, is_threat: bool) {
+    fn send_internal(
+        &self,
+        process: Pid,
+        timestamp: Timestamp,
+        payload: Payload,
+        info: Option<HashMap<String, String>>,
+    ) {
         let tx = self.tx.clone();
-        let source = self.module_name.clone();
         let process_tracker = self.process_tracker.clone();
         let module_name = self.module_name.clone();
         tokio::spawn(async move {
+            let threat = info.map(|info| Threat {
+                source: module_name.clone(),
+                info,
+            });
+
             let mut header = Header {
-                source,
-                is_threat,
+                source: module_name.clone(),
+                threat,
                 pid: process.as_raw(),
                 timestamp: timestamp.into(),
                 image: String::new(),
@@ -207,13 +248,6 @@ impl ModuleSender {
             let event = Event { header, payload };
             tx.send(event)
         });
-    }
-
-    /// Send an event which was caused by another one.
-    /// The new event shares the source headers, but has a new payload.
-    pub fn send_derived_event(&self, source: &Event, payload: Payload) {
-        let header = source.header.clone();
-        let _ = self.tx.send(Event { header, payload });
     }
 
     pub fn raise_error(&self, err: ModuleError) {

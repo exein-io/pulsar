@@ -1,4 +1,4 @@
-use std::{fmt, net::IpAddr, time::SystemTime};
+use std::{collections::HashMap, fmt, net::IpAddr, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
 use validatron::{
@@ -14,8 +14,18 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 
 pub struct Event {
-    pub header: Header,
-    pub payload: Payload,
+    pub(crate) header: Header,
+    pub(crate) payload: Payload,
+}
+
+impl Event {
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
 }
 
 impl ValidatronVariant for Event {
@@ -68,7 +78,8 @@ pub struct Header {
     pub image: String,
     pub pid: i32,
     pub parent_pid: i32,
-    pub is_threat: bool,
+    #[validatron(skip)]
+    pub threat: Option<Threat>,
     pub source: ModuleName,
     #[validatron(skip)]
     pub timestamp: SystemTime,
@@ -164,23 +175,16 @@ pub enum Payload {
         len: usize,
         is_tcp: bool,
     },
-    MalwareDetection {
-        score: f32,
-        #[validatron(skip)]
-        tags: Vec<String>,
-    },
-    RuleEngineDetection {
-        #[validatron(skip)]
-        rule_name: String,
-        #[validatron(skip)]
-        payload: Box<Payload>,
-    },
-    AnomalyDetection {
-        score: f32,
-    },
+    Empty,
     // CustomJson { ty: i32, data: Vec<u8> },
     // CustomProto { ty: i32, data: Vec<u8> },
     // CustomRaw { ty: i32, data: Vec<u8> }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Threat {
+    pub source: ModuleName,
+    pub info: HashMap<String, String>,
 }
 
 /// Encapsulates IP and port.

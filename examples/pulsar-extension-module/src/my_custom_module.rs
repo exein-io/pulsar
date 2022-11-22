@@ -1,5 +1,5 @@
 //! A showcase of what a Pulsar modules can do
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use pulsar_core::pdk::{
     CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, PulsarModule,
@@ -44,13 +44,14 @@ async fn module_task(
                 }
                 // Identify events as threats:
                 if let Some(forbidden_dns) = &config.forbidden_dns {
-                    if let Payload::DnsQuery { questions } = &event.payload {
+                    if let Payload::DnsQuery { questions } = event.payload() {
                         if questions.iter().any(|question| &question.name == forbidden_dns) {
-                            let mut event = (*event).clone();
-                            event.header.is_threat = true;
-                            sender.send_derived_event(
+                            let mut info = HashMap::new();
+                            info.insert("anomaly_score".to_string(), "1.0".to_string());
+
+                            sender.send_threat_derived(
                                 &event,
-                                Payload::AnomalyDetection { score: 1.0 }
+                                info
                             );
                         }
                     }
