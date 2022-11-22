@@ -121,8 +121,6 @@ pub fn init_logger(override_log_level: log::Level) {
             default_level
         };
         env_logger::builder()
-            .format_timestamp(None)
-            .format_module_path(false)
             .filter_level(level.to_level_filter())
             .init();
     }

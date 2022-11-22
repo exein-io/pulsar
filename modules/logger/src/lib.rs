@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use pulsar_core::pdk::{
     CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
     ShutdownSignal, Version,
@@ -67,7 +68,12 @@ impl Logger {
 
     fn process(&self, event: &Event) {
         if self.console {
-            println!("{:?}", event);
+            let time = DateTime::<Utc>::from(event.header.timestamp);
+            let image = &event.header.image;
+            let pid = &event.header.pid;
+            let payload = &event.payload;
+
+            println!("[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] {payload:?}")
         }
     }
 }

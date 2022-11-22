@@ -65,13 +65,13 @@ impl ValidatronVariant for Event {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ValidatronStruct)]
 pub struct Header {
+    pub image: String,
     pub pid: i32,
+    pub parent_pid: i32,
     pub is_threat: bool,
     pub source: ModuleName,
     #[validatron(skip)]
     pub timestamp: SystemTime,
-    pub image: String,
-    pub parent: i32,
     #[validatron(skip)]
     pub fork_time: SystemTime,
 }
