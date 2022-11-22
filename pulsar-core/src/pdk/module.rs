@@ -181,7 +181,7 @@ impl ModuleSender {
                 pid: process.as_raw(),
                 timestamp: timestamp.into(),
                 image: String::new(),
-                parent: 0,
+                parent_pid: 0,
                 fork_time: UNIX_EPOCH,
             };
             match process_tracker.get(process, timestamp).await {
@@ -192,7 +192,7 @@ impl ModuleSender {
                     argv: _,
                 }) => {
                     header.image = image;
-                    header.parent = ppid.as_raw();
+                    header.parent_pid = ppid.as_raw();
                     header.fork_time = fork_time.into();
                 }
                 Err(e) => {
