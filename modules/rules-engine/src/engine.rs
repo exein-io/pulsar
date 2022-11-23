@@ -1,7 +1,11 @@
-use std::{collections::HashMap, fs, path::Path, sync::Arc};
+use std::{fs, path::Path, sync::Arc};
 
 use glob::glob;
-use pulsar_core::pdk::{Event, ModuleSender};
+use pulsar_core::{
+    event::Value,
+    pdk::{Event, ModuleSender},
+};
+use serde::Serialize;
 use thiserror::Error;
 use validatron::{Engine, UserRule, ValidatronError};
 
@@ -82,10 +86,18 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEn
 }
 
 fn emit_event(sender: &ModuleSender, old_event: &Event, rule_name: &str) {
-    let mut info = HashMap::new();
-    info.insert("rule_name".to_string(), rule_name.to_string());
+    #[derive(Debug, Serialize)]
+    struct RuleEngineData {
+        rule_name: String,
+    }
 
-    sender.send_threat_derived(old_event, info)
+    let data = RuleEngineData {
+        rule_name: rule_name.to_string(),
+    };
+
+    let data = Value::try_from(data).unwrap();
+
+    sender.send_threat_derived(old_event, data)
 }
 
 struct PulsarEngineInternal {
