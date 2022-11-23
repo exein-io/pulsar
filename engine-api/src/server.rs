@@ -40,9 +40,19 @@ pub struct EngineAPIContext {
     pub pulsar_daemon: PulsarDaemonHandle,
 }
 
+#[derive(serde::Deserialize)]
+pub struct ServerConfig {
+    #[serde(default = "default_socket_path")]
+    api_socket_path: String,
+}
+
+fn default_socket_path() -> String {
+    super::DEFAULT_UDS.to_string()
+}
+
 pub fn run_api_server(
     engine_api_ctx: EngineAPIContext,
-    custom_socket_path: Option<&str>,
+    config: ServerConfig,
 ) -> Result<ServerHandle> {
     let modules = Router::new()
         .route("/", get(modules))
@@ -57,11 +67,9 @@ pub fn run_api_server(
         .route("/configs", get(configs))
         .layer(Extension(Arc::new(engine_api_ctx)));
 
-    let socket_path = custom_socket_path.unwrap_or(super::DEFAULT_UDS).to_string();
-
-    let uds =
-        UnixListener::bind(&socket_path).map_err(|err| anyhow!("Cannot bind to socket: {err}"))?;
-    log::debug!("listening on {}", socket_path);
+    let uds = UnixListener::bind(&config.api_socket_path)
+        .map_err(|err| anyhow!("Cannot bind to socket: {err}"))?;
+    log::debug!("listening on {}", config.api_socket_path);
 
     let (tx_shutdown, rx_shutdown) = oneshot::channel();
 
@@ -75,7 +83,7 @@ pub fn run_api_server(
         if let Err(e) = server.await {
             log::error!("Engine Api server error: {}", e);
         }
-        if let Err(e) = tokio::fs::remove_file(socket_path).await {
+        if let Err(e) = tokio::fs::remove_file(config.api_socket_path).await {
             log::error!("Error removing unix socket: {}", e);
         };
     });

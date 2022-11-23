@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, ensure, Result};
 use bpf_common::bpf_fs;
-use engine_api::server::{self, EngineAPIContext};
+use engine_api::server::{self, EngineAPIContext, ServerConfig};
 use pulsar_core::pdk::TaskLauncher;
 use tokio::signal::unix::{signal, SignalKind};
 
@@ -19,6 +19,11 @@ pub use module_manager::{ModuleManager, ModuleManagerHandle};
 /// General configuration section for settings shared by all modules.
 const GENERAL_CONFIG: &str = "pulsar";
 
+#[derive(serde::Deserialize)]
+struct GeneralConfig {
+    //
+}
+
 pub async fn pulsar_daemon_run(
     options: &PulsarDaemonOpts,
     modules: Vec<Box<dyn TaskLauncher>>,
@@ -33,9 +38,9 @@ pub async fn pulsar_daemon_run(
     bump_memlock_rlimit()?;
 
     let config = if let Some(custom_file) = &options.config_file {
-        PulsarConfig::with_custom_file(custom_file)?
+        PulsarConfig::with_custom_file(custom_file).await?
     } else {
-        PulsarConfig::new()?
+        PulsarConfig::new().await?
     };
 
     let pulsar_daemon = start_daemon(modules, config.clone()).await?;
@@ -43,10 +48,9 @@ pub async fn pulsar_daemon_run(
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();
 
-        let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
-        let custom_socket_path = general_config.get_raw("api_socket_path");
+        let server_config: ServerConfig = config.get_module_config(GENERAL_CONFIG).try_into()?;
 
-        server::run_api_server(EngineAPIContext { pulsar_daemon }, custom_socket_path)?
+        server::run_api_server(EngineAPIContext { pulsar_daemon }, server_config)?
     };
 
     let mut sig_int = signal(SignalKind::interrupt())?;
