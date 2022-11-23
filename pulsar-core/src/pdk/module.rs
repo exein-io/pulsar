@@ -1,10 +1,8 @@
-use std::{
-    borrow::Cow, collections::HashMap, fmt, future::Future, ops::Deref, sync::Arc, time::UNIX_EPOCH,
-};
+use std::{borrow::Cow, fmt, future::Future, ops::Deref, sync::Arc, time::UNIX_EPOCH};
 
 use crate::{
     bus::{Bus, BusError},
-    event::{Event, Header, Payload, Threat},
+    event::{Event, Header, Payload, Threat, Value},
 };
 use anyhow::Result;
 use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
@@ -162,25 +160,29 @@ pub type ErrorSender = mpsc::Sender<ModuleError>;
 pub type ModuleError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 impl ModuleSender {
+    /// Send an event to the [`Bus`].
     pub fn send(&self, process: Pid, timestamp: Timestamp, payload: Payload) {
         self.send_internal(process, timestamp, payload, None)
     }
 
-    pub fn send_threat_simple(
-        &self,
-        process: Pid,
-        timestamp: Timestamp,
-        info: HashMap<String, String>,
-    ) {
-        self.send_internal(process, timestamp, Payload::Empty, Some(info))
+    /// Send a threat which was caused by another event to the [`Bus`].
+    /// The new event shares the source headers, but has a new payload.
+    pub fn send_derived(&self, source: &Event, payload: Payload) {
+        let header = source.header.clone();
+        let _ = self.tx.send(Event { header, payload });
     }
 
-    /// Send an event which was caused by another one.
+    /// Send a threat to the [`Bus`].
+    pub fn send_threat(&self, process: Pid, timestamp: Timestamp, info: impl Into<Value>) {
+        self.send_internal(process, timestamp, Payload::Empty, Some(info.into()))
+    }
+
+    /// Send an event which was caused by another one to the [`Bus`].
     /// The new event shares the source headers, but has a new payload.
-    pub fn send_threat_derived(&self, source_event: &Event, info: HashMap<String, String>) {
+    pub fn send_threat_derived(&self, source_event: &Event, info: impl Into<Value>) {
         let threat = Threat {
             source: self.module_name.clone(),
-            info,
+            info: info.into(),
         };
 
         let _ = self.tx.send(Event {
@@ -192,20 +194,14 @@ impl ModuleSender {
         });
     }
 
-    /// Send an event which was caused by another one.
-    /// The new event shares the source headers, but has a new payload.
-    pub fn send_derived(&self, source: &Event, payload: Payload) {
-        let header = source.header.clone();
-        let _ = self.tx.send(Event { header, payload });
-    }
-
-    /// Send a [`Payload`] to the [`Bus`].
+    /// Send a [`Payload`] to the [`Bus`] with optional [`Value`].
+    /// Adding a `Value` fills the [`Threat`] field in the header.
     fn send_internal(
         &self,
         process: Pid,
         timestamp: Timestamp,
         payload: Payload,
-        info: Option<HashMap<String, String>>,
+        info: Option<Value>,
     ) {
         let tx = self.tx.clone();
         let process_tracker = self.process_tracker.clone();

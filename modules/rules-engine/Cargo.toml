@@ -5,7 +5,7 @@ license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
-validatron = {path = "../../validatron"}
+validatron = { path = "../../validatron" }
 pulsar-core = { path = "../../pulsar-core" }
 
 log = "0.4"
@@ -14,3 +14,4 @@ tokio = "1.15.0"
 glob = "0.3.0"
 thiserror = "1"
 serde_yaml = "0.8"
+serde = { version = "1", features = ["derive"] }

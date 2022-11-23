@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fmt, net::IpAddr, time::SystemTime};
+use std::{fmt, net::IpAddr, time::SystemTime};
 
-use serde::{Deserialize, Serialize};
+use serde::{ser, Deserialize, Serialize};
 use validatron::{
     Operator, Primitive, ValidatronError, ValidatronStruct, ValidatronTypeProvider,
     ValidatronVariant,
@@ -12,7 +12,6 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-
 pub struct Event {
     pub(crate) header: Header,
     pub(crate) payload: Payload,
@@ -85,6 +84,37 @@ pub struct Header {
     pub timestamp: SystemTime,
     #[validatron(skip)]
     pub fork_time: SystemTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Threat {
+    pub source: ModuleName,
+    pub info: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Value(toml_edit::easy::Value);
+
+impl Value {
+    /// Convert a `T` into `Value` which is an enum that can represent
+    /// any valid TOML data.
+    ///
+    /// This conversion can fail if `T`'s implementation of `Serialize` decides to
+    /// fail, or if `T` contains a map with non-string keys.
+    pub fn try_from<T>(value: T) -> Result<Value, String>
+    where
+        T: ser::Serialize,
+    {
+        toml_edit::easy::Value::try_from(value)
+            .map(Self)
+            .map_err(|err| err.to_string())
+    }
+}
+
+impl<T: Into<toml_edit::easy::Value>> From<T> for Value {
+    fn from(t: T) -> Self {
+        Self(t.into())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ValidatronVariant)]
@@ -175,16 +205,11 @@ pub enum Payload {
         len: usize,
         is_tcp: bool,
     },
+    Custom {
+        #[validatron(skip)]
+        value: Value,
+    },
     Empty,
-    // CustomJson { ty: i32, data: Vec<u8> },
-    // CustomProto { ty: i32, data: Vec<u8> },
-    // CustomRaw { ty: i32, data: Vec<u8> }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Threat {
-    pub source: ModuleName,
-    pub info: HashMap<String, String>,
 }
 
 /// Encapsulates IP and port.
