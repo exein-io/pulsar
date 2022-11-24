@@ -1,6 +1,6 @@
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-    ShutdownSignal, Version,
+    CleanExit, ConfigError, Event, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
+    Version,
 };
 use tokio::sync::watch;
 

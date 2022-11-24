@@ -7,8 +7,10 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use pulsar_core::pdk::{ConfigPath, ConfigValue};
 use serde::Serialize;
 use tokio::sync::watch;
+use toml_edit::{de::from_item, Document, Item};
 
 const DEFAULT_CONFIG_FILE: &str = "/var/lib/pulsar/pulsar.toml";
 
@@ -16,22 +18,20 @@ const DEFAULT_CONFIG_FILE: &str = "/var/lib/pulsar/pulsar.toml";
 ///
 /// It is backed by an `INI` file from which parses the data on its creation.
 #[derive(Debug, Clone)]
-pub struct PulsarConfig {
+pub(crate) struct PulsarConfig {
     inner: Arc<Mutex<PulsarConfigInternal>>,
 }
-
-pub type ConfigValue = toml_edit::easy::Value;
 
 #[derive(Debug)]
 struct PulsarConfigInternal {
     config_file: PathBuf,
-    config: ConfigValue,
+    config: Document,
     watched_configs: HashMap<String, watch::Sender<ConfigValue>>,
 }
 
 impl PulsarConfig {
     /// Construct a new [`PulsarConfig`] using the default file.
-    pub async fn new() -> Result<Self> {
+    pub(crate) async fn new() -> Result<Self> {
         let config_file = PathBuf::from(DEFAULT_CONFIG_FILE);
         if !config_file.exists() {
             let prefix = config_file.parent().unwrap(); // Unwrap if / is passed
@@ -42,7 +42,7 @@ impl PulsarConfig {
     }
 
     /// Construct a new [`PulsarConfig`] using a custom file.
-    pub async fn with_custom_file(config_file: &str) -> Result<Self> {
+    pub(crate) async fn with_custom_file(config_file: &str) -> Result<Self> {
         let config_file = PathBuf::from(config_file);
         if !config_file.exists() {
             bail!("Configuration file {} not found", config_file.display());
@@ -67,7 +67,7 @@ impl PulsarConfig {
     }
 
     /// Get [`watch::Receiver`] of a module configuration. This is intended to be used in modules.
-    pub fn get_watched_module_config(&self, module: &str) -> watch::Receiver<ConfigValue> {
+    pub(crate) fn get_watched_module_config(&self, module: &str) -> watch::Receiver<ConfigValue> {
         let mut inner = self.inner.lock().unwrap();
         // get or create a watcher for the given module
         let rx = match inner.watched_configs.get(module) {
@@ -77,8 +77,13 @@ impl PulsarConfig {
                     .config
                     .get(module)
                     .map(Clone::clone)
-                    .unwrap_or_else(|| ConfigValue::Table(Default::default()));
-                let (tx, rx) = watch::channel(inner_config);
+                    .unwrap_or_else(|| Item::Table(Default::default()));
+                let (tx, rx) = watch::channel(ConfigValue {
+                    path: ConfigPath {
+                        items: vec![module.to_string()],
+                    },
+                    data: inner_config,
+                });
                 inner.watched_configs.insert(module.to_string(), tx);
                 rx
             }
@@ -89,7 +94,7 @@ impl PulsarConfig {
     }
 
     /// Get module configuration. This is intended to be used when a single access is enought.
-    pub fn get_module_config(&self, module: &str) -> ConfigValue {
+    pub(crate) fn get_module_config(&self, module: &str) -> ConfigValue {
         self.inner
             .lock()
             .unwrap()
@@ -99,34 +104,33 @@ impl PulsarConfig {
             .unwrap_or_else(|| ConfigValue::Table(Default::default()))
     }
 
-    pub fn get_config<T>(&self, path: &[&str]) -> Option<Result<T>>
+    /// Try to parse as T a subset of the configuration.
+    /// Returns None if nothing is found at the given path.
+    /// Returns Some(Ok(T)) on deserialization success
+    /// Returns Some(Err(_)) on deserialization failure
+    pub(crate) fn get_config<T>(&self, path: &[&str]) -> Option<Result<T>>
     where
         T: serde::de::DeserializeOwned,
     {
-        let mut ctx = self.inner.lock().unwrap();
-        let mut config = &mut ctx.config;
+        let ctx = self.inner.lock().unwrap();
+        let mut config = ctx.config.as_item();
         for item in path {
-            config = config.get_mut(item)?;
+            config = config.get(item)?;
         }
-        Some(
-            config
-                .clone()
-                .try_into()
-                .with_context(|| format!("Error parsing value {:?}", path)),
-        )
+        Some(from_item(config.clone()).with_context(|| format!("Error parsing value {:?}", path)))
     }
 
     /// Get all configurations. This is intended to be used when a single access is enought.
-    pub fn get_configs(&self) -> ConfigValue {
+    pub(crate) fn get_configs(&self) -> ConfigValue {
         self.inner.lock().unwrap().config.clone()
     }
 
     /// Update module configuration. It takes a key and value.
-    pub async fn update_config<T>(&self, path: &[&str], value: T) -> Result<()>
+    pub(crate) async fn update_config<T>(&self, path: &[&str], value: T) -> Result<()>
     where
         T: Serialize,
     {
-        let mut update_ctx = self.inner.lock().unwrap();
+        // let inner = self.inner.lock().unwrap();
 
         // parse again the toml file, this time preserving whitespace and comments
         //let mut document: Document = parse_config(&update_ctx.config_file).await?;

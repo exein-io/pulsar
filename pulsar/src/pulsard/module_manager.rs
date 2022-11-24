@@ -5,7 +5,7 @@ use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
-    ModuleConfig, ModuleContext, ModuleError, ModuleStatus, PulsarDaemonHandle, PulsarModuleTask,
+    ConfigValue, ModuleContext, ModuleError, ModuleStatus, PulsarDaemonHandle, PulsarModuleTask,
     ShutdownSender, ShutdownSignal, TaskLauncher,
 };
 use tokio::sync::{mpsc, oneshot, watch};
@@ -37,7 +37,7 @@ pub struct ModuleManager {
     process_tracker: ProcessTrackerHandle,
     bus: Bus,
     task_launcher: Box<dyn TaskLauncher>,
-    config: watch::Receiver<ModuleConfig>,
+    config: watch::Receiver<ConfigValue>,
     status: ModuleStatus,
     running_task: Option<(ShutdownSender, JoinHandle<()>)>,
     bpf_context: BpfContext,
@@ -49,7 +49,7 @@ impl ModuleManager {
         rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
         task_launcher: Box<dyn TaskLauncher>,
         bus: Bus,
-        config: watch::Receiver<ModuleConfig>,
+        config: watch::Receiver<ConfigValue>,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
@@ -226,7 +226,7 @@ pub fn create_module_manager(
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     task_launcher: Box<dyn TaskLauncher>,
-    config: watch::Receiver<ModuleConfig>,
+    config: watch::Receiver<ConfigValue>,
     bpf_context: BpfContext,
 ) -> ModuleManagerHandle {
     // Create command channel used in the ModuleManagerHandle to send commands to the running ModuleManager actor

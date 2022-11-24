@@ -6,7 +6,7 @@ use bpf_common::program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT};
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        process_tracker::start_process_tracker, ModuleConfig, ModuleDetails, ModuleOverview,
+        process_tracker::start_process_tracker, ConfigValue, ModuleDetails, ModuleOverview,
         ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
     },
 };
@@ -15,10 +15,7 @@ use tokio::sync::mpsc;
 
 use crate::pulsard::{config::PulsarConfig, GENERAL_CONFIG};
 
-use super::{
-    config::ConfigValue,
-    module_manager::{create_module_manager, ModuleManagerHandle},
-};
+use super::module_manager::{create_module_manager, ModuleManagerHandle};
 
 /// Main component of Pulsar framework. It's implemented with the actor pattern and its entrypoint is its [`PulsarDaemonHandle`]
 ///
@@ -37,12 +34,6 @@ pub struct PulsarDaemon {
     #[allow(unused)]
     trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
 }
-
-// #[derive(Deserialize)]
-// struct GenericModuleConfig {
-//     #[serde(default = "true")]
-//     enabled: bool,
-// }
 
 impl PulsarDaemon {
     /// Construct a new [`PulsarDaemon`]
@@ -64,37 +55,6 @@ impl PulsarDaemon {
         let mut m = HashMap::new();
         let process_tracker = start_process_tracker();
 
-        // Option 1: we always deserialize to object.
-        // - CON: super verbose
-        #[derive(Deserialize)]
-        struct BpfContextConfig {
-            #[serde(default = "perf_pages_default")]
-            perf_pages: usize,
-        }
-        fn perf_pages_default() -> usize {
-            PERF_PAGES_DEFAULT
-        }
-        let bpf_context_config: BpfContextConfig =
-            config.get_module_config(GENERAL_CONFIG).try_into()?;
-        let perf_pages = bpf_context_config.perf_pages;
-
-        // Option 2: we get items manually
-        // - CON: super verbose (less than option 1 for one-off values)
-        // - CON: easy to make or ignore errors
-        let perf_pages = config
-            .get_module_config(GENERAL_CONFIG)
-            .get("perf_pages")
-            .map(|x| {
-                x.as_integer()
-                    .map(usize::try_from)
-                    .map(Result::ok)
-                    .flatten()
-            })
-            .flatten()
-            .unwrap_or(PERF_PAGES_DEFAULT);
-
-        // Option 3: generic getter
-        // - Don't know if we can reuse this inside modules
         let perf_pages: usize = config
             .get_config(&[GENERAL_CONFIG, "perf_pages"])
             .unwrap_or(Ok(PERF_PAGES_DEFAULT))?;
@@ -120,20 +80,17 @@ impl PulsarDaemon {
             let module_details = task_launcher.details().to_owned();
 
             log::info!("Starting module {module_name}");
-            let config = config.get_watched_module_config(&module_name);
-            // Kind of lame casting we have to do this ourself:
             let is_enabled = config
-                .borrow()
-                .get("enabled")
-                .map(|x| x.as_bool())
-                .flatten()
+                .get_config(&[&module_name, "enabled"])
+                .unwrap_or(Ok(false))
                 .unwrap_or(false);
+            let module_config = config.get_watched_module_config(&module_name);
             let module_handle = create_module_manager(
                 bus.clone(),
                 daemon_handle.clone(),
                 process_tracker.clone(),
                 task_launcher,
-                todo!(),
+                module_config,
                 bpf_context.clone(),
             );
             if is_enabled {
@@ -212,8 +169,7 @@ impl PulsarDaemon {
                 let _ = tx_reply.send(self.update_config(&module_name, &key, &value).await);
             }
             PulsarDaemonCommand::Configs { tx_reply } => {
-                todo!();
-                // let _ = tx_reply.send(self.get_configs());
+                let _ = tx_reply.send(self.get_configs());
             }
         }
     }
@@ -285,26 +241,17 @@ impl PulsarDaemon {
     }
 
     /// Get module configuration.
-    fn get_module_config(&self, module_name: &str) -> Result<ModuleConfig, PulsarDaemonError> {
+    fn get_module_config(&self, module_name: &str) -> Result<ConfigValue, PulsarDaemonError> {
         if !self.contains_module(module_name) {
             return Err(PulsarDaemonError::ModuleNotFound(module_name.to_string()));
         }
 
-        // TODO: Why is it needed to return log an error if a module is at its default config?
-        // ..maybe I'm missing something
-        // self.config.get_module_config(module_name).ok_or_else(|| {
-        //     log::error!("Module found in task manager but configuration not found");
-
-        //     PulsarDaemonError::ModuleNotFound(module_name.to_string())
-        // })
-        todo!()
-        // Ok(self.config.get_module_config(module_name))
+        Ok(self.config.get_module_config(module_name))
     }
 
     /// Get all configurations.
-    fn get_configs(&self) -> Vec<(String, ModuleConfig)> {
-        todo!()
-        // self.config.get_configs()
+    fn get_configs(&self) -> ConfigValue {
+        self.config.get_configs()
     }
 
     /// Update module configuration. It takes a key and value.

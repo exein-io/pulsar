@@ -102,7 +102,7 @@ pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
         rules_engine::module(),
     ]
     .into_iter()
-    .map(|x| Box::new(x) as Box<dyn TaskLauncher>)
+    .map(|x: PulsarModule| Box::new(x) as Box<dyn TaskLauncher>)
     .collect()
 }
 

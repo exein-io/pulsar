@@ -16,3 +16,4 @@ anyhow = "1.0.53"
 log = "0.4"
 thiserror = "1.0.30"
 nix = "0.24.0"
+toml_edit = { version = "0.15.0", features = ["serde"] }

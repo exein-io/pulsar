@@ -12,7 +12,7 @@ use axum::{
 };
 use futures::ready;
 use hyper::server::accept::Accept;
-use pulsar_core::pdk::{ModuleOverview, PulsarDaemonHandle};
+use pulsar_core::pdk::{ConfigValue, ModuleOverview, PulsarDaemonHandle};
 use tokio::{
     net::{UnixListener, UnixStream},
     sync::oneshot,
@@ -40,19 +40,9 @@ pub struct EngineAPIContext {
     pub pulsar_daemon: PulsarDaemonHandle,
 }
 
-#[derive(serde::Deserialize)]
-pub struct ServerConfig {
-    #[serde(default = "default_socket_path")]
-    api_socket_path: String,
-}
-
-fn default_socket_path() -> String {
-    super::DEFAULT_UDS.to_string()
-}
-
 pub fn run_api_server(
     engine_api_ctx: EngineAPIContext,
-    config: ServerConfig,
+    custom_socket_path: Option<String>,
 ) -> Result<ServerHandle> {
     let modules = Router::new()
         .route("/", get(modules))
@@ -67,9 +57,11 @@ pub fn run_api_server(
         .route("/configs", get(configs))
         .layer(Extension(Arc::new(engine_api_ctx)));
 
-    let uds = UnixListener::bind(&config.api_socket_path)
-        .map_err(|err| anyhow!("Cannot bind to socket: {err}"))?;
-    log::debug!("listening on {}", config.api_socket_path);
+    let socket_path = custom_socket_path.unwrap_or(super::DEFAULT_UDS.to_string());
+
+    let uds =
+        UnixListener::bind(&socket_path).map_err(|err| anyhow!("Cannot bind to socket: {err}"))?;
+    log::debug!("listening on {}", socket_path);
 
     let (tx_shutdown, rx_shutdown) = oneshot::channel();
 
@@ -83,7 +75,7 @@ pub fn run_api_server(
         if let Err(e) = server.await {
             log::error!("Engine Api server error: {}", e);
         }
-        if let Err(e) = tokio::fs::remove_file(config.api_socket_path).await {
+        if let Err(e) = tokio::fs::remove_file(socket_path).await {
             log::error!("Error removing unix socket: {}", e);
         };
     });
@@ -129,13 +121,9 @@ async fn configs(Extension(ctx): Extension<Arc<EngineAPIContext>>) -> Json<Vec<M
 
     let cfgs_key_value: Vec<_> = cfgs
         .into_iter()
-        .map(|(module, cfg)| {
-            let config: Vec<_> = cfg
-                .into_iter()
-                .map(|(key, value)| ConfigKV { key, value })
-                .collect();
-
-            ModuleConfigKVs { module, config }
+        .map(|(module, config)| ModuleConfigKVs {
+            module,
+            config: config_as_list(config),
         })
         .collect();
 
@@ -146,14 +134,19 @@ async fn get_module_cfg(
     Extension(ctx): Extension<Arc<EngineAPIContext>>,
     Path(module_name): Path<String>,
 ) -> Result<Json<Vec<ConfigKV>>, EngineApiError> {
-    let cfg = ctx.pulsar_daemon.get_configuration(module_name).await?;
+    let config = ctx.pulsar_daemon.get_configuration(module_name).await?;
+    Ok(Json(config_as_list(config)))
+}
 
-    let cfg_key_value: Vec<_> = cfg
+fn config_as_list(config: ConfigValue) -> Vec<ConfigKV> {
+    config
+        .as_table_pairs()
         .into_iter()
-        .map(|(key, value)| ConfigKV { key, value })
-        .collect();
-
-    Ok(Json(cfg_key_value))
+        .map(|(key, value)| ConfigKV {
+            key: key.to_string(),
+            value,
+        })
+        .collect()
 }
 
 async fn update_module_cfg(

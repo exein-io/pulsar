@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
-use super::ModuleConfig;
+use super::ConfigValue;
 
 /// Error happening during daemon administration.
 #[derive(Error, Debug)]
@@ -99,7 +99,7 @@ impl PulsarDaemonHandle {
     pub async fn get_configuration(
         &self,
         module_name: String,
-    ) -> Result<ModuleConfig, PulsarDaemonError> {
+    ) -> Result<ConfigValue, PulsarDaemonError> {
         let (send, recv) = oneshot::channel();
         let msg = PulsarDaemonCommand::GetConfiguration {
             tx_reply: send,
@@ -134,7 +134,7 @@ impl PulsarDaemonHandle {
         recv.await.expect("Actor task has been killed")
     }
 
-    pub async fn get_configurations(&self) -> Vec<(String, ModuleConfig)> {
+    pub async fn get_configurations(&self) -> Vec<(String, ConfigValue)> {
         let (send, recv) = oneshot::channel();
         let msg = PulsarDaemonCommand::Configs { tx_reply: send };
 
@@ -177,7 +177,7 @@ pub enum PulsarDaemonCommand {
         module_name: String,
     },
     GetConfiguration {
-        tx_reply: oneshot::Sender<Result<ModuleConfig, PulsarDaemonError>>,
+        tx_reply: oneshot::Sender<Result<ConfigValue, PulsarDaemonError>>,
         module_name: String,
     },
     SetConfiguration {
@@ -187,7 +187,7 @@ pub enum PulsarDaemonCommand {
         value: String,
     },
     Configs {
-        tx_reply: oneshot::Sender<Vec<(String, ModuleConfig)>>,
+        tx_reply: oneshot::Sender<Vec<(String, ConfigValue)>>,
     },
 }
 

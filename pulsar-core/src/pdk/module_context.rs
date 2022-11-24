@@ -4,7 +4,7 @@ use tokio::sync::{broadcast, watch};
 
 use crate::{
     bus::Bus,
-    pdk::{ErrorSender, ModuleConfig, ModuleReceiver, ModuleSender, PulsarDaemonHandle},
+    pdk::{ConfigValue, ErrorSender, ModuleReceiver, ModuleSender, PulsarDaemonHandle},
 };
 
 use super::{process_tracker::ProcessTrackerHandle, ConfigError, ModuleError, ModuleName};
@@ -13,7 +13,7 @@ use super::{process_tracker::ProcessTrackerHandle, ConfigError, ModuleError, Mod
 #[derive(Clone)]
 pub struct ModuleContext {
     module_name: ModuleName,
-    cfg: watch::Receiver<ModuleConfig>,
+    cfg: watch::Receiver<ConfigValue>,
     bus: Bus,
     error_sender: ErrorSender,
     daemon_handle: PulsarDaemonHandle,
@@ -24,7 +24,7 @@ pub struct ModuleContext {
 impl ModuleContext {
     /// Constructs a new `ModuleContext< B: Bus>`
     pub fn new(
-        cfg: watch::Receiver<ModuleConfig>,
+        cfg: watch::Receiver<ConfigValue>,
         bus: Bus,
         module_name: ModuleName,
         error_sender: ErrorSender,
@@ -117,7 +117,7 @@ impl ModuleContext {
     pub fn get_cfg<T>(&self) -> watch::Receiver<Result<T, ConfigError>>
     where
         T: Send + Sync + 'static,
-        for<'foo> T: TryFrom<&'foo ModuleConfig, Error = ConfigError>,
+        for<'foo> T: TryFrom<&'foo ConfigValue, Error = ConfigError>,
     {
         let mut rx_raw = self.cfg.clone();
         let initial_value = T::try_from(&rx_raw.borrow());

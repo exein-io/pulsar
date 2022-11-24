@@ -1,121 +1,60 @@
-use std::{
-    collections::{
-        hash_map::{IntoIter, Iter},
-        HashMap,
-    },
-    fmt::{Debug, Display},
-    str::FromStr,
-};
+use std::fmt;
 
+use serde::de::DeserializeOwned;
 use thiserror::Error;
+use toml_edit::{de::from_item, Item};
 
-/// Per module configuration
-#[derive(Debug, Clone, Default)]
-pub struct ModuleConfig {
-    inner: HashMap<String, String>,
+#[derive(Clone, Debug)]
+pub struct ConfigPath {
+    items: Vec<String>,
+}
+
+impl fmt::Display for ConfigPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.items)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ConfigValue {
+    pub path: ConfigPath,
+    pub data: Item,
+}
+
+impl ConfigValue {
+    /// Consume self and try to parse as the given type
+    pub fn parse<T>(self) -> Result<T, ConfigError>
+    where
+        T: DeserializeOwned,
+    {
+        from_item(self.data).map_err(|src| ConfigError::ParsingFailure {
+            src,
+            type_name: std::any::type_name::<T>(),
+            path: self.path.clone(),
+        })
+    }
+
+    /// Traverse the configuration and produce a list of generic key-values.
+    /// This works only for tables and returns None for other types.
+    pub fn as_table_pairs(&self) -> Vec<(&str, String)> {
+        let Some(table) = self.data.as_table() else {
+            log::warn!("Config at {} is not a table", self.path);
+            return Vec::new();
+        };
+        table
+            .into_iter()
+            .map(|(key, value)| (key, value.to_string()))
+            .collect()
+    }
 }
 
 #[derive(Error, Debug, Clone)]
 pub enum ConfigError {
-    #[error("field {field} is required")]
-    RequiredValue { field: String },
-    #[error("{value} is not a valid value for field {field}: {err}")]
-    InvalidValue {
-        field: String,
-        value: String,
-        err: String,
+    #[error("parsing {path} as {type_name} failed")]
+    ParsingFailure {
+        path: ConfigPath,
+        type_name: &'static str,
+        #[source]
+        src: toml_edit::de::Error,
     },
-}
-
-impl ModuleConfig {
-    /// Inserts a new configuration value.
-    pub fn insert(&mut self, key: String, value: String) -> Option<String> {
-        self.inner.insert(key, value)
-    }
-
-    /// Returns an option of raw configuration value.
-    pub fn get_raw(&self, config_name: &str) -> Option<&str> {
-        self.inner.get(config_name).map(String::as_str)
-    }
-
-    /// Returns a typed configuration value. This method uses anyhow
-    pub fn with_default<T>(&self, config_name: &str, default: T) -> Result<T, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        match self.inner.get(config_name) {
-            None => Ok(default),
-            Some(value) => parse(value, config_name),
-        }
-    }
-
-    /// Returns a typed configuration value. This method uses anyhow
-    pub fn required<T>(&self, config_name: &str) -> Result<T, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        match self.inner.get(config_name) {
-            None => Err(ConfigError::RequiredValue {
-                field: config_name.to_string(),
-            }),
-            Some(value) => parse(value, config_name),
-        }
-    }
-
-    /// Return a comma separed list of values. Return empty vector if field is missing.
-    pub fn get_list<T>(&self, config_name: &str) -> Result<Vec<T>, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: Display,
-    {
-        self.inner
-            .get(config_name)
-            .iter()
-            .flat_map(|config| config.split(','))
-            .filter(|item| !item.is_empty())
-            .map(|item| parse(item.trim(), config_name))
-            .collect()
-    }
-
-    /// Return a comma separed list of values. Return default vector if field is missing.
-    pub fn get_list_with_default<T>(
-        &self,
-        config_name: &str,
-        default: Vec<T>,
-    ) -> Result<Vec<T>, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        if self.inner.contains_key(config_name) {
-            self.get_list(config_name)
-        } else {
-            Ok(default)
-        }
-    }
-
-    /// Return an Iter to the underlying HashMap
-    pub fn iter(&self) -> Iter<'_, String, String> {
-        self.inner.iter()
-    }
-
-    /// Return an IntoIter to the underlying HashMap
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> IntoIter<String, String> {
-        self.inner.into_iter()
-    }
-}
-
-fn parse<T>(value: &str, config_name: &str) -> Result<T, ConfigError>
-where
-    T: FromStr,
-    <T as FromStr>::Err: Display,
-{
-    T::from_str(value).map_err(|err| ConfigError::InvalidValue {
-        field: config_name.to_string(),
-        value: value.to_string(),
-        err: err.to_string(),
-    })
 }

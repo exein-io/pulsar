@@ -1,0 +1,11 @@
+API issues:
+- Many things assume first two levels must be a table
+- Do we keep module-bases items or go generic
+
+- Should we expose toml_edit?
+  - Should we re-export it?
+  - Should we hide it?
+
+- Should we use part of the same API for event data?
+
+- API-wise (eg. CLI) we're working 
