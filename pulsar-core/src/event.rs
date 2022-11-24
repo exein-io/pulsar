@@ -1,4 +1,8 @@
-use std::{fmt, net::IpAddr, time::SystemTime};
+use std::{
+    fmt::{self, Display},
+    net::IpAddr,
+    time::SystemTime,
+};
 
 use serde::{ser, Deserialize, Serialize};
 use validatron::{
@@ -92,6 +96,12 @@ pub struct Threat {
     pub info: Value,
 }
 
+impl Display for Threat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write! {f, "source: {}, info: {}", self.source, self.info}
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value(toml_edit::easy::Value);
 
@@ -108,6 +118,18 @@ impl Value {
         toml_edit::easy::Value::try_from(value)
             .map(Self)
             .map_err(|err| err.to_string())
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let multi_lines = self.0.to_string();
+        let one_line = multi_lines
+            .split('\n')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        write!(f, "{{ {one_line} }}")
     }
 }
 
@@ -212,6 +234,46 @@ pub enum Payload {
     Empty,
 }
 
+impl fmt::Display for Payload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Payload::FileCreated { filename } => write!(f,"File Created {{ filename: {filename} }}"),
+            Payload::FileDeleted { filename } => write!(f,"File Deleted {{ filename: {filename} }}"),
+            Payload::DirCreated { dirname } => write!(f,"Dir Created {{ dirname: {dirname} }}"),
+            Payload::DirDeleted { dirname } => write!(f,"Dir Deleted {{ dirname: {dirname} }}"),
+            Payload::FileOpened { filename, flags } => write!(f,"File Opened {{ filename: {filename}, flags:{flags} }}"),
+            Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination {destination}, hard_link: {hard_link} }}"),
+            Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
+            Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
+            Payload::Fork { ppid } => write!(f,"Fork {{ ppid: {ppid} }}"),
+            Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
+            Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
+            Payload::SyscallActivity { .. } => write!(f,"Syscall Activity"),
+            Payload::Bind { address, is_tcp } => write!(f,"Bind {{ address: {address}, is_tcp: {is_tcp} }}"),
+            Payload::Listen { address } => write!(f,"Listen {{ address: {address} }}"),  
+            Payload::Connect { destination, is_tcp } => write!(f,"Connect {{ destination: {destination}, is_tcp: {is_tcp} }}"),
+            Payload::Accept { source, destination } => write!(f,"Accept {{ source: {source}, destination {destination} }}"),
+            Payload::Close { source, destination } => write!(f,"Close {{ source: {source}, destination {destination} }}"),
+            Payload::Receive { source, destination, len, is_tcp } => write!(f,"Receive {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"),
+            Payload::DnsQuery { questions } => {
+                write!(f,"Dns Query {{ questions: ")?;
+                print_vec(f, questions)?;
+                write!(f," }}")
+            },
+            Payload::DnsResponse { questions, answers } => {
+                write!(f,"Dns Response {{ questions: ")?;
+                print_vec(f, questions)?;
+                write!(f,", answers: ")?;
+                print_vec(f, answers)?;
+                write!(f," }}")
+            },
+            Payload::Send { source, destination, len, is_tcp } => write!(f,"Send {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"),
+            Payload::Custom { value } => write!(f,"Custom {{ value: {value} }}"),
+            Payload::Empty => write!(f,"Empty"),
+        }
+    }
+}
+
 /// Encapsulates IP and port.
 #[derive(
     Debug,
@@ -230,6 +292,15 @@ pub struct Host {
     pub port: u16,
 }
 
+impl fmt::Display for Host {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.ip {
+            IpAddr::V4(v4) => write!(f, "{v4}:{}", self.port),
+            IpAddr::V6(v6) => write!(f, "[{v6}]:{}", self.port),
+        }
+    }
+}
+
 /// Encapsulates data of a DNS question.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsQuestion {
@@ -239,6 +310,12 @@ pub struct DnsQuestion {
     pub qtype: String,
     /// Question class.
     pub qclass: String,
+}
+
+impl fmt::Display for DnsQuestion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} - {} - {})", self.name, self.qtype, self.qclass)
+    }
 }
 
 /// Encapsulates data of a DNS answer.
@@ -252,6 +329,16 @@ pub struct DnsAnswer {
     pub ttl: u32,
     /// Record data.
     pub data: String,
+}
+
+impl fmt::Display for DnsAnswer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "({} - {} - {} - {})",
+            self.name, self.class, self.ttl, self.data
+        )
+    }
 }
 
 // High level abstraction for file flags bitmask
@@ -386,4 +473,23 @@ impl From<Argv> for Vec<String> {
     fn from(argv: Argv) -> Self {
         argv.0
     }
+}
+
+impl fmt::Display for Argv {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        print_vec(f, &self.0)
+    }
+}
+
+fn print_vec(f: &mut fmt::Formatter<'_>, v: impl IntoIterator<Item = impl Display>) -> fmt::Result {
+    write!(f, "[ ")?;
+
+    if let Some((index, elem)) = v.into_iter().enumerate().next() {
+        if index != 0 {
+            write!(f, ", ")?;
+        }
+        write!(f, "{elem}")?;
+    }
+
+    write!(f, " ]")
 }

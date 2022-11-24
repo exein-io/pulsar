@@ -1,9 +1,11 @@
 use chrono::{DateTime, Utc};
-use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-    ShutdownSignal, Version,
+use pulsar_core::{
+    event::Threat,
+    pdk::{
+        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
+        ShutdownSignal, Version,
+    },
 };
-use tokio::sync::watch;
 
 const MODULE_NAME: &str = "logger";
 
@@ -17,19 +19,19 @@ async fn logger_task(
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
     let mut rx_config = ctx.get_cfg::<Config>();
-    let mut logger = Logger::from_config(&rx_config)?;
+    let config = rx_config.borrow().clone()?;
+    let mut logger = Logger::from_config(config)?;
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                logger = Logger::from_config(&rx_config)?;
+                let config = rx_config.borrow().clone()?;
+                logger = Logger::from_config(config)?;
             }
             msg = receiver.recv() => {
                 let msg = msg?;
-                if msg.header().threat.is_some() {
-                    logger.process(&msg)
-                }
+                logger.process(&msg)
             },
         }
     }
@@ -59,22 +61,22 @@ struct Logger {
 }
 
 impl Logger {
-    fn from_config(
-        rx_config: &watch::Receiver<Result<Config, ConfigError>>,
-    ) -> Result<Self, ModuleError> {
-        let Config { console } = rx_config.borrow().clone()?;
+    fn from_config(rx_config: Config) -> Result<Self, ModuleError> {
+        let Config { console } = rx_config;
         Ok(Self { console })
     }
 
     fn process(&self, event: &Event) {
-        if self.console {
-            let header = event.header();
-            let time = DateTime::<Utc>::from(header.timestamp);
-            let image = &header.image;
-            let pid = &header.pid;
-            let payload = &event.payload();
+        if let Some(Threat { source, info }) = &event.header().threat {
+            if self.console {
+                let header = event.header();
+                let time = DateTime::<Utc>::from(header.timestamp);
+                let image = &header.image;
+                let pid = &header.pid;
+                let payload = &event.payload();
 
-            println!("[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] {payload:?}")
+                println!("[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] [{source} - {info}] {payload}")
+            }
         }
     }
 }
