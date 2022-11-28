@@ -173,16 +173,16 @@ impl ModuleSender {
     }
 
     /// Send a threat to the [`Bus`].
-    pub fn send_threat(&self, process: Pid, timestamp: Timestamp, info: impl Into<Value>) {
-        self.send_internal(process, timestamp, Payload::Empty, Some(info.into()))
+    pub fn send_threat(&self, process: Pid, timestamp: Timestamp, threat_info: impl Into<Value>) {
+        self.send_internal(process, timestamp, Payload::Empty, Some(threat_info.into()))
     }
 
     /// Send a threat event which was caused by another event to the [`Bus`].
     /// The new event shares the source headers and the payload.
-    pub fn send_threat_derived(&self, source_event: &Event, info: impl Into<Value>) {
+    pub fn send_threat_derived(&self, source_event: &Event, threat_info: impl Into<Value>) {
         let threat = Threat {
             source: self.module_name.clone(),
-            info: info.into(),
+            info: threat_info.into(),
         };
 
         let _ = self.tx.send(Event {
@@ -201,13 +201,13 @@ impl ModuleSender {
         process: Pid,
         timestamp: Timestamp,
         payload: Payload,
-        info: Option<Value>,
+        threat_info: Option<Value>,
     ) {
         let tx = self.tx.clone();
         let process_tracker = self.process_tracker.clone();
         let module_name = self.module_name.clone();
         tokio::spawn(async move {
-            let threat = info.map(|info| Threat {
+            let threat = threat_info.map(|info| Threat {
                 source: module_name.clone(),
                 info,
             });
