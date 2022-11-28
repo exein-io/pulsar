@@ -98,7 +98,7 @@ pub struct Threat {
 
 impl Display for Threat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write! {f, "source: {}, info: {}", self.source, self.info}
+        write! {f, "{{ source: {}, info: {} }}", self.source, self.info}
     }
 }
 
@@ -484,7 +484,7 @@ impl fmt::Display for Argv {
 fn print_vec(f: &mut fmt::Formatter<'_>, v: impl IntoIterator<Item = impl Display>) -> fmt::Result {
     write!(f, "[ ")?;
 
-    if let Some((index, elem)) = v.into_iter().enumerate().next() {
+    for (index, elem) in v.into_iter().enumerate() {
         if index != 0 {
             write!(f, ", ")?;
         }
