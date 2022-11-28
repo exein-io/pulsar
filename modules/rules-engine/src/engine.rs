@@ -5,7 +5,7 @@ use pulsar_core::{
     event::Value,
     pdk::{Event, ModuleSender},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use validatron::{Engine, UserRule, ValidatronError};
 
@@ -86,11 +86,6 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEn
 }
 
 fn emit_event(sender: &ModuleSender, old_event: &Event, rule_name: &str) {
-    #[derive(Debug, Serialize)]
-    struct RuleEngineData {
-        rule_name: String,
-    }
-
     let data = RuleEngineData {
         rule_name: rule_name.to_string(),
     };
@@ -98,6 +93,11 @@ fn emit_event(sender: &ModuleSender, old_event: &Event, rule_name: &str) {
     let data = Value::try_from(data).unwrap();
 
     sender.send_threat_derived(old_event, data)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RuleEngineData {
+    pub rule_name: String,
 }
 
 struct PulsarEngineInternal {
