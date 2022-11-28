@@ -8,6 +8,8 @@ use pulsar_core::pdk::{
 
 mod engine;
 
+pub use engine::RuleEngineData;
+
 const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 const MODULE_NAME: &str = "rules-engine";
 
