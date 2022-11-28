@@ -1,12 +1,11 @@
 use std::{
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
 };
 
 use anyhow::{anyhow, Result};
 use axum::{
-    extract::{Extension, Path},
+    extract::{Path, State},
     routing::{get, patch, post},
     BoxError, Json, Router,
 };
@@ -36,6 +35,7 @@ impl ServerHandle {
     }
 }
 
+#[derive(Clone)]
 pub struct EngineAPIContext {
     pub pulsar_daemon: PulsarDaemonHandle,
 }
@@ -55,7 +55,7 @@ pub fn run_api_server(
     let app = Router::new()
         .nest("/modules", modules)
         .route("/configs", get(configs))
-        .layer(Extension(Arc::new(engine_api_ctx)));
+        .with_state(engine_api_ctx);
 
     let socket_path = custom_socket_path.unwrap_or(super::DEFAULT_UDS).to_string();
 
@@ -89,7 +89,7 @@ pub fn run_api_server(
 }
 
 async fn module_start(
-    Extension(ctx): Extension<Arc<EngineAPIContext>>,
+    State(ctx): State<EngineAPIContext>,
     Path(module_name): Path<String>,
 ) -> Result<(), EngineApiError> {
     ctx.pulsar_daemon.start(module_name).await?;
@@ -97,7 +97,7 @@ async fn module_start(
 }
 
 async fn module_restart(
-    Extension(ctx): Extension<Arc<EngineAPIContext>>,
+    State(ctx): State<EngineAPIContext>,
     Path(module_name): Path<String>,
 ) -> Result<(), EngineApiError> {
     ctx.pulsar_daemon.restart(module_name).await?;
@@ -105,18 +105,18 @@ async fn module_restart(
 }
 
 async fn module_stop(
-    Extension(ctx): Extension<Arc<EngineAPIContext>>,
+    State(ctx): State<EngineAPIContext>,
     Path(module_name): Path<String>,
 ) -> Result<(), EngineApiError> {
     ctx.pulsar_daemon.stop(module_name).await?;
     Ok(())
 }
 
-async fn modules(Extension(ctx): Extension<Arc<EngineAPIContext>>) -> Json<Vec<ModuleOverview>> {
+async fn modules(State(ctx): State<EngineAPIContext>) -> Json<Vec<ModuleOverview>> {
     Json(ctx.pulsar_daemon.modules().await)
 }
 
-async fn configs(Extension(ctx): Extension<Arc<EngineAPIContext>>) -> Json<Vec<ModuleConfigKVs>> {
+async fn configs(State(ctx): State<EngineAPIContext>) -> Json<Vec<ModuleConfigKVs>> {
     let cfgs = ctx.pulsar_daemon.get_configurations().await;
 
     let cfgs_key_value: Vec<_> = cfgs
@@ -135,7 +135,7 @@ async fn configs(Extension(ctx): Extension<Arc<EngineAPIContext>>) -> Json<Vec<M
 }
 
 async fn get_module_cfg(
-    Extension(ctx): Extension<Arc<EngineAPIContext>>,
+    State(ctx): State<EngineAPIContext>,
     Path(module_name): Path<String>,
 ) -> Result<Json<Vec<ConfigKV>>, EngineApiError> {
     let cfg = ctx.pulsar_daemon.get_configuration(module_name).await?;
@@ -149,7 +149,7 @@ async fn get_module_cfg(
 }
 
 async fn update_module_cfg(
-    Extension(ctx): Extension<Arc<EngineAPIContext>>,
+    State(ctx): State<EngineAPIContext>,
     Path(module_name): Path<String>,
     Json(config_kv): Json<ConfigKV>,
 ) -> Result<(), EngineApiError> {
