@@ -165,7 +165,7 @@ impl ModuleSender {
         self.send_internal(process, timestamp, payload, None)
     }
 
-    /// Send a threat which was caused by another event to the [`Bus`].
+    /// Send an event which was caused by another event to the [`Bus`].
     /// The new event shares the source headers, but has a new payload.
     pub fn send_derived(&self, source: &Event, payload: Payload) {
         let header = source.header.clone();
@@ -177,8 +177,8 @@ impl ModuleSender {
         self.send_internal(process, timestamp, Payload::Empty, Some(info.into()))
     }
 
-    /// Send an event which was caused by another one to the [`Bus`].
-    /// The new event shares the source headers, but has a new payload.
+    /// Send a threat event which was caused by another event to the [`Bus`].
+    /// The new event shares the source headers and the payload.
     pub fn send_threat_derived(&self, source_event: &Event, info: impl Into<Value>) {
         let threat = Threat {
             source: self.module_name.clone(),
