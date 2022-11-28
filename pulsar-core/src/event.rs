@@ -91,10 +91,10 @@ pub struct Header {
 }
 
 /// Representation of event threat information.
-/// 
+///
 /// When an [`Event`] contains this information it should be considered
-/// a "threat event". 
-/// 
+/// a "threat event".
+///
 /// It contains the name of the module that has identified the threat and
 /// custom additional information respectively in `source` and `info` fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,12 +140,11 @@ impl Display for Value {
     }
 }
 
-
 /// This blanket implementation allows to use standard types as [`Value`]
 /// without a serialization step.
-/// 
+///
 /// The implementation relies on the conversion implementation of
-/// [`toml_edit::easy::Value`] for the standard types. 
+/// [`toml_edit::easy::Value`] for the standard types.
 impl<T: Into<toml_edit::easy::Value>> From<T> for Value {
     fn from(t: T) -> Self {
         Self(t.into())
