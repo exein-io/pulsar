@@ -20,14 +20,14 @@ async fn logger_task(
     let mut receiver = ctx.get_receiver();
     let mut rx_config = ctx.get_cfg::<Config>();
     let config = rx_config.borrow().clone()?;
-    let mut logger = Logger::from_config(config)?;
+    let mut logger = Logger::from_config(config);
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
                 let config = rx_config.borrow().clone()?;
-                logger = Logger::from_config(config)?;
+                logger = Logger::from_config(config);
             }
             msg = receiver.recv() => {
                 let msg = msg?;
@@ -61,9 +61,9 @@ struct Logger {
 }
 
 impl Logger {
-    fn from_config(rx_config: Config) -> Result<Self, ModuleError> {
+    fn from_config(rx_config: Config) -> Self {
         let Config { console } = rx_config;
-        Ok(Self { console })
+        Self { console }
     }
 
     fn process(&self, event: &Event) {
