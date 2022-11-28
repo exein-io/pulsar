@@ -4,7 +4,7 @@ use std::{
     time::SystemTime,
 };
 
-use serde::{ser, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
 use validatron::{
     Operator, Primitive, ValidatronError, ValidatronStruct, ValidatronTypeProvider,
     ValidatronVariant,
@@ -125,6 +125,22 @@ impl Value {
         toml_edit::easy::Value::try_from(value)
             .map(Self)
             .map_err(|err| err.to_string())
+    }
+
+    /// Interpret a `Value` as an instance of type `T`.
+    ///
+    /// This conversion can fail if the structure of the `Value` does not match the
+    /// structure expected by `T`, for example if `T` is a struct type but the
+    /// `Value` contains something other than a TOML table. It can also fail if the
+    /// structure is correct but `T`'s implementation of `Deserialize` decides that
+    /// something is wrong with the data, for example required struct fields are
+    /// missing from the TOML map or some number is too big to fit in the expected
+    /// primitive type.
+    pub fn try_into<T>(self) -> Result<T, String>
+    where
+        T: DeserializeOwned,
+    {
+        toml_edit::easy::Value::try_into(self.0).map_err(|err| err.to_string())
     }
 }
 
@@ -504,4 +520,26 @@ fn print_vec(f: &mut fmt::Formatter<'_>, v: impl IntoIterator<Item = impl Displa
     }
 
     write!(f, " ]")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn data_to_value_and_back() {
+        #[derive(Debug, Serialize, Deserialize)]
+        struct MyData {
+            field: String,
+        }
+
+        let native = MyData {
+            field: "hello world".to_string(),
+        };
+
+        let serialization = Value::try_from(&native).unwrap();
+        let deserialization: MyData = serialization.try_into().unwrap();
+
+        assert_eq!(native.field, deserialization.field);
+    }
 }
