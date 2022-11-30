@@ -95,8 +95,15 @@ impl ValidatronTypeProvider for bool {
             parse_fn: Box::new(move |s| {
                 bool::from_str(s).map_err(|_| ValidatronError::FieldValueParseError(s.to_string()))
             }),
-            handle_op_fn: Box::new(|op| match op {
-                Operator::Relational(op) => Ok(Box::new(move |a, b| op.apply(a, b))),
+            handle_op_fn: Box::new(|op| match &op {
+                Operator::Relational(rel_op) => match rel_op {
+                    RelationalOperator::Equals => Ok(Box::new(move |a, b| a == b)),
+                    RelationalOperator::NotEquals => Ok(Box::new(move |a, b| a != b)),
+                    _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                        op,
+                        "bool".to_string(),
+                    )),
+                },
                 _ => Err(ValidatronError::OperatorNotAllowedOnType(
                     op,
                     "bool".to_string(),
