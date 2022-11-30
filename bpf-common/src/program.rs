@@ -338,9 +338,11 @@ impl Program {
             let name = self.name.clone();
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
+            let event_size: usize = size_of::<RawBpfEvent<T>>();
+            let buffer_size: usize = event_size + PERF_HEADER_SIZE;
             tokio::spawn(async move {
                 let mut buffers = (0..10)
-                    .map(|_| BytesMut::with_capacity(size_of::<BpfEvent<T>>() + PERF_HEADER_SIZE))
+                    .map(|_| BytesMut::with_capacity(buffer_size))
                     .collect::<Vec<_>>();
                 loop {
                     let events = tokio::select! {
@@ -357,10 +359,19 @@ impl Program {
                                     events.read
                                 );
                             }
-                            for buf in buffers.iter_mut().take(events.read) {
-                                let ptr = buf.as_ptr() as *const BpfEvent<T>;
-                                let event = unsafe { ptr.read_unaligned() };
-                                sender.send(Ok(event))
+                            for buffer in buffers.iter_mut().take(events.read) {
+                                let mut buffer =
+                                    std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
+                                let event = buffer.split_to(event_size);
+                                let ptr = event.as_ptr() as *const RawBpfEvent<T>;
+                                let raw = unsafe { ptr.read_unaligned() };
+
+                                sender.send(Ok(BpfEvent {
+                                    timestamp: raw.timestamp,
+                                    pid: raw.pid,
+                                    payload: raw.payload,
+                                    buffer,
+                                }))
                             }
                         }
                         Err(e) => return sender.send(Err(e.into())),
@@ -384,6 +395,15 @@ pub fn load_test_program(probe: &[u8]) -> Result<Bpf, ProgramError> {
 #[derive(Debug)]
 #[repr(C)]
 pub struct BpfEvent<P> {
+    pub timestamp: Timestamp,
+    pub pid: Pid,
+    pub payload: P,
+    pub buffer: BytesMut,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct RawBpfEvent<P> {
     pub timestamp: Timestamp,
     pub pid: Pid,
     pub payload: P,
