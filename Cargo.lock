@@ -199,9 +199,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0b3de4a0c5e67e16066a0715723abd91edc2f9001d09c46e1dca929351e130e"
+checksum = "dfb24e866b15a1af2a1b663f10c6b6b8f397a84aadb828f12e5b289ec23a3a3c"
 
 [[package]]
 name = "cfg-if"
@@ -434,6 +434,7 @@ name = "file-system-monitor"
 version = "0.4.0"
 dependencies = [
  "bpf-common",
+ "bytes",
  "log",
  "nix",
  "pulsar-core",
@@ -1202,35 +1203,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulsar-embedded-agent"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "log",
- "pulsar",
- "pulsar-core",
- "tokio",
-]
-
-[[package]]
-name = "pulsar-extension-module"
-version = "0.1.0"
-dependencies = [
- "pulsar",
- "pulsar-core",
- "tokio",
-]
-
-[[package]]
-name = "pulsar-module-as-library"
-version = "0.1.0"
-dependencies = [
- "bpf-common",
- "network-monitor",
- "tokio",
-]
-
-[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1630,9 +1602,6 @@ dependencies = [
  "futures",
  "libtest-mimic",
  "log",
- "network-monitor",
- "process-monitor",
- "syscall-monitor",
  "tokio",
 ]
 

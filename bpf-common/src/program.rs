@@ -360,12 +360,20 @@ impl Program {
                                 );
                             }
                             for buffer in buffers.iter_mut().take(events.read) {
+                                dbg!(buffer.len());
+                                dbg!(event_size);
                                 let mut buffer =
                                     std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
                                 let event = buffer.split_to(event_size);
                                 let ptr = event.as_ptr() as *const RawBpfEvent<T>;
                                 let raw = unsafe { ptr.read_unaligned() };
-
+                                dbg!(buffer.len());
+                                dbg!(raw.buffer.buffer_len);
+                                // NOTE: read buffer will be padded. Eg. if the eBPF program
+                                // writes 3 bytes, we'll read 4, with the forth being a 0.
+                                // This is why we need buffer_len and can't rely on the
+                                // received buffer alone.
+                                let buffer = buffer.split_to(raw.buffer.buffer_len as usize);
                                 sender.send(Ok(BpfEvent {
                                     timestamp: raw.timestamp,
                                     pid: raw.pid,
@@ -401,12 +409,17 @@ pub struct BpfEvent<P> {
     pub buffer: BytesMut,
 }
 
-#[derive(Debug)]
 #[repr(C)]
 pub struct RawBpfEvent<P> {
-    pub timestamp: Timestamp,
-    pub pid: Pid,
-    pub payload: P,
+    timestamp: Timestamp,
+    pid: Pid,
+    payload: P,
+    buffer: Buffer,
+}
+
+#[repr(C, align(8))]
+struct Buffer {
+    pub buffer_len: u32,
 }
 
 impl<P: fmt::Display> fmt::Display for BpfEvent<P> {

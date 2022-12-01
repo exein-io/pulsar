@@ -408,8 +408,10 @@ macro_rules! event_check {
                     $description,
                     move |event: &BpfEvent<_>| match event.payload {
                         $event::$subtype { ref $left, .. } => CheckResult {
-                            success: $left == &expected_value,
-                            found: format!("{:?}", $left),
+                            success: {
+                                ComparableField::equals($left, &expected_value, &event.buffer)
+                            },
+                            found: ComparableField::repr($left, &event.buffer),
                             expected: format!("{:?}", expected_value),
                         },
                         _ => CheckResult {
@@ -422,5 +424,19 @@ macro_rules! event_check {
             )*
             checks
         }
+    }
+}
+
+pub trait ComparableField<T> {
+    fn equals(&self, t: &T, buffer: &bytes::BytesMut) -> bool;
+    fn repr(&self, buffer: &bytes::BytesMut) -> String;
+}
+
+impl<T: PartialEq + std::fmt::Debug> ComparableField<T> for T {
+    fn equals(&self, t: &T, _buffer: &bytes::BytesMut) -> bool {
+        self == t
+    }
+    fn repr(&self, _buffer: &bytes::BytesMut) -> String {
+        format!("{:?}", self)
     }
 }

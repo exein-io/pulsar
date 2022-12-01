@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 file-system-monitor = { path = "../modules/file-system-monitor", features = ["test-suite"] }
-network-monitor = { path = "../modules/network-monitor", features = ["test-suite"] }
-process-monitor = { path = "../modules/process-monitor", features = ["test-suite"] }
-syscall-monitor = { path = "../modules/syscall-monitor", features = ["test-suite"] }
+#network-monitor = { path = "../modules/network-monitor", features = ["test-suite"] }
+#process-monitor = { path = "../modules/process-monitor", features = ["test-suite"] }
+#syscall-monitor = { path = "../modules/syscall-monitor", features = ["test-suite"] }
 libtest-mimic =  "0.6.0"
 bpf-common = { path = "../bpf-common", features = ["test-utils", "test-suite"] }
 tokio = { version = "1", features = ["full"] }
