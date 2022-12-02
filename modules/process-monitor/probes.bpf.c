@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-#include "common.bpf.h"
 #include "buffer.bpf.h"
+#include "common.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -125,7 +125,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   //  of the executable filename
   const char *filename = BPF_CORE_READ(bprm, filename);
   buffer_index_init(&event->buffer, &event->exec.filename);
-  buffer_append_str(&event->buffer, &event->exec.filename,  filename, BUFFER_MAX);
+  buffer_append_str(&event->buffer, &event->exec.filename, filename,
+                    BUFFER_MAX);
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
@@ -133,7 +134,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   long end = BPF_CORE_READ(mm, arg_end);
   int len = end - start;
   buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv,  start, len);
+  buffer_append_user_memory(&event->buffer, &event->exec.argv, start, len);
 
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));

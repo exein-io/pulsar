@@ -309,7 +309,7 @@ pub mod pulsar {
             _ => return None,
         };
 
-        if data.len() == 0 {
+        if data.is_empty() {
             return None;
         }
         let data = data
@@ -320,7 +320,7 @@ pub mod pulsar {
             .ok()?;
 
         // any valid dns data?
-        let dns = dns_parser::Packet::parse(data.as_ref()).ok()?;
+        let dns = dns_parser::Packet::parse(data).ok()?;
         let with_q = !dns.questions.is_empty();
         let with_a = !dns.answers.is_empty();
 

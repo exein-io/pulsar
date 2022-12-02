@@ -11,10 +11,10 @@
 struct buffer {
   u32 len;
   // buffer is an array of u64 to force an alignment like the Rust code
-  u64 buffer[BUFFER_MAX/sizeof(u64)];
+  u64 buffer[BUFFER_MAX / sizeof(u64)];
 };
 
-// A slice inside the buffer. Used inside the tansferred data structures 
+// A slice inside the buffer. Used inside the tansferred data structures
 // for dynamicly sized arrays.
 struct buffer_index {
   u16 start;
@@ -30,20 +30,17 @@ static void buffer_index_init(struct buffer *buffer,
 
 // Copy up to len bytes from source to the buffer pointed by index.
 // On success, update index and buffer length.
-static void buffer_append_str(struct buffer *buffer,
-                                              struct buffer_index *index,
-                                              const char *source, int len) {
+static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
+                              const char *source, int len) {
   int pos = (index->start + index->len) & HALF_BUFFER_MASK;
-  if (len > HALF_BUFFER_MASK)
-  {
+  if (len > HALF_BUFFER_MASK) {
     len = HALF_BUFFER_MASK;
-  }
-  else {
+  } else {
     // include space for terminating 0
-    len = (len+1) & HALF_BUFFER_MASK;
+    len = (len + 1) & HALF_BUFFER_MASK;
   }
 
-  int r = bpf_core_read_str(&((char*) buffer->buffer)[pos], len, source);
+  int r = bpf_core_read_str(&((char *)buffer->buffer)[pos], len, source);
   if (r <= 0) {
     LOG_ERROR("redding failure: %d", r);
     return;
@@ -56,10 +53,11 @@ static void buffer_append_str(struct buffer *buffer,
 }
 
 static void buffer_append_user_memory(struct buffer *buffer,
-                                              struct buffer_index *index,
-                                              const char *source, int len) {
+                                      struct buffer_index *index,
+                                      const char *source, int len) {
   int pos = (index->start + index->len) & HALF_BUFFER_MASK;
-  int r = bpf_core_read_user(&((char*) buffer->buffer)[pos], len& HALF_BUFFER_MASK, source);
+  int r = bpf_core_read_user(&((char *)buffer->buffer)[pos],
+                             len & HALF_BUFFER_MASK, source);
   if (r < 0) {
     LOG_ERROR("redding failure: %d", r);
     return;

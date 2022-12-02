@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-#include "common.bpf.h"
 #include "buffer.bpf.h"
+#include "common.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -347,9 +347,8 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
                         sizeof(struct network_event));
 }
 
-static __always_inline void read_iovec(struct buffer *buffer,
-    struct msg_event *output,
-                                       void *iov_base) {
+static __always_inline void
+read_iovec(struct buffer *buffer, struct msg_event *output, void *iov_base) {
   size_t len = output->data_len;
 
   unsigned int msg_iter_type = 0;

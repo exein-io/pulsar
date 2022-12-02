@@ -2,7 +2,7 @@ use bytes::Bytes;
 use std::str::{from_utf8, Utf8Error};
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum IndexError {
     #[error("Index [{start}-{end}] is out of event buffer (len {len})")]
     IndexOutsideBuffer {
@@ -28,6 +28,10 @@ pub struct BufferIndex<T: ?Sized> {
 impl<T: ?Sized> BufferIndex<T> {
     pub fn len(&self) -> usize {
         self.len as usize
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     pub fn bytes<'a>(&self, buffer: &'a Bytes) -> Result<&'a [u8], IndexError> {
