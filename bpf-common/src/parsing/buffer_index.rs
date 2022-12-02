@@ -16,7 +16,7 @@ impl<T: ?Sized> fmt::Display for BufferIndex<T> {
 }
 
 impl<T: ?Sized> BufferIndex<T> {
-    fn bytes<'a>(&self, buffer: &'a bytes::BytesMut) -> &'a [u8] {
+    pub fn bytes<'a>(&self, buffer: &'a bytes::BytesMut) -> &'a [u8] {
         let start = self.start as usize;
         let end = (self.start + self.len) as usize;
         if end <= buffer.len() {
@@ -32,19 +32,20 @@ impl<T: ?Sized> BufferIndex<T> {
     }
 }
 
+impl BufferIndex<str> {
+    fn as_str<'a>(&self, buffer: &'a bytes::BytesMut) -> Option<&'a str> {
+        std::str::from_utf8(self.bytes(&buffer)).ok()
+    }
+}
+
 impl ComparableField<String> for BufferIndex<str> {
     fn equals(&self, t: &String, buffer: &bytes::BytesMut) -> bool {
-        if let Ok(item) = std::str::from_utf8(self.bytes(&buffer)) {
-            item == t
-        } else {
-            false
-        }
+        self.as_str(buffer).map(|item| item == t).unwrap_or(false)
     }
 
     fn repr(&self, buffer: &bytes::BytesMut) -> String {
-        match std::str::from_utf8(self.bytes(&buffer)) {
-            Ok(item) => format!("{}", item),
-            Err(_) => format!("{:?}", &buffer[..]),
-        }
+        self.as_str(buffer)
+            .map(|item| item.to_string())
+            .unwrap_or_else(|| format!("{:?}", &buffer[..]))
     }
 }

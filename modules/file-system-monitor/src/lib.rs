@@ -161,6 +161,7 @@ pub mod pulsar {
 
     impl From<FsEvent> for Payload {
         fn from(data: FsEvent) -> Self {
+            // TODO: fix this
             match data {
                 FsEvent::FileCreated { filename } => Payload::FileCreated {
                     filename: filename.to_string(),

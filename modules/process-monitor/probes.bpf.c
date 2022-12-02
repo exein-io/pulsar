@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "common.bpf.h"
+#include "buffer.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-// Max size of filename and argv. Must be a power of 2 since it's used as
-// a bitmask for copy operations.
-#define NAME_MAX 256
 #define EVENT_FORK 0
 #define EVENT_EXEC 1
 #define EVENT_EXIT 2
@@ -15,10 +13,9 @@ struct fork_event {
 };
 
 struct exec_event {
-  char filename[NAME_MAX];
+  struct buffer_index filename;
   int argc;
-  int data_len;
-  char argv[NAME_MAX];
+  struct buffer_index argv;
 };
 
 struct exit_event {
@@ -34,6 +31,7 @@ struct process_event {
     struct exec_event exec;
     struct exit_event exit;
   };
+  struct buffer buffer;
 };
 
 // used to send events to userspace
@@ -126,21 +124,16 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   //  data_loc_filename is the offset from the beginning of the ctx structure
   //  of the executable filename
   const char *filename = BPF_CORE_READ(bprm, filename);
-  bpf_core_read_str(&event->exec.filename, NAME_MAX, filename);
+  buffer_index_init(&event->buffer, &event->exec.filename);
+  buffer_append_str(&event->buffer, &event->exec.filename,  filename, BUFFER_MAX);
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
   long start = BPF_CORE_READ(mm, arg_start);
   long end = BPF_CORE_READ(mm, arg_end);
   int len = end - start;
-  if (len < 0 || len >= NAME_MAX) {
-    LOG_ERROR("Argument list is too long (%d) and will be truncated. "
-              "See https://github.com/Exein-io/pulsar/issues/73",
-              len);
-    len = NAME_MAX - 1;
-  }
-  event->exec.data_len = len;
-  bpf_core_read_user(event->exec.argv, len & (NAME_MAX - 1), (void *)start);
+  buffer_index_init(&event->buffer, &event->exec.argv);
+  buffer_append_user_memory(&event->buffer, &event->exec.argv,  start, len);
 
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));

@@ -4,6 +4,7 @@
 
 // Max buffer size in bytes
 #define BUFFER_MAX 16384
+#define HALF_BUFFER_MASK (BUFFER_MAX / 2 - 1)
 
 // A generic buffer attached to an event. This can be sent partially (only the
 // used part of the buffer) to userspace.
@@ -32,8 +33,6 @@ static void buffer_index_init(struct buffer *buffer,
 static void buffer_append_str(struct buffer *buffer,
                                               struct buffer_index *index,
                                               const char *source, int len) {
-
-  int HALF_BUFFER_MASK = (BUFFER_MAX / 2 - 1);
   int pos = (index->start + index->len) & HALF_BUFFER_MASK;
   if (len > HALF_BUFFER_MASK)
   {
@@ -54,4 +53,19 @@ static void buffer_append_str(struct buffer *buffer,
   // Update counters, ignoring the final 0.
   index->len += r - 1;
   buffer->len += r - 1;
+}
+
+static void buffer_append_user_memory(struct buffer *buffer,
+                                              struct buffer_index *index,
+                                              const char *source, int len) {
+  int pos = (index->start + index->len) & HALF_BUFFER_MASK;
+  int r = bpf_core_read_user(&((char*) buffer->buffer)[pos], len& HALF_BUFFER_MASK, source);
+  if (r < 0) {
+    LOG_ERROR("redding failure: %d", r);
+    return;
+  }
+  // LOG_DEBUG("New buffer: %s (+%d)", buffer->buffer, r);
+
+  index->len += len;
+  buffer->len += len;
 }
