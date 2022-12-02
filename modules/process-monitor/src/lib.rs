@@ -54,7 +54,7 @@ impl fmt::Display for ProcessEvent {
                 argc,
                 argv,
             } => {
-                write!(f, "exec {} (argc: {}, argv: {})", filename, argc, argv)
+                write!(f, "exec {:?} (argc: {}, argv: {:?})", filename, argc, argv)
             }
             ProcessEvent::Exit { exit_code } => write!(f, "exit({})", exit_code),
         }
@@ -78,10 +78,10 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, CleanExit, ModuleContext, ModuleError, Payload,
-        PulsarModule, ShutdownSignal, Version,
+        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
+        Payload, PulsarModule, ShutdownSignal, Version,
     };
     use tokio::sync::mpsc;
 
@@ -113,7 +113,11 @@ pub mod pulsar {
                         argc,
                         ref argv,
                     } => {
-                        let argv = extract_parameters(argv.bytes(&event.buffer));
+                        let argv =
+                            extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
+                                log::error!("Error getting program arguments: {}", err);
+                                &[]
+                            }));
                         if argv.len() != argc as usize {
                             log::warn!(
                                 "argc ({}) doens't match argv ({:?}) for {}",
@@ -124,7 +128,8 @@ pub mod pulsar {
                         }
                         TrackerUpdate::Exec {
                             pid: event.pid,
-                            image: filename.to_string(),
+                            // ignoring this error since it will be catched in IntoPayload
+                            image: filename.string(&event.buffer).unwrap_or_default(),
                             timestamp: event.timestamp,
                             argv,
                         }
@@ -158,9 +163,13 @@ pub mod pulsar {
         }
     }
 
-    impl From<ProcessEvent> for Payload {
-        fn from(data: ProcessEvent) -> Self {
-            match data {
+    impl IntoPayload for ProcessEvent {
+        type Error = IndexError;
+        fn try_into_payload(event: BpfEvent<ProcessEvent>) -> Result<Payload, IndexError> {
+            let BpfEvent {
+                payload, buffer, ..
+            } = event;
+            Ok(match payload {
                 ProcessEvent::Fork { ppid } => Payload::Fork {
                     ppid: ppid.as_raw(),
                 },
@@ -169,12 +178,12 @@ pub mod pulsar {
                     argc,
                     argv,
                 } => Payload::Exec {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                     argc: argc as usize,
-                    argv: extract_parameters(todo!()).into(),
+                    argv: extract_parameters(argv.bytes(&buffer)?).into(),
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
-            }
+            })
         }
     }
 }

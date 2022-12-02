@@ -1191,6 +1191,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bpf-common",
+ "bytes",
  "log",
  "nix",
  "semver",

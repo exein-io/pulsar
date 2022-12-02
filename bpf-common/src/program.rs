@@ -14,7 +14,7 @@ use aya::{
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
@@ -367,17 +367,17 @@ impl Program {
                                 // dbg!(event_size);
                                 let mut buffer =
                                     std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
-                                let event = buffer.split_to(event_size);
-                                let ptr = event.as_ptr() as *const RawBpfEvent<T>;
+                                let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
                                 let raw = unsafe { ptr.read_unaligned() };
+                                buffer.advance(event_size);
                                 // dbg!(buffer.len());
                                 // dbg!(raw.buffer.buffer_len);
                                 // NOTE: read buffer will be padded. Eg. if the eBPF program
                                 // writes 3 bytes, we'll read 4, with the forth being a 0.
                                 // This is why we need buffer_len and can't rely on the
                                 // received buffer alone.
-                                let buffer =
-                                    buffer.split_to(raw.buffer.buffer_len as usize).freeze();
+                                buffer.truncate(raw.buffer.buffer_len as usize);
+                                let buffer = buffer.freeze();
                                 sender.send(Ok(BpfEvent {
                                     timestamp: raw.timestamp,
                                     pid: raw.pid,

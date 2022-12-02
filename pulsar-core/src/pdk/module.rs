@@ -254,14 +254,39 @@ impl ModuleSender {
     }
 }
 
+/// Convert row event and buffer to pulsar format
+pub trait IntoPayload: fmt::Display
+where
+    Self: Sized,
+{
+    type Error: std::error::Error + Send + Sync + 'static;
+    fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error>;
+}
+
+/// Error resulting from the conversion of an event to the pulsar format
+// #[derive(Error, Debug)]
+// pub enum PayloadConversionError {
+//     #[error("Index [{start}-{end}] is out of event buffer (len {len})")]
+//     IndexOutsideBuffer {
+//         start: usize,
+//         end: usize,
+//         len: usize,
+//     },
+// }
+
 /// This allows to teat a ModuleSender as a bpf_common::Sender<T> for any T which
 /// can be converted into a Payload. This allows probes to send Pulsar events despite
 /// not knowing anything about Pulsar.
-impl<T: Into<Payload> + fmt::Display> bpf_common::BpfSender<T> for ModuleSender {
+impl<T: IntoPayload> bpf_common::BpfSender<T> for ModuleSender {
     fn send(&mut self, data: Result<BpfEvent<T>, bpf_common::ProgramError>) {
         match data {
             Ok(data) => {
-                ModuleSender::send(self, data.pid, data.timestamp, data.payload.into());
+                let pid = data.pid;
+                let timestamp = data.timestamp;
+                match IntoPayload::try_into_payload(data) {
+                    Ok(payload) => ModuleSender::send(self, pid, timestamp, payload),
+                    Err(e) => self.raise_error(Box::new(e)),
+                }
             }
             Err(e) => {
                 self.raise_error(Box::new(e));

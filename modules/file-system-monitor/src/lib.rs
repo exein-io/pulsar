@@ -116,11 +116,12 @@ pub mod pulsar {
     };
 
     use super::*;
+    use bpf_common::{parsing::IndexError, program::BpfEvent};
     use pulsar_core::{
         event::FileFlags,
         pdk::{
-            CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSender,
-            Payload, PulsarModule, ShutdownSignal, Version,
+            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError,
+            ModuleSender, Payload, PulsarModule, ShutdownSignal, Version,
         },
     };
     use tokio::{fs::File, io::AsyncReadExt};
@@ -159,24 +160,28 @@ pub mod pulsar {
         }
     }
 
-    impl From<FsEvent> for Payload {
-        fn from(data: FsEvent) -> Self {
-            // TODO: fix this
-            match data {
+    impl IntoPayload for FsEvent {
+        type Error = IndexError;
+
+        fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error> {
+            let BpfEvent {
+                payload, buffer, ..
+            } = data;
+            Ok(match payload {
                 FsEvent::FileCreated { filename } => Payload::FileCreated {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                 },
                 FsEvent::FileDeleted { filename } => Payload::FileDeleted {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                 },
                 FsEvent::DirCreated { filename } => Payload::DirCreated {
-                    dirname: filename.to_string(),
+                    dirname: filename.string(&buffer)?,
                 },
                 FsEvent::DirDeleted { filename } => Payload::DirDeleted {
-                    dirname: filename.to_string(),
+                    dirname: filename.string(&buffer)?,
                 },
                 FsEvent::FileOpened { filename, flags } => Payload::FileOpened {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                     flags: FileFlags::from_raw_unchecked(flags),
                 },
                 FsEvent::FileLink {
@@ -184,18 +189,18 @@ pub mod pulsar {
                     destination,
                     hard_link,
                 } => Payload::FileLink {
-                    source: source.to_string(),
-                    destination: destination.to_string(),
+                    source: source.string(&buffer)?,
+                    destination: destination.string(&buffer)?,
                     hard_link,
                 },
                 FsEvent::FileRename {
                     source,
                     destination,
                 } => Payload::FileRename {
-                    source: source.to_string(),
-                    destination: destination.to_string(),
+                    source: source.string(&buffer)?,
+                    destination: destination.string(&buffer)?,
                 },
-            }
+            })
         }
     }
 
