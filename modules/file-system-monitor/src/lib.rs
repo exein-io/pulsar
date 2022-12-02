@@ -92,14 +92,14 @@ impl fmt::Display for StringArray {
 
 impl StringArray {
     fn range(&self) -> std::ops::Range<usize> {
-        dbg!(self.start) as usize..(self.start + self.len) as usize
+        self.start as usize..(self.start + self.len) as usize
     }
 }
 
 impl ComparableField<String> for StringArray {
     fn equals(&self, t: &String, buffer: &bytes::BytesMut) -> bool {
         if let Ok(item) = std::str::from_utf8(&buffer[self.range()]) {
-            dbg!(item) == dbg!(t)
+            item == t
         } else {
             false
         }

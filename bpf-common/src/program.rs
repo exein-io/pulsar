@@ -25,6 +25,9 @@ const PINNED_MAPS_PATH: &str = "/sys/fs/bpf/pulsar";
 
 pub const PERF_PAGES_DEFAULT: usize = 4096;
 
+/// Max buffer size in bytes
+const BUFFER_MAX: usize = 16384;
+
 /// BpfContext contains extra settings which could be provided on program load
 #[derive(Clone)]
 pub struct BpfContext {
@@ -339,7 +342,7 @@ impl Program {
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
             let event_size: usize = size_of::<RawBpfEvent<T>>();
-            let buffer_size: usize = event_size + PERF_HEADER_SIZE;
+            let buffer_size: usize = event_size + PERF_HEADER_SIZE + BUFFER_MAX;
             tokio::spawn(async move {
                 let mut buffers = (0..10)
                     .map(|_| BytesMut::with_capacity(buffer_size))
@@ -360,15 +363,15 @@ impl Program {
                                 );
                             }
                             for buffer in buffers.iter_mut().take(events.read) {
-                                dbg!(buffer.len());
-                                dbg!(event_size);
+                                // dbg!(buffer.len());
+                                // dbg!(event_size);
                                 let mut buffer =
                                     std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
                                 let event = buffer.split_to(event_size);
                                 let ptr = event.as_ptr() as *const RawBpfEvent<T>;
                                 let raw = unsafe { ptr.read_unaligned() };
-                                dbg!(buffer.len());
-                                dbg!(raw.buffer.buffer_len);
+                                // dbg!(buffer.len());
+                                // dbg!(raw.buffer.buffer_len);
                                 // NOTE: read buffer will be padded. Eg. if the eBPF program
                                 // writes 3 bytes, we'll read 4, with the forth being a 0.
                                 // This is why we need buffer_len and can't rely on the

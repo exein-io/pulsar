@@ -9,6 +9,7 @@ static INCLUDE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/include");
 pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={probe}");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/common.bpf.h");
+    println!("cargo:rerun-if-changed={INCLUDE_PATH}/buffer.bpf.h");
 
     let out_path = PathBuf::from(env::var("OUT_DIR")?);
     let out_object = out_path.join("probe.bpf.o");
