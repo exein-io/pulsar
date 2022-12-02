@@ -1,8 +1,9 @@
 use std::fmt;
 
 use bpf_common::{
-    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, program::BpfContext,
-    test_runner::ComparableField, BpfSender, Program, ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
+    program::BpfContext, test_runner::ComparableField, BpfSender, Program, ProgramBuilder,
+    ProgramError,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";
@@ -50,67 +51,32 @@ pub async fn program(
 #[repr(C)]
 pub enum FsEvent {
     FileCreated {
-        filename: StringArray,
+        filename: BufferIndex<str>,
     },
     FileDeleted {
-        filename: StringArray,
+        filename: BufferIndex<str>,
     },
     DirCreated {
-        filename: StringArray,
+        filename: BufferIndex<str>,
     },
     DirDeleted {
-        filename: StringArray,
+        filename: BufferIndex<str>,
     },
     FileOpened {
-        filename: StringArray,
+        filename: BufferIndex<str>,
         flags: i32,
     },
     #[allow(clippy::large_enum_variant)]
     FileLink {
-        source: StringArray,
-        destination: StringArray,
+        source: BufferIndex<str>,
+        destination: BufferIndex<str>,
         hard_link: bool,
     },
     #[allow(clippy::large_enum_variant)]
     FileRename {
-        source: StringArray,
-        destination: StringArray,
+        source: BufferIndex<str>,
+        destination: BufferIndex<str>,
     },
-}
-
-#[derive(Debug)]
-pub struct StringArray {
-    start: u16,
-    len: u16,
-}
-
-impl fmt::Display for StringArray {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[buffer of {} bytes]", self.len)
-    }
-}
-
-impl StringArray {
-    fn range(&self) -> std::ops::Range<usize> {
-        self.start as usize..(self.start + self.len) as usize
-    }
-}
-
-impl ComparableField<String> for StringArray {
-    fn equals(&self, t: &String, buffer: &bytes::BytesMut) -> bool {
-        if let Ok(item) = std::str::from_utf8(&buffer[self.range()]) {
-            item == t
-        } else {
-            false
-        }
-    }
-
-    fn repr(&self, buffer: &bytes::BytesMut) -> String {
-        match std::str::from_utf8(&buffer[self.range()]) {
-            Ok(item) => format!("{}", item),
-            Err(_) => format!("{:?}", &buffer[..]),
-        }
-    }
 }
 
 impl fmt::Display for FsEvent {
