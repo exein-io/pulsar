@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "common.bpf.h"
+#include "buffer.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -48,8 +49,7 @@ struct accept_event {
 struct msg_event {
   struct address source;
   struct address destination;
-  u32 copied_data_len;
-  u8 data[MAX_DATA_SIZE];
+  struct buffer_index data;
   u32 data_len;
   u8 proto;
 };
@@ -73,6 +73,7 @@ struct network_event {
     struct msg_event recv;
     struct close_event close;
   };
+  struct buffer buffer;
 };
 
 struct arguments {
@@ -346,10 +347,10 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
                         sizeof(struct network_event));
 }
 
-static __always_inline void read_iovec(struct msg_event *output,
+static __always_inline void read_iovec(struct buffer *buffer,
+    struct msg_event *output,
                                        void *iov_base) {
   size_t len = output->data_len;
-  output->copied_data_len = 0;
 
   unsigned int msg_iter_type = 0;
 
@@ -361,11 +362,8 @@ static __always_inline void read_iovec(struct msg_event *output,
   // 'var &= const'"
   len &= (MAX_DATA_SIZE - 1);
 
-  int r = bpf_core_read_user(output->data, len, iov_base);
-  if (r) {
-    LOG_ERROR("cant read data %d", r);
-  }
-  output->copied_data_len = len;
+  buffer_index_init(buffer, &output->data);
+  buffer_append_user_memory(buffer, &output->data, iov_base, len);
   LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
 }
 
@@ -394,7 +392,7 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
   event->send.data_len = size;
   // Copy data only for UDP events since we want to intercept DNS requests
   if (proto == PROTO_UDP) {
-    read_iovec(&event->send, iov_base);
+    read_iovec(&event->buffer, &event->send, iov_base);
   }
 
   copy_skc_source(&sk->__sk_common, &event->send.source);
@@ -475,7 +473,7 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
   event->recv.data_len = len;
   // Copy data only for UDP events since we want to intercept DNS replies
   if (proto == PROTO_UDP) {
-    read_iovec(&event->recv, iov_base);
+    read_iovec(&event->buffer, &event->recv, iov_base);
   }
 
   u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);

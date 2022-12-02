@@ -16,6 +16,10 @@ impl<T: ?Sized> fmt::Display for BufferIndex<T> {
 }
 
 impl<T: ?Sized> BufferIndex<T> {
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
+
     pub fn bytes<'a>(&self, buffer: &'a bytes::BytesMut) -> &'a [u8] {
         let start = self.start as usize;
         let end = (self.start + self.len) as usize;
@@ -47,5 +51,15 @@ impl ComparableField<String> for BufferIndex<str> {
         self.as_str(buffer)
             .map(|item| item.to_string())
             .unwrap_or_else(|| format!("{:?}", &buffer[..]))
+    }
+}
+
+impl ComparableField<Vec<u8>> for BufferIndex<[u8]> {
+    fn equals(&self, t: &Vec<u8>, buffer: &bytes::BytesMut) -> bool {
+        self.bytes(buffer) == t
+    }
+
+    fn repr(&self, buffer: &bytes::BytesMut) -> String {
+        format!("{:?}", self.bytes(buffer))
     }
 }
