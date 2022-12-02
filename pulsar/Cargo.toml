@@ -40,12 +40,11 @@ rules-engine = { path = "../modules/rules-engine", optional = true }
 
 
 [features]
-default = ["file-system-monitor"]
-#default = ["core", "extra"]
-#core = [
-  #"logger",
-  #"process-monitor",
-  #"network-monitor",
-  #"file-system-monitor",
-#]
-#extra = ["rules-engine"]
+default = ["core", "extra"]
+core = [
+ "logger",
+ "process-monitor",
+ "network-monitor",
+ "file-system-monitor",
+]
+extra = ["rules-engine"]

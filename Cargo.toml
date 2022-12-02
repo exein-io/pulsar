@@ -2,9 +2,9 @@
 
 members = [
     "modules/file-system-monitor",
-    #"modules/process-monitor",
-    #"modules/network-monitor",
-    #"modules/rules-engine",
+    "modules/process-monitor",
+    "modules/network-monitor",
+    "modules/rules-engine",
     "modules/logger",
     "pulsar-core",
     "pulsar",
@@ -13,9 +13,9 @@ members = [
     "validatron",
     "xtask",
     "test-suite",
-    # "examples/pulsar-module-as-library",
-    # "examples/pulsar-extension-module",
-    # "examples/pulsar-embedded-agent",
+    "examples/pulsar-module-as-library",
+    "examples/pulsar-extension-module",
+    "examples/pulsar-embedded-agent",
 ]
 
 [profile.release]
