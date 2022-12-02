@@ -1181,7 +1181,6 @@ dependencies = [
  "rust-ini",
  "semver",
  "serde",
- "syscall-monitor",
  "tokio",
 ]
 
@@ -1547,16 +1546,6 @@ dependencies = [
  "smart-default",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "syscall-monitor"
-version = "0.4.0"
-dependencies = [
- "bpf-common",
- "log",
- "pulsar-core",
- "tokio",
 ]
 
 [[package]]
