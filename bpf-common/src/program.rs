@@ -14,7 +14,7 @@ use aya::{
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
@@ -376,7 +376,8 @@ impl Program {
                                 // writes 3 bytes, we'll read 4, with the forth being a 0.
                                 // This is why we need buffer_len and can't rely on the
                                 // received buffer alone.
-                                let buffer = buffer.split_to(raw.buffer.buffer_len as usize);
+                                let buffer =
+                                    buffer.split_to(raw.buffer.buffer_len as usize).freeze();
                                 sender.send(Ok(BpfEvent {
                                     timestamp: raw.timestamp,
                                     pid: raw.pid,
@@ -409,7 +410,7 @@ pub struct BpfEvent<P> {
     pub timestamp: Timestamp,
     pub pid: Pid,
     pub payload: P,
-    pub buffer: BytesMut,
+    pub buffer: Bytes,
 }
 
 #[repr(C)]

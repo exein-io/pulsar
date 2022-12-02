@@ -36,6 +36,7 @@
 use std::{fmt::Display, future::Future, pin::Pin, time::Duration};
 
 use anyhow::Context;
+use bytes::Bytes;
 use tokio::sync::mpsc;
 
 use crate::{
@@ -428,15 +429,15 @@ macro_rules! event_check {
 }
 
 pub trait ComparableField<T> {
-    fn equals(&self, t: &T, buffer: &bytes::BytesMut) -> bool;
-    fn repr(&self, buffer: &bytes::BytesMut) -> String;
+    fn equals(&self, t: &T, buffer: &Bytes) -> bool;
+    fn repr(&self, buffer: &Bytes) -> String;
 }
 
 impl<T: PartialEq + std::fmt::Debug> ComparableField<T> for T {
-    fn equals(&self, t: &T, _buffer: &bytes::BytesMut) -> bool {
+    fn equals(&self, t: &T, _buffer: &Bytes) -> bool {
         self == t
     }
-    fn repr(&self, _buffer: &bytes::BytesMut) -> String {
+    fn repr(&self, _buffer: &Bytes) -> String {
         format!("{:?}", self)
     }
 }
