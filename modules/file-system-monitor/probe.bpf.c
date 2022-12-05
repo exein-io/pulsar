@@ -77,6 +77,14 @@ static struct event_t *init_event(int event_type) {
   return event;
 }
 
+static __always_inline void output_event(void *ctx, struct event_t *event) {
+  unsigned int len = sizeof(struct event_t) - BUFFER_MAX + event->buffer.len;
+  if (len > 0 && len <= sizeof(struct event_t)) {
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
+                          len & (BUFFER_MAX - 1));
+  }
+}
+
 // get_path_str was copied and adapted from Tracee
 // Returns the length of the copied entry
 static void get_path_str(struct dentry *dentry, struct path *path,
@@ -138,14 +146,6 @@ static void get_path_str(struct dentry *dentry, struct path *path,
   return;
 }
 
-static __always_inline void output_event(void *ctx, struct event_t *event) {
-  unsigned int len = sizeof(struct event_t) - BUFFER_MAX + event->buffer.len;
-  if (len > 0 && len <= sizeof(struct event_t)) {
-    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                          len & (BUFFER_MAX - 1));
-  }
-}
-
 PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
                 umode_t, mode, unsigned int, dev);
 static __always_inline void on_path_mknod(void *ctx, struct path *dir,
@@ -190,7 +190,6 @@ static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
   get_path_str(new_dentry, new_dir, &event->buffer, &event->link.source);
   get_path_str(old_dentry, new_dir, &event->buffer, &event->link.destination);
   event->link.hard_link = true;
-  //  event->link.destination);
   output_event(ctx, event);
 }
 
@@ -228,7 +227,6 @@ static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
   if (!event)
     return;
   get_path_str(dentry, dir, &event->buffer, &event->dir_deleted);
-  event->event_type = DIR_DELETED;
   output_event(ctx, event);
 }
 

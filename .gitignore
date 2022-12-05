@@ -3,3 +3,5 @@
 .vscode
 .idea
 *.swp
+
+compile_commands.json

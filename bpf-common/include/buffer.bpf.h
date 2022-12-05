@@ -1,21 +1,51 @@
+// Allow the eBPF side to send a buffer of dynamically sized arguments.
+//
+// The eBPF program sends event structures over a PerfEventArray, which the
+// userspace reads in `bpf-common/src/program.rs`. They need to be a blob of raw
+// memory which must have the same binary representation in C and Rust, hence
+// the Rust struct must be `repr(C)`.
+//
+// Originally, if the eBPF program wanted to send a string (eg. the path of a
+// file) we would have added to the event struct an array field with a fixed
+// length. This resulted in:
+// - Frequent large copies of mostly empty arrays
+// - Inability to support infrequent exceptionally large arguments
+//
+// The solution is to always append a generic buffer after the event definition:
+// struct event_t {
+//   u64 timestamp;
+//   pid_t pid;
+//   struct buffer_index path1;
+//   struct buffer_index path2;
+//   struct buffer buffer
+// }
+//
+// This will have a large maximum size of BUFFER_MAX, but only the used part
+// will be copied over on event output. A list of buffer indexes will be used
+// to specify the start and length of a given dynamic field.
+
 #pragma once
 
 #include "common.bpf.h"
 
-// Max buffer size in bytes
+// Allocated size of the buffer
 #define BUFFER_MAX 16384
+// FIXME: To satisfy the eBPF validator, half of the buffer is unused. The
+// chunks we write have a max length of HALF_BUFFER_MASK and can start only
+// up to HALF_BUFFER_MASK.
 #define HALF_BUFFER_MASK (BUFFER_MAX / 2 - 1)
 
 // A generic buffer attached to an event. This can be sent partially (only the
 // used part of the buffer) to userspace.
 struct buffer {
+  // number of filled bytes
   u32 len;
   // buffer is an array of u64 to force an alignment like the Rust code
   u64 buffer[BUFFER_MAX / sizeof(u64)];
 };
 
-// A slice inside the buffer. Used inside the tansferred data structures
-// for dynamicly sized arrays.
+// A slice inside the buffer. Used inside the transferred data structures
+// for dynamically sized arrays.
 struct buffer_index {
   u16 start;
   u16 len;
@@ -29,7 +59,8 @@ static void buffer_index_init(struct buffer *buffer,
 }
 
 // Copy up to len bytes from source to the buffer pointed by index.
-// On success, update index and buffer length.
+// On success, update index and buffer length. Source is treated as a string:
+// the copy will be interrupted when encountering a NULL byte.
 static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
                               const char *source, int len) {
   int pos = (index->start + index->len) & HALF_BUFFER_MASK;
@@ -52,6 +83,9 @@ static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
   buffer->len += r - 1;
 }
 
+// Copy up to len bytes from source to the buffer pointed by index.
+// On success, update index and buffer length.
+// Source must point to user memory.
 static void buffer_append_user_memory(struct buffer *buffer,
                                       struct buffer_index *index,
                                       const char *source, int len) {
