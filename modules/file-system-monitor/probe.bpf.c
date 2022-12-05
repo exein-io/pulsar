@@ -123,7 +123,7 @@ static void get_path_str(struct dentry *dentry, struct path *path,
     count++;
   }
 
-  // copy compoenents
+  // copy components
   buffer_index_init(buffer, index);
 #pragma unroll
   for (int i = MAX_PATH_COMPONENTS; i >= 0; i--) {

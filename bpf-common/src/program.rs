@@ -405,7 +405,6 @@ pub fn load_test_program(probe: &[u8]) -> Result<Bpf, ProgramError> {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct BpfEvent<P> {
     pub timestamp: Timestamp,
     pub pid: Pid,

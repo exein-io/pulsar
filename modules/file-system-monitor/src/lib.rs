@@ -66,13 +66,11 @@ pub enum FsEvent {
         filename: BufferIndex<str>,
         flags: i32,
     },
-    #[allow(clippy::large_enum_variant)]
     FileLink {
         source: BufferIndex<str>,
         destination: BufferIndex<str>,
         hard_link: bool,
     },
-    #[allow(clippy::large_enum_variant)]
     FileRename {
         source: BufferIndex<str>,
         destination: BufferIndex<str>,
