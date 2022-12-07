@@ -8,7 +8,7 @@ use std::{convert::TryFrom, fmt::Display, mem::size_of, sync::Arc, time::Duratio
 use aya::{
     maps::{
         perf::{AsyncPerfEventArray, PerfBufferError},
-        HashMap, MapRefMut,
+        HashMap, MapData,
     },
     programs::{KProbe, Lsm, RawTracePoint, TracePoint},
     util::online_cpus,
@@ -110,6 +110,8 @@ pub enum ProgramError {
     },
     #[error(transparent)]
     MapError(#[from] aya::maps::MapError),
+    #[error("map not found {0}")]
+    MapNotFound(String),
     #[error("perf buffer error {0}")]
     PerfBuffer(#[from] PerfBufferError),
     #[error("loading BTF {0}")]
@@ -295,20 +297,27 @@ impl Program {
     }
     /// Poll a BPF_MAP_TYPE_HASH with a certain interval
     pub async fn poll<F, K, V>(
-        &self,
+        &mut self,
         map_name: &str,
         interval: Duration,
         mut poll_fn: F,
     ) -> Result<(), ProgramError>
     where
-        F: FnMut(Result<&mut HashMap<MapRefMut, K, V>, ProgramError>),
+        F: FnMut(Result<&mut HashMap<&mut MapData, K, V>, ProgramError>),
         F: Send + 'static,
         K: Pod + 'static + Send,
         V: Pod + 'static + Send,
     {
-        let mut map: HashMap<_, K, V> = self.bpf.map_mut(map_name)?.try_into()?;
+        let mut map_resource = self
+            .bpf
+            .take_map(map_name)
+            .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
         let mut rx_exit = self.tx_exit.subscribe();
         tokio::spawn(async move {
+            let mut map = match HashMap::try_from(&mut map_resource) {
+                Ok(map) => map,
+                Err(err) => return poll_fn(Err(err.into())),
+            };
             let mut interval = tokio::time::interval(interval);
             loop {
                 tokio::select! {
@@ -323,21 +332,17 @@ impl Program {
     /// Watch a BPF_MAP_TYPE_PERF_EVENT_ARRAY and forward all its events to `sender`.
     /// A different task is run for each CPU.
     pub async fn read_events<T: Send>(
-        &self,
+        &mut self,
         map_name: &str,
         sender: impl BpfSender<T>,
     ) -> Result<(), ProgramError> {
-        let mut perf_array: AsyncPerfEventArray<_> = self.bpf.map_mut(map_name)?.try_into()?;
-        let maps = online_cpus()
-            .unwrap()
-            .into_iter()
-            .map(|cpu_id| {
-                perf_array
-                    .open(cpu_id, Some(self.ctx.perf_pages))
-                    .map_err(ProgramError::from)
-            })
-            .collect::<Result<Vec<_>, ProgramError>>()?;
-        for mut buf in maps {
+        let map_resource = self
+            .bpf
+            .take_map(map_name)
+            .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
+        let mut perf_array: AsyncPerfEventArray<_> = AsyncPerfEventArray::try_from(map_resource)?;
+        for cpu_id in online_cpus().unwrap() {
+            let mut buf = perf_array.open(cpu_id, Some(self.ctx.perf_pages))?;
             let name = self.name.clone();
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
