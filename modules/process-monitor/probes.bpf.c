@@ -134,7 +134,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   long end = BPF_CORE_READ(mm, arg_end);
   int len = end - start;
   buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv, start, len);
+  buffer_append_user_memory(&event->buffer, &event->exec.argv,
+                            (const char *)start, len);
 
   bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
                         sizeof(struct process_event));

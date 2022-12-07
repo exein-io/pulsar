@@ -29,6 +29,7 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
         .arg("-O2")
         .args(["-target", "bpf"])
         .arg("-c")
+        .arg("-Werror")
         .arg(format!(
             "-D__TARGET_ARCH_{}",
             match arch.as_str() {
