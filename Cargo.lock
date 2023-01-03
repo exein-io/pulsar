@@ -128,8 +128,9 @@ dependencies = [
 [[package]]
 name = "aya"
 version = "0.11.0"
-source = "git+https://github.com/aya-rs/aya?rev=8ac301f92eae9aa51fc530dfe66c4affd8f83551#8ac301f92eae9aa51fc530dfe66c4affd8f83551"
+source = "git+https://github.com/aya-rs/aya?rev=4cc0ea09e0f95ab7f4eaae34ed0163f529296733#4cc0ea09e0f95ab7f4eaae34ed0163f529296733"
 dependencies = [
+ "aya-obj",
  "bitflags",
  "bytes",
  "lazy_static",
@@ -139,6 +140,17 @@ dependencies = [
  "parking_lot",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "aya-obj"
+version = "0.1.0"
+source = "git+https://github.com/aya-rs/aya?rev=4cc0ea09e0f95ab7f4eaae34ed0163f529296733#4cc0ea09e0f95ab7f4eaae34ed0163f529296733"
+dependencies = [
+ "bytes",
+ "log",
+ "object",
+ "thiserror",
 ]
 
 [[package]]

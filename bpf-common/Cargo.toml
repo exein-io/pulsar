@@ -11,7 +11,7 @@ test-suite = ["test-utils"]
 test-utils = []
 
 [dependencies]
-aya = { git = "https://github.com/aya-rs/aya", rev = "8ac301f92eae9aa51fc530dfe66c4affd8f83551", features = ["async_tokio"] }
+aya = { git = "https://github.com/aya-rs/aya", rev = "4cc0ea09e0f95ab7f4eaae34ed0163f529296733", features = ["async_tokio"] }
 bytes = "1.1.0"
 thiserror = "1"
 tokio = { version = "1", features = ["full"] }
