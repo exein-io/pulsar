@@ -45,12 +45,12 @@ struct event_t {
   struct buffer buffer;
 };
 
-struct bpf_map_def_aya SEC("maps/event") eventmem = {
-    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct event_t),
-    .max_entries = 1,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, u32);
+  __type(value, struct event_t);
+  __uint(max_entries, 1);
+} eventmem SEC(".maps");
 
 // used to send events to userspace
 struct bpf_map_def_aya SEC("maps/events") events = {

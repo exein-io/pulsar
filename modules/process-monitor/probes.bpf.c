@@ -44,28 +44,28 @@ struct bpf_map_def_aya SEC("maps/events") events = {
 
 #define MAX_IMAGE_LEN 100
 
-struct bpf_map_def_aya SEC("maps/target") target = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = MAX_IMAGE_LEN,
-    .value_size = sizeof(u8),
-    .max_entries = 100,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, char[MAX_IMAGE_LEN]);
+  __type(value, u8);
+  __uint(max_entries, 100);
+} target SEC(".maps");
 
-struct bpf_map_def_aya SEC("maps/whitelist") whitelist = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = MAX_IMAGE_LEN,
-    .value_size = sizeof(u8),
-    .max_entries = 100,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, char[MAX_IMAGE_LEN]);
+  __type(value, u8);
+  __uint(max_entries, 100);
+} whitelist SEC(".maps");
 
 // The BPF stack limit of 512 bytes is exceeded by process_event, so we use
 // a per-cpu array as a workaround
-struct bpf_map_def_aya SEC("maps/event") eventmem = {
-    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct process_event),
-    .max_entries = 1,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, u32);
+  __type(value, struct process_event);
+  __uint(max_entries, 1);
+} eventmem SEC(".maps");
 
 static __always_inline struct process_event *new_event() {
   u32 key = 0;
