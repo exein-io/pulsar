@@ -128,7 +128,7 @@ pub fn get_process_user_id(pid: Pid) -> Result<Uid, ProcfsError> {
 /// Returns the cpuset cgroup id of a given process.
 pub fn get_process_cgroup_id(pid: Pid) -> Option<String> {
     let cgroup_path = format!("/proc/{}/cgroup", pid);
-    let file = match File::open(&cgroup_path) {
+    let file = match File::open(cgroup_path) {
         Ok(f) => f,
         Err(_) => return None,
     };

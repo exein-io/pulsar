@@ -14,7 +14,7 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
     let engine_api_client = if let Some(api_server) = &options.api_server {
         EngineApiClient::unix(api_server.clone())?
     } else {
-        EngineApiClient::default()?
+        EngineApiClient::new()?
     };
 
     log::trace!("Command received: {:?}", options.command);

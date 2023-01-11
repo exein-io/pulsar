@@ -15,7 +15,7 @@ pub struct EngineApiClient {
 }
 
 impl EngineApiClient {
-    pub fn default() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         Self::unix(super::DEFAULT_UDS.to_owned())
     }
 
@@ -88,22 +88,22 @@ impl EngineApiClient {
     }
 
     pub async fn start(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/start", module_name));
+        let url = self.uri(format!("/modules/{}/start", module_name));
         self.empty_post(url).await
     }
 
     pub async fn stop(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/stop", module_name));
+        let url = self.uri(format!("/modules/{}/stop", module_name));
         self.empty_post(url).await
     }
 
     pub async fn restart(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/restart", module_name));
+        let url = self.uri(format!("/modules/{}/restart", module_name));
         self.empty_post(url).await
     }
 
     pub async fn get_module_config(&self, module_name: &str) -> Result<Vec<ConfigKV>> {
-        let url = self.uri(&format!("/modules/{}/config", module_name));
+        let url = self.uri(format!("/modules/{}/config", module_name));
         self.get(url).await
     }
 
@@ -113,7 +113,7 @@ impl EngineApiClient {
         config_key: String,
         config_value: String,
     ) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/config", module_name));
+        let url = self.uri(format!("/modules/{}/config", module_name));
 
         let body_string = serde_json::to_string(&ConfigKV {
             key: config_key,
