@@ -1,12 +1,17 @@
 use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
+use futures::{Stream, StreamExt};
 use hyper::{Body, Method, Request, StatusCode, Uri};
 use hyperlocal::{UnixClientExt, UnixConnector};
-use pulsar_core::pdk::ModuleOverview;
+use pulsar_core::pdk::{Event, ModuleOverview};
 use serde::de::DeserializeOwned;
+use tokio_tungstenite::{client_async, tungstenite::Message};
 
-use crate::dto::{ConfigKV, ModuleConfigKVs};
+use crate::{
+    dto::{ConfigKV, ModuleConfigKVs},
+    error::WebsocketError,
+};
 
 #[derive(Debug, Clone)]
 pub struct EngineApiClient {
@@ -175,5 +180,28 @@ impl EngineApiClient {
                 Err(anyhow!("Error during request. {error}"))
             }
         }
+    }
+
+    pub async fn event_monitor(&self) -> Result<impl Stream<Item = Result<Event, WebsocketError>>> {
+        let stream = tokio::net::UnixStream::connect(&self.socket).await?;
+
+        // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
+        let (ws_stream, _) = client_async("ws://localhost/monitor", stream).await?;
+
+        let (_, read_stream) = ws_stream.split();
+
+        let events_stream = read_stream.map(|item| {
+            item.map_err(|e| e.into()).and_then(|msg| {
+                if let Message::Text(json) = msg {
+                    let event: Event =
+                        serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
+                    Ok(event)
+                } else {
+                    Err(WebsocketError::UnsupportedMessageType)
+                }
+            })
+        });
+
+        Ok(events_stream)
     }
 }

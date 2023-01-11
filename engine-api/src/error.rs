@@ -6,12 +6,23 @@ use axum::{
     response::IntoResponse,
 };
 use pulsar_core::pdk::PulsarDaemonError;
+use thiserror::Error;
 
 #[derive(Debug)]
 pub enum EngineApiError {
     InternalServerError,
     BadRequest(String),
     ServiceUnavailable,
+}
+
+#[derive(Debug, Error)]
+pub enum WebsocketError {
+    #[error(transparent)]
+    JsonError(#[from] serde_json::Error),
+    #[error(transparent)]
+    ConnectionError(#[from] tokio_tungstenite::tungstenite::Error),
+    #[error("unsupported message type")]
+    UnsupportedMessageType,
 }
 
 impl Display for EngineApiError {
