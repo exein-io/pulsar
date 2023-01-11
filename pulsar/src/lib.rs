@@ -100,6 +100,8 @@ pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
         logger::module(),
         #[cfg(feature = "rules-engine")]
         rules_engine::module(),
+        #[cfg(feature = "desktop-notifier")]
+        desktop_notifier::module(),
     ]
     .into_iter()
     .map(|x| Box::new(x) as Box<dyn TaskLauncher>)
