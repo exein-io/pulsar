@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, ensure, Result};
 use bpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
-use pulsar_core::pdk::TaskLauncher;
+use pulsar_core::{bus::Bus, pdk::TaskLauncher};
 use tokio::signal::unix::{signal, SignalKind};
 
 use crate::cli::pulsard::PulsarDaemonOpts;
@@ -38,7 +38,10 @@ pub async fn pulsar_daemon_run(
         PulsarConfig::new()?
     };
 
-    let pulsar_daemon = start_daemon(modules, config.clone()).await?;
+    // Initialize bus
+    let bus = Bus::new();
+
+    let pulsar_daemon = start_daemon(bus.clone(), modules, config.clone()).await?;
 
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();
@@ -46,7 +49,7 @@ pub async fn pulsar_daemon_run(
         let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
         let custom_socket_path = general_config.get_raw("api_socket_path");
 
-        server::run_api_server(EngineAPIContext { pulsar_daemon }, custom_socket_path)?
+        server::run_api_server(EngineAPIContext { bus, pulsar_daemon }, custom_socket_path)?
     };
 
     let mut sig_int = signal(SignalKind::interrupt())?;

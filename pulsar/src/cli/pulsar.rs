@@ -31,6 +31,9 @@ pub enum Commands {
 
     /// Manage module configuration
     Config(Config),
+
+    /// Start event monitor
+    Monitor(Monitor),
 }
 
 // THIS "SHIM" STRUCT IS MANDATORY
@@ -59,6 +62,12 @@ pub struct ModuleConfigKV {
     pub module_name: String,
     pub key: String,
     pub value: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct Monitor {
+    #[clap(long, default_value_t = false)]
+    pub all: bool,
 }
 
 fn parse_mc_key_value(input: &str) -> Result<ModuleConfigKV> {

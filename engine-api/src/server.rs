@@ -5,13 +5,20 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use axum::{
-    extract::{Path, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
+    response::Response,
     routing::{get, patch, post},
     BoxError, Json, Router,
 };
 use futures::ready;
 use hyper::server::accept::Accept;
-use pulsar_core::pdk::{ModuleOverview, PulsarDaemonHandle};
+use pulsar_core::{
+    bus::Bus,
+    pdk::{ModuleOverview, PulsarDaemonHandle},
+};
 use tokio::{
     net::{UnixListener, UnixStream},
     sync::oneshot,
@@ -37,6 +44,7 @@ impl ServerHandle {
 
 #[derive(Clone)]
 pub struct EngineAPIContext {
+    pub bus: Bus,
     pub pulsar_daemon: PulsarDaemonHandle,
 }
 
@@ -55,6 +63,7 @@ pub fn run_api_server(
     let app = Router::new()
         .nest("/modules", modules)
         .route("/configs", get(configs))
+        .route("/monitor", get(event_monitor_handler))
         .with_state(engine_api_ctx);
 
     let socket_path = custom_socket_path.unwrap_or(super::DEFAULT_UDS).to_string();
@@ -157,6 +166,33 @@ async fn update_module_cfg(
         .update_configuration(module_name, config_kv.key, config_kv.value)
         .await?;
     Ok(())
+}
+
+async fn event_monitor_handler(
+    State(ctx): State<EngineAPIContext>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    let mut bus_receiver = ctx.bus.get_receiver();
+
+    // This closure reads events from the bus receiver and sends them into the socket
+    let handle_socket = |mut socket: WebSocket| async move {
+        while let Ok(event) = bus_receiver.recv().await {
+            match serde_json::to_string(&*event) {
+                Ok(json) => {
+                    if socket.send(Message::Text(json)).await.is_err() {
+                        // client disconnected
+                        return;
+                    }
+                }
+                Err(e) => {
+                    log::error!("error occurred in event serialization: {e}");
+                    return;
+                }
+            }
+        }
+    };
+
+    ws.on_upgrade(handle_socket)
 }
 
 struct ServerAccept {

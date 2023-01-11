@@ -1,10 +1,11 @@
 use anyhow::Result;
 use engine_api::client::EngineApiClient;
+use futures_util::TryStreamExt;
 
 mod term_print;
 
 use crate::{
-    cli::pulsar::{Commands, Config, ModuleConfigKV, PulsarCliOpts},
+    cli::pulsar::{Commands, Config, ModuleConfigKV, Monitor, PulsarCliOpts},
     pulsar::term_print::TermPrintable,
 };
 
@@ -55,6 +56,16 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
             }
             _ => unreachable!(),
         },
+        Commands::Monitor(Monitor { all }) => {
+            while let Ok(msg) = engine_api_client.event_monitor().await?.try_next().await {
+                if let Some(event) = msg {
+                    if *all || event.header().threat.is_some() {
+                        logger::terminal::print_event(&event)
+                    }
+                }
+            }
+            Err(anyhow::anyhow!("Connection closed"))
+        }
     }?;
 
     Ok(())
