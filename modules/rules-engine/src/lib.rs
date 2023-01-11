@@ -35,8 +35,7 @@ async fn rules_engine_task(
             // handle pulsar message
             event = receiver.recv() => {
                 let event = event?;
-                    engine.process(&event)
-
+                engine.process(&event)
             },
         }
     }
