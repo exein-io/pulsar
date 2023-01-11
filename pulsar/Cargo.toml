@@ -38,6 +38,7 @@ network-monitor = { path = "../modules/network-monitor", optional = true }
 syscall-monitor = { path = "../modules/syscall-monitor", optional = true }
 logger = { path = "../modules/logger", optional = true }
 rules-engine = { path = "../modules/rules-engine", optional = true }
+desktop-notifier = { path = "../modules/desktop-notifier", optional = true }
 
 
 [features]
@@ -49,4 +50,7 @@ core = [
   "syscall-monitor",
   "file-system-monitor",
 ]
-extra = ["rules-engine"]
+extra = [
+  "rules-engine",
+  "desktop-notifier",
+]

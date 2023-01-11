@@ -7,6 +7,7 @@ members = [
     "modules/syscall-monitor",
     "modules/rules-engine",
     "modules/logger",
+    "modules/desktop-notifier",
     "pulsar-core",
     "pulsar",
     "bpf-common",

@@ -1,0 +1,14 @@
+[package]
+name = "desktop-notifier"
+version = "0.1.0"
+license = "Apache-2.0"
+edition = "2021"
+
+[dependencies]
+pulsar-core = { path = "../../pulsar-core" }
+bpf-common = { path = "../../bpf-common" }
+
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+notify-rust = "4.7.0"
+anyhow = "1.0.68"
