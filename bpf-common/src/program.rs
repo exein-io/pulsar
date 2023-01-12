@@ -303,26 +303,23 @@ impl Program {
         mut poll_fn: F,
     ) -> Result<(), ProgramError>
     where
-        F: FnMut(Result<&mut HashMap<&mut MapData, K, V>, ProgramError>),
+        F: FnMut(&mut HashMap<MapData, K, V>),
         F: Send + 'static,
         K: Pod + 'static + Send,
         V: Pod + 'static + Send,
     {
-        let mut map_resource = self
+        let map_resource = self
             .bpf
             .take_map(map_name)
             .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
         let mut rx_exit = self.tx_exit.subscribe();
+        let mut map = HashMap::try_from(map_resource)?;
         tokio::spawn(async move {
-            let mut map = match HashMap::try_from(&mut map_resource) {
-                Ok(map) => map,
-                Err(err) => return poll_fn(Err(err.into())),
-            };
             let mut interval = tokio::time::interval(interval);
             loop {
                 tokio::select! {
                     Err(_) = rx_exit.changed() => break,
-                    _ = interval.tick() => poll_fn(Ok(&mut map)),
+                    _ = interval.tick() => poll_fn(&mut map),
                 };
             }
         });
@@ -341,8 +338,13 @@ impl Program {
             .take_map(map_name)
             .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
         let mut perf_array: AsyncPerfEventArray<_> = AsyncPerfEventArray::try_from(map_resource)?;
-        for cpu_id in online_cpus().unwrap() {
-            let mut buf = perf_array.open(cpu_id, Some(self.ctx.perf_pages))?;
+
+        let buffers = online_cpus()
+            .unwrap()
+            .into_iter()
+            .map(|cpu_id| perf_array.open(cpu_id, Some(self.ctx.perf_pages)))
+            .collect::<Result<Vec<_>, PerfBufferError>>()?;
+        for mut buf in buffers {
             let name = self.name.clone();
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
