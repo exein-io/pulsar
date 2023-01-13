@@ -10,5 +10,4 @@ bpf-common = { path = "../../bpf-common" }
 
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
-notify-rust = "4.7.0"
 anyhow = "1.0.68"

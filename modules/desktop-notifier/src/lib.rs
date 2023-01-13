@@ -1,13 +1,14 @@
 use std::{
     os::unix::process::CommandExt,
     process::{Command, Stdio},
+    sync::Arc,
 };
 
 use anyhow::{Context, Result};
 use pulsar_core::{
     event::Threat,
     pdk::{
-        CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
+        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
         ShutdownSignal, Version,
     },
 };
@@ -27,31 +28,32 @@ async fn desktop_nitifier_task(
     let mut config = rx_config.borrow().clone()?;
 
     loop {
-        let event = tokio::select! {
+        tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
                 config = rx_config.borrow().clone()?;
                 continue;
             }
-            msg = receiver.recv() => msg?,
-        };
-        if let Some(Threat { source, info }) = &event.header().threat {
-            let payload = &event.payload();
-            notify(
-                &config,
-                vec![
-                    format!("Pulsar module {source} identified a threat"),
-                    format!("{info}\n Source event: {payload}"),
-                ],
-            )
-            .await
-            .context("Sending notification failed")?;
+            msg = receiver.recv() => {
+                handle_event(&config, msg?).await?;
+            }
         }
     }
 }
 
+/// Check if the given event is a threat which should be notified to the user
+async fn handle_event(config: &Config, event: Arc<Event>) -> Result<()> {
+    if let Some(Threat { source, info }) = &event.header().threat {
+        let payload = &event.payload();
+        let title = format!("Pulsar module {source} identified a threat");
+        let body = format!("{info}\n Source event: {payload}");
+        notify_send(config, vec![title, body]).await?;
+    }
+    Ok(())
+}
+
 /// Send a desktop notification spawning `notify-send` with the provided arguments
-async fn notify(config: &Config, args: Vec<String>) -> Result<()> {
+async fn notify_send(config: &Config, args: Vec<String>) -> Result<()> {
     let mut command = Command::new(&config.notify_send_executable);
     command
         .args(args)
