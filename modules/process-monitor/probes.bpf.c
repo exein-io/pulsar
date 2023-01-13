@@ -8,6 +8,10 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define EVENT_FORK 0
 #define EVENT_EXEC 1
 #define EVENT_EXIT 2
+#define EVENT_CHANGE_PARENT 3
+
+#define MAX_IMAGE_LEN 100
+#define MAX_ORPHANS 30
 
 struct fork_event {
   pid_t ppid;
@@ -23,7 +27,9 @@ struct exit_event {
   u32 exit_code;
 };
 
-#define MAX_IMAGE_LEN 100
+struct change_parent_event {
+  pid_t ppid;
+};
 
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
@@ -43,7 +49,27 @@ OUTPUT_MAP(events, process_event, {
   struct fork_event fork;
   struct exec_event exec;
   struct exit_event exit;
+  struct change_parent_event change_parent;
 });
+
+struct pending_dead_process {
+  // Pid of the dead process who left orphans
+  pid_t dead_parent;
+  // Timestamp of the death of parent
+  u64 timestamp;
+  // List of orphans which will be re-parented
+  struct task_struct *orphans[MAX_ORPHANS];
+};
+
+// Temporary map used to communicate the list of orphaned processes from
+// `sched_process_exit` to `sched_switch`. There we'll be able to read
+// the new parent of the orphans and emit an EVENT_CHANGE_PARENT.
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, u32);
+  __type(value, struct pending_dead_process);
+  __uint(max_entries, 1);
+} orphans_map SEC(".maps");
 
 // This hook intercepts new process creations, inherits interest for the child
 // from the parent and emits a fork event.
@@ -131,7 +157,35 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   return 0;
 }
 
-#define PF_EXITING 4
+// When a process exits, we have to add all its children to orphans_map. This
+// will be checked as soon as possibile (the scheduler iteration which happens
+// immediately after an exit syscall) for changes to a process parent.
+static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
+  u32 key = 0;
+  struct pending_dead_process *pending =
+      bpf_map_lookup_elem(&orphans_map, &key);
+  if (!pending) {
+    return;
+  }
+  pending->dead_parent = tgid;
+  pending->timestamp = bpf_ktime_get_ns();
+  // Collect orphans by iterating the dead process children
+  struct list_head *next = BPF_CORE_READ(p, children.next);
+  int i;
+  for (i = 0; i < MAX_ORPHANS; i = i + 1) {
+    struct task_struct *task = container_of(next, struct task_struct, sibling);
+    pending->orphans[i] = task;
+    LOG_DEBUG("Pending check for new parent of %d ", BPF_CORE_READ(task, pid));
+    next = BPF_CORE_READ(task, sibling.next);
+    // Once we find the same element we started at, we know we've
+    // iterated all children and we can exit the loop.
+    if (next == &p->children) {
+      if (i + 1 < MAX_ORPHANS)
+        pending->orphans[i + 1] = NULL;
+      break;
+    }
+  }
+}
 
 // This is attached to tracepoint:sched:sched_process_exit
 SEC("raw_tracepoint/sched_process_exit")
@@ -160,7 +214,6 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   if (!event)
     return 0;
   event->event_type = EVENT_EXIT;
-  event->buffer.len = 0;
   event->timestamp = bpf_ktime_get_ns();
   // The PID is the thread id of the progress group leader
   event->pid = tgid;
@@ -171,5 +224,37 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
             event->exit.exit_code);
   output_event(ctx, &events, event, sizeof(struct process_event),
                event->buffer.len);
+  collect_orphans(tgid, p);
+  return 0;
+}
+
+/// On task switch, check if there are pending orphans and signal
+/// their parent changed.
+SEC("raw_tracepoint/sched_switch")
+int BPF_PROG(sched_switch) {
+  u32 key = 0;
+  struct pending_dead_process *pending =
+      bpf_map_lookup_elem(&orphans_map, &key);
+  if (!pending || !pending->dead_parent) {
+    return 0;
+  }
+  pending->dead_parent = 0;
+  int i;
+  for (i = 0; i < MAX_ORPHANS; i = i + 1) {
+    struct task_struct *orphan = pending->orphans[i];
+    if (orphan == NULL)
+      break;
+    struct process_event *event = output_temp();
+    if (!event)
+      return 0;
+    event->event_type = EVENT_CHANGE_PARENT;
+    event->buffer.len = 0;
+    event->timestamp = pending->timestamp;
+    event->pid = BPF_CORE_READ(orphan, pid);
+    event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
+    LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
+    output_event(ctx, &events, event, sizeof(struct process_event),
+                 event->buffer.len);
+  }
   return 0;
 }

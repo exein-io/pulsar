@@ -15,6 +15,7 @@ pub async fn program(
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
+        .raw_tracepoint("sched_switch")
         .start()
         .await?;
     program.read_events("events", sender).await?;
@@ -40,6 +41,9 @@ pub enum ProcessEvent {
     },
     Exit {
         exit_code: u32,
+    },
+    ChangeParent {
+        ppid: Pid,
     },
 }
 
@@ -120,6 +124,7 @@ pub mod pulsar {
                         pid: event.pid,
                         timestamp: event.timestamp,
                     },
+                    ProcessEvent::ChangeParent { .. } => todo!(),
                 });
             }),
         )
@@ -165,6 +170,7 @@ pub mod pulsar {
                     argv: extract_parameters(argv.bytes(&buffer)?).into(),
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
+                ProcessEvent::ChangeParent { .. } => todo!(),
             })
         }
     }
@@ -180,9 +186,14 @@ pub mod test_suite {
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use filtering::config::Rule;
     use filtering::maps::{InterestMap, RuleMap};
+    use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
     use nix::unistd::execv;
     use nix::unistd::{fork, ForkResult};
     use std::ffi::CString;
+    use std::fs;
+    use std::process::exit;
+    use std::thread::sleep;
+    use std::time::Duration;
     use which::which;
 
     use super::*;
@@ -199,6 +210,7 @@ pub mod test_suite {
                 exec_updates_interest(),
                 threads_are_ignored(),
                 exit_cleans_up_resources(),
+                parent_change(),
             ],
         }
     }
@@ -254,13 +266,16 @@ pub mod test_suite {
     fn exit_event() -> TestCase {
         TestCase::new("exit_event", async {
             let mut child_pid = Pid::from_raw(0);
-            const EXIT_VALUE: u32 = 42;
+            const EXIT_VALUE: i32 = 42;
             test_runner()
                 .run(|| child_pid = fork_and_return(EXIT_VALUE))
                 .await
                 .expect_event_from_pid(
                     child_pid,
-                    event_check!(ProcessEvent::Exit, (exit_code, EXIT_VALUE, "exit code")),
+                    event_check!(
+                        ProcessEvent::Exit,
+                        (exit_code, EXIT_VALUE as u32, "exit code")
+                    ),
                 )
                 .report()
         })
@@ -301,8 +316,8 @@ pub mod test_suite {
     }
 
     /// Fork current project and store child pid inside child_pid
-    pub fn fork_and_return(exit_code: u32) -> Pid {
-        fork_and_run(move || std::process::exit(exit_code as i32))
+    pub fn fork_and_return(exit_code: i32) -> Pid {
+        fork_and_run(move || exit(exit_code))
     }
 
     pub fn fork_and_run(f: impl FnOnce()) -> Pid {
@@ -527,7 +542,7 @@ pub mod test_suite {
             let child_pid = fork_and_run(move || {
                 let pid = std::process::id() as i32;
                 interest_map_ref.0.insert(pid, 0, 0).unwrap();
-                std::process::exit(0);
+                exit(0);
             })
             .as_raw();
 
@@ -538,6 +553,52 @@ pub mod test_suite {
                     "exit should have deleted PID {child_pid} from map_interest"
                 )],
             }
+        })
+    }
+
+    /// When the parent of a process dies, it should be re-parented to the closest
+    /// subreaper, or pid 1
+    fn parent_change() -> TestCase {
+        TestCase::new("parent_change", async {
+            // Assuming the test-suite is running as process A:
+            // - We set ourself as sub-reaper
+            // - We spawn an intermediate process B
+            // - B spawns a process C
+            // - C stays alive (it outlives the test)
+            // - B saves the pid of process C to a file
+            // - B exits
+            // - We read the pid of C from the file
+            // - We make sure the new parent of C is A
+            // We expect a parent change event from C with a new parent
+            let pid_a = Pid::from_raw(std::process::id() as i32);
+            let mut pid_c = Pid::from_raw(0);
+            let shared_file = std::env::temp_dir().join("process_c_pid.txt");
+            _ = fs::remove_file(&shared_file);
+            test_runner()
+                .run(|| {
+                    unsafe { prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) };
+                    fork_and_run(|| {
+                        match unsafe { fork() }.unwrap() {
+                            ForkResult::Child => {
+                                sleep(Duration::from_secs(2));
+                                exit(0)
+                            }
+                            ForkResult::Parent { child: pid_c } => {
+                                _ = fs::write(&shared_file, pid_c.as_raw().to_le_bytes());
+                                exit(0);
+                            }
+                        };
+                    });
+                    pid_c = Pid::from_raw(i32::from_le_bytes(
+                        fs::read(&shared_file).unwrap().try_into().unwrap(),
+                    ));
+                })
+                .await
+                .expect_event_from_pid(
+                    pid_c,
+                    event_check!(ProcessEvent::ChangeParent, (ppid, pid_a, "parent pid")),
+                )
+                .report()
         })
     }
 }
