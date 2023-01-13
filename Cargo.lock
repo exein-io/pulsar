@@ -434,7 +434,6 @@ name = "file-system-monitor"
 version = "0.4.0"
 dependencies = [
  "bpf-common",
- "bytes",
  "log",
  "nix",
  "pulsar-core",
@@ -848,7 +847,6 @@ name = "logger"
 version = "0.4.0"
 dependencies = [
  "bpf-common",
- "bytes",
  "chrono",
  "log",
  "pulsar-core",
@@ -1191,7 +1189,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bpf-common",
- "bytes",
  "log",
  "nix",
  "semver",

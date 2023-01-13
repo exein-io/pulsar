@@ -264,7 +264,7 @@ where
     fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error>;
 }
 
-/// This allows to teat a ModuleSender as a bpf_common::Sender<T> for any T which
+/// This allows to treat a ModuleSender as a bpf_common::Sender<T> for any T which
 /// can be converted into a Payload. This allows probes to send Pulsar events despite
 /// not knowing anything about Pulsar.
 impl<T: IntoPayload> bpf_common::BpfSender<T> for ModuleSender {
