@@ -40,12 +40,12 @@
 
 // The BPF stack limit of 512 bytes is exceeded by network_event,
 // so we use a per-cpu array as a workaround
-struct bpf_map_def_aya SEC("maps/event") temp_map = {
-    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = BUFFER_MAX * 2,
-    .max_entries = 1,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, u32);
+  __type(value, char[BUFFER_MAX * 2]);
+  __uint(max_entries, 1);
+} temp_map SEC(".maps");
 
 // Get the temporary buffer inside temp_map as a void pointer, this can be cast
 // to the required event type and filled before submitting it for output. The

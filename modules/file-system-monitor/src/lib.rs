@@ -43,7 +43,7 @@ pub async fn program(
             .kprobe("security_path_link")
             .kprobe("security_path_symlink");
     }
-    let program = builder.start().await?;
+    let mut program = builder.start().await?;
     program.read_events("events", sender).await?;
     Ok(program)
 }

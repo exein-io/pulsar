@@ -25,19 +25,19 @@ struct exit_event {
 
 #define MAX_IMAGE_LEN 100
 
-struct bpf_map_def_aya SEC("maps/target") target = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = MAX_IMAGE_LEN,
-    .value_size = sizeof(u8),
-    .max_entries = 100,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, char[MAX_IMAGE_LEN]);
+  __type(value, u8);
+  __uint(max_entries, 100);
+} target SEC(".maps");
 
-struct bpf_map_def_aya SEC("maps/whitelist") whitelist = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = MAX_IMAGE_LEN,
-    .value_size = sizeof(u8),
-    .max_entries = 100,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, char[MAX_IMAGE_LEN]);
+  __type(value, u8);
+  __uint(max_entries, 100);
+} whitelist SEC(".maps");
 
 OUTPUT_MAP(events, process_event, {
   struct fork_event fork;

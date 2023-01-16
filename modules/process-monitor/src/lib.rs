@@ -13,7 +13,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
-    let program = ProgramBuilder::new(ctx, MODULE_NAME, PROCESS_MONITOR_PROBE.into())
+    let mut program = ProgramBuilder::new(ctx, MODULE_NAME, PROCESS_MONITOR_PROBE.into())
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")

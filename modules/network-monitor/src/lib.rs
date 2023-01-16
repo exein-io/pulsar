@@ -80,7 +80,7 @@ pub async fn program(
             .kprobe("security_socket_sendmsg")
             .kprobe("security_socket_recvmsg");
     }
-    let program = builder.start().await?;
+    let mut program = builder.start().await?;
     program.read_events("events", sender).await?;
     Ok(program)
 }

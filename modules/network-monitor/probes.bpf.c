@@ -76,20 +76,20 @@ OUTPUT_MAP(events, network_event, {
 });
 
 // Map a socket pointer to its creating process
-struct bpf_map_def_aya SEC("maps/tcp_set_state") tcp_set_state_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct sock *),
-    .value_size = sizeof(pid_t),
-    .max_entries = 10240,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, struct sock *);
+  __type(value, pid_t);
+  __uint(max_entries, 10240);
+} tcp_set_state_map SEC(".maps");
 
 // Maps for sharing data between various hook points
-struct bpf_map_def_aya SEC("maps/args_map") args_map = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),                // bpf_get_current_pid_tgid()
-    .value_size = sizeof(struct arguments), // data
-    .max_entries = 1024,
-};
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, u64);
+  __type(value, struct arguments);
+  __uint(max_entries, 1024);
+} args_map SEC(".maps");
 
 const int IPV6_NUM_OCTECTS = 16;
 const int IPV4_NUM_OCTECTS = 4;
