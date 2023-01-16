@@ -12,7 +12,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define FILE_OPENED 4
 #define FILE_LINK 5
 #define FILE_RENAME 6
-#define MAX_PATH_COMPONENTS 10
+#define MAX_PATH_COMPONENTS 20
 
 struct file_opened_event {
   struct buffer_index filename;
@@ -40,6 +40,20 @@ OUTPUT_MAP(events, fs_event, {
   struct file_rename_event rename;
 });
 
+// Append to buffer a slash and the path component pointed at by name.
+// This is needed to satisfy the verifier.
+static __always_inline void append_path_component(struct buffer *buffer,
+                                                  struct buffer_index *index,
+                                                  const unsigned char *name,
+                                                  int len) {
+  if (len == 0)
+    return;
+  if (name == 0)
+    return;
+  buffer_append_str(buffer, index, "/", 1);
+  buffer_append_str(buffer, index, (char *)name, len);
+}
+
 // get_path_str was copied and adapted from Tracee
 // Returns the length of the copied entry
 static void get_path_str(struct dentry *dentry, struct path *path,
@@ -50,11 +64,11 @@ static void get_path_str(struct dentry *dentry, struct path *path,
   struct mount *mnt_p = container_of(vfsmnt, struct mount, mnt);
   struct mount *mnt_parent_p = BPF_CORE_READ(mnt_p, mnt_parent);
 
-  struct qstr components[MAX_PATH_COMPONENTS];
-#pragma unroll
+  const unsigned char *component_name[MAX_PATH_COMPONENTS];
+  u32 component_len[MAX_PATH_COMPONENTS];
   for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
-    components[i].len = 0;
-    components[i].name = 0;
+    component_len[i] = 0;
+    component_name[i] = 0;
   }
 
   int count = 0;
@@ -81,22 +95,18 @@ static void get_path_str(struct dentry *dentry, struct path *path,
       break;
     }
     // Add this dentry name to path
-    components[i] = BPF_CORE_READ(dentry, d_name);
+    struct qstr entry = BPF_CORE_READ(dentry, d_name);
+    component_len[i] = entry.len;
+    component_name[i] = entry.name;
     dentry = d_parent;
     count++;
   }
 
   // copy components
   buffer_index_init(buffer, index);
-#pragma unroll
-  for (int i = MAX_PATH_COMPONENTS; i >= 0; i--) {
-    if (i >= count)
-      continue;
-    if (components[i].len == 0)
-      continue;
-    buffer_append_str(buffer, index, &slash, 1);
-    buffer_append_str(buffer, index, (char *)components[i].name,
-                      components[i].len);
+  for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
+    int t = MAX_PATH_COMPONENTS - i - 1;
+    append_path_component(buffer, index, component_name[t], component_len[t]);
   }
   return;
 }

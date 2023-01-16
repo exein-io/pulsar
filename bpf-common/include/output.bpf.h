@@ -49,7 +49,7 @@ struct bpf_map_def_aya SEC("maps/event") temp_map = {
 
 // Get the temporary buffer inside temp_map as a void pointer, this can be cast
 // to the required event type and filled before submitting it for output. The
-// pointed at memory contiains BUFFER_MAX bytes.
+// pointed at memory contiains BUFFER_MAX *2 bytes.
 static __always_inline void *output_temp() {
   u32 key = 0;
   void *event = bpf_map_lookup_elem(&temp_map, &key);

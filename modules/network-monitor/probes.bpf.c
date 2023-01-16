@@ -138,6 +138,17 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
   }
 }
 
+// Unused fields must be memset to 0 or we could still have garbage from
+// previous usages of temp memory.
+static void reset_unused_fields_v4(struct sockaddr_in *v4) {
+  __builtin_memset(v4->__pad, 0, sizeof(v4->__pad));
+}
+
+static void reset_unused_fields_v6(struct sockaddr_in6 *v6) {
+  v6->sin6_flowinfo = 0;
+  v6->sin6_scope_id = 0;
+}
+
 // Copy an address from the source part of sock_common
 static __always_inline void copy_skc_source(struct sock_common *sk,
                                             struct address *addr) {
@@ -150,19 +161,15 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     addr->ip_ver = 0;
     addr->v4.sin_port = port;
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_rcv_saddr);
-    __builtin_memset(&addr->v4.__pad, 0, sizeof(addr->v4.__pad));
+    reset_unused_fields_v4(&addr->v4);
     break;
   }
   case AF_INET6: {
     addr->ip_ver = 1;
     addr->v6.sin6_port = port;
-    // Unused fields must be memset to 0 or we could still have garbage from
-    // previous usages of temp memory.
-    addr->v6.sin6_flowinfo = 0;
-    addr->v6.sin6_scope_id = 0;
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_rcv_saddr.in6_u.u6_addr32);
-    __builtin_memset(&addr->v4.__pad, 0, sizeof(addr->v4.__pad));
+    reset_unused_fields_v6(&addr->v6);
     break;
   }
   default:
@@ -180,7 +187,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     addr->ip_ver = 0;
     bpf_core_read(&addr->v4.sin_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_daddr);
-    __builtin_memset(&addr->v4.__pad, 0, sizeof(addr->v4.__pad));
+    reset_unused_fields_v4(&addr->v4);
     break;
   }
   case AF_INET6: {
@@ -188,8 +195,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     bpf_core_read(&addr->v6.sin6_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_daddr.in6_u.u6_addr32);
-    addr->v6.sin6_flowinfo = 0;
-    addr->v6.sin6_scope_id = 0;
+    reset_unused_fields_v6(&addr->v6);
     break;
   }
   default:
