@@ -63,7 +63,11 @@ static void buffer_index_init(struct buffer *buffer,
 // the copy will be interrupted when encountering a NULL byte.
 static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
                               const char *source, int len) {
-  int pos = (index->start + index->len) & HALF_BUFFER_MASK;
+  int pos = (index->start + index->len);
+  if (pos >= HALF_BUFFER_MASK) {
+    LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
+    return;
+  }
   if (len > HALF_BUFFER_MASK) {
     len = HALF_BUFFER_MASK;
   } else {
@@ -89,7 +93,11 @@ static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
 static void buffer_append_user_memory(struct buffer *buffer,
                                       struct buffer_index *index,
                                       const char *source, int len) {
-  int pos = (index->start + index->len) & HALF_BUFFER_MASK;
+  int pos = (index->start + index->len);
+  if (pos >= HALF_BUFFER_MASK) {
+    LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
+    return;
+  }
   int r = bpf_core_read_user(&((char *)buffer->buffer)[pos],
                              len & HALF_BUFFER_MASK, source);
   if (r < 0) {

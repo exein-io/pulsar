@@ -34,7 +34,7 @@ impl<T: ?Sized> BufferIndex<T> {
     pub fn bytes<'a>(&self, buffer: &'a Bytes) -> Result<&'a [u8], IndexError> {
         let start = self.start as usize;
         let end = (self.start + self.len) as usize;
-        if end <= buffer.len() {
+        if start <= end && end <= buffer.len() {
             Ok(&buffer[start..end])
         } else {
             Err(IndexError::IndexOutsideBuffer {
