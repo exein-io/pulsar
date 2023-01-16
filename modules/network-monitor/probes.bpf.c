@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "buffer.bpf.h"
 #include "common.bpf.h"
+#include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -60,42 +61,19 @@ struct close_event {
   struct address destination;
 };
 
-struct network_event {
-  u64 timestamp;
-  pid_t pid;
-  u32 event_type;
-  union {
-    struct bind_event bind;
-    struct address listen;
-    struct connect_event connect;
-    struct accept_event accept;
-    struct msg_event send;
-    struct msg_event recv;
-    struct close_event close;
-  };
-  struct buffer buffer;
-};
-
 struct arguments {
   void *data[3];
 };
 
-// used to send events to userspace
-struct bpf_map_def_aya SEC("maps/events") events = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(int),
-    .value_size = sizeof(u32),
-    .max_entries = 0,
-};
-
-// The BPF stack limit of 512 bytes is exceeded by network_event, so we use
-// a per-cpu array as a workaround
-struct bpf_map_def_aya SEC("maps/event") eventmem = {
-    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(struct network_event),
-    .max_entries = 1,
-};
+OUTPUT_MAP(events, network_event, {
+  struct bind_event bind;
+  struct address listen;
+  struct connect_event connect;
+  struct accept_event accept;
+  struct msg_event send;
+  struct msg_event recv;
+  struct close_event close;
+});
 
 // Map a socket pointer to its creating process
 struct bpf_map_def_aya SEC("maps/tcp_set_state") tcp_set_state_map = {
@@ -115,20 +93,6 @@ struct bpf_map_def_aya SEC("maps/args_map") args_map = {
 
 const int IPV6_NUM_OCTECTS = 16;
 const int IPV4_NUM_OCTECTS = 4;
-
-static __always_inline struct network_event *new_event() {
-  u32 key = 0;
-  struct network_event *event = bpf_map_lookup_elem(&eventmem, &key);
-  if (!event) {
-    LOG_ERROR("can't get event memory");
-    return 0;
-  }
-  int i;
-  for (i = 0; i < 100; i++) {
-    *(((u8 *)event) + i) = 0;
-  }
-  return event;
-}
 
 // Copy an address from a sockaddr
 static __always_inline void copy_sockaddr(struct sockaddr *addr,
@@ -186,13 +150,19 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     addr->ip_ver = 0;
     addr->v4.sin_port = port;
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_rcv_saddr);
+    __builtin_memset(&addr->v4.__pad, 0, sizeof(addr->v4.__pad));
     break;
   }
   case AF_INET6: {
     addr->ip_ver = 1;
     addr->v6.sin6_port = port;
+    // Unused fields must be memset to 0 or we could still have garbage from
+    // previous usages of temp memory.
+    addr->v6.sin6_flowinfo = 0;
+    addr->v6.sin6_scope_id = 0;
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_rcv_saddr.in6_u.u6_addr32);
+    __builtin_memset(&addr->v4.__pad, 0, sizeof(addr->v4.__pad));
     break;
   }
   default:
@@ -210,6 +180,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     addr->ip_ver = 0;
     bpf_core_read(&addr->v4.sin_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_daddr);
+    __builtin_memset(&addr->v4.__pad, 0, sizeof(addr->v4.__pad));
     break;
   }
   case AF_INET6: {
@@ -217,6 +188,8 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     bpf_core_read(&addr->v6.sin6_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_daddr.in6_u.u6_addr32);
+    addr->v6.sin6_flowinfo = 0;
+    addr->v6.sin6_scope_id = 0;
     break;
   }
   default:
@@ -238,43 +211,27 @@ PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
                 int, addrlen);
 void __always_inline on_socket_bind(void *ctx, struct socket *sock,
                                     struct sockaddr *address, int addrlen) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_BIND);
   if (!event)
     return;
-  event->event_type = EVENT_BIND;
-  event->pid = tgid;
-  event->timestamp = bpf_ktime_get_ns();
   copy_sockaddr(address, &event->bind.addr, false);
   event->bind.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
 
-  int r = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                                sizeof(struct network_event));
-  return;
+  output_event(ctx, &events, event, sizeof(struct network_event),
+               event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(socket_listen, struct socket *, sock, int, backlog);
 void __always_inline on_socket_listen(void *ctx, struct socket *sock,
                                       int backlog) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_LISTEN);
   if (!event)
     return;
-  event->event_type = EVENT_LISTEN;
-  event->pid = tgid;
-  event->timestamp = bpf_ktime_get_ns();
   struct sock *sk = BPF_CORE_READ(sock, sk);
   copy_skc_source(&sk->__sk_common, &event->listen);
 
-  int r = bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                                sizeof(struct network_event));
-  return;
+  output_event(ctx, &events, event, sizeof(struct network_event),
+               event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
@@ -282,22 +239,16 @@ PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
 static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
                                               struct sockaddr *address,
                                               int addrlen) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return;
-
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_CONNECT);
   if (!event)
     return;
-  event->event_type = EVENT_CONNECT;
-  event->pid = tgid;
   event->timestamp = bpf_ktime_get_ns();
 
   copy_sockaddr(address, &event->connect.destination, false);
   event->connect.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct network_event));
+  output_event(ctx, &events, event, sizeof(struct network_event),
+               event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(socket_accept, struct socket *, sock, struct socket *, newsock);
@@ -334,17 +285,14 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
   }
 
   // Emit event
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_ACCEPT);
   if (!event)
     return;
-  event->event_type = EVENT_ACCEPT;
-  event->pid = pid_tgid >> 32;
-  event->timestamp = bpf_ktime_get_ns();
   struct sock *sk = BPF_CORE_READ(sock, sk);
   copy_skc_source(&sk->__sk_common, &event->accept.destination);
   copy_skc_dest(&sk->__sk_common, &event->accept.source);
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct network_event));
+  output_event(ctx, &events, event, sizeof(struct network_event),
+               event->buffer.len);
 }
 
 static __always_inline void
@@ -370,24 +318,17 @@ PULSAR_LSM_HOOK(socket_sendmsg, struct socket *, sock, struct msghdr *, msg,
                 int, size);
 static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
                                               struct msghdr *msg, int size) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
+  if (size <= 0)
     return;
 
   struct sock *sk = BPF_CORE_READ(sock, sk);
   u16 proto = get_sock_protocol(sk);
   void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
 
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_SEND);
   if (!event)
     return;
-  event->event_type = EVENT_SEND;
-  event->pid = tgid;
-  event->timestamp = bpf_ktime_get_ns();
   event->send.proto = proto;
-
-  if (size <= 0)
-    return;
   event->send.data_len = size;
   // Copy data only for UDP events since we want to intercept DNS requests
   if (proto == PROTO_UDP) {
@@ -397,8 +338,8 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
   copy_skc_source(&sk->__sk_common, &event->send.source);
   copy_skc_dest(&sk->__sk_common, &event->send.destination);
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct network_event));
+  output_event(ctx, &events, event, sizeof(struct network_event),
+               event->buffer.len);
 }
 
 static __always_inline void save_recvmsg_addr(void *ctx,
@@ -456,14 +397,11 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
   struct sock *sk = (struct sock *)args->data[0];
   void *iov_base = (void *)args->data[1];
 
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_RECV);
   if (!event)
     return;
 
   u16 proto = get_sock_protocol(sk);
-  event->event_type = EVENT_RECV;
-  event->pid = tgid;
-  event->timestamp = bpf_ktime_get_ns();
   event->recv.proto = proto;
 
   int len = ret;
@@ -494,8 +432,8 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
     copy_skc_dest(&sk->__sk_common, &event->recv.destination);
   }
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct network_event));
+  output_event(ctx, &events, event, sizeof(struct network_event),
+               event->buffer.len);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -537,21 +475,15 @@ int tcp_set_state(struct pt_regs *regs) {
   short ipver = family == AF_INET ? 4 : 6;
   u32 key = 0;
 
-  struct network_event *event = new_event();
+  struct network_event *event = network_event_init(EVENT_CLOSE);
   if (!event)
     return 0;
-  event->event_type = EVENT_CLOSE;
-  event->pid = tgid;
   event->close.original_pid = original_pid;
-  event->timestamp = bpf_ktime_get_ns();
   copy_skc_source(&sk->__sk_common, &event->close.source);
   copy_skc_dest(&sk->__sk_common, &event->close.destination);
 
-  ret = bpf_perf_event_output(regs, &events, BPF_F_CURRENT_CPU, event,
-                              sizeof(struct network_event));
-  if (ret) {
-    LOG_ERROR("emitting event");
-  }
+  output_event(regs, &events, event, sizeof(struct network_event),
+               event->buffer.len);
   return 0;
 }
 
