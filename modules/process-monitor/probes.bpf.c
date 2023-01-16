@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "buffer.bpf.h"
 #include "common.bpf.h"
+#include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -22,26 +23,6 @@ struct exit_event {
   u32 exit_code;
 };
 
-struct process_event {
-  u64 timestamp;
-  pid_t pid;
-  u32 event_type;
-  union {
-    struct fork_event fork;
-    struct exec_event exec;
-    struct exit_event exit;
-  };
-  struct buffer buffer;
-};
-
-// used to send events to userspace
-struct bpf_map_def_aya SEC("maps/events") events = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(int),
-    .value_size = sizeof(u32),
-    .max_entries = 0,
-};
-
 #define MAX_IMAGE_LEN 100
 
 struct {
@@ -58,24 +39,11 @@ struct {
   __uint(max_entries, 100);
 } whitelist SEC(".maps");
 
-// The BPF stack limit of 512 bytes is exceeded by process_event, so we use
-// a per-cpu array as a workaround
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, u32);
-  __type(value, struct process_event);
-  __uint(max_entries, 1);
-} eventmem SEC(".maps");
-
-static __always_inline struct process_event *new_event() {
-  u32 key = 0;
-  struct process_event *event = bpf_map_lookup_elem(&eventmem, &key);
-  if (!event) {
-    LOG_ERROR("can't get event memory");
-    return 0;
-  }
-  return event;
-}
+OUTPUT_MAP(events, process_event, {
+  struct fork_event fork;
+  struct exec_event exec;
+  struct exit_event exit;
+});
 
 // This hook intercepts new process creations, inherits interest for the child
 // from the parent and emits a fork event.
@@ -94,16 +62,17 @@ int BPF_PROG(process_fork, struct task_struct *parent,
   inherit_interest(parent_tgid, child_tgid);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
-  struct process_event *event = new_event();
+  struct process_event *event = output_temp();
   if (!event)
     return 0;
   event->event_type = EVENT_FORK;
+  event->buffer.len = 0;
   event->timestamp = bpf_ktime_get_ns();
   event->pid = child_tgid;
   event->fork.ppid = parent_tgid;
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct process_event));
+  output_event(ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
 
   return 0;
 }
@@ -113,10 +82,11 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
              struct linux_binprm *bprm) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
-  struct process_event *event = new_event();
+  struct process_event *event = output_temp();
   if (!event)
     return 0;
   event->event_type = EVENT_EXEC;
+  event->buffer.len = 0;
   event->timestamp = bpf_ktime_get_ns();
   event->pid = tgid;
   event->exec.argc = BPF_CORE_READ(bprm, argc);
@@ -134,11 +104,11 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   long end = BPF_CORE_READ(mm, arg_end);
   int len = end - start;
   buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv,
-                            (const char *)start, len);
+  buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
+                            len);
 
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct process_event));
+  output_event(ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
 
   char image[MAX_IMAGE_LEN];
   __builtin_memset(&image, 0, sizeof(image));
@@ -186,10 +156,11 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
     return 0;
   }
 
-  struct process_event *event = new_event();
+  struct process_event *event = output_temp();
   if (!event)
     return 0;
   event->event_type = EVENT_EXIT;
+  event->buffer.len = 0;
   event->timestamp = bpf_ktime_get_ns();
   // The PID is the thread id of the progress group leader
   event->pid = tgid;
@@ -198,7 +169,7 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
 
   LOG_DEBUG("exitited at %ld with code %d", event->timestamp,
             event->exit.exit_code);
-  bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                        sizeof(struct process_event));
+  output_event(ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
   return 0;
 }

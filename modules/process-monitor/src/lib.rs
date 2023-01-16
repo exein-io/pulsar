@@ -370,7 +370,7 @@ pub mod test_suite {
                 }
 
                 // fork the child
-                let child_pid = fork_and_return(0).as_raw() as i32;
+                let child_pid = fork_and_return(0).as_raw();
 
                 // make sure the eBPF fork code expanded interest to the child
                 let expected_interest = PolicyDecision {

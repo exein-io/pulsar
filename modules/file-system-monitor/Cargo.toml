@@ -14,7 +14,6 @@ pulsar-core = { path = "../../pulsar-core" }
 nix = "0.24.0"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
-bytes = "1.3.0"
 
 [build-dependencies]
 bpf-common = { path = "../../bpf-common", features = ["build"] }

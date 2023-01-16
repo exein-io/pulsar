@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include "buffer.bpf.h"
 #include "common.bpf.h"
+#include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "GPL";
 
@@ -11,7 +12,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define FILE_OPENED 4
 #define FILE_LINK 5
 #define FILE_RENAME 6
-#define MAX_PATH_COMPONENTS 10
+#define MAX_PATH_COMPONENTS 20
 
 struct file_opened_event {
   struct buffer_index filename;
@@ -29,60 +30,28 @@ struct file_rename_event {
   struct buffer_index destination;
 };
 
-struct event_t {
-  u64 timestamp;
-  pid_t pid;
-  u32 event_type;
-  union {
-    struct buffer_index created;
-    struct buffer_index deleted;
-    struct buffer_index dir_created;
-    struct buffer_index dir_deleted;
-    struct file_opened_event opened;
-    struct file_link_event link;
-    struct file_rename_event rename;
-  };
-  struct buffer buffer;
-};
+OUTPUT_MAP(events, fs_event, {
+  struct buffer_index created;
+  struct buffer_index deleted;
+  struct buffer_index dir_created;
+  struct buffer_index dir_deleted;
+  struct file_opened_event opened;
+  struct file_link_event link;
+  struct file_rename_event rename;
+});
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, u32);
-  __type(value, struct event_t);
-  __uint(max_entries, 1);
-} eventmem SEC(".maps");
-
-// used to send events to userspace
-struct bpf_map_def_aya SEC("maps/events") events = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(int),
-    .value_size = sizeof(u32),
-    .max_entries = 0,
-};
-
-static struct event_t *init_event(int event_type) {
-  pid_t tgid = interesting_tgid();
-  if (tgid < 0)
-    return NULL;
-
-  u32 key = 0;
-  struct event_t *event = bpf_map_lookup_elem(&eventmem, &key);
-  if (!event)
-    return NULL;
-
-  event->event_type = event_type;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-  event->buffer.len = 0;
-  return event;
-}
-
-static __always_inline void output_event(void *ctx, struct event_t *event) {
-  unsigned int len = sizeof(struct event_t) - BUFFER_MAX + event->buffer.len;
-  if (len > 0 && len <= sizeof(struct event_t)) {
-    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event,
-                          len & (BUFFER_MAX - 1));
-  }
+// Append to buffer a slash and the path component pointed at by name.
+// This is needed to satisfy the verifier.
+static __always_inline void append_path_component(struct buffer *buffer,
+                                                  struct buffer_index *index,
+                                                  const unsigned char *name,
+                                                  int len) {
+  if (len == 0)
+    return;
+  if (name == 0)
+    return;
+  buffer_append_str(buffer, index, "/", 1);
+  buffer_append_str(buffer, index, (char *)name, len);
 }
 
 // get_path_str was copied and adapted from Tracee
@@ -95,11 +64,11 @@ static void get_path_str(struct dentry *dentry, struct path *path,
   struct mount *mnt_p = container_of(vfsmnt, struct mount, mnt);
   struct mount *mnt_parent_p = BPF_CORE_READ(mnt_p, mnt_parent);
 
-  struct qstr components[MAX_PATH_COMPONENTS];
-#pragma unroll
+  const unsigned char *component_name[MAX_PATH_COMPONENTS];
+  u32 component_len[MAX_PATH_COMPONENTS];
   for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
-    components[i].len = 0;
-    components[i].name = 0;
+    component_len[i] = 0;
+    component_name[i] = 0;
   }
 
   int count = 0;
@@ -126,22 +95,18 @@ static void get_path_str(struct dentry *dentry, struct path *path,
       break;
     }
     // Add this dentry name to path
-    components[i] = BPF_CORE_READ(dentry, d_name);
+    struct qstr entry = BPF_CORE_READ(dentry, d_name);
+    component_len[i] = entry.len;
+    component_name[i] = entry.name;
     dentry = d_parent;
     count++;
   }
 
   // copy components
   buffer_index_init(buffer, index);
-#pragma unroll
-  for (int i = MAX_PATH_COMPONENTS; i >= 0; i--) {
-    if (i >= count)
-      continue;
-    if (components[i].len == 0)
-      continue;
-    buffer_append_str(buffer, index, &slash, 1);
-    buffer_append_str(buffer, index, (char *)components[i].name,
-                      components[i].len);
+  for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
+    int t = MAX_PATH_COMPONENTS - i - 1;
+    append_path_component(buffer, index, component_name[t], component_len[t]);
   }
   return;
 }
@@ -151,32 +116,32 @@ PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
 static __always_inline void on_path_mknod(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode,
                                           unsigned int dev) {
-  struct event_t *event = init_event(FILE_CREATED);
+  struct fs_event *event = fs_event_init(FILE_CREATED);
   if (!event)
     return;
   get_path_str(dentry, dir, &event->buffer, &event->created);
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(path_unlink, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_unlink(void *ctx, struct path *dir,
                                            struct dentry *dentry) {
-  struct event_t *event = init_event(FILE_DELETED);
+  struct fs_event *event = fs_event_init(FILE_DELETED);
   if (!event)
     return;
   get_path_str(dentry, dir, &event->buffer, &event->deleted);
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(file_open, struct file *, file);
 static __always_inline void on_file_open(void *ctx, struct file *file) {
-  struct event_t *event = init_event(FILE_OPENED);
+  struct fs_event *event = fs_event_init(FILE_OPENED);
   if (!event)
     return;
   struct path path = BPF_CORE_READ(file, f_path);
   get_path_str(path.dentry, &path, &event->buffer, &event->opened.filename);
   event->opened.flags = BPF_CORE_READ(file, f_flags);
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
@@ -184,13 +149,13 @@ PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
 static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
                                          struct path *new_dir,
                                          struct dentry *new_dentry) {
-  struct event_t *event = init_event(FILE_LINK);
+  struct fs_event *event = fs_event_init(FILE_LINK);
   if (!event)
     return;
   get_path_str(new_dentry, new_dir, &event->buffer, &event->link.source);
   get_path_str(old_dentry, new_dir, &event->buffer, &event->link.destination);
   event->link.hard_link = true;
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
@@ -198,7 +163,7 @@ PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
 static __always_inline void on_path_symlink(void *ctx, struct path *dir,
                                             struct dentry *dentry,
                                             char *old_name) {
-  struct event_t *event = init_event(FILE_LINK);
+  struct fs_event *event = fs_event_init(FILE_LINK);
   if (!event)
     return;
   get_path_str(dentry, dir, &event->buffer, &event->link.source);
@@ -206,28 +171,28 @@ static __always_inline void on_path_symlink(void *ctx, struct path *dir,
   buffer_append_str(&event->buffer, &event->link.destination, old_name,
                     BUFFER_MAX);
   event->link.hard_link = false;
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(path_mkdir, struct path *, dir, struct dentry *, dentry,
                 umode_t, mode);
 static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode) {
-  struct event_t *event = init_event(DIR_CREATED);
+  struct fs_event *event = fs_event_init(DIR_CREATED);
   if (!event)
     return;
   get_path_str(dentry, dir, &event->buffer, &event->dir_created);
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(path_rmdir, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
                                           struct dentry *dentry) {
-  struct event_t *event = init_event(DIR_DELETED);
+  struct fs_event *event = fs_event_init(DIR_DELETED);
   if (!event)
     return;
   get_path_str(dentry, dir, &event->buffer, &event->dir_deleted);
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
 PULSAR_LSM_HOOK(path_rename, struct path *, old_dir, struct dentry *,
@@ -237,10 +202,10 @@ static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
                                            struct dentry *old_dentry,
                                            struct path *new_dir,
                                            struct dentry *new_dentry) {
-  struct event_t *event = init_event(FILE_RENAME);
+  struct fs_event *event = fs_event_init(FILE_RENAME);
   if (!event)
     return;
   get_path_str(old_dentry, old_dir, &event->buffer, &event->rename.source);
   get_path_str(new_dentry, new_dir, &event->buffer, &event->rename.destination);
-  output_event(ctx, event);
+  output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }

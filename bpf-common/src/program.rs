@@ -370,15 +370,11 @@ impl Program {
                                 );
                             }
                             for buffer in buffers.iter_mut().take(events.read) {
-                                // dbg!(buffer.len());
-                                // dbg!(event_size);
                                 let mut buffer =
                                     std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
                                 let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
                                 let raw = unsafe { ptr.read_unaligned() };
                                 buffer.advance(event_size);
-                                // dbg!(buffer.len());
-                                // dbg!(raw.buffer.buffer_len);
                                 // NOTE: read buffer will be padded. Eg. if the eBPF program
                                 // writes 3 bytes, we'll read 4, with the forth being a 0.
                                 // This is why we need buffer_len and can't rely on the
