@@ -36,6 +36,7 @@
 use std::{fmt::Display, future::Future, pin::Pin, time::Duration};
 
 use anyhow::Context;
+use bytes::Bytes;
 use tokio::sync::mpsc;
 
 use crate::{
@@ -408,8 +409,10 @@ macro_rules! event_check {
                     $description,
                     move |event: &BpfEvent<_>| match event.payload {
                         $event::$subtype { ref $left, .. } => CheckResult {
-                            success: $left == &expected_value,
-                            found: format!("{:?}", $left),
+                            success: {
+                                ComparableField::equals($left, &expected_value, &event.buffer)
+                            },
+                            found: ComparableField::repr($left, &event.buffer),
                             expected: format!("{:?}", expected_value),
                         },
                         _ => CheckResult {
@@ -422,5 +425,26 @@ macro_rules! event_check {
             )*
             checks
         }
+    }
+}
+
+/// Trait for event field types which can be compared inside the event_check macro.
+/// A given type X can be compared to a different type T if X: ComparableField<T>
+/// All methods take a Bytes buffer, where the implementation could read data from.
+/// This allows BufferIndex to compare to a Vec<u8> to the pointed at slice.
+pub trait ComparableField<T> {
+    /// Check if the field equals the provided one, t.
+    fn equals(&self, t: &T, buffer: &Bytes) -> bool;
+    /// Get a textual debug representation of the field.
+    fn repr(&self, buffer: &Bytes) -> String;
+}
+
+/// Every type which implements Debug and PartialEq is comparable to itself.
+impl<T: PartialEq + std::fmt::Debug> ComparableField<T> for T {
+    fn equals(&self, t: &T, _buffer: &Bytes) -> bool {
+        self == t
+    }
+    fn repr(&self, _buffer: &Bytes) -> String {
+        format!("{:?}", self)
     }
 }

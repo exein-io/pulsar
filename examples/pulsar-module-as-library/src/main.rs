@@ -16,6 +16,7 @@ async fn main() {
                 pid,
                 timestamp,
                 payload: NetworkEvent::Bind { addr, proto },
+                buffer: _,
             }) => {
                 println!("{timestamp} - {pid} bind on {addr} ({proto:?})");
             }

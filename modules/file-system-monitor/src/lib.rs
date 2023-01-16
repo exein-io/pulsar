@@ -1,8 +1,9 @@
 use std::fmt;
 
 use bpf_common::{
-    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::StringArray,
-    program::BpfContext, BpfSender, Program, ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
+    program::BpfContext, test_runner::ComparableField, BpfSender, Program, ProgramBuilder,
+    ProgramError,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";
@@ -47,47 +48,44 @@ pub async fn program(
     Ok(program)
 }
 
-const NAME_MAX: usize = 1024;
 #[repr(C)]
 pub enum FsEvent {
     FileCreated {
-        filename: StringArray<NAME_MAX>,
+        filename: BufferIndex<str>,
     },
     FileDeleted {
-        filename: StringArray<NAME_MAX>,
+        filename: BufferIndex<str>,
     },
     DirCreated {
-        filename: StringArray<NAME_MAX>,
+        filename: BufferIndex<str>,
     },
     DirDeleted {
-        filename: StringArray<NAME_MAX>,
+        filename: BufferIndex<str>,
     },
     FileOpened {
-        filename: StringArray<NAME_MAX>,
+        filename: BufferIndex<str>,
         flags: i32,
     },
-    #[allow(clippy::large_enum_variant)]
     FileLink {
-        source: StringArray<NAME_MAX>,
-        destination: StringArray<NAME_MAX>,
+        source: BufferIndex<str>,
+        destination: BufferIndex<str>,
         hard_link: bool,
     },
-    #[allow(clippy::large_enum_variant)]
     FileRename {
-        source: StringArray<NAME_MAX>,
-        destination: StringArray<NAME_MAX>,
+        source: BufferIndex<str>,
+        destination: BufferIndex<str>,
     },
 }
 
 impl fmt::Display for FsEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FsEvent::FileCreated { filename } => write!(f, "created {}", filename),
-            FsEvent::FileDeleted { filename } => write!(f, "deleted {}", filename),
-            FsEvent::DirCreated { filename } => write!(f, "created dir {}", filename),
-            FsEvent::DirDeleted { filename } => write!(f, "deleted dir {}", filename),
+            FsEvent::FileCreated { filename } => write!(f, "created {:?}", filename),
+            FsEvent::FileDeleted { filename } => write!(f, "deleted {:?}", filename),
+            FsEvent::DirCreated { filename } => write!(f, "created dir {:?}", filename),
+            FsEvent::DirDeleted { filename } => write!(f, "deleted dir {:?}", filename),
             FsEvent::FileOpened { filename, flags } => {
-                write!(f, "open {} ({})", filename, flags)
+                write!(f, "open {:?} ({})", filename, flags)
             }
             FsEvent::FileLink {
                 source,
@@ -95,7 +93,7 @@ impl fmt::Display for FsEvent {
                 hard_link,
             } => write!(
                 f,
-                "{} {} -> {}",
+                "{} {:?} -> {:?}",
                 if *hard_link { "hardlink" } else { "symlink" },
                 source,
                 destination
@@ -103,7 +101,7 @@ impl fmt::Display for FsEvent {
             FsEvent::FileRename {
                 source,
                 destination,
-            } => write!(f, "rename {} -> {}", source, destination),
+            } => write!(f, "rename {:?} -> {:?}", source, destination),
         }
     }
 }
@@ -116,11 +114,12 @@ pub mod pulsar {
     };
 
     use super::*;
+    use bpf_common::{parsing::IndexError, program::BpfEvent};
     use pulsar_core::{
         event::FileFlags,
         pdk::{
-            CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSender,
-            Payload, PulsarModule, ShutdownSignal, Version,
+            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError,
+            ModuleSender, Payload, PulsarModule, ShutdownSignal, Version,
         },
     };
     use tokio::{fs::File, io::AsyncReadExt};
@@ -159,23 +158,28 @@ pub mod pulsar {
         }
     }
 
-    impl From<FsEvent> for Payload {
-        fn from(data: FsEvent) -> Self {
-            match data {
+    impl IntoPayload for FsEvent {
+        type Error = IndexError;
+
+        fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error> {
+            let BpfEvent {
+                payload, buffer, ..
+            } = data;
+            Ok(match payload {
                 FsEvent::FileCreated { filename } => Payload::FileCreated {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                 },
                 FsEvent::FileDeleted { filename } => Payload::FileDeleted {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                 },
                 FsEvent::DirCreated { filename } => Payload::DirCreated {
-                    dirname: filename.to_string(),
+                    dirname: filename.string(&buffer)?,
                 },
                 FsEvent::DirDeleted { filename } => Payload::DirDeleted {
-                    dirname: filename.to_string(),
+                    dirname: filename.string(&buffer)?,
                 },
                 FsEvent::FileOpened { filename, flags } => Payload::FileOpened {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                     flags: FileFlags::from_raw_unchecked(flags),
                 },
                 FsEvent::FileLink {
@@ -183,18 +187,18 @@ pub mod pulsar {
                     destination,
                     hard_link,
                 } => Payload::FileLink {
-                    source: source.to_string(),
-                    destination: destination.to_string(),
+                    source: source.string(&buffer)?,
+                    destination: destination.string(&buffer)?,
                     hard_link,
                 },
                 FsEvent::FileRename {
                     source,
                     destination,
                 } => Payload::FileRename {
-                    source: source.to_string(),
-                    destination: destination.to_string(),
+                    source: source.string(&buffer)?,
+                    destination: destination.string(&buffer)?,
                 },
-            }
+            })
         }
     }
 

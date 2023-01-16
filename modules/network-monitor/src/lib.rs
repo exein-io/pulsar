@@ -4,7 +4,7 @@ use std::{
 };
 
 use bpf_common::{
-    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::DataArray,
+    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
     program::BpfContext, BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
@@ -85,9 +85,7 @@ pub async fn program(
     Ok(program)
 }
 
-const MAX_DATA_SIZE: usize = 4096;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 #[repr(C)]
 pub enum NetworkEvent {
     Bind {
@@ -112,14 +110,14 @@ pub enum NetworkEvent {
     Send {
         src: Addr,
         dst: Addr,
-        data: DataArray<MAX_DATA_SIZE>,
+        data: BufferIndex<[u8]>,
         data_len: u32,
         proto: Proto,
     },
     Receive {
         src: Addr,
         dst: Addr,
-        data: DataArray<MAX_DATA_SIZE>,
+        data: BufferIndex<[u8]>,
         data_len: u32,
         proto: Proto,
     },
@@ -193,11 +191,12 @@ impl fmt::Display for NetworkEvent {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::{
         event::{DnsAnswer, DnsQuestion, Host},
         pdk::{
-            CleanExit, ModuleContext, ModuleError, Payload, PulsarModule, ShutdownSignal, Version,
+            CleanExit, IntoPayload, ModuleContext, ModuleError, Payload, PulsarModule,
+            ShutdownSignal, Version,
         },
     };
 
@@ -247,9 +246,11 @@ pub mod pulsar {
         }
     }
 
-    impl From<NetworkEvent> for Payload {
-        fn from(data: NetworkEvent) -> Self {
-            match data {
+    impl IntoPayload for NetworkEvent {
+        type Error = IndexError;
+
+        fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error> {
+            Ok(match data.payload {
                 NetworkEvent::Bind { addr, proto } => Payload::Bind {
                     address: addr.into(),
                     is_tcp: matches!(proto, Proto::TCP),
@@ -297,7 +298,7 @@ pub mod pulsar {
                     source: src.into(),
                     destination: dst.into(),
                 },
-            }
+            })
         }
     }
 
@@ -311,9 +312,15 @@ pub mod pulsar {
         if data.is_empty() {
             return None;
         }
+        let data = data
+            .bytes(&event.buffer)
+            .map_err(|err| {
+                log::error!("Error getting message: {}", err);
+            })
+            .ok()?;
 
         // any valid dns data?
-        let dns = dns_parser::Packet::parse(data.as_ref()).ok()?;
+        let dns = dns_parser::Packet::parse(data).ok()?;
         let with_q = !dns.questions.is_empty();
         let with_a = !dns.answers.is_empty();
 
@@ -356,8 +363,7 @@ pub mod test_suite {
 
     use bpf_common::{
         event_check,
-        parsing::DataArray,
-        test_runner::{TestCase, TestReport, TestRunner, TestSuite},
+        test_runner::{ComparableField, TestCase, TestReport, TestRunner, TestSuite},
     };
     use nix::{
         libc::kill,
@@ -564,8 +570,8 @@ pub mod test_suite {
         let mut source = dest;
         let msg = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let data_copied = match proto {
-            Proto::TCP => DataArray::from(&[][..]),
-            Proto::UDP => DataArray::from(&msg[..]),
+            Proto::TCP => Vec::new(),
+            Proto::UDP => msg.to_vec(),
         };
         TestRunner::with_ebpf(program)
             .run(|| match proto {

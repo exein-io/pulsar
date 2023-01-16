@@ -2,10 +2,8 @@ use std::fmt;
 
 use anyhow::Context;
 use bpf_common::{
-    aya::include_bytes_aligned,
-    parsing::{DataArray, StringArray},
-    program::BpfContext,
-    BpfSender, Pid, Program, ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
+    ProgramBuilder, ProgramError,
 };
 mod filtering;
 
@@ -28,12 +26,9 @@ pub async fn program(
 static PROCESS_MONITOR_PROBE: &[u8] =
     include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o"));
 
-const NAME_MAX: usize = 256;
-
 // The events sent from eBPF to userspace must be byte by byte
 // re-interpretable as Rust types. So pointers to the heap are
 // not allowed.
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 #[repr(C)]
 pub enum ProcessEvent {
@@ -41,11 +36,10 @@ pub enum ProcessEvent {
         ppid: Pid,
     },
     Exec {
-        filename: StringArray<NAME_MAX>,
+        filename: BufferIndex<str>,
         argc: u32,
-        argv: DataArray<NAME_MAX>, // 0 separated strings
+        argv: BufferIndex<str>, // 0 separated strings
     },
-    // parameters will loose a lot of space
     Exit {
         exit_code: u32,
     },
@@ -60,28 +54,22 @@ impl fmt::Display for ProcessEvent {
                 argc,
                 argv,
             } => {
-                write!(
-                    f,
-                    "exec {} (argc: {}, argv: {:?})",
-                    filename,
-                    argc,
-                    extract_parameters(argv)
-                )
+                write!(f, "exec {:?} (argc: {}, argv: {:?})", filename, argc, argv)
             }
             ProcessEvent::Exit { exit_code } => write!(f, "exit({})", exit_code),
         }
     }
 }
 
-fn extract_parameters(argv: &DataArray<NAME_MAX>) -> Vec<String> {
+fn extract_parameters(argv: &[u8]) -> Vec<String> {
     // Ignore the last byte as it's always a 0. Not doing this would
     // produce a trailing "" argument.
-    let len = if argv.as_ref().last() == Some(&0) {
+    let len = if argv.last() == Some(&0) {
         argv.len() - 1
     } else {
         argv.len()
     };
-    argv.as_ref()[..len]
+    argv[..len]
         .split(|x| *x == 0)
         .map(String::from_utf8_lossy)
         .map(String::from)
@@ -90,10 +78,10 @@ fn extract_parameters(argv: &DataArray<NAME_MAX>) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, CleanExit, ModuleContext, ModuleError, Payload,
-        PulsarModule, ShutdownSignal, Version,
+        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
+        Payload, PulsarModule, ShutdownSignal, Version,
     };
     use tokio::sync::mpsc;
 
@@ -125,7 +113,11 @@ pub mod pulsar {
                         argc,
                         ref argv,
                     } => {
-                        let argv = extract_parameters(argv);
+                        let argv =
+                            extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
+                                log::error!("Error getting program arguments: {}", err);
+                                &[]
+                            }));
                         if argv.len() != argc as usize {
                             log::warn!(
                                 "argc ({}) doens't match argv ({:?}) for {}",
@@ -136,7 +128,8 @@ pub mod pulsar {
                         }
                         TrackerUpdate::Exec {
                             pid: event.pid,
-                            image: filename.to_string(),
+                            // ignoring this error since it will be catched in IntoPayload
+                            image: filename.string(&event.buffer).unwrap_or_default(),
                             timestamp: event.timestamp,
                             argv,
                         }
@@ -170,9 +163,13 @@ pub mod pulsar {
         }
     }
 
-    impl From<ProcessEvent> for Payload {
-        fn from(data: ProcessEvent) -> Self {
-            match data {
+    impl IntoPayload for ProcessEvent {
+        type Error = IndexError;
+        fn try_into_payload(event: BpfEvent<ProcessEvent>) -> Result<Payload, IndexError> {
+            let BpfEvent {
+                payload, buffer, ..
+            } = event;
+            Ok(match payload {
                 ProcessEvent::Fork { ppid } => Payload::Fork {
                     ppid: ppid.as_raw(),
                 },
@@ -181,12 +178,12 @@ pub mod pulsar {
                     argc,
                     argv,
                 } => Payload::Exec {
-                    filename: filename.to_string(),
+                    filename: filename.string(&buffer)?,
                     argc: argc as usize,
-                    argv: extract_parameters(&argv).into(),
+                    argv: extract_parameters(argv.bytes(&buffer)?).into(),
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
-            }
+            })
         }
     }
 }
@@ -197,7 +194,7 @@ pub mod test_suite {
     use bpf_common::aya::programs::RawTracePoint;
     use bpf_common::aya::Bpf;
     use bpf_common::program::load_test_program;
-    use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
+    use bpf_common::test_runner::{ComparableField, TestCase, TestReport, TestSuite};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use filtering::config::Rule;
     use filtering::maps::{InterestMap, RuleMap};
@@ -248,7 +245,7 @@ pub mod test_suite {
         TestCase::new("exec_event", async {
             let mut child_pid = Pid::from_raw(0);
             let echo_buff = which("echo").unwrap();
-            let echo_path: StringArray<NAME_MAX> = echo_buff.as_path().to_str().unwrap().into();
+            let echo_path = echo_buff.as_path().to_str().unwrap().to_string();
             test_runner()
                 .run(|| {
                     let mut child = std::process::Command::new("echo")
@@ -265,7 +262,7 @@ pub mod test_suite {
                         ProcessEvent::Exec,
                         (filename, echo_path, "exec filename"),
                         (argc, 2, "number of arguments"),
-                        (argv, DataArray::from(&b"echo\0-n\0"[..]), "arguments")
+                        (argv, String::from("echo\0-n\0"), "arguments")
                     ),
                 )
                 .report()

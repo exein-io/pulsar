@@ -4,7 +4,6 @@ members = [
     "modules/file-system-monitor",
     "modules/process-monitor",
     "modules/network-monitor",
-    "modules/syscall-monitor",
     "modules/rules-engine",
     "modules/logger",
     "modules/desktop-notifier",

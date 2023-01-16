@@ -14,7 +14,7 @@ use aya::{
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
-use bytes::BytesMut;
+use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
@@ -24,6 +24,9 @@ const PERF_HEADER_SIZE: usize = 4;
 const PINNED_MAPS_PATH: &str = "/sys/fs/bpf/pulsar";
 
 pub const PERF_PAGES_DEFAULT: usize = 4096;
+
+/// Max buffer size in bytes
+const BUFFER_MAX: usize = 16384;
 
 /// BpfContext contains extra settings which could be provided on program load
 #[derive(Clone)]
@@ -338,9 +341,11 @@ impl Program {
             let name = self.name.clone();
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
+            let event_size: usize = size_of::<RawBpfEvent<T>>();
+            let buffer_size: usize = event_size + PERF_HEADER_SIZE + BUFFER_MAX;
             tokio::spawn(async move {
                 let mut buffers = (0..10)
-                    .map(|_| BytesMut::with_capacity(size_of::<BpfEvent<T>>() + PERF_HEADER_SIZE))
+                    .map(|_| BytesMut::with_capacity(buffer_size))
                     .collect::<Vec<_>>();
                 loop {
                     let events = tokio::select! {
@@ -357,10 +362,24 @@ impl Program {
                                     events.read
                                 );
                             }
-                            for buf in buffers.iter_mut().take(events.read) {
-                                let ptr = buf.as_ptr() as *const BpfEvent<T>;
-                                let event = unsafe { ptr.read_unaligned() };
-                                sender.send(Ok(event))
+                            for buffer in buffers.iter_mut().take(events.read) {
+                                let mut buffer =
+                                    std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
+                                let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
+                                let raw = unsafe { ptr.read_unaligned() };
+                                buffer.advance(event_size);
+                                // NOTE: read buffer will be padded. Eg. if the eBPF program
+                                // writes 3 bytes, we'll read 4, with the forth being a 0.
+                                // This is why we need buffer_len and can't rely on the
+                                // received buffer alone.
+                                buffer.truncate(raw.buffer.buffer_len as usize);
+                                let buffer = buffer.freeze();
+                                sender.send(Ok(BpfEvent {
+                                    timestamp: raw.timestamp,
+                                    pid: raw.pid,
+                                    payload: raw.payload,
+                                    buffer,
+                                }))
                             }
                         }
                         Err(e) => return sender.send(Err(e.into())),
@@ -382,11 +401,24 @@ pub fn load_test_program(probe: &[u8]) -> Result<Bpf, ProgramError> {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct BpfEvent<P> {
     pub timestamp: Timestamp,
     pub pid: Pid,
     pub payload: P,
+    pub buffer: Bytes,
+}
+
+#[repr(C)]
+pub struct RawBpfEvent<P> {
+    timestamp: Timestamp,
+    pid: Pid,
+    payload: P,
+    buffer: Buffer,
+}
+
+#[repr(C, align(8))]
+struct Buffer {
+    pub buffer_len: u32,
 }
 
 impl<P: fmt::Display> fmt::Display for BpfEvent<P> {

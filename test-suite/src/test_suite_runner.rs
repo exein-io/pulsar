@@ -23,14 +23,13 @@ impl TestSuiteRunner {
         let (tx_log, mut rx_log) = mpsc::unbounded_channel();
         replace_logger(tx_log.clone());
         replace_panic_hook(tx_log);
-
-        // Start the trace_pipe eBPF program log interceptor
-        #[cfg(debug_assertions)]
-        let _stop_handle = tokio::spawn(bpf_common::trace_pipe::start());
-
         // Spawn the actual runner, which receives tests over a channel.
         let (tx_test, mut rx_test) = mpsc::channel::<TestRequest>(1);
         tokio::spawn(async move {
+            // Start the trace_pipe eBPF program log interceptor
+            #[cfg(debug_assertions)]
+            let _stop_handle = tokio::spawn(bpf_common::trace_pipe::start());
+
             while let Some(test_request) = rx_test.recv().await {
                 // Run actual test and treat eventual panics as errors.
                 let TestReport { success, mut lines } =

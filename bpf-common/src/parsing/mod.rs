@@ -1,7 +1,5 @@
 pub mod procfs;
 
-mod data_array;
-mod string_array;
+mod buffer_index;
 
-pub use data_array::DataArray;
-pub use string_array::StringArray;
+pub use buffer_index::{BufferIndex, IndexError};

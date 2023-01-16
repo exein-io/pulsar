@@ -32,10 +32,6 @@ enum Probe {
     #[cfg(feature = "network-monitor")]
     /// Watch network events
     NetworkMonitor,
-
-    #[cfg(feature = "syscall-monitor")]
-    /// Watch syscall events
-    SyscallMonitor,
 }
 
 #[tokio::main]
@@ -50,9 +46,6 @@ async fn main() {
 
         #[cfg(feature = "network-monitor")]
         Probe::NetworkMonitor => run(args, network_monitor::program).await,
-
-        #[cfg(feature = "syscall-monitor")]
-        Probe::SyscallMonitor => run(args, syscall_monitor::program).await,
     };
 }
 

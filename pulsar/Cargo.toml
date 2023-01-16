@@ -36,7 +36,6 @@ pulsar-core = { path = "../pulsar-core" }
 file-system-monitor = { path = "../modules/file-system-monitor", optional = true }
 process-monitor = { path = "../modules/process-monitor", optional = true }
 network-monitor = { path = "../modules/network-monitor", optional = true }
-syscall-monitor = { path = "../modules/syscall-monitor", optional = true }
 logger = { path = "../modules/logger", optional = true }
 rules-engine = { path = "../modules/rules-engine", optional = true }
 desktop-notifier = { path = "../modules/desktop-notifier", optional = true }
@@ -45,10 +44,9 @@ desktop-notifier = { path = "../modules/desktop-notifier", optional = true }
 [features]
 default = ["core", "extra"]
 core = [
-  "logger",
-  "process-monitor",
-  "network-monitor",
-  "syscall-monitor",
-  "file-system-monitor",
+ "logger",
+ "process-monitor",
+ "network-monitor",
+ "file-system-monitor",
 ]
 extra = ["rules-engine", "desktop-notifier"]

@@ -45,8 +45,7 @@
 //!
 //! - `default`: Enables core and extra.
 //! - `core`: Enables all the monitoring features listed below, specifically
-//!           `  logger`, `process-monitor`, `network-monitor`, `syscall-monitor`
-//!              and `file-system-monitor`.
+//!           `  logger`, `process-monitor`, `network-monitor` and `file-system-monitor`.
 //! - `extra`: Enables the rule-engine feature.
 //! - `logger`: Enables the event logger to print threat events in the console.
 //! - `process-monitor`: Enables a monitor on processes lifecycle and manages the list
@@ -54,9 +53,6 @@
 //!                      should never be disabled.
 //! - `network-monitor`: Enables a monitor on networks events: connections events and
 //!                      dns events.
-//! - `syscall-monitor`: Enables a monitor on syscall event, it produces an aggregated
-//!                      map of syscall events with syscalls as key and relative counts
-//!                      as value.
 //! - `file-system-monitor`: Enables a monitor on file system events, example file open, delete, ecc.
 //! - `rules-engine`: Enables the rule engine module to process events and detect threats.
 
@@ -92,8 +88,6 @@ pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
         process_monitor::pulsar::module(),
         #[cfg(feature = "file-system-monitor")]
         file_system_monitor::pulsar::module(),
-        #[cfg(feature = "syscall-monitor")]
-        syscall_monitor::pulsar::module(),
         #[cfg(feature = "network-monitor")]
         network_monitor::pulsar::module(),
         #[cfg(feature = "logger")]

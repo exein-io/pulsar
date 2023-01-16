@@ -78,7 +78,7 @@ The module implementation in Rust is also relatively short.
 use std::fmt;
 
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::StringArray, program::BpfContext, BpfSender, Program,
+    aya::include_bytes_aligned, program::BpfContext, BpfSender, Program,
     ProgramBuilder, ProgramError,
 };
 
@@ -101,7 +101,7 @@ pub async fn program(
 const NAME_MAX: usize = 264;
 #[repr(C)]
 pub enum EventT {
-    FileCreated { filename: StringArray<NAME_MAX> },
+    FileCreated { filename: [u8; NAME_MAX] },
 }
 
 impl fmt::Display for EventT {
@@ -244,7 +244,6 @@ let modules = [
     file_system_monitor::test_suite::tests(),
     network_monitor::test_suite::tests(),
     process_monitor::test_suite::tests(),
-    syscall_monitor::test_suite::tests(),
 ];
 ```
 
