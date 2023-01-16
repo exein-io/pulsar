@@ -1,12 +1,17 @@
 use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
+use futures::{Stream, StreamExt};
 use hyper::{Body, Method, Request, StatusCode, Uri};
 use hyperlocal::{UnixClientExt, UnixConnector};
-use pulsar_core::pdk::ModuleOverview;
+use pulsar_core::pdk::{Event, ModuleOverview};
 use serde::de::DeserializeOwned;
+use tokio_tungstenite::{client_async, tungstenite::Message};
 
-use crate::dto::{ConfigKV, ModuleConfigKVs};
+use crate::{
+    dto::{ConfigKV, ModuleConfigKVs},
+    error::WebsocketError,
+};
 
 #[derive(Debug, Clone)]
 pub struct EngineApiClient {
@@ -15,7 +20,7 @@ pub struct EngineApiClient {
 }
 
 impl EngineApiClient {
-    pub fn default() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         Self::unix(super::DEFAULT_UDS.to_owned())
     }
 
@@ -88,22 +93,22 @@ impl EngineApiClient {
     }
 
     pub async fn start(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/start", module_name));
+        let url = self.uri(format!("/modules/{}/start", module_name));
         self.empty_post(url).await
     }
 
     pub async fn stop(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/stop", module_name));
+        let url = self.uri(format!("/modules/{}/stop", module_name));
         self.empty_post(url).await
     }
 
     pub async fn restart(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/restart", module_name));
+        let url = self.uri(format!("/modules/{}/restart", module_name));
         self.empty_post(url).await
     }
 
     pub async fn get_module_config(&self, module_name: &str) -> Result<Vec<ConfigKV>> {
-        let url = self.uri(&format!("/modules/{}/config", module_name));
+        let url = self.uri(format!("/modules/{}/config", module_name));
         self.get(url).await
     }
 
@@ -113,7 +118,7 @@ impl EngineApiClient {
         config_key: String,
         config_value: String,
     ) -> Result<()> {
-        let url = self.uri(&format!("/modules/{}/config", module_name));
+        let url = self.uri(format!("/modules/{}/config", module_name));
 
         let body_string = serde_json::to_string(&ConfigKV {
             key: config_key,
@@ -175,5 +180,28 @@ impl EngineApiClient {
                 Err(anyhow!("Error during request. {error}"))
             }
         }
+    }
+
+    pub async fn event_monitor(&self) -> Result<impl Stream<Item = Result<Event, WebsocketError>>> {
+        let stream = tokio::net::UnixStream::connect(&self.socket).await?;
+
+        // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
+        let (ws_stream, _) = client_async("ws://localhost/monitor", stream).await?;
+
+        let (_, read_stream) = ws_stream.split();
+
+        let events_stream = read_stream.map(|item| {
+            item.map_err(|e| e.into()).and_then(|msg| {
+                if let Message::Text(json) = msg {
+                    let event: Event =
+                        serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
+                    Ok(event)
+                } else {
+                    Err(WebsocketError::UnsupportedMessageType)
+                }
+            })
+        });
+
+        Ok(events_stream)
     }
 }

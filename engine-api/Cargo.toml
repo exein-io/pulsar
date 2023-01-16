@@ -8,7 +8,7 @@ edition = "2021"
 pulsar-core = { path = "../pulsar-core" }
 log = "0.4"
 libc = "0.2"
-axum = "0.6.0"
+axum = { version = "0.6.2", features = ["ws"] }
 anyhow = "1.0.53"
 serde = { version = "1.0.136", features = ["derive"] }
 tokio = "1.15.0"
@@ -16,3 +16,5 @@ hyper = "0.14.17"
 futures = "0.3.21"
 hyperlocal = "0.8"
 serde_json = "1.0.79"
+tokio-tungstenite = "0.18.0"
+thiserror = "1.0.38"

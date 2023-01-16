@@ -26,7 +26,6 @@ use super::module_manager::{create_module_manager, ModuleManagerHandle};
 pub struct PulsarDaemon {
     modules: HashMap<String, (ModuleDetails, ModuleManagerHandle)>,
     config: PulsarConfig,
-
     rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     rx_modules_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     #[cfg(debug_assertions)]
@@ -37,9 +36,9 @@ pub struct PulsarDaemon {
 impl PulsarDaemon {
     /// Construct a new [`PulsarDaemon`]
     async fn new(
+        bus: Bus,
         modules: Vec<Box<dyn TaskLauncher>>,
         config: PulsarConfig,
-
         rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     ) -> anyhow::Result<Self> {
         let (tx_modules_cmd, rx_modules_cmd) = mpsc::channel(8);
@@ -68,9 +67,6 @@ impl PulsarDaemon {
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
         #[cfg(debug_assertions)]
         let trace_pipe_handle = bpf_common::trace_pipe::start().await;
-
-        // Initialize bus
-        let bus = Bus::new();
 
         for task_launcher in modules {
             let module_name = task_launcher.name().to_owned();
@@ -276,6 +272,7 @@ impl PulsarDaemon {
 ///
 /// Returns the [`PulsarDaemonHandle`] that can be used to interact with the [`PulsarDaemon`] actor.
 pub async fn start_daemon(
+    bus: Bus,
     modules: Vec<Box<dyn TaskLauncher>>,
     config: PulsarConfig,
 ) -> anyhow::Result<PulsarDaemonHandle> {
@@ -283,7 +280,7 @@ pub async fn start_daemon(
 
     let daemon_handle = PulsarDaemonHandle { tx_cmd };
 
-    let daemon = PulsarDaemon::new(modules, config, rx_cmd).await?;
+    let daemon = PulsarDaemon::new(bus, modules, config, rx_cmd).await?;
 
     tokio::spawn(run_daemon_actor(daemon));
 
