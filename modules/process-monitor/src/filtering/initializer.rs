@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{os::unix::prelude::OsStringExt, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bpf_common::{aya::Bpf, Pid};
 use pulsar_core::{
     pdk::process_tracker::{ProcessTrackerHandle, TrackerUpdate},
@@ -9,9 +9,9 @@ use pulsar_core::{
 use tokio::sync::mpsc;
 
 use super::{
-    config::Config,
+    config::{Config, Rule},
     maps::InterestMap,
-    maps::{PolicyDecision, RuleMap},
+    maps::{Image, PolicyDecision, RuleMap},
     process_tree::{ProcessData, ProcessTree, PID_0},
 };
 
@@ -31,10 +31,18 @@ const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 ///    because of unitialized entries.
 pub(crate) async fn setup_events_filter(
     bpf: &mut Bpf,
-    config: Config,
+    mut config: Config,
     process_tracker: &ProcessTrackerHandle,
     rx_processes: &mut mpsc::UnboundedReceiver<TrackerUpdate>,
 ) -> Result<()> {
+    // Add a rule to ignore the pulsar executable itself
+    if config.ignore_self {
+        match whitelist_for_current_process() {
+            Ok(rule) => config.whitelist.push(rule),
+            Err(err) => log::error!("Failed to add current process to whitelist: {:?}", err),
+        }
+    }
+
     // setup targets map
     let mut target_map = RuleMap::target(bpf)?;
     target_map.clear()?;
@@ -95,7 +103,6 @@ struct Initializer {
     interest_map: InterestMap,
     cache: std::collections::HashMap<Pid, PolicyDecision>,
     config: Config,
-    my_pid: Pid,
 }
 
 impl Initializer {
@@ -103,15 +110,12 @@ impl Initializer {
         // clear whitelist map
         let mut interest_map = InterestMap::load(bpf)?;
         interest_map.clear()?;
-
         let cache = Default::default();
-        let my_pid = Pid::from_raw(std::process::id() as i32);
 
         Ok(Self {
             interest_map,
             cache,
             config,
-            my_pid,
         })
     }
 
@@ -163,13 +167,6 @@ impl Initializer {
                 decision.children_interesting = true;
             }
         };
-        // make sure to ignore pulsard
-        if process.pid == self.my_pid {
-            decision = PolicyDecision {
-                interesting: false,
-                children_interesting: false,
-            };
-        }
         if decision.interesting {
             log::debug!("tracking {} {}", process.pid, process.image);
         }
@@ -177,4 +174,15 @@ impl Initializer {
         self.interest_map.set(process.pid, decision)?;
         Ok(())
     }
+}
+
+/// Return a rule which whitelists the current executable.
+/// This is needed to avoid loops where pulsar events generate further events.
+fn whitelist_for_current_process() -> Result<Rule> {
+    let pulsar_exec = std::fs::read_link(&format!("/proc/{}/exe", std::process::id()))
+        .context("Failed to read current process executable name")?;
+    Ok(Rule {
+        image: Image::try_from(pulsar_exec.into_os_string().into_vec())?,
+        with_children: true,
+    })
 }
