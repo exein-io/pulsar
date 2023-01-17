@@ -10,6 +10,7 @@ pub(crate) struct Config {
     pub(crate) pid_targets: Vec<PidRule>,
     pub(crate) targets: Vec<Rule>,
     pub(crate) whitelist: Vec<Rule>,
+    pub(crate) ignore_self: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -60,6 +61,7 @@ impl TryFrom<&ModuleConfig> for Config {
             pid_targets,
             targets,
             whitelist,
+            ignore_self: config.with_default("ignore_self", true)?,
         })
     }
 }

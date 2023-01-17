@@ -22,6 +22,7 @@ all other modules.
 |`targets_children`|image list|List of processes to track (extended to children)|
 |`whitelist`|image list|List of processes to ignore|
 |`whitelist_children`|image list|List of processes to ignore (extended to children)|
+|`ignore_self`|bool|Add the Pulsar executable to whitelist_children|
 
 Default configuration:
 
@@ -34,6 +35,7 @@ targets=
 targets_children=
 whitelist=
 whitelist_children=
+ignore_self=true
 ```
 
 For example, to limit Pulsar analisys to SSH connections with:
