@@ -100,13 +100,13 @@ pub enum ProgramError {
     ProgramLoadError {
         program: String,
         #[source]
-        program_error: aya::programs::ProgramError,
+        program_error: Box<aya::programs::ProgramError>,
     },
     #[error("failed program attach {program}")]
     ProgramAttachError {
         program: String,
         #[source]
-        program_error: aya::programs::ProgramError,
+        program_error: Box<aya::programs::ProgramError>,
     },
     #[error(transparent)]
     MapError(#[from] aya::maps::MapError),
@@ -231,11 +231,11 @@ impl ProgramType {
     fn attach(&self, bpf: &mut Bpf, btf: &Btf) -> Result<(), ProgramError> {
         let load_err = |program_error| ProgramError::ProgramLoadError {
             program: self.to_string(),
-            program_error,
+            program_error: Box::new(program_error),
         };
         let attach_err = |program_error| ProgramError::ProgramAttachError {
             program: self.to_string(),
-            program_error,
+            program_error: Box::new(program_error),
         };
         match self {
             ProgramType::TracePoint(section, tracepoint) => {
