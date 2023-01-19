@@ -179,7 +179,7 @@ impl Initializer {
 /// Return a rule which whitelists the current executable.
 /// This is needed to avoid loops where pulsar events generate further events.
 fn whitelist_for_current_process() -> Result<Rule> {
-    let pulsar_exec = std::fs::read_link(format!("/proc/{}/exe", std::process::id()))
+    let pulsar_exec = std::fs::read_link("/proc/self/exe")
         .context("Failed to read current process executable name")?;
     Ok(Rule {
         image: Image::try_from(pulsar_exec.into_os_string().into_vec())?,
