@@ -66,6 +66,7 @@ pub struct ModuleConfigKV {
 
 #[derive(Parser, Debug, Clone)]
 pub struct Monitor {
+    /// Show all events
     #[clap(long, default_value_t = false)]
     pub all: bool,
 }
