@@ -1,5 +1,3 @@
-use std::fmt;
-
 use bpf_common::{
     aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
     program::BpfContext, test_runner::ComparableField, BpfSender, Program, ProgramBuilder,
@@ -48,6 +46,7 @@ pub async fn program(
     Ok(program)
 }
 
+#[derive(Debug)]
 #[repr(C)]
 pub enum FsEvent {
     FileCreated {
@@ -75,35 +74,6 @@ pub enum FsEvent {
         source: BufferIndex<str>,
         destination: BufferIndex<str>,
     },
-}
-
-impl fmt::Display for FsEvent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FsEvent::FileCreated { filename } => write!(f, "created {:?}", filename),
-            FsEvent::FileDeleted { filename } => write!(f, "deleted {:?}", filename),
-            FsEvent::DirCreated { filename } => write!(f, "created dir {:?}", filename),
-            FsEvent::DirDeleted { filename } => write!(f, "deleted dir {:?}", filename),
-            FsEvent::FileOpened { filename, flags } => {
-                write!(f, "open {:?} ({})", filename, flags)
-            }
-            FsEvent::FileLink {
-                source,
-                destination,
-                hard_link,
-            } => write!(
-                f,
-                "{} {:?} -> {:?}",
-                if *hard_link { "hardlink" } else { "symlink" },
-                source,
-                destination
-            ),
-            FsEvent::FileRename {
-                source,
-                destination,
-            } => write!(f, "rename {:?} -> {:?}", source, destination),
-        }
-    }
 }
 
 pub mod pulsar {

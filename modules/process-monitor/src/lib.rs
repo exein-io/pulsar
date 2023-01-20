@@ -1,5 +1,3 @@
-use std::fmt;
-
 use anyhow::Context;
 use bpf_common::{
     aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
@@ -43,22 +41,6 @@ pub enum ProcessEvent {
     Exit {
         exit_code: u32,
     },
-}
-
-impl fmt::Display for ProcessEvent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ProcessEvent::Fork { ppid } => write!(f, "forked from {}", ppid),
-            ProcessEvent::Exec {
-                filename,
-                argc,
-                argv,
-            } => {
-                write!(f, "exec {:?} (argc: {}, argv: {:?})", filename, argc, argv)
-            }
-            ProcessEvent::Exit { exit_code } => write!(f, "exit({})", exit_code),
-        }
-    }
 }
 
 fn extract_parameters(argv: &[u8]) -> Vec<String> {

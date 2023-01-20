@@ -33,7 +33,8 @@
 //! }
 //! ```
 
-use std::{fmt::Display, future::Future, pin::Pin, time::Duration};
+use std::fmt::Debug;
+use std::{future::Future, pin::Pin, time::Duration};
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -86,12 +87,12 @@ impl TestCase {
 
 /// TestRunner starts a eBPF program and collects into a TestResult all events
 /// produced by the given trigger program.
-pub struct TestRunner<T: Display> {
+pub struct TestRunner<T: Debug> {
     ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>> + Send>>,
     rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
 }
 
-impl<T: Display> TestRunner<T> {
+impl<T: Debug> TestRunner<T> {
     /// Set the eBPF program
     pub fn with_ebpf<P, Fut>(ebpf_fn: P) -> Self
     where
@@ -153,7 +154,7 @@ impl<T: Send + 'static> BpfSender<T> for TestSender<T> {
 }
 
 /// Events collected by the TestRunner
-pub struct TestResult<T: Display> {
+pub struct TestResult<T: Debug> {
     /// When collection started
     pub start_time: Timestamp,
     /// When collection ended
@@ -185,7 +186,7 @@ enum Expectation<T> {
 /// an expectation is satisfied.
 type Predicate<T> = Box<dyn Fn(&BpfEvent<T>) -> bool + Send>;
 
-impl<T: Display> TestResult<T> {
+impl<T: Debug> TestResult<T> {
     /// Assert the provided predicate matches at least one event
     pub fn expect(mut self, predicate: impl Fn(&BpfEvent<T>) -> bool + 'static + Send) -> Self {
         self.expectations
@@ -241,7 +242,7 @@ impl<T: Display> TestResult<T> {
         let mut lines = Vec::new();
         // print all events
         lines.push(format!("* {} events generated:", events.len()));
-        events.iter().for_each(|e| lines.push(format!("| {e}")));
+        events.iter().for_each(|e| lines.push(format!("| {e:?}")));
         lines.push(String::new());
 
         for expectation in self.expectations {
@@ -273,7 +274,7 @@ impl<T: Display> TestResult<T> {
 }
 
 /// Make sure the eBPF program produced at least one event maching all checks.
-pub fn run_checks<T: std::fmt::Display>(
+pub fn run_checks<T: std::fmt::Debug>(
     events: &[BpfEvent<T>],
     checks: Vec<Check<T>>,
     lines: &mut Vec<String>,
@@ -302,7 +303,7 @@ pub fn run_checks<T: std::fmt::Display>(
         let best_results = results.into_iter().filter(|x| x.1 == max_score);
         for (event, score, check_results) in best_results {
             lines.push(format!(
-                "* Only ({}/{}) matches for \"{}\"",
+                "* Only ({}/{}) matches for \"{:?}\"",
                 score,
                 checks.len(),
                 event

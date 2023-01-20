@@ -99,18 +99,12 @@ pub async fn program(
 }
 
 const NAME_MAX: usize = 264;
+#[derive(Debug)]
 #[repr(C)]
 pub enum EventT {
     FileCreated { filename: [u8; NAME_MAX] },
 }
 
-impl fmt::Display for EventT {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EventT::FileCreated { filename } => write!(f, "{}", filename),
-        }
-    }
-}
 ```
 
 The central part of the module is the `program` function, which:
