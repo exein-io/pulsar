@@ -37,6 +37,10 @@ pub enum TrackerUpdate {
         image: String,
         argv: Vec<String>,
     },
+    SetNewParent {
+        pid: Pid,
+        ppid: Pid,
+    },
     Exit {
         pid: Pid,
         timestamp: Timestamp,
@@ -243,6 +247,13 @@ impl ProcessTracker {
                     // if exit arrived before the fork, we save the event as pending
                     log::debug!("(exit) Process {pid} not found in process tree, saving for later");
                     self.pending_updates.entry(pid).or_default().push(update);
+                }
+            }
+            TrackerUpdate::SetNewParent { pid, ppid } => {
+                if let Some(p) = self.data.get_mut(&pid) {
+                    p.ppid = ppid;
+                } else {
+                    log::warn!("{ppid} is the new parent of {pid}, but we couldn't find it")
                 }
             }
         }

@@ -124,7 +124,10 @@ pub mod pulsar {
                         pid: event.pid,
                         timestamp: event.timestamp,
                     },
-                    ProcessEvent::ChangeParent { .. } => todo!(),
+                    ProcessEvent::ChangeParent { ppid } => TrackerUpdate::SetNewParent {
+                        pid: event.pid,
+                        ppid,
+                    },
                 });
             }),
         )
@@ -170,7 +173,9 @@ pub mod pulsar {
                     argv: extract_parameters(argv.bytes(&buffer)?).into(),
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
-                ProcessEvent::ChangeParent { .. } => todo!(),
+                ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {
+                    ppid: ppid.as_raw(),
+                },
             })
         }
     }

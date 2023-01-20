@@ -82,7 +82,7 @@ pub(crate) async fn setup_events_filter(
                 TrackerUpdate::Exec { pid, image, .. } => {
                     initializer.update(process_tree.exec(*pid, image)?)?
                 }
-                TrackerUpdate::Exit { .. } => {}
+                TrackerUpdate::Exit { .. } | TrackerUpdate::SetNewParent { .. } => {}
             };
             process_tracker.update(update);
         }

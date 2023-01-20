@@ -210,6 +210,9 @@ pub enum Payload {
     Exit {
         exit_code: u32,
     },
+    ChangeParent {
+        ppid: i32,
+    },
     SyscallActivity {
         #[validatron(skip)]
         histogram: Vec<u64>,
@@ -276,6 +279,7 @@ impl fmt::Display for Payload {
             Payload::Fork { ppid } => write!(f,"Fork {{ ppid: {ppid} }}"),
             Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
+            Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::SyscallActivity { .. } => write!(f,"Syscall Activity"),
             Payload::Bind { address, is_tcp } => write!(f,"Bind {{ address: {address}, is_tcp: {is_tcp} }}"),
             Payload::Listen { address } => write!(f,"Listen {{ address: {address} }}"),  
