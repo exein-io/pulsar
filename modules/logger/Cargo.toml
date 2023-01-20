@@ -10,4 +10,4 @@ bpf-common = { path = "../../bpf-common" }
 
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
-chrono = "0.4.23"
+chrono = { version = "0.4.23", features = ["std"], default-features = false }
