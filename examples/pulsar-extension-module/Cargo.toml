@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-pulsar = { path = "../../pulsar" }
+pulsar = { path = "../.." }
 pulsar-core = { path = "../../pulsar-core" }
 tokio = { version = "1", features = ["full"] }
