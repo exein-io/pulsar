@@ -173,17 +173,16 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   struct list_head *next = BPF_CORE_READ(p, children.next);
   int i;
   for (i = 0; i < MAX_ORPHANS; i = i + 1) {
+    // Once we find the same element we started at, we know we've
+    // iterated all children and we can exit the loop.
+    if (next == &p->children) {
+      pending->orphans[i] = NULL;
+      break;
+    }
     struct task_struct *task = container_of(next, struct task_struct, sibling);
     pending->orphans[i] = task;
     LOG_DEBUG("Pending check for new parent of %d ", BPF_CORE_READ(task, pid));
     next = BPF_CORE_READ(task, sibling.next);
-    // Once we find the same element we started at, we know we've
-    // iterated all children and we can exit the loop.
-    if (next == &p->children) {
-      if (i + 1 < MAX_ORPHANS)
-        pending->orphans[i + 1] = NULL;
-      break;
-    }
   }
 }
 
