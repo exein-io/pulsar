@@ -1,5 +1,59 @@
-[workspace]
+[package]
+name = "pulsar"
+version = "0.4.0"
+license = "Apache-2.0"
+edition = "2021"
+repository = "https://github.com/Exein-io/pulsar"
 
+[lib]
+name = "pulsar"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pulsar-exec"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.15.0", features = ["full"] }
+env_logger = "0.10.0"
+libc = "0.2"
+log = "0.4.14"
+anyhow = "1.0.53"
+clap = { version = "4.0.13", features = ["derive"] }
+lazy_static = "1.4.0"
+serde = "1.0.136"
+semver = { version = "1.0.4", features = ["serde"] }
+rust-ini = "0.17.0"
+comfy-table = "5.0.1"
+futures-util = "0.3.25"
+
+# Local
+bpf-common = { path = "bpf-common" }
+engine-api = { path = "engine-api" }
+pulsar-core = { path = "pulsar-core" }
+
+# Modules
+file-system-monitor = { path = "modules/file-system-monitor", optional = true }
+process-monitor = { path = "modules/process-monitor", optional = true }
+network-monitor = { path = "modules/network-monitor", optional = true }
+logger = { path = "modules/logger", optional = true }
+rules-engine = { path = "modules/rules-engine", optional = true }
+desktop-notifier = { path = "modules/desktop-notifier", optional = true }
+
+
+[features]
+default = ["core", "extra"]
+core = [
+ "logger",
+ "process-monitor",
+ "network-monitor",
+ "file-system-monitor",
+]
+extra = ["rules-engine", "desktop-notifier"]
+
+
+
+[workspace]
 members = [
     "modules/file-system-monitor",
     "modules/process-monitor",
@@ -8,7 +62,6 @@ members = [
     "modules/logger",
     "modules/desktop-notifier",
     "pulsar-core",
-    "pulsar",
     "bpf-common",
     "engine-api",
     "validatron",
