@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-network-monitor = { path = "../../modules/network-monitor" }
-bpf-common = { path = "../../bpf-common" }
+network-monitor = { path = "../../crates/modules/network-monitor" }
+bpf-common = { path = "../../crates/bpf-common" }
 tokio = { version = "1", features = ["full"] }

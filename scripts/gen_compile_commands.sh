@@ -4,7 +4,7 @@
 (
 first=1
 echo -n "["
-for source in */*/*.bpf.c
+for source in */*/*/*.bpf.c
 do
   if test $first -eq 1
   then

@@ -1,2 +1,2 @@
-bpf-common/include/*/vmlinux* linguist-vendored
-bpf-common/include/bpf/* linguist-vendored
+crates/bpf-common/include/*/vmlinux* linguist-vendored
+crates/bpf-common/include/bpf/* linguist-vendored

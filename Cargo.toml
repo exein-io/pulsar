@@ -14,6 +14,18 @@ name = "pulsar-exec"
 path = "src/main.rs"
 
 [dependencies]
+# Crates
+bpf-common = { path = "crates/bpf-common" }
+engine-api = { path = "crates/engine-api" }
+pulsar-core = { path = "crates/pulsar-core" }
+# Modules
+file-system-monitor = { path = "crates/modules/file-system-monitor", optional = true }
+process-monitor = { path = "crates/modules/process-monitor", optional = true }
+network-monitor = { path = "crates/modules/network-monitor", optional = true }
+logger = { path = "crates/modules/logger", optional = true }
+rules-engine = { path = "crates/modules/rules-engine", optional = true }
+desktop-notifier = { path = "crates/modules/desktop-notifier", optional = true }
+# External
 tokio = { version = "1.15.0", features = ["full"] }
 env_logger = "0.10.0"
 libc = "0.2"
@@ -27,44 +39,24 @@ rust-ini = "0.17.0"
 comfy-table = "5.0.1"
 futures-util = "0.3.25"
 
-# Local
-bpf-common = { path = "bpf-common" }
-engine-api = { path = "engine-api" }
-pulsar-core = { path = "pulsar-core" }
-
-# Modules
-file-system-monitor = { path = "modules/file-system-monitor", optional = true }
-process-monitor = { path = "modules/process-monitor", optional = true }
-network-monitor = { path = "modules/network-monitor", optional = true }
-logger = { path = "modules/logger", optional = true }
-rules-engine = { path = "modules/rules-engine", optional = true }
-desktop-notifier = { path = "modules/desktop-notifier", optional = true }
-
-
 [features]
 default = ["core", "extra"]
-core = [
- "logger",
- "process-monitor",
- "network-monitor",
- "file-system-monitor",
-]
+core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier"]
-
 
 
 [workspace]
 members = [
-    "modules/file-system-monitor",
-    "modules/process-monitor",
-    "modules/network-monitor",
-    "modules/rules-engine",
-    "modules/logger",
-    "modules/desktop-notifier",
-    "pulsar-core",
-    "bpf-common",
-    "engine-api",
-    "validatron",
+    "crates/modules/file-system-monitor",
+    "crates/modules/process-monitor",
+    "crates/modules/network-monitor",
+    "crates/modules/rules-engine",
+    "crates/modules/logger",
+    "crates/modules/desktop-notifier",
+    "crates/pulsar-core",
+    "crates/bpf-common",
+    "crates/engine-api",
+    "crates/validatron",
     "xtask",
     "test-suite",
     "examples/pulsar-module-as-library",

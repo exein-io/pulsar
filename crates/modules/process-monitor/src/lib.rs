@@ -187,7 +187,7 @@ pub mod test_suite {
     use bpf_common::aya::programs::RawTracePoint;
     use bpf_common::aya::Bpf;
     use bpf_common::program::load_test_program;
-    use bpf_common::test_runner::{ComparableField, TestCase, TestReport, TestSuite};
+    use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use filtering::config::Rule;
     use filtering::maps::{InterestMap, RuleMap};
