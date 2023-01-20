@@ -1,10 +1,11 @@
 use std::future::Future;
 
 use bpf_common::{
-    program::{BpfContext, BpfLogLevel, Pinning},
+    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
     Program, ProgramError,
 };
 use clap::{Parser, Subcommand};
+use pulsar_core::pdk::IntoPayload;
 use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
@@ -51,9 +52,9 @@ async fn main() {
 
 async fn run<F, T, Fut>(args: Args, program: F)
 where
-    F: Fn(BpfContext, mpsc::Sender<Result<T, ProgramError>>) -> Fut,
+    F: Fn(BpfContext, mpsc::Sender<Result<BpfEvent<T>, ProgramError>>) -> Fut,
     Fut: Future<Output = Result<Program, ProgramError>>,
-    T: std::fmt::Display,
+    T: IntoPayload,
 {
     env_logger::builder()
         .filter(Some("probe"), log::LevelFilter::Info)
@@ -73,7 +74,7 @@ where
         tokio::select!(
             _ = tokio::signal::ctrl_c() => break,
             msg = rx.recv() => match msg {
-                Some(Ok(msg)) => log::info!("{}", msg),
+                Some(Ok(msg)) => log::info!("{}", T::try_into_payload(msg).unwrap()),
                 Some(Err(err)) => { bpf_common::log_error("error", err); break }
                 None => { log::info!("probe exited"); break; }
             }
