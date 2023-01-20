@@ -395,7 +395,7 @@ macro_rules! event_check {
     ($event:tt :: $subtype:tt, $(($left:ident, $right:expr, $description:literal)),*) => {
         {
             use bpf_common::program::BpfEvent;
-            use bpf_common::test_runner::{Check, CheckResult};
+            use bpf_common::test_runner::{Check, CheckResult, ComparableField};
             let mut checks = Vec::new();
             checks.push(Check::new("event type", move |event: &BpfEvent<_>| {
                 CheckResult {

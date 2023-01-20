@@ -1,7 +1,6 @@
 use bpf_common::{
     aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
-    program::BpfContext, test_runner::ComparableField, BpfSender, Program, ProgramBuilder,
-    ProgramError,
+    program::BpfContext, BpfSender, Program, ProgramBuilder, ProgramError,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";

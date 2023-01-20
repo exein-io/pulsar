@@ -363,7 +363,7 @@ pub mod test_suite {
 
     use bpf_common::{
         event_check,
-        test_runner::{ComparableField, TestCase, TestReport, TestRunner, TestSuite},
+        test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };
     use nix::{
         libc::kill,
