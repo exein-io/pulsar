@@ -1,6 +1,6 @@
 <div align="center">
-  <img width="300" src="res/pulsar-logo-black.png#gh-light-mode-only" alt="Pulsar dark logo">
-  <img width="300" src="res/pulsar-logo-white.png#gh-dark-mode-only" alt="Pulsar light logo">
+  <img width="300" src="assets/pulsar-logo-black.png#gh-light-mode-only" alt="Pulsar dark logo">
+  <img width="300" src="assets/pulsar-logo-white.png#gh-dark-mode-only" alt="Pulsar light logo">
 
   <p>
     <a href="https://github.com/Exein-io/pulsar/actions/workflows/test.yml">
