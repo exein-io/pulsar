@@ -5,7 +5,7 @@ from the Linux kernel.
 
 In this example we use `network-monitor` for intercepting port bind events.
 ```
-$ cargo build && sudo ./target/debug/pulsar-module-as-library
+$ cargo build && sudo ./target/debug/examples/pulsar-module-as-library
 23559805090354 - 43162 bind on 0.0.0.0:8000 (TCP)
 23563534494178 - 32574 bind on 0.0.0.0:0 (TCP)
 23563567897141 - 32574 bind on 172.19.0.1:0 (UDP)

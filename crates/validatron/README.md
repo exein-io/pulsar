@@ -20,7 +20,7 @@ Now have the base functionalities needed by Pulsar and a custom DSL. Missing fea
 
 If you're interested in contributing to Validatron: thank you!
 
-We have a [contributing guide](../CONTRIBUTING.md) which will help you getting involved in the Validatron project.
+We have a [contributing guide](../../CONTRIBUTING.md) which will help you getting involved in the Validatron project.
 
 ## Building Validatron
 

@@ -3,7 +3,7 @@
 This example shows how to extend Pulsar with a custom module.
 
 ```
-$ cargo build && sudo ./target/debug/pulsar-extension-module pulsard
+$ cargo build && sudo ./target/debug/examples/pulsar-extension-module pulsard
 ```
 
 By default our custom module will do nothing, but we can instruct it to warn
@@ -35,4 +35,4 @@ pulsar-core = { git = "https://github.com/Exein-io/pulsar", rev = "797f68641ed92
 tokio = { version = "1", features = ["full"] }
 ```
 
-Check the [main file](./src/main.rs) and the [custom module](./src/my_custom_module.rs) we're using in this example.
+Check the [main file](./main.rs) and the [custom module](./my_custom_module.rs) we're using in this example.
