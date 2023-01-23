@@ -1270,35 +1270,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulsar-embedded-agent-example"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "log",
- "pulsar",
- "pulsar-core",
- "tokio",
-]
-
-[[package]]
-name = "pulsar-extension-module-example"
-version = "0.4.0"
-dependencies = [
- "pulsar",
- "pulsar-core",
- "tokio",
-]
-
-[[package]]
-name = "pulsar-module-as-library-example"
-version = "0.4.0"
-dependencies = [
- "bpf-common",
- "network-monitor",
- "tokio",
-]
-
-[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -58,9 +58,6 @@ members = [
     "crates/validatron",
     "xtask",
     "test-suite",
-    "examples/pulsar-module-as-library",
-    "examples/pulsar-extension-module",
-    "examples/pulsar-embedded-agent",
 ]
 
 [workspace.package]
