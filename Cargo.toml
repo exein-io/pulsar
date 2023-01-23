@@ -1,9 +1,9 @@
 [package]
 name = "pulsar"
-version = "0.4.0"
-license = "Apache-2.0"
-edition = "2021"
-repository = "https://github.com/Exein-io/pulsar"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [lib]
 name = "pulsar"
@@ -44,7 +44,6 @@ default = ["core", "extra"]
 core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier"]
 
-
 [workspace]
 members = [
     "crates/modules/file-system-monitor",
@@ -63,6 +62,12 @@ members = [
     "examples/pulsar-extension-module",
     "examples/pulsar-embedded-agent",
 ]
+
+[workspace.package]
+version = "0.4.0"
+license = "Apache-2.0 WITH BPF probes exception under GPL-2.0"
+edition = "2021"
+repository = "https://github.com/Exein-io/pulsar"
 
 [profile.release]
 lto = true

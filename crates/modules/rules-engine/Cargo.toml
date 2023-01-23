@@ -1,8 +1,9 @@
 [package]
 name = "rules-engine"
-version = "0.4.0"
-license = "Apache-2.0"
-edition = "2021"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [dependencies]
 validatron = { path = "../../validatron" }
