@@ -17,7 +17,7 @@ these eBPF integration tests require root privileges.
 ## Example
 
 Every module should define its own test suite by using the APIs in
-[bpf-common](../bpf-common/src/test_runner.rs), for example:
+[bpf-common](../crates/bpf-common/src/test_runner.rs), for example:
 
 ```rust
 #[cfg(feature = "test-suite")]
