@@ -1,7 +1,9 @@
 [package]
-name = "pulsar-module-as-library"
-version = "0.1.0"
-edition = "2021"
+name = "pulsar-module-as-library-example"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [dependencies]
 network-monitor = { path = "../../crates/modules/network-monitor" }

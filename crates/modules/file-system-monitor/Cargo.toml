@@ -1,8 +1,9 @@
 [package]
 name = "file-system-monitor"
-version = "0.4.0"
-license = "Apache-2.0 with BPF probe under GPL-2.0"
-edition = "2021"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [features]
 test-suite = ["bpf-common/test-utils"]

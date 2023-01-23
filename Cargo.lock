@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-notifier"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1270,8 +1270,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulsar-embedded-agent"
-version = "0.1.0"
+name = "pulsar-embedded-agent-example"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "log",
@@ -1281,8 +1281,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulsar-extension-module"
-version = "0.1.0"
+name = "pulsar-extension-module-example"
+version = "0.4.0"
 dependencies = [
  "pulsar",
  "pulsar-core",
@@ -1290,8 +1290,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulsar-module-as-library"
-version = "0.1.0"
+name = "pulsar-module-as-library-example"
+version = "0.4.0"
 dependencies = [
  "bpf-common",
  "network-monitor",
