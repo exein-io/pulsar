@@ -25,13 +25,13 @@ async fn desktop_nitifier_task(
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
     let mut rx_config = ctx.get_config();
-    let mut config = rx_config.parse()?;
+    let mut config = rx_config.read()?;
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                config = rx_config.parse()?;
+                config = rx_config.read()?;
                 continue;
             }
             msg = receiver.recv() => {

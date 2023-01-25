@@ -94,7 +94,7 @@ pub mod pulsar {
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
         let rx_config = ctx.get_config();
-        let filtering_config: filtering::config::Config = rx_config.parse()?;
+        let filtering_config: filtering::config::Config = rx_config.read()?;
         let process_tracker = ctx.get_process_tracker();
         let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
         let mut program = program(

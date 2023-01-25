@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use anyhow::Result;
 use bpf_common::program::BpfContext;
 use tokio::sync::{broadcast, watch};
@@ -13,7 +15,7 @@ use super::{process_tracker::ProcessTrackerHandle, ConfigError, ModuleError, Mod
 #[derive(Clone)]
 pub struct ModuleContext {
     module_name: ModuleName,
-    cfg: ModuleConfigReceiver,
+    cfg: watch::Receiver<ModuleConfig>,
     bus: Bus,
     error_sender: ErrorSender,
     daemon_handle: PulsarDaemonHandle,
@@ -24,7 +26,7 @@ pub struct ModuleContext {
 impl ModuleContext {
     /// Constructs a new `ModuleContext< B: Bus>`
     pub fn new(
-        cfg: ModuleConfigReceiver,
+        cfg: watch::Receiver<ModuleConfig>,
         bus: Bus,
         module_name: ModuleName,
         error_sender: ErrorSender,
@@ -109,8 +111,8 @@ impl ModuleContext {
         self.daemon_handle.clone()
     }
 
-    pub fn get_config(&self) -> ModuleConfigReceiver {
-        self.cfg.clone()
+    pub fn get_config<T: Send + Sync + 'static>(&self) -> ModuleConfigReceiver<T> {
+        ModuleConfigReceiver::new(self.cfg.clone())
     }
 
     pub fn get_bpf_context(&self) -> BpfContext {
@@ -119,15 +121,21 @@ impl ModuleContext {
 }
 
 #[derive(Clone)]
-pub struct ModuleConfigReceiver(watch::Receiver<ModuleConfig>);
+pub struct ModuleConfigReceiver<T: Send + Sync + 'static> {
+    rx: watch::Receiver<ModuleConfig>,
+    _config: PhantomData<T>,
+}
 
-impl ModuleConfigReceiver {
+impl<T: Send + Sync + 'static> ModuleConfigReceiver<T> {
     pub fn new(rx: watch::Receiver<ModuleConfig>) -> Self {
-        Self(rx)
+        Self {
+            rx,
+            _config: PhantomData,
+        }
     }
 
     pub fn borrow(&self) -> watch::Ref<'_, ModuleConfig> {
-        self.0.borrow()
+        self.rx.borrow()
     }
 
     /// Get a [`Result<T, String>`] for the module configuration.
@@ -136,18 +144,17 @@ impl ModuleConfigReceiver {
     /// T Must implement [`TryFrom<&ModuleConfig, Error = ConfigError>`]
     ///
     /// It receives an [`Err`] if the configuration doesn't parse correctly.
-    pub fn parse<T>(&self) -> Result<T, ConfigError>
+    pub fn read(&self) -> Result<T, ConfigError>
     where
-        T: Send + Sync + 'static,
         for<'foo> T: TryFrom<&'foo ModuleConfig, Error = ConfigError>,
     {
-        T::try_from(&self.0.borrow())
+        T::try_from(&self.rx.borrow())
     }
 
     /// Get notified of a configuration change.
     pub async fn changed(&mut self) {
         // This can't fail because the sender half of this channel is never dropped.
         // Its lifetime is bound to PulsarConfig in `pulsar::pulsard::pulsar_daemon_run`
-        self.0.changed().await.expect("Config sender dropped");
+        self.rx.changed().await.expect("Config sender dropped");
     }
 }
