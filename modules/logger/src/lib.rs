@@ -15,13 +15,13 @@ async fn logger_task(
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
     let mut rx_config = ctx.get_config();
-    let mut logger = Logger::from_config(rx_config.parse()?);
+    let mut logger = Logger::from_config(rx_config.read()?);
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                logger = Logger::from_config(rx_config.parse()?);
+                logger = Logger::from_config(rx_config.read()?);
             }
             msg = receiver.recv() => {
                 let msg = msg?;

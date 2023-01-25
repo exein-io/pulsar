@@ -105,7 +105,7 @@ pub mod pulsar {
         let _program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
         let mut receiver = ctx.get_receiver();
         let mut rx_config = ctx.get_config();
-        let mut config: Config = rx_config.parse()?;
+        let mut config: Config = rx_config.read()?;
         let sender = ctx.get_sender();
         loop {
             // enable receiver only if the elf checker is enabled
@@ -121,7 +121,7 @@ pub mod pulsar {
                     check_elf(&sender, &config, msg.as_ref()).await;
                 }
                 _ = rx_config.changed() => {
-                    config = rx_config.parse()?;
+                    config = rx_config.read()?;
                 }
                 r = shutdown.recv() => return r,
             }
