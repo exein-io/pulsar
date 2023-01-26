@@ -75,7 +75,7 @@ impl BpfContext {
         // As a hack we always pin and delete the folder on shutdown.
         let pinning_path = match pinning {
             Pinning::Enabled => PINNED_MAPS_PATH.to_string(),
-            Pinning::Disabled => format!("{}_tmp", PINNED_MAPS_PATH),
+            Pinning::Disabled => format!("{PINNED_MAPS_PATH}_tmp"),
         };
 
         Ok(Self {

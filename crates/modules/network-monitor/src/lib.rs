@@ -148,8 +148,8 @@ impl From<SocketAddr> for Addr {
 impl fmt::Display for Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Addr::V4(v) => write!(f, "{}", v),
-            Addr::V6(v) => write!(f, "{}", v),
+            Addr::V4(v) => write!(f, "{v}"),
+            Addr::V6(v) => write!(f, "{v}"),
         }
     }
 }
@@ -164,27 +164,17 @@ pub enum Proto {
 impl fmt::Display for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkEvent::Bind { addr, proto } => write!(f, "bind on {} ({:?})", addr, proto),
-            NetworkEvent::Listen { addr } => write!(f, "listen on {}", addr),
-            NetworkEvent::Connect { dst, proto } => {
-                write!(f, "connect  -> {} ({:?})", dst, proto)
-            }
-            NetworkEvent::Accept { src, dst } => {
-                write!(f, "accept {} -> {}", src, dst)
-            }
-            NetworkEvent::Send { data_len, .. } => write!(f, "sent {} bytes", data_len),
-            NetworkEvent::Receive { data_len, .. } => write!(f, "received {} bytes", data_len),
+            NetworkEvent::Bind { addr, proto } => write!(f, "bind on {addr} ({proto:?})"),
+            NetworkEvent::Listen { addr } => write!(f, "listen on {addr}"),
+            NetworkEvent::Connect { dst, proto } => write!(f, "connect -> {dst} ({proto:?})"),
+            NetworkEvent::Accept { src, dst } => write!(f, "accept {src} -> {dst}"),
+            NetworkEvent::Send { data_len, .. } => write!(f, "sent {data_len} bytes"),
+            NetworkEvent::Receive { data_len, .. } => write!(f, "received {data_len} bytes"),
             NetworkEvent::Close {
                 src,
                 dst,
                 original_pid,
-            } => {
-                write!(
-                    f,
-                    "close {} -> {} (original pid: {})",
-                    src, dst, original_pid
-                )
-            }
+            } => write!(f, "close {src} -> {dst} (original pid: {original_pid})"),
         }
     }
 }

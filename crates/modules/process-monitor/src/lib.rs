@@ -383,14 +383,13 @@ pub mod test_suite {
                 let actual_interest = interest_map.0.get(&child_pid, 0).ok();
                 if Some(expected_interest) != actual_interest {
                     report.lines.push(format!(
-                        "expecting {}={} (was {:?})",
-                        child_pid, expected_interest, actual_interest
+                        "expecting {child_pid}={expected_interest} (was {actual_interest:?})",
                     ));
                     report.success = false;
                 } else {
                     report
                         .lines
-                        .push(format!("ok {}={}", child_pid, expected_interest));
+                        .push(format!("ok {child_pid}={expected_interest}"));
                 }
             }
             report

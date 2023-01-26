@@ -81,6 +81,6 @@ fn print_buffer(buf: &[u8]) {
 fn format_msg(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
         Ok(msg) => msg.replace("bpf_trace_printk: ", ""),
-        Err(_) => format!("{:?}", bytes),
+        Err(_) => format!("{bytes:?}"),
     }
 }

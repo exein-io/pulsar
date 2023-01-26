@@ -36,12 +36,12 @@ pub enum ProcfsError {
 
 /// Returns the path of the executable image of a given process.
 pub fn get_process_image(pid: Pid) -> Result<PathBuf, ProcfsError> {
-    read_link(&format!("/proc/{}/exe", pid))
+    read_link(&format!("/proc/{pid}/exe"))
 }
 
 /// Returns the current working directory of given process.
 pub fn get_process_cwd(pid: Pid) -> Result<PathBuf, ProcfsError> {
-    read_link(&format!("/proc/{}/cwd", pid))
+    read_link(&format!("/proc/{pid}/cwd"))
 }
 
 /// Returns the current working directory of given process.
@@ -49,7 +49,7 @@ pub fn get_process_fd_path(pid: Pid, fd: i32) -> Result<PathBuf, ProcfsError> {
     if fd == AT_FDCWD {
         return get_process_cwd(pid);
     }
-    read_link(&format!("/proc/{}/fd/{}", pid, fd))
+    read_link(&format!("/proc/{pid}/fd/{fd}"))
 }
 
 /// Return where a link is pointing to.
@@ -65,7 +65,7 @@ pub type CommandLine = Vec<String>;
 
 /// Returns the command line for the given process.
 pub fn get_process_command_line(pid: Pid) -> Result<CommandLine, ProcfsError> {
-    let path = format!("/proc/{}/cmdline", pid);
+    let path = format!("/proc/{pid}/cmdline");
     let data =
         fs::read_to_string(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
@@ -83,7 +83,7 @@ pub fn get_process_command_line(pid: Pid) -> Result<CommandLine, ProcfsError> {
 
 /// Returns the command name for the given process.
 pub fn get_process_comm(pid: Pid) -> Result<String, ProcfsError> {
-    let path = format!("/proc/{}/comm", pid);
+    let path = format!("/proc/{pid}/comm");
     let data =
         fs::read_to_string(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
     Ok(data.trim().to_owned())
@@ -91,7 +91,7 @@ pub fn get_process_comm(pid: Pid) -> Result<String, ProcfsError> {
 
 /// Returns the parent of a given process.
 pub fn get_process_parent_pid(pid: Pid) -> Result<Pid, ProcfsError> {
-    let path = format!("/proc/{}/status", pid);
+    let path = format!("/proc/{pid}/status");
     let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
     let reader = BufReader::new(file);
@@ -109,7 +109,7 @@ pub fn get_process_parent_pid(pid: Pid) -> Result<Pid, ProcfsError> {
 
 /// Returns the user id of a given process.
 pub fn get_process_user_id(pid: Pid) -> Result<Uid, ProcfsError> {
-    let path = format!("/proc/{}/status", pid);
+    let path = format!("/proc/{pid}/status");
     let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
     let reader = BufReader::new(file);
@@ -127,7 +127,7 @@ pub fn get_process_user_id(pid: Pid) -> Result<Uid, ProcfsError> {
 
 /// Returns the cpuset cgroup id of a given process.
 pub fn get_process_cgroup_id(pid: Pid) -> Option<String> {
-    let cgroup_path = format!("/proc/{}/cgroup", pid);
+    let cgroup_path = format!("/proc/{pid}/cgroup");
     let file = match File::open(cgroup_path) {
         Ok(f) => f,
         Err(_) => return None,
