@@ -15,7 +15,7 @@ excluded="--exclude threat-response-lua"
 
 export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
 cargo build --bin pulsar-exec ${features}
-cargo build --bin test-suite ${features}
+cargo build --package test-suite
 
 for vagrantfile in vagrant/*/Vagrantfile
 do
