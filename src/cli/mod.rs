@@ -146,11 +146,10 @@ fn help_template(
 {{about}}
 
 {{usage-heading}}
-  {}{} {} {}
+  {prefix}{name} {options} {subcommand}
 
 {{all-args}}\
-",
-        prefix, name, options, subcommand
+"
     )
 }
 

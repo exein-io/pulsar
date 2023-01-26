@@ -50,7 +50,7 @@ impl PulsarConfig {
         let mut configs: HashMap<String, ModuleConfig> = HashMap::new();
 
         let conf = ini::Ini::load_from_file(&config_file)
-            .with_context(|| format!("Error loading configuration from {:?}", config_file))?;
+            .with_context(|| format!("Error loading configuration from {config_file:?}"))?;
 
         for (section, prop) in &conf {
             if let Some(section) = section {

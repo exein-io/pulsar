@@ -122,10 +122,10 @@ where
 {
     let old_keys: Result<Vec<_>, _> = map.keys().collect();
     old_keys
-        .with_context(|| format!("Error getting keys to be cleared from {}", name))?
+        .with_context(|| format!("Error getting keys to be cleared from {name}"))?
         .iter()
         .try_for_each(|image| map.remove(image))
-        .with_context(|| format!("Error clearing entry from {}", name))?;
+        .with_context(|| format!("Error clearing entry from {name}"))?;
     Ok(())
 }
 

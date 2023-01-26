@@ -48,7 +48,7 @@ impl Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Field::Simple(name) => write!(f, "{name}"),
-            Field::Struct { name, inner_field } => write!(f, "{name}.{}", inner_field),
+            Field::Struct { name, inner_field } => write!(f, "{name}.{inner_field}"),
         }
     }
 }

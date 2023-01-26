@@ -33,30 +33,29 @@ impl EngineApiClient {
         match std::fs::metadata(&socket) {
             Err(err) => match err.kind() {
                 std::io::ErrorKind::NotFound => {
-                    bail!("'{}' not found. Check if the daemon is running", socket)
+                    bail!("'{socket}' not found. Check if the daemon is running")
                 }
                 std::io::ErrorKind::PermissionDenied => {
-                    bail!("No write permission on '{}'", socket)
+                    bail!("No write permission on '{socket}'")
                 }
                 _ => {
                     bail!(anyhow::Error::new(err)
-                        .context(format!("Failed to get '{}' metadata", socket)))
+                        .context(format!("Failed to get '{socket}' metadata")))
                 }
             },
             Ok(metadata) => {
                 ensure!(
                     metadata.file_type().is_socket(),
-                    "'{}' is not a unix socket",
-                    socket
+                    "'{socket}' is not a unix socket"
                 );
             }
         };
 
         // Check for write permission on socket
         let cstring = CString::new(socket.as_str())
-            .with_context(|| format!("Can't convert '{}' to a valid string ", socket))?;
+            .with_context(|| format!("Can't convert '{socket}' to a valid string "))?;
         let write_permission = unsafe { libc::access(cstring.as_ptr(), libc::W_OK) } == 0;
-        ensure!(write_permission, "No write permission on '{}'", socket);
+        ensure!(write_permission, "No write permission on '{socket}'");
 
         Ok(Self {
             socket,
@@ -93,22 +92,22 @@ impl EngineApiClient {
     }
 
     pub async fn start(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(format!("/modules/{}/start", module_name));
+        let url = self.uri(format!("/modules/{module_name}/start"));
         self.empty_post(url).await
     }
 
     pub async fn stop(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(format!("/modules/{}/stop", module_name));
+        let url = self.uri(format!("/modules/{module_name}/stop"));
         self.empty_post(url).await
     }
 
     pub async fn restart(&self, module_name: &str) -> Result<()> {
-        let url = self.uri(format!("/modules/{}/restart", module_name));
+        let url = self.uri(format!("/modules/{module_name}/restart"));
         self.empty_post(url).await
     }
 
     pub async fn get_module_config(&self, module_name: &str) -> Result<Vec<ConfigKV>> {
-        let url = self.uri(format!("/modules/{}/config", module_name));
+        let url = self.uri(format!("/modules/{module_name}/config"));
         self.get(url).await
     }
 
@@ -118,7 +117,7 @@ impl EngineApiClient {
         config_key: String,
         config_value: String,
     ) -> Result<()> {
-        let url = self.uri(format!("/modules/{}/config", module_name));
+        let url = self.uri(format!("/modules/{module_name}/config"));
 
         let body_string = serde_json::to_string(&ConfigKV {
             key: config_key,

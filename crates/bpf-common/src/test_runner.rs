@@ -357,7 +357,7 @@ fn pid_check<T>(pid: Pid) -> Check<T> {
     Check::new("pid", move |event: &BpfEvent<_>| CheckResult {
         success: event.pid == pid,
         found: format!("{}", event.pid),
-        expected: format!("{}", pid),
+        expected: format!("{pid}"),
     })
 }
 
@@ -366,7 +366,7 @@ fn timestamp_check<T>(start_time: Timestamp, end_time: Timestamp) -> Check<T> {
     Check::new("timestamp", move |event: &BpfEvent<_>| CheckResult {
         success: start_time <= event.timestamp && event.timestamp <= end_time,
         found: format!("{}", event.timestamp),
-        expected: format!("{} - {}", start_time, end_time),
+        expected: format!("{start_time} - {end_time}"),
     })
 }
 
@@ -446,6 +446,6 @@ impl<T: PartialEq + std::fmt::Debug> ComparableField<T> for T {
         self == t
     }
     fn repr(&self, _buffer: &Bytes) -> String {
-        format!("{:?}", self)
+        format!("{self:?}")
     }
 }

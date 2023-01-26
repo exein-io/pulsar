@@ -22,7 +22,7 @@ async fn main() {
             }
             Ok(_) => {}
             Err(err) => {
-                println!("Error: {:?}", err);
+                println!("Error: {err:?}");
                 break;
             }
         }
