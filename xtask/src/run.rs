@@ -8,26 +8,31 @@ pub struct Options {
     #[clap(long)]
     pub release: bool,
     /// Arguments to pass to your application
-    #[clap(name = "args", last = true)]
+    #[clap(name = "args")]
     pub run_args: Vec<String>,
 }
 
 /// Build the binary
-fn build(binary: &str, opts: &Options) -> Result<()> {
+fn build(package: &str, binary: &str, opts: &Options) -> Result<()> {
     let sh = Shell::new()?;
-
-    let mut build_cmd = format!("cargo build --bin {binary}");
-    if opts.release {
-        build_cmd.push_str(" --release")
-    }
-    cmd!(sh, "{build_cmd}").run()?;
+    let cargo = std::env::var("CARGO").unwrap();
+    let args = if opts.release {
+        Some("--release")
+    } else {
+        None
+    };
+    cmd!(
+        sh,
+        "{cargo} build --package {package} --bin {binary} {args...}"
+    )
+    .run()?;
 
     Ok(())
 }
 
 /// Build and run the binary with admin privileges
-pub fn run_with_sudo(binary: &str, prefix: &[&str], opts: Options) -> Result<()> {
-    build(binary, &opts)?;
+pub fn run_with_sudo(package: &str, binary: &str, prefix: &[&str], opts: Options) -> Result<()> {
+    build(package, binary, &opts)?;
 
     let sh = Shell::new()?;
 

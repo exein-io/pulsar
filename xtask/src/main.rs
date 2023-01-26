@@ -26,10 +26,10 @@ fn main() {
     let opts = Options::parse();
 
     let ret = match opts.command {
-        Command::Pulsard(opts) => run_with_sudo("pulsar-exec", &["pulsard"], opts),
-        Command::Pulsar(opts) => run_with_sudo("pulsar-exec", &["pulsar"], opts),
-        Command::Probe(opts) => run_with_sudo("probe", &[], opts),
-        Command::Test(opts) => run_with_sudo("test-suite", &[], opts),
+        Command::Pulsard(opts) => run_with_sudo("pulsar", "pulsar-exec", &["pulsard"], opts),
+        Command::Pulsar(opts) => run_with_sudo("pulsar", "pulsar-exec", &["pulsar"], opts),
+        Command::Probe(opts) => run_with_sudo("pulsar", "probe", &[], opts),
+        Command::Test(opts) => run_with_sudo("test-suite", "test-suite", &[], opts),
     };
 
     if let Err(e) = ret {
