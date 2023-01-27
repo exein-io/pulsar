@@ -13,7 +13,7 @@ pub struct Options {
 }
 
 /// Build the binary
-fn build(package: &str, binary: &str, opts: &Options) -> Result<()> {
+fn build(binary: &str, opts: &Options) -> Result<()> {
     let sh = Shell::new()?;
     let cargo = std::env::var("CARGO").unwrap();
     let args = if opts.release {
@@ -21,18 +21,14 @@ fn build(package: &str, binary: &str, opts: &Options) -> Result<()> {
     } else {
         None
     };
-    cmd!(
-        sh,
-        "{cargo} build --package {package} --bin {binary} {args...}"
-    )
-    .run()?;
+    cmd!(sh, "{cargo} build --workspace --bin {binary} {args...}").run()?;
 
     Ok(())
 }
 
 /// Build and run the binary with admin privileges
-pub fn run_with_sudo(package: &str, binary: &str, prefix: &[&str], opts: Options) -> Result<()> {
-    build(package, binary, &opts)?;
+pub fn run_with_sudo(binary: &str, prefix: &[&str], opts: Options) -> Result<()> {
+    build(binary, &opts)?;
 
     let sh = Shell::new()?;
 
