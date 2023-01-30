@@ -339,6 +339,8 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
   // Copy data only for UDP events since we want to intercept DNS requests
   if (proto == PROTO_UDP) {
     read_iovec(&event->buffer, &event->send, iov_base);
+  } else {
+    event->send.data.len = 0;
   }
 
   copy_skc_source(&sk->__sk_common, &event->send.source);
@@ -417,6 +419,8 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
   // Copy data only for UDP events since we want to intercept DNS replies
   if (proto == PROTO_UDP) {
     read_iovec(&event->buffer, &event->recv, iov_base);
+  } else {
+    event->recv.data.len = 0;
   }
 
   u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
