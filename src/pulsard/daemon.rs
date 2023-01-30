@@ -28,7 +28,7 @@ pub struct PulsarDaemon {
     config: PulsarConfig,
     rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     rx_modules_cmd: mpsc::Receiver<PulsarDaemonCommand>,
-    #[cfg(debug_assertions)]
+    //#[cfg(debug_assertions)]
     #[allow(unused)]
     trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
 }
@@ -62,10 +62,11 @@ impl PulsarDaemon {
                 BpfLogLevel::Error
             }
         } else {
-            BpfLogLevel::Disabled
+            //BpfLogLevel::Disabled
+            BpfLogLevel::Error
         };
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
-        #[cfg(debug_assertions)]
+        //#[cfg(debug_assertions)]
         let trace_pipe_handle = bpf_common::trace_pipe::start().await;
 
         for task_launcher in modules {
@@ -110,7 +111,6 @@ impl PulsarDaemon {
             config,
             rx_cmd,
             rx_modules_cmd,
-            #[cfg(debug_assertions)]
             trace_pipe_handle,
         })
     }

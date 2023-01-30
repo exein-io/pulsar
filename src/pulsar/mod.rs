@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use anyhow::Result;
+use bpf_common::histogram::Histogram;
 use engine_api::client::EngineApiClient;
 use futures_util::TryStreamExt;
 
@@ -57,8 +60,10 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
             _ => unreachable!(),
         },
         Commands::Monitor(Monitor { all }) => {
+            let mut histogram = Histogram::new(Duration::from_secs(1), 1.2);
             while let Ok(msg) = engine_api_client.event_monitor().await?.try_next().await {
                 if let Some(event) = msg {
+                    histogram.sample();
                     if *all || event.header().threat.is_some() {
                         logger::terminal::print_event(&event)
                     }

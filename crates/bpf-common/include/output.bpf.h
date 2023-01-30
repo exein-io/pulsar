@@ -68,6 +68,7 @@ static __always_inline void output_event(void *ctx, void *output_map,
   if (len > 0 && len <= struct_len) {
     int ret = bpf_perf_event_output(ctx, output_map, BPF_F_CURRENT_CPU, event,
                                     len & (BUFFER_MAX - 1));
+    // TODO: avoid warning at startup
     if (ret) {
       LOG_ERROR("error %d emitting event of len %d", ret, len);
     }

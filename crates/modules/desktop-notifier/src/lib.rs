@@ -47,6 +47,7 @@ async fn handle_event(config: &Config, event: Arc<Event>) -> Result<()> {
         let payload = &event.payload();
         let title = format!("Pulsar module {source} identified a threat");
         let body = format!("{info}\n Source event: {payload}");
+        // TODO: make in parallel
         notify_send(config, vec![title, body]).await?;
     }
     Ok(())

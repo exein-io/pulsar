@@ -1,6 +1,7 @@
 use std::{
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
@@ -13,6 +14,7 @@ use axum::{
     routing::{get, patch, post},
     BoxError, Json, Router,
 };
+use bpf_common::histogram::Histogram;
 use futures::ready;
 use hyper::server::accept::Accept;
 use pulsar_core::{
@@ -21,7 +23,7 @@ use pulsar_core::{
 };
 use tokio::{
     net::{UnixListener, UnixStream},
-    sync::oneshot,
+    sync::{broadcast::error::RecvError, oneshot},
     task::JoinHandle,
 };
 
@@ -176,18 +178,33 @@ async fn event_monitor_handler(
 
     // This closure reads events from the bus receiver and sends them into the socket
     let handle_socket = |mut socket: WebSocket| async move {
-        while let Ok(event) = bus_receiver.recv().await {
-            match serde_json::to_string(&*event) {
-                Ok(json) => {
-                    if socket.send(Message::Text(json)).await.is_err() {
-                        // client disconnected
-                        return;
+        ////let mut histogram = Histogram::new(Duration::from_secs(1), 1.1);
+        let mut lost: u64 = 0;
+        loop {
+            match bus_receiver.recv().await {
+                Ok(event) => {
+                    //histogram.sample();
+                    //if event.header().threat.is_none() {
+                    //continue;
+                    //}
+                    match serde_json::to_string(&*event) {
+                        Ok(json) => {
+                            if lost > 0 {
+                                log::warn!("brodcast channel lagged {lost} messages",);
+                            }
+                            if socket.send(Message::Text(json)).await.is_err() {
+                                // client disconnected
+                                return;
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("error occurred in event serialization: {e}");
+                            return;
+                        }
                     }
                 }
-                Err(e) => {
-                    log::error!("error occurred in event serialization: {e}");
-                    return;
-                }
+                Err(RecvError::Lagged(lagged)) => lost += lagged,
+                Err(RecvError::Closed) => return,
             }
         }
     };

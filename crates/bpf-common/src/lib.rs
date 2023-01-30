@@ -5,9 +5,10 @@ pub mod program;
 #[cfg(feature = "test-utils")]
 pub mod test_runner;
 
-#[cfg(debug_assertions)]
+//#[cfg(debug_assertions)]
 pub mod trace_pipe;
 
+pub mod histogram;
 pub mod parsing;
 pub mod time;
 

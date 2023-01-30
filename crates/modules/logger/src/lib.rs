@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use bpf_common::histogram::Histogram;
 use pulsar_core::pdk::{
     CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
     ShutdownSignal, Version,
@@ -17,6 +20,7 @@ async fn logger_task(
     let mut rx_config = ctx.get_config();
     let mut logger = Logger::from_config(rx_config.read()?);
 
+    let mut histogram = Histogram::new(Duration::from_secs(1), 1.2);
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
@@ -24,6 +28,7 @@ async fn logger_task(
                 logger = Logger::from_config(rx_config.read()?);
             }
             msg = receiver.recv() => {
+                histogram.sample();
                 let msg = msg?;
                 logger.process(&msg)
             },
