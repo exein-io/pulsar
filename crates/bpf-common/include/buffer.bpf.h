@@ -77,7 +77,7 @@ static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
 
   int r = bpf_core_read_str(&((char *)buffer->buffer)[pos], len, source);
   if (r <= 0) {
-    LOG_ERROR("redding failure: %d", r);
+    LOG_ERROR("reading failure: %d", r);
     return;
   }
   // LOG_DEBUG("New buffer: %s (+%d)", buffer->buffer, r);
@@ -101,7 +101,7 @@ static void buffer_append_user_memory(struct buffer *buffer,
   int r = bpf_core_read_user(&((char *)buffer->buffer)[pos],
                              len & HALF_BUFFER_MASK, source);
   if (r < 0) {
-    LOG_ERROR("redding failure: %d", r);
+    LOG_ERROR("reading failure: %d", r);
     return;
   }
   // LOG_DEBUG("New buffer: %s (+%d)", buffer->buffer, r);

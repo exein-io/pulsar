@@ -191,10 +191,10 @@ pub mod pulsar {
     };
 
     pub fn module() -> PulsarModule {
-        PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), syscall_monitor_task)
+        PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), network_monitor_task)
     }
 
-    async fn syscall_monitor_task(
+    async fn network_monitor_task(
         ctx: ModuleContext,
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
@@ -305,7 +305,7 @@ pub mod pulsar {
         let data = data
             .bytes(&event.buffer)
             .map_err(|err| {
-                log::error!("Error getting message: {}", err);
+                log::error!("[dns] Error getting message: {}", err);
             })
             .ok()?;
 
