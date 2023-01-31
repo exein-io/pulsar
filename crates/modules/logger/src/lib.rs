@@ -6,7 +6,11 @@ use pulsar_core::pdk::{
 const MODULE_NAME: &str = "logger";
 
 pub fn module() -> PulsarModule {
-    PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), logger_task)
+    PulsarModule::new(
+        MODULE_NAME,
+        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+        logger_task,
+    )
 }
 
 async fn logger_task(

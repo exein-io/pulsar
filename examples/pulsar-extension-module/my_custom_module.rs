@@ -9,7 +9,11 @@ use pulsar_core::pdk::{
 const MODULE_NAME: &str = "my-custom-module";
 
 pub fn module() -> PulsarModule {
-    PulsarModule::new(MODULE_NAME, Version::new(0, 1, 0), module_task)
+    PulsarModule::new(
+        MODULE_NAME,
+        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+        module_task,
+    )
 }
 
 async fn module_task(

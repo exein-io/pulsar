@@ -13,7 +13,7 @@ pub fn module(tx_ctx: oneshot::Sender<ModuleContext>) -> PulsarModule {
     let tx_ctx = Arc::new(Mutex::new(Some(tx_ctx)));
     PulsarModule::new(
         MODULE_NAME,
-        Version::new(0, 1, 0),
+        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
         move |ctx, mut shutdown| {
             let tx_ctx = tx_ctx.clone();
             async move {
