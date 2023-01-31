@@ -191,7 +191,11 @@ pub mod pulsar {
     };
 
     pub fn module() -> PulsarModule {
-        PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), network_monitor_task)
+        PulsarModule::new(
+            MODULE_NAME,
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            network_monitor_task,
+        )
     }
 
     async fn network_monitor_task(

@@ -14,7 +14,11 @@ const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 const MODULE_NAME: &str = "rules-engine";
 
 pub fn module() -> PulsarModule {
-    PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), rules_engine_task)
+    PulsarModule::new(
+        MODULE_NAME,
+        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+        rules_engine_task,
+    )
 }
 
 async fn rules_engine_task(

@@ -33,7 +33,7 @@
 //! pub fn my_module() -> PulsarModule {
 //!     PulsarModule::new(
 //!         "my-module",
-//!         Version::new(0, 0, 1),
+//!         Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
 //!         my_module_task,
 //!     )
 //! }

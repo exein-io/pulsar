@@ -267,7 +267,7 @@ pub mod pulsar {
     pub fn file_created() -> PulsarModule {
         PulsarModule::new(
             "file-created",
-            Version::new(0, 0, 1),
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
             file_created_task,
         )
     }

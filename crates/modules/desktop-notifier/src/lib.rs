@@ -16,7 +16,11 @@ use pulsar_core::{
 const MODULE_NAME: &str = "desktop-notifier";
 
 pub fn module() -> PulsarModule {
-    PulsarModule::new(MODULE_NAME, Version::new(0, 1, 0), desktop_nitifier_task)
+    PulsarModule::new(
+        MODULE_NAME,
+        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+        desktop_nitifier_task,
+    )
 }
 
 async fn desktop_nitifier_task(

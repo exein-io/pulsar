@@ -72,7 +72,11 @@ pub mod pulsar {
     use tokio::sync::mpsc;
 
     pub fn module() -> PulsarModule {
-        PulsarModule::new(MODULE_NAME, Version::new(0, 4, 0), process_monitor_task)
+        PulsarModule::new(
+            MODULE_NAME,
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            process_monitor_task,
+        )
     }
 
     async fn process_monitor_task(
