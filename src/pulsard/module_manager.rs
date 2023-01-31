@@ -134,8 +134,14 @@ impl ModuleManager {
                     let (tx_shutdown, task) = self.running_task.take().unwrap();
                     tx_shutdown.send_signal();
                     let result = task.await;
-                    log::info!("Module {} exited: {:?}", self.task_launcher.name(), result);
-                    // TODO: use this result and report errors
+                    match result {
+                        Ok(()) => log::info!("Module {} exited", self.task_launcher.name()),
+                        Err(err) => log::warn!(
+                            "Module {} exit failure: {:?}",
+                            self.task_launcher.name(),
+                            err
+                        ),
+                    }
                     self.status = ModuleStatus::Stopped;
                     Ok(())
                 } else {
