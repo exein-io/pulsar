@@ -64,7 +64,15 @@ pub async fn pulsar_daemon_run(
     server_handle.stop().await;
 
     log::info!("Terminating Pulsar Daemon...");
-    drop(pulsar_daemon);
+    for module in pulsar_daemon.modules().await {
+        if let Err(err) = pulsar_daemon.stop(module.name.clone()).await {
+            log::warn!(
+                "Module {} didn't respond to shutdown signal. Forcing shutdown.\n{:?}",
+                module.name,
+                err
+            )
+        }
+    }
 
     Ok(())
 }

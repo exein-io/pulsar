@@ -18,7 +18,6 @@ pub async fn program(
     // If LSM eBPF programs is not supported, we'll attach to the same kernel
     // functions, but using kprobes.
     if lsm_supported().await {
-        log::info!("Loading LSM programs");
         builder = builder
             .lsm("path_mknod")
             .lsm("path_unlink")
@@ -29,7 +28,6 @@ pub async fn program(
             .lsm("path_link")
             .lsm("path_symlink");
     } else {
-        log::info!("LSM programs not supported. Falling back to kprobes");
         builder = builder
             .kprobe("security_path_mknod")
             .kprobe("security_path_unlink")
