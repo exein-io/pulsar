@@ -47,6 +47,18 @@ struct {
   __uint(max_entries, 1);
 } temp_map SEC(".maps");
 
+// The status map contains configuration status for the eBPF program:
+// - The STATUS_INITIALIZED entry indicates the perf event array initialization
+//   status. On startup it's set to 0, when the userspace program opens the perf
+//   event array it's set to 1. The eBPF program emits events only when it's 1.
+#define STATUS_INITIALIZED 0
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __type(key, u32);
+  __type(value, u32);
+  __uint(max_entries, 1);
+} status_map SEC(".maps");
+
 // Get the temporary buffer inside temp_map as a void pointer, this can be cast
 // to the required event type and filled before submitting it for output. The
 // pointed at memory contiains BUFFER_MAX *2 bytes.
@@ -63,6 +75,13 @@ static __always_inline void *output_temp() {
 static __always_inline void output_event(void *ctx, void *output_map,
                                          void *event, int struct_len,
                                          int buffer_len) {
+  u32 key = STATUS_INITIALIZED;
+  u32 *initialization_status = bpf_map_lookup_elem(&status_map, &key);
+  if (!initialization_status || !*initialization_status) {
+    // The userspace is not ready yet for events on the perf event array
+    return;
+  }
+
   // The output size is the full struct length, minus the unused buffer len
   unsigned int len = struct_len - (BUFFER_MAX - buffer_len);
   if (len > 0 && len <= struct_len) {
