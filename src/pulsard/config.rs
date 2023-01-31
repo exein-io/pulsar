@@ -92,7 +92,7 @@ impl PulsarConfig {
             .subscribe()
     }
 
-    /// Get module configuration. This is intended to be used when a single access is enought.
+    /// Get module configuration. This is intended to be used when a single access is enough.
     pub fn get_module_config(&self, module: &str) -> Option<ModuleConfig> {
         self.inner
             .lock()
@@ -102,7 +102,7 @@ impl PulsarConfig {
             .map(|watch_sender| watch_sender.borrow().clone())
     }
 
-    /// Get all configurations. This is intended to be used when a single access is enought.
+    /// Get all configurations. This is intended to be used when a single access is enough.
     pub fn get_configs(&self) -> Vec<(String, ModuleConfig)> {
         self.inner
             .lock()
