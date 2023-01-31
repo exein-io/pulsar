@@ -8,7 +8,7 @@ use std::{convert::TryFrom, fmt::Display, mem::size_of, sync::Arc, time::Duratio
 use aya::{
     maps::{
         perf::{AsyncPerfEventArray, PerfBufferError},
-        HashMap, MapData,
+        Array, HashMap, MapData,
     },
     programs::{KProbe, Lsm, RawTracePoint, TracePoint},
     util::online_cpus,
@@ -338,6 +338,11 @@ impl Program {
             .take_map(map_name)
             .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
         let mut perf_array: AsyncPerfEventArray<_> = AsyncPerfEventArray::try_from(map_resource)?;
+        let mut status_map = Array::try_from(
+            self.bpf
+                .take_map("status_map")
+                .ok_or_else(|| ProgramError::MapNotFound("status_map".to_string()))?,
+        )?;
 
         let buffers = online_cpus()
             .unwrap()
@@ -394,6 +399,15 @@ impl Program {
                 }
             });
         }
+
+        // Signal eBPF program we're ready by setting STATUS_INITIALIZED
+        if let Err(err) = status_map.set(0, 1_u32, 0) {
+            log::warn!(
+                "Error setting STATUS_INITIALIZED for {}: {:?}",
+                self.name,
+                err
+            );
+        };
         Ok(())
     }
 }
