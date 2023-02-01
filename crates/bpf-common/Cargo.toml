@@ -19,7 +19,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-fd = "0.3.0"
 log = "0.4"
 anyhow = "1"
-nix = "0.24.0"
+nix = { version = "0.26.2", features = ["fs"] }
 sys-mount = {version = "1.5.1", default-features = false}
 procfs = { version = "0.14.2", default-features = false }
 libc = "0.2"

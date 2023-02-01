@@ -13,7 +13,7 @@ bpf-common = { path = "../../bpf-common" }
 pulsar-core = { path = "../../pulsar-core" }
 
 tokio = { version = "1", features = ["full"] }
-nix = "0.24.0"
+nix = "0.26.2"
 log = "0.4"
 thiserror = "1"
 which = { version = "4.2.5", optional = true }
