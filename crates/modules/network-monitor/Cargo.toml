@@ -14,7 +14,7 @@ pulsar-core = { path = "../../pulsar-core" }
 
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
-nix = "0.24.0"
+nix = "0.26.2"
 dns-parser = "0.8.0"
 
 [build-dependencies]

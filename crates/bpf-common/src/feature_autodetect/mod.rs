@@ -1,4 +1,5 @@
 //! This module checks what features are supported by the runnig kernel
+pub mod kernel_version;
 pub mod lsm;
 
 #[cfg(feature = "test-suite")]

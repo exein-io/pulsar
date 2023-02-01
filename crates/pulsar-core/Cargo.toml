@@ -17,4 +17,4 @@ semver = { version = "1.0.4", features = ["serde"] }
 anyhow = "1.0.53"
 log = "0.4"
 thiserror = "1.0.30"
-nix = "0.24.0"
+nix = "0.26.2"
