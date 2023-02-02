@@ -42,10 +42,9 @@ OUTPUT_MAP(events, fs_event, {
 
 // Append to buffer a slash and the path component pointed at by name.
 // This is needed to satisfy the verifier.
-static __always_inline void append_path_component(struct buffer *buffer,
-                                                  struct buffer_index *index,
-                                                  const unsigned char *name,
-                                                  int len) {
+static void append_path_component(struct buffer *buffer,
+                                  struct buffer_index *index,
+                                  const unsigned char *name, int len) {
   if (len == 0)
     return;
   if (name == 0)
@@ -54,59 +53,119 @@ static __always_inline void append_path_component(struct buffer *buffer,
   buffer_append_str(buffer, index, (char *)name, len);
 }
 
+struct callback_ctx {
+  struct dentry *dentry;
+  struct vfsmount *vfsmnt;
+  struct mount *mnt_p;
+  struct mount *mnt_parent_p;
+  // Output components names and lens
+  const unsigned char *component_name[MAX_PATH_COMPONENTS];
+  u32 component_len[MAX_PATH_COMPONENTS];
+};
+
+static long callback_fn(u32 i, void *void_ctx) {
+  struct callback_ctx *ctx = void_ctx;
+  if (!ctx)
+    return 1;
+  struct dentry *mnt_root =
+      (struct dentry *)BPF_CORE_READ(ctx->vfsmnt, mnt_root);
+  struct dentry *d_parent = BPF_CORE_READ(ctx->dentry, d_parent);
+  if (ctx->dentry == mnt_root || ctx->dentry == d_parent) {
+    if (ctx->dentry != mnt_root) {
+      // We reached root, but not mount root - escaped?
+      return 1;
+    }
+    if (ctx->mnt_p != ctx->mnt_parent_p) {
+      // We reached root, but not global root - continue with mount point path
+      bpf_core_read(&ctx->dentry, sizeof(struct dentry *),
+                    &ctx->mnt_p->mnt_mountpoint);
+      bpf_core_read(&ctx->mnt_p, sizeof(struct mount *),
+                    &ctx->mnt_p->mnt_parent);
+      bpf_core_read(&ctx->mnt_parent_p, sizeof(struct mount *),
+                    &ctx->mnt_p->mnt_parent);
+      ctx->vfsmnt = &ctx->mnt_p->mnt;
+      return 0;
+    }
+    // Global root - path fully parsed
+    return 1;
+  }
+  // Add this dentry name to path
+  struct qstr entry = BPF_CORE_READ(ctx->dentry, d_name);
+  if (i < MAX_PATH_COMPONENTS) {
+    ctx->component_len[i] = entry.len;
+    ctx->component_name[i] = entry.name;
+  }
+  ctx->dentry = d_parent;
+  return 0;
+}
+
+// Copy of callback_fn used in bpf_loop. This is identical to the other one.
+// For some reason, calling the same function would result in the verifier
+// messing up and failing with a "too many instructions to verify" error.
+static long callback_fn_loop(u32 i, void *void_ctx) {
+  struct callback_ctx *ctx = void_ctx;
+  if (!ctx)
+    return 1;
+  struct dentry *mnt_root =
+      (struct dentry *)BPF_CORE_READ(ctx->vfsmnt, mnt_root);
+  struct dentry *d_parent = BPF_CORE_READ(ctx->dentry, d_parent);
+  if (ctx->dentry == mnt_root || ctx->dentry == d_parent) {
+    if (ctx->dentry != mnt_root) {
+      // We reached root, but not mount root - escaped?
+      return 1;
+    }
+    if (ctx->mnt_p != ctx->mnt_parent_p) {
+      // We reached root, but not global root - continue with mount point path
+      bpf_core_read(&ctx->dentry, sizeof(struct dentry *),
+                    &ctx->mnt_p->mnt_mountpoint);
+      bpf_core_read(&ctx->mnt_p, sizeof(struct mount *),
+                    &ctx->mnt_p->mnt_parent);
+      bpf_core_read(&ctx->mnt_parent_p, sizeof(struct mount *),
+                    &ctx->mnt_p->mnt_parent);
+      ctx->vfsmnt = &ctx->mnt_p->mnt;
+      return 0;
+    }
+    // Global root - path fully parsed
+    return 1;
+  }
+  // Add this dentry name to path
+  struct qstr entry = BPF_CORE_READ(ctx->dentry, d_name);
+  if (i < MAX_PATH_COMPONENTS) {
+    ctx->component_len[i] = entry.len;
+    ctx->component_name[i] = entry.name;
+  }
+  ctx->dentry = d_parent;
+  return 0;
+}
+
 // get_path_str was copied and adapted from Tracee
 // Returns the length of the copied entry
 static void get_path_str(struct dentry *dentry, struct path *path,
                          struct buffer *buffer, struct buffer_index *index) {
-  char slash = '/';
-  int zero = 0;
-  struct vfsmount *vfsmnt = BPF_CORE_READ(path, mnt);
-  struct mount *mnt_p = container_of(vfsmnt, struct mount, mnt);
-  struct mount *mnt_parent_p = BPF_CORE_READ(mnt_p, mnt_parent);
+  struct callback_ctx ctx;
+  ctx.dentry = dentry;
+  ctx.vfsmnt = BPF_CORE_READ(path, mnt);
+  ctx.mnt_p = container_of(ctx.vfsmnt, struct mount, mnt);
+  ctx.mnt_parent_p = BPF_CORE_READ(ctx.mnt_p, mnt_parent);
+  __builtin_memset(ctx.component_name, 0, sizeof(ctx.component_name));
+  __builtin_memset(ctx.component_len, 0, sizeof(ctx.component_len));
 
-  const unsigned char *component_name[MAX_PATH_COMPONENTS];
-  u32 component_len[MAX_PATH_COMPONENTS];
-  for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
-    component_len[i] = 0;
-    component_name[i] = 0;
-  }
-
-  int count = 0;
+  if (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 17, 0)) {
+    bpf_loop(MAX_PATH_COMPONENTS, callback_fn_loop, &ctx, 0);
+  } else {
 #pragma unroll
-  for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
-    struct dentry *mnt_root = NULL;
-    mnt_root = (struct dentry *)BPF_CORE_READ(vfsmnt, mnt_root);
-    struct dentry *d_parent = BPF_CORE_READ(dentry, d_parent);
-    if (dentry == mnt_root || dentry == d_parent) {
-      if (dentry != mnt_root) {
-        // We reached root, but not mount root - escaped?
+    for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
+      if (callback_fn(i, &ctx) == 1)
         break;
-      }
-      if (mnt_p != mnt_parent_p) {
-        // We reached root, but not global root - continue with mount point path
-        bpf_core_read(&dentry, sizeof(struct dentry *), &mnt_p->mnt_mountpoint);
-        bpf_core_read(&mnt_p, sizeof(struct mount *), &mnt_p->mnt_parent);
-        bpf_core_read(&mnt_parent_p, sizeof(struct mount *),
-                      &mnt_p->mnt_parent);
-        vfsmnt = &mnt_p->mnt;
-        continue;
-      }
-      // Global root - path fully parsed
-      break;
     }
-    // Add this dentry name to path
-    struct qstr entry = BPF_CORE_READ(dentry, d_name);
-    component_len[i] = entry.len;
-    component_name[i] = entry.name;
-    dentry = d_parent;
-    count++;
   }
 
   // copy components
   buffer_index_init(buffer, index);
   for (int i = 0; i < MAX_PATH_COMPONENTS; i++) {
     int t = MAX_PATH_COMPONENTS - i - 1;
-    append_path_component(buffer, index, component_name[t], component_len[t]);
+    append_path_component(buffer, index, ctx.component_name[t],
+                          ctx.component_len[t]);
   }
   return;
 }
