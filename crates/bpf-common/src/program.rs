@@ -3,12 +3,14 @@
 //! - allows to read events events.
 //!
 use core::fmt;
-use std::{convert::TryFrom, fmt::Display, mem::size_of, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet, convert::TryFrom, fmt::Display, mem::size_of, sync::Arc, time::Duration,
+};
 
 use aya::{
     maps::{
         perf::{AsyncPerfEventArray, PerfBufferError},
-        Array, HashMap, MapData,
+        HashMap, MapData,
     },
     programs::{KProbe, Lsm, RawTracePoint, TracePoint},
     util::online_cpus,
@@ -112,6 +114,8 @@ pub enum ProgramError {
     MapError(#[from] aya::maps::MapError),
     #[error("map not found {0}")]
     MapNotFound(String),
+    #[error("map already used {0}")]
+    MapAlreadyUsed(String),
     #[error("perf buffer error {0}")]
     PerfBuffer(#[from] PerfBufferError),
     #[error("loading BTF {0}")]
@@ -201,6 +205,7 @@ impl ProgramBuilder {
             name,
             ctx,
             bpf,
+            used_maps: Default::default(),
         })
     }
 }
@@ -281,6 +286,7 @@ pub struct Program {
     ctx: BpfContext,
     name: String,
     bpf: Bpf,
+    used_maps: HashSet<String>,
 }
 
 impl Drop for Program {
@@ -308,10 +314,17 @@ impl Program {
         K: Pod + 'static + Send,
         V: Pod + 'static + Send,
     {
+        if self.used_maps.contains(map_name) {
+            return Err(ProgramError::MapAlreadyUsed(map_name.to_string()));
+        };
+
         let map_resource = self
             .bpf
             .take_map(map_name)
             .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
+
+        self.used_maps.insert(map_name.to_string());
+
         let mut rx_exit = self.tx_exit.subscribe();
         let mut map = HashMap::try_from(map_resource)?;
         tokio::spawn(async move {
@@ -333,16 +346,18 @@ impl Program {
         map_name: &str,
         sender: impl BpfSender<T>,
     ) -> Result<(), ProgramError> {
+        if self.used_maps.contains(map_name) {
+            return Err(ProgramError::MapAlreadyUsed(map_name.to_string()));
+        };
+
         let map_resource = self
             .bpf
             .take_map(map_name)
             .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
+
+        self.used_maps.insert(map_name.to_string());
+
         let mut perf_array: AsyncPerfEventArray<_> = AsyncPerfEventArray::try_from(map_resource)?;
-        let mut init_map = Array::try_from(
-            self.bpf
-                .take_map("init_map")
-                .ok_or_else(|| ProgramError::MapNotFound("init_map".to_string()))?,
-        )?;
 
         let buffers = online_cpus()
             .unwrap()
@@ -399,15 +414,6 @@ impl Program {
                 }
             });
         }
-
-        // Signal eBPF program we're ready by setting STATUS_INITIALIZED
-        if let Err(err) = init_map.set(0, 1_u32, 0) {
-            log::warn!(
-                "Error setting STATUS_INITIALIZED for {}: {:?}",
-                self.name,
-                err
-            );
-        };
         Ok(())
     }
 }
