@@ -338,10 +338,10 @@ impl Program {
             .take_map(map_name)
             .ok_or_else(|| ProgramError::MapNotFound(map_name.to_string()))?;
         let mut perf_array: AsyncPerfEventArray<_> = AsyncPerfEventArray::try_from(map_resource)?;
-        let mut status_map = Array::try_from(
+        let mut init_map = Array::try_from(
             self.bpf
-                .take_map("status_map")
-                .ok_or_else(|| ProgramError::MapNotFound("status_map".to_string()))?,
+                .take_map("init_map")
+                .ok_or_else(|| ProgramError::MapNotFound("init_map".to_string()))?,
         )?;
 
         let buffers = online_cpus()
@@ -401,7 +401,7 @@ impl Program {
         }
 
         // Signal eBPF program we're ready by setting STATUS_INITIALIZED
-        if let Err(err) = status_map.set(0, 1_u32, 0) {
+        if let Err(err) = init_map.set(0, 1_u32, 0) {
             log::warn!(
                 "Error setting STATUS_INITIALIZED for {}: {:?}",
                 self.name,
