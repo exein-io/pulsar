@@ -20,7 +20,7 @@ use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
-use crate::{time::Timestamp, BpfSender, Pid};
+use crate::{feature_autodetect::kernel_version::KernelVersion, time::Timestamp, BpfSender, Pid};
 
 const PERF_HEADER_SIZE: usize = 4;
 const PINNED_MAPS_PATH: &str = "/sys/fs/bpf/pulsar";
@@ -46,6 +46,8 @@ pub struct BpfContext {
     perf_pages: usize,
     /// Log level for eBPF print statements
     log_level: BpfLogLevel,
+    /// Kernel version
+    kernel_version: KernelVersion,
 }
 
 #[derive(Clone)]
@@ -73,6 +75,17 @@ impl BpfContext {
             log::warn!("The default value {PERF_PAGES_DEFAULT} will be used.");
             perf_pages = PERF_PAGES_DEFAULT;
         }
+        let kernel_version = match KernelVersion::autodetect() {
+            Ok(version) => version,
+            Err(err) => {
+                log::warn!("Error identifying kernel version {err:?}. Assuming kernel 5.0.4");
+                KernelVersion {
+                    major: 5,
+                    minor: 0,
+                    patch: 4,
+                }
+            }
+        };
         // aya doesn't support specifying from userspace wether or not to pin maps.
         // As a hack we always pin and delete the folder on shutdown.
         let pinning_path = match pinning {
@@ -86,6 +99,7 @@ impl BpfContext {
             perf_pages,
             pinning_path,
             log_level,
+            kernel_version,
         })
     }
 }
@@ -191,6 +205,7 @@ impl ProgramBuilder {
                 .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
                 .set_global("log_level", &(self.ctx.log_level as i32))
+                .set_global("LINUX_KERNEL_VERSION", &self.ctx.kernel_version.as_i32())
                 .load(&self.probe)?;
             for program in self.programs {
                 program.attach(&mut bpf, &btf)?;
