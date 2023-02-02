@@ -77,18 +77,18 @@ pub mod terminal {
 
     pub fn print_event(event: &Event) {
         let header = event.header();
-        let time = DateTime::<Utc>::from(header.timestamp);
+        let time = DateTime::<Utc>::from(header.timestamp).format("%Y-%m-%dT%TZ");
         let image = &header.image;
         let pid = &header.pid;
         let payload = event.payload();
 
         if let Some(Threat { source, info }) = &event.header().threat {
             println!(
-                "[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] [{source} - {info}] {payload}"
+                "[{time} \x1b[1;30;43mTHREAT\x1b[0m  {image} ({pid})] [{source} - {info}] {payload}"
             )
         } else {
             let source = &header.source;
-            println!("[{time} \x1b[1;30;46mEVENT\x1b[0m {image} ({pid})] [{source}] {payload}")
+            println!("[{time} \x1b[1;30;46mEVENT\x1b[0m  {image} ({pid})] [{source}] {payload}")
         }
     }
 }
