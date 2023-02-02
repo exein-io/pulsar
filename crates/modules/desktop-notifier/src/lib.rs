@@ -39,25 +39,24 @@ async fn desktop_nitifier_task(
                 continue;
             }
             msg = receiver.recv() => {
-                handle_event(&config, msg?).await?;
+                handle_event(&config, msg?).await;
             }
         }
     }
 }
 
 /// Check if the given event is a threat which should be notified to the user
-async fn handle_event(config: &Config, event: Arc<Event>) -> Result<()> {
+async fn handle_event(config: &Config, event: Arc<Event>) {
     if let Some(Threat { source, info }) = &event.header().threat {
-        let payload = &event.payload();
+        let payload = event.payload();
         let title = format!("Pulsar module {source} identified a threat");
         let body = format!("{info}\n Source event: {payload}");
-        notify_send(config, vec![title, body]).await?;
+        notify_send(config, vec![title, body]).await;
     }
-    Ok(())
 }
 
 /// Send a desktop notification spawning `notify-send` with the provided arguments
-async fn notify_send(config: &Config, args: Vec<String>) -> Result<()> {
+async fn notify_send(config: &Config, args: Vec<String>) {
     let mut command = Command::new(&config.notify_send_executable);
     command
         .args(args)
@@ -67,24 +66,30 @@ async fn notify_send(config: &Config, args: Vec<String>) -> Result<()> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
-    tokio::task::spawn_blocking(move || {
-        let result = command
-            .spawn()
-            .context("Error spawning notify-send")?
-            .wait_with_output()
-            .context("Error waiting for notify-send to complete")?;
-        if !result.status.success() {
-            anyhow::bail!(
-                "notify-send exited with code {:?}\nStdout: {:?}\nStderr: {:?}\n",
-                result.status.code(),
-                String::from_utf8_lossy(&result.stdout),
-                String::from_utf8_lossy(&result.stderr),
-            );
+    tokio::spawn(async {
+        let r = tokio::task::spawn_blocking(move || {
+            let result = command
+                .spawn()
+                .context("Error spawning notify-send")?
+                .wait_with_output()
+                .context("Error waiting for notify-send to complete")?;
+            if !result.status.success() {
+                anyhow::bail!(
+                    "notify-send exited with code {:?}\nStdout: {:?}\nStderr: {:?}\n",
+                    result.status.code(),
+                    String::from_utf8_lossy(&result.stdout),
+                    String::from_utf8_lossy(&result.stderr),
+                );
+            }
+            Ok(())
+        })
+        .await
+        .context("Unexpected error spawning background notify task");
+        match r {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) | Err(err) => log::error!("Error sending desktop notification: {err:?}"),
         }
-        Ok(())
-    })
-    .await
-    .context("Unexpected error spawning background notify task")?
+    });
 }
 
 #[derive(Clone)]
