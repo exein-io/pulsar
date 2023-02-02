@@ -239,6 +239,7 @@ int BPF_PROG(sched_switch) {
   }
   pending->dead_parent = 0;
   int i;
+  // TODO: use LOOP
   for (i = 0; i < MAX_ORPHANS; i = i + 1) {
     struct task_struct *orphan = pending->orphans[i];
     if (orphan == NULL)
