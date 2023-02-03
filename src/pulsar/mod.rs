@@ -1,6 +1,6 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use engine_api::client::EngineApiClient;
-use futures_util::TryStreamExt;
+use futures_util::StreamExt;
 
 mod term_print;
 
@@ -57,14 +57,20 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
             _ => unreachable!(),
         },
         Commands::Monitor(Monitor { all }) => {
-            while let Ok(msg) = engine_api_client.event_monitor().await?.try_next().await {
-                if let Some(event) = msg {
-                    if *all || event.header().threat.is_some() {
-                        logger::terminal::print_event(&event)
+            let mut stream = engine_api_client.event_monitor().await?;
+
+            while let Some(ws_read) = stream.next().await {
+                match ws_read {
+                    Ok(event) => {
+                        if *all || event.header().threat.is_some() {
+                            logger::terminal::print_event(&event)
+                        }
                     }
+                    Err(e) => return Err(e).context("error reading from websocket"),
                 }
             }
-            Err(anyhow::anyhow!("Connection closed"))
+
+            Err(anyhow::anyhow!("event stream ended"))
         }
     }?;
 
