@@ -1,6 +1,8 @@
 //! Extract kernel version from the currently running system.
 //! Code ported from libbpf.
 
+use std::str::FromStr;
+
 use anyhow::{Context, Result};
 use nix::fcntl::AtFlags;
 use nix::sys::utsname::uname;
@@ -51,12 +53,7 @@ impl KernelVersion {
     /// Parse release fields from the format "%*s %*s %d.%d.%d\n"
     fn parse_version_signature(value: &str) -> Result<KernelVersion> {
         let parse = |value: &str| -> Option<KernelVersion> {
-            let version_items: Vec<&str> = value
-                .split_whitespace()
-                .skip(2)
-                .next()?
-                .split('.')
-                .collect();
+            let version_items: Vec<&str> = value.split_whitespace().nth(2)?.split('.').collect();
             if let [major, minor, patch] = version_items[..] {
                 Some(KernelVersion {
                     major: major.parse().ok()?,
@@ -78,7 +75,7 @@ impl KernelVersion {
                 Some(KernelVersion {
                     major: major.parse().ok()?,
                     minor: minor.parse().ok()?,
-                    patch: patch.parse().ok()?,
+                    patch: parse_u32_skipping_suffix(patch).ok()?,
                 })
             } else {
                 None
@@ -91,6 +88,11 @@ impl KernelVersion {
     pub fn as_i32(&self) -> i32 {
         ((self.major << 16) + (self.minor << 8) + self.patch.max(255)) as i32
     }
+}
+
+fn parse_u32_skipping_suffix(input: &str) -> Result<u32, <u32 as FromStr>::Err> {
+    let i = input.find(|c: char| !c.is_numeric()).unwrap_or(input.len());
+    input[..i].parse::<u32>()
 }
 
 #[cfg(test)]
@@ -117,6 +119,18 @@ mod tests {
                 major: 5,
                 minor: 17,
                 patch: 4
+            }
+        );
+    }
+
+    #[test]
+    fn parse_uname_archlinux() {
+        assert_eq!(
+            KernelVersion::parse_uname_release("6.1.8-arch1-1").unwrap(),
+            KernelVersion {
+                major: 6,
+                minor: 1,
+                patch: 8
             }
         );
     }
