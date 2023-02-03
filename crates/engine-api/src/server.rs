@@ -176,16 +176,22 @@ async fn event_monitor_handler(
 
     // This closure reads events from the bus receiver and sends them into the socket
     let handle_socket = |mut socket: WebSocket| async move {
-        while let Ok(event) = bus_receiver.recv().await {
-            match serde_json::to_string(&*event) {
-                Ok(json) => {
-                    if socket.send(Message::Text(json)).await.is_err() {
-                        // client disconnected
+        loop {
+            match pulsar_core::pdk::receive_from_broadcast(&mut bus_receiver, "engine_api").await {
+                Ok(event) => match serde_json::to_string(&*event) {
+                    Ok(json) => {
+                        if socket.send(Message::Text(json)).await.is_err() {
+                            // client disconnected
+                            return;
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("error occurred in event serialization: {e}");
                         return;
                     }
-                }
+                },
                 Err(e) => {
-                    log::error!("error occurred in event serialization: {e}");
+                    log::error!("error reading from the bus: {e}");
                     return;
                 }
             }

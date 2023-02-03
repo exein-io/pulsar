@@ -296,22 +296,30 @@ pub struct ModuleReceiver {
 
 impl ModuleReceiver {
     /// Receive an [`Event`] from the [`Bus`].
-    pub async fn recv(&mut self) -> Result<Arc<Event>, BusError> {
-        let mut lost: u64 = 0;
-        loop {
-            match broadcast::Receiver::recv(&mut self.rx).await {
-                Ok(value) => {
-                    if lost > 0 {
-                        log::warn!(
-                            target : &self.module_name,
-                            "brodcast channel lagged {lost} messages",
-                        );
-                    }
-                    return Ok(value);
+    pub fn recv(&mut self) -> impl Future<Output = Result<Arc<Event>, BusError>> + '_ {
+        receive_from_broadcast(&mut self.rx, &self.module_name)
+    }
+}
+
+/// Receive an event from a [[broadcast::Receiver]]. Log a warning if we have lost messages
+pub async fn receive_from_broadcast(
+    rx: &mut broadcast::Receiver<Arc<Event>>,
+    module_name: &str,
+) -> Result<Arc<Event>, BusError> {
+    let mut lost: u64 = 0;
+    loop {
+        match rx.recv().await {
+            Ok(value) => {
+                if lost > 0 {
+                    log::warn!(
+                        target: module_name,
+                        "brodcast channel lagged {lost} messages",
+                    );
                 }
-                Err(RecvError::Lagged(lagged)) => lost += lagged,
-                Err(RecvError::Closed) => return Err(BusError::Stopped),
+                return Ok(value);
             }
+            Err(RecvError::Lagged(lagged)) => lost += lagged,
+            Err(RecvError::Closed) => return Err(BusError::Stopped),
         }
     }
 }
