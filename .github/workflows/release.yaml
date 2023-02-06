@@ -10,44 +10,43 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v2
 
-      # Compile x86_64
+      # Compile x86_64 gnu
       - name: Install Rust toolchain (x86_64-unknown-linux-gnu)
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: "1.64"
+          toolchain: "stable"
           target: x86_64-unknown-linux-gnu
-      - name: Install Rust toolchain (x86_64-unknown-linux-musl)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: "1.64"
-          target: x86_64-unknown-linux-musl
       - name: Build (x86_64-unknown-linux-gnu)
         uses: actions-rs/cargo@v1
         with:
           use-cross: true
-          toolchain: "1.64"
           command: build
           args: --bin pulsar-exec --release --target=x86_64-unknown-linux-gnu
+
+      # Compile x86_64 musl
+      - name: Install Rust toolchain (x86_64-unknown-linux-musl)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "stable"
+          target: x86_64-unknown-linux-musl
       - name: Build (x86_64-unknown-linux-musl)
         uses: actions-rs/cargo@v1
         with:
           use-cross: true
-          toolchain: "1.64"
           command: build
           args: --bin pulsar-exec --release --target=x86_64-unknown-linux-musl
 
-      # Compile aarch64
+      # Compile aarch64 musl
       - name: Install Rust toolchain (aarch64-unknown-linux-musl)
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: "1.64"
+          toolchain: "stable"
           target: aarch64-unknown-linux-musl
           override: true
       - name: Build (aarch64-unknown-linux-musl)
         uses: actions-rs/cargo@v1
         with:
           use-cross: true
-          toolchain: "1.64"
           command: build
           args: --bin pulsar-exec --release --target=aarch64-unknown-linux-musl
 
