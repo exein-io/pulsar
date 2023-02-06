@@ -185,7 +185,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-common"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "aya",
@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-notifier"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -431,7 +431,7 @@ dependencies = [
 
 [[package]]
 name = "engine-api"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -493,7 +493,7 @@ dependencies = [
 
 [[package]]
 name = "file-system-monitor"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bpf-common",
  "log",
@@ -929,7 +929,7 @@ dependencies = [
 
 [[package]]
 name = "logger"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bpf-common",
  "chrono",
@@ -979,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "network-monitor"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bpf-common",
  "dns-parser",
@@ -1202,7 +1202,7 @@ dependencies = [
 
 [[package]]
 name = "process-monitor"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1256,7 +1256,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1364,7 +1364,7 @@ dependencies = [
 
 [[package]]
 name = "rules-engine"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "glob",
@@ -1685,7 +1685,7 @@ dependencies = [
 
 [[package]]
 name = "test-suite"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bpf-common",
  "file-system-monitor",
@@ -1994,7 +1994,7 @@ checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "validatron"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "lalrpop",
@@ -2153,7 +2153,7 @@ checksum = "1dbabb1cbd15a1d6d12d9ed6b35cc6777d4af87ab3ba155ea37215f20beab80c"
 
 [[package]]
 name = "xtask"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
