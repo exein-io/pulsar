@@ -6,6 +6,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2023-02-06
+
+### Added
+- better examples
+- markdown link checker
+- `desktop-notifier` module
+- event monitor API endpoint
+- `monitor` command on `pulsar` cli
+- scripts to ease development
+- support for kernel 6.x
+- `LOOP` macro to handle loops with `bpf_loop` on supported kernels
+
+### Changed
+- improve test suite
+- better daemon/logger module output format
+- new threat event structure to support derived, custom, empty payloads
+- send eBPF events in a more memory efficient way
+- move pulsar to workspace root package
+
+### Fixed
+- sporadic segmentation fault when running test-suite
+- track parent process changes
+- module/crate version coherency
+- startup warnings in ebpf programs
+
+### Removed
+- non core payloads from payload variants 
+
 ## [0.4.0] - 2022-10-26
 
 ### Added
