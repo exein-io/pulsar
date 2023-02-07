@@ -51,7 +51,7 @@ ln -s /etc/shadow /tmp/secret
 In the pulsar terminal you should see something similar to:
 
 ```console
-Event { header: Header { pid: 498, is_threat: true, source: ModuleName("rules-engine"), timestamp: SystemTime { tv_sec: 1667920537, tv_nsec: 113401482 }, image: "/usr/bin/ln", parent: 487, fork_time: SystemTime { tv_sec: 1667920537, tv_nsec: 102790045 } }, payload: RuleEngineDetection { rule_name: "Create sensitive files symlink", payload: FileLink { source: "/tmp/secret", destination: "/etc/shadow", hard_link: false } } }
+[2023-02-07T14:29:09Z  THREAT  /usr/bin/ln (36267)] [rules-engine - { rule_name = "Create sensitive files symlink" }] File Link { source: /tmp/secret, destination: /etc/shadow, hard_link: false }
 ```
 
 As you can see from the `is_threat` field set to `true`, Pulsar is correctly identifying the symbolic link creation as a threat event.
