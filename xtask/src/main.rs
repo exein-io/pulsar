@@ -1,5 +1,6 @@
 use clap::Parser;
 use run::run_with_sudo;
+use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
 mod run;
 
@@ -24,6 +25,9 @@ enum Command {
 
 fn main() {
     let opts = Options::parse();
+
+    // Drop term signals: register a handler, but never check it
+    let _ = Signals::new(TERM_SIGNALS).expect("error setting signal handler");
 
     let ret = match opts.command {
         Command::Pulsard(opts) => run_with_sudo("pulsar-exec", &["pulsard"], opts),
