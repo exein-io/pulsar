@@ -273,7 +273,7 @@ impl fmt::Display for Payload {
             Payload::DirCreated { dirname } => write!(f,"Dir Created {{ dirname: {dirname} }}"),
             Payload::DirDeleted { dirname } => write!(f,"Dir Deleted {{ dirname: {dirname} }}"),
             Payload::FileOpened { filename, flags } => write!(f,"File Opened {{ filename: {filename}, flags:{flags} }}"),
-            Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination {destination}, hard_link: {hard_link} }}"),
+            Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
             Payload::Fork { ppid } => write!(f,"Fork {{ ppid: {ppid} }}"),
@@ -284,9 +284,9 @@ impl fmt::Display for Payload {
             Payload::Bind { address, is_tcp } => write!(f,"Bind {{ address: {address}, is_tcp: {is_tcp} }}"),
             Payload::Listen { address } => write!(f,"Listen {{ address: {address} }}"),  
             Payload::Connect { destination, is_tcp } => write!(f,"Connect {{ destination: {destination}, is_tcp: {is_tcp} }}"),
-            Payload::Accept { source, destination } => write!(f,"Accept {{ source: {source}, destination {destination} }}"),
-            Payload::Close { source, destination } => write!(f,"Close {{ source: {source}, destination {destination} }}"),
-            Payload::Receive { source, destination, len, is_tcp } => write!(f,"Receive {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"),
+            Payload::Accept { source, destination } => write!(f,"Accept {{ source: {source}, destination: {destination} }}"),
+            Payload::Close { source, destination } => write!(f,"Close {{ source: {source}, destination: {destination} }}"),
+            Payload::Receive { source, destination, len, is_tcp } => write!(f,"Receive {{ source: {source}, destination: {destination}, len: {len}, is_tcp: {is_tcp} }}"),
             Payload::DnsQuery { questions } => {
                 write!(f,"Dns Query {{ questions: ")?;
                 print_vec(f, questions)?;
