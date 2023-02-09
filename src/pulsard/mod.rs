@@ -54,10 +54,12 @@ pub async fn pulsar_daemon_run(
 
     let mut sig_int = signal(SignalKind::interrupt())?;
     let mut sig_term = signal(SignalKind::terminate())?;
+    let mut sig_hup = signal(SignalKind::hangup())?;
 
     tokio::select! {
         _ = sig_int.recv() => log::trace!("SIGINT received"),
         _ = sig_term.recv() => log::trace!("SIGTERM received"),
+        _ = sig_hup.recv() => log::trace!("SIGHUP received"),
     }
 
     log::info!("Terminating the Engine Api Server...");
