@@ -38,8 +38,10 @@ use std::{future::Future, pin::Pin, time::Duration};
 
 use anyhow::Context;
 use bytes::Bytes;
+use lazy_static::lazy_static;
 use tokio::sync::mpsc;
 
+use crate::feature_autodetect::lsm::lsm_supported;
 use crate::{
     program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
     time::Timestamp,
@@ -103,7 +105,13 @@ impl<T: Debug> TestRunner<T> {
         let (tx, rx) = mpsc::unbounded_channel();
         let sender = TestSender { tx };
 
-        let ctx = BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug).unwrap();
+        lazy_static! {
+            static ref BPF_CONTEXT: BpfContext =
+                BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug, lsm_supported())
+                    .unwrap();
+        }
+
+        let ctx = BPF_CONTEXT.clone();
         Self {
             rx,
             ebpf: Box::pin(ebpf_fn(ctx, sender)),

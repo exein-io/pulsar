@@ -48,6 +48,8 @@ pub struct BpfContext {
     log_level: BpfLogLevel,
     /// Kernel version
     kernel_version: KernelVersion,
+    /// LSM support
+    lsm_supported: bool,
 }
 
 #[derive(Clone)]
@@ -68,6 +70,7 @@ impl BpfContext {
         pinning: Pinning,
         mut perf_pages: usize,
         log_level: BpfLogLevel,
+        lsm_supported: bool,
     ) -> Result<Self, ProgramError> {
         let btf = Btf::from_sys_fs()?;
         if perf_pages == 0 || (perf_pages & (perf_pages - 1) != 0) {
@@ -100,7 +103,12 @@ impl BpfContext {
             pinning_path,
             log_level,
             kernel_version,
+            lsm_supported,
         })
+    }
+
+    pub fn lsm_supported(&self) -> bool {
+        self.lsm_supported
     }
 }
 

@@ -9,13 +9,12 @@ use aya::{include_bytes_aligned, programs::Lsm, BpfLoader, Btf};
 ///
 /// Since this could give false positives on some architectures, we'll also
 /// try to load a test LSM program.
-pub async fn lsm_supported() -> bool {
-    match tokio::task::spawn_blocking(try_load)
-        .await
-        .context("Error in background task")
-    {
-        Ok(Ok(())) => true,
-        Err(err) | Ok(Err(err)) => {
+///
+/// NOTE: this function is blocking.
+pub fn lsm_supported() -> bool {
+    match try_load() {
+        Ok(()) => true,
+        Err(err) => {
             log::warn!("LSM not supported: {:?}", err);
             false
         }
@@ -34,7 +33,7 @@ fn try_load() -> Result<()> {
         .then_some(())
         .ok_or_else(|| anyhow!("eBPF LSM programs disabled"))?;
 
-    // Check if we can load a sample program
+    // Check if we can load a program
     let mut bpf = BpfLoader::new()
         .load(TEST_LSM_PROBE)
         .context("LSM enabled, but initial loading failed")?;
