@@ -1,10 +1,14 @@
 use anyhow::{anyhow, Context, Result};
+use aya::{include_bytes_aligned, programs::Lsm, BpfLoader, Btf};
 
 /// Check if the system supports eBPF LSM programs.
 /// The kernel must be build with CONFIG_BPF_LSM=y, which is available
 /// since 5.7. This functionality should also be enabled, either at kernel
 /// compile time or in the `--lsm=` boot flags.
 /// `cat /sys/kernel/security/lsm` will list `bpf` on supported systems.
+///
+/// Since this could give false positives on some architectures, we'll also
+/// try to load a test LSM program.
 pub async fn lsm_supported() -> bool {
     match tokio::task::spawn_blocking(try_load)
         .await
@@ -17,13 +21,30 @@ pub async fn lsm_supported() -> bool {
         }
     }
 }
+
 const PATH: &str = "/sys/kernel/security/lsm";
+static TEST_LSM_PROBE: &[u8] = include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o"));
 
 fn try_load() -> Result<()> {
+    // Check if LSM enabled
     std::fs::read_to_string(PATH)
         .with_context(|| format!("Reading {PATH} failed"))?
         .split(',')
         .any(|lsm_subsystem| lsm_subsystem == "bpf")
         .then_some(())
-        .ok_or_else(|| anyhow!("eBPF LSM programs disabled"))
+        .ok_or_else(|| anyhow!("eBPF LSM programs disabled"))?;
+
+    // Check if we can load a sample program
+    let mut bpf = BpfLoader::new()
+        .load(TEST_LSM_PROBE)
+        .context("LSM enabled, but initial loading failed")?;
+    let program: &mut Lsm = bpf
+        .program_mut("socket_bind")
+        .context("LSM program not found")?
+        .try_into()
+        .context("LSM program of the wrong type")?;
+    let btf = Btf::from_sys_fs().context("Loading Btf failed")?;
+    program.load("socket_bind", &btf).context("Load failed")?;
+    program.attach().context("Attach failed")?;
+    Ok(())
 }
