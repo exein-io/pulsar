@@ -20,4 +20,4 @@ which = { version = "4.2.5", optional = true }
 anyhow = "1.0.65"
 
 [build-dependencies]
-bpf-common = { path = "../../bpf-common", features = ["build"] }
+bpf-builder = { path = "../../bpf-builder" }

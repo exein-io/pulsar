@@ -68,7 +68,7 @@ We create `build.rs` in order to build the program.
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    bpf_common::builder::build("probe.bpf.c")
+    bpf_builder::build("probe.bpf.c")
 }
 ```
 

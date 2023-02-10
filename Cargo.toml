@@ -54,6 +54,7 @@ members = [
     "crates/modules/desktop-notifier",
     "crates/pulsar-core",
     "crates/bpf-common",
+    "crates/bpf-builder",
     "crates/engine-api",
     "crates/validatron",
     "xtask",

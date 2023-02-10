@@ -1,6 +1,4 @@
 mod bpf_sender;
-#[cfg(feature = "build")]
-pub mod builder;
 pub mod program;
 #[cfg(feature = "test-utils")]
 pub mod test_runner;
