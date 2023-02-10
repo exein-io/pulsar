@@ -18,7 +18,7 @@ pub mod test_suite {
     fn lsm() -> TestCase {
         TestCase::new("lsm", async {
             TestReport {
-                success: lsm_supported().await,
+                success: tokio::task::spawn_blocking(lsm_supported).await.unwrap(),
                 lines: vec![],
             }
         })

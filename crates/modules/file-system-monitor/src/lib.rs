@@ -1,6 +1,6 @@
 use bpf_common::{
-    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
-    program::BpfContext, BpfSender, Program, ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Program,
+    ProgramBuilder, ProgramError,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";
@@ -9,6 +9,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<FsEvent>,
 ) -> Result<Program, ProgramError> {
+    let attach_to_lsm = ctx.lsm_supported();
     let mut builder = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
@@ -17,7 +18,7 @@ pub async fn program(
     // LSM hooks provide the perfet intercept point for file system operations.
     // If LSM eBPF programs is not supported, we'll attach to the same kernel
     // functions, but using kprobes.
-    if lsm_supported().await {
+    if attach_to_lsm {
         builder = builder
             .lsm("path_mknod")
             .lsm("path_unlink")

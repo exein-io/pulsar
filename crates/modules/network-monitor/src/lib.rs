@@ -4,8 +4,8 @@ use std::{
 };
 
 use bpf_common::{
-    aya::include_bytes_aligned, feature_autodetect::lsm::lsm_supported, parsing::BufferIndex,
-    program::BpfContext, BpfSender, Pid, Program, ProgramBuilder, ProgramError,
+    aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
+    ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 
@@ -49,6 +49,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<NetworkEvent>,
 ) -> Result<Program, ProgramError> {
+    let attach_to_lsm = ctx.lsm_supported();
     let mut builder = ProgramBuilder::new(
         ctx,
         MODULE_NAME,
@@ -63,7 +64,7 @@ pub async fn program(
     .tracepoint("syscalls", "sys_exit_read")
     .tracepoint("syscalls", "sys_exit_readv")
     .kprobe("tcp_set_state");
-    if lsm_supported().await {
+    if attach_to_lsm {
         builder = builder
             .lsm("socket_bind")
             .lsm("socket_listen")

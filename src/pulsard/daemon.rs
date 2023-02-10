@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use anyhow::{bail, Result};
-use bpf_common::program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT};
+use bpf_common::{
+    feature_autodetect::lsm::lsm_supported,
+    program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT},
+};
 
 use pulsar_core::{
     bus::Bus,
@@ -64,7 +67,11 @@ impl PulsarDaemon {
         } else {
             BpfLogLevel::Disabled
         };
-        let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
+        let lsm_supported = tokio::task::spawn_blocking(lsm_supported)
+            .await
+            .unwrap_or(false);
+        let bpf_context =
+            BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level, lsm_supported)?;
         #[cfg(debug_assertions)]
         let trace_pipe_handle = bpf_common::trace_pipe::start().await;
 
