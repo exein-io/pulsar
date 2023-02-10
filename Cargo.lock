@@ -196,6 +196,7 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "aya",
+ "bpf-builder",
  "bytes",
  "glob",
  "hex",
