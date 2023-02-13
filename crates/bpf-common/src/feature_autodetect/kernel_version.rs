@@ -70,16 +70,14 @@ impl KernelVersion {
     /// Parse release fields from the format "%d.%d.%d"
     fn parse_uname_release(value: &str) -> Result<KernelVersion> {
         let parse = |value: &str| -> Option<KernelVersion> {
-            let version_items: Vec<&str> = value.split('.').collect();
-            if let [major, minor, patch] = version_items[..] {
-                Some(KernelVersion {
-                    major: major.parse().ok()?,
-                    minor: minor.parse().ok()?,
-                    patch: parse_u32_skipping_suffix(patch).ok()?,
-                })
-            } else {
-                None
-            }
+            let mut version_items = value.split('.');
+            Some(KernelVersion {
+                major: version_items.next().and_then(|major| major.parse().ok())?,
+                minor: version_items.next().and_then(|minor| minor.parse().ok())?,
+                patch: version_items
+                    .next()
+                    .and_then(|patch| parse_u32_skipping_suffix(patch).ok())?,
+            })
         };
         parse(value).with_context(|| format!("Invalid version_signature format: {value}"))
     }
@@ -133,6 +131,23 @@ mod tests {
                 patch: 8
             }
         );
+    }
+
+    #[test]
+    fn parse_uname_wsl() {
+        assert_eq!(
+            KernelVersion::parse_uname_release("5.15.79.1-microsoft-standard-WSL2").unwrap(),
+            KernelVersion {
+                major: 5,
+                minor: 15,
+                patch: 79
+            }
+        );
+    }
+
+    #[test]
+    fn parse_uname_one_dot() {
+        assert!(KernelVersion::parse_uname_release("5.15").is_err());
     }
 
     #[test]
