@@ -67,9 +67,19 @@ impl PulsarDaemon {
         } else {
             BpfLogLevel::Disabled
         };
-        let lsm_supported = tokio::task::spawn_blocking(lsm_supported)
-            .await
-            .unwrap_or(false);
+        let lsm_supported = match general_config
+            .with_default("lsm_support", "autodetect".to_string())?
+            .as_str()
+        {
+            "true" => true,
+            "false" => false,
+            "autodetect" => tokio::task::spawn_blocking(lsm_supported)
+                .await
+                .unwrap_or(false),
+            x => anyhow::bail!(
+                "'lsm_supoprt' has invalid value {x:?}. The valid values are 'true', 'false' and 'autodetect'"
+            ),
+        };
         let bpf_context =
             BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level, lsm_supported)?;
         #[cfg(debug_assertions)]
