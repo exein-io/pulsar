@@ -4,7 +4,7 @@ use std::{
 };
 
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
+    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
@@ -50,20 +50,17 @@ pub async fn program(
     sender: impl BpfSender<NetworkEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
-    let mut builder = ProgramBuilder::new(
-        ctx,
-        MODULE_NAME,
-        include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-    )
-    .tracepoint("syscalls", "sys_exit_accept4")
-    .tracepoint("syscalls", "sys_exit_accept")
-    .tracepoint("syscalls", "sys_exit_recvmsg")
-    .tracepoint("syscalls", "sys_exit_recvmmsg")
-    .tracepoint("syscalls", "sys_enter_recvfrom")
-    .tracepoint("syscalls", "sys_exit_recvfrom")
-    .tracepoint("syscalls", "sys_exit_read")
-    .tracepoint("syscalls", "sys_exit_readv")
-    .kprobe("tcp_set_state");
+    let binary = ebpf_program!(&ctx);
+    let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
+        .tracepoint("syscalls", "sys_exit_accept4")
+        .tracepoint("syscalls", "sys_exit_accept")
+        .tracepoint("syscalls", "sys_exit_recvmsg")
+        .tracepoint("syscalls", "sys_exit_recvmmsg")
+        .tracepoint("syscalls", "sys_enter_recvfrom")
+        .tracepoint("syscalls", "sys_exit_recvfrom")
+        .tracepoint("syscalls", "sys_exit_read")
+        .tracepoint("syscalls", "sys_exit_readv")
+        .kprobe("tcp_set_state");
     if attach_to_lsm {
         builder = builder
             .lsm("socket_bind")

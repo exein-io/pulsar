@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{ensure, Result};
 use bpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
 use pulsar_core::{bus::Bus, pdk::TaskLauncher};

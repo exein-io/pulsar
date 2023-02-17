@@ -78,7 +78,7 @@ The module implementation in Rust is also relatively short.
 use std::fmt;
 
 use bpf_common::{
-    aya::include_bytes_aligned, program::BpfContext, BpfSender, Program,
+    aya::program::BpfContext, BpfSender, Program,
     ProgramBuilder, ProgramError,
 };
 
@@ -86,10 +86,11 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<EventT>,
 ) -> Result<Program, ProgramError> {
+    let binary = ebpf_program!(&ctx);
     let program = ProgramBuilder::new(
         ctx,
         "file_created",
-        include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
+        binary,
     )
     .kprobe("security_inode_create")
     .start()

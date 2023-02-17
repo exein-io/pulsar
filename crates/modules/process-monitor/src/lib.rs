@@ -1,6 +1,6 @@
 use anyhow::Context;
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
+    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
 mod filtering;
@@ -11,7 +11,8 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
-    let mut program = ProgramBuilder::new(ctx, MODULE_NAME, PROCESS_MONITOR_PROBE.into())
+    let binary = ebpf_program!(&ctx);
+    let mut program = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
@@ -21,9 +22,6 @@ pub async fn program(
     program.read_events("events", sender).await?;
     Ok(program)
 }
-
-static PROCESS_MONITOR_PROBE: &[u8] =
-    include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o"));
 
 // The events sent from eBPF to userspace must be byte by byte
 // re-interpretable as Rust types. So pointers to the heap are
@@ -359,7 +357,7 @@ pub mod test_suite {
                 (Some((false, false)), false),
             ] {
                 // load ebpf and clear interest map
-                let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
+                let mut bpf = load_ebpf();
                 attach_raw_tracepoint(&mut bpf, "sched_process_fork");
                 let mut interest_map = InterestMap::load(&mut bpf).unwrap();
                 interest_map.clear().unwrap();
@@ -413,7 +411,7 @@ pub mod test_suite {
                 [(true, true), (true, false), (false, true), (false, false)]
             {
                 // load ebpf and clear interest map
-                let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
+                let mut bpf = load_ebpf();
                 attach_raw_tracepoint(&mut bpf, "sched_process_exec");
                 let mut interest_map = InterestMap::load(&mut bpf).unwrap();
                 interest_map.clear().unwrap();
@@ -501,7 +499,7 @@ pub mod test_suite {
     fn threads_are_ignored() -> TestCase {
         TestCase::new("threads_are_ignored", async {
             // load ebpf and clear interest map
-            let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
+            let mut bpf = load_ebpf();
             attach_raw_tracepoint(&mut bpf, "sched_process_fork");
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
@@ -541,7 +539,7 @@ pub mod test_suite {
     fn exit_cleans_up_resources() -> TestCase {
         TestCase::new("exit_cleans_up_resources", async {
             // setup
-            let mut bpf = load_test_program(PROCESS_MONITOR_PROBE).unwrap();
+            let mut bpf = load_ebpf();
             attach_raw_tracepoint(&mut bpf, "sched_process_exit");
             let mut interest_map = InterestMap::load(&mut bpf).unwrap();
             interest_map.clear().unwrap();
@@ -608,5 +606,16 @@ pub mod test_suite {
                 )
                 .report()
         })
+    }
+
+    fn load_ebpf() -> Bpf {
+        let ctx = BpfContext::new(
+            bpf_common::program::Pinning::Disabled,
+            bpf_common::program::PERF_PAGES_DEFAULT,
+            bpf_common::program::BpfLogLevel::Debug,
+            false,
+        )
+        .unwrap();
+        load_test_program(ebpf_program!(&ctx)).unwrap()
     }
 }
