@@ -13,6 +13,15 @@
 // Note: callback_fn must be declared as `static __always_inline` to satisfy the
 // verifier. For some reason, having this double call to the same non-inline
 // function seems to cause issues.
+#ifdef NOLOOP
+// On kernel <= 5.13 taking the address of a function results in a verifier
+// error, even if inside a dead-code elimination branch.
+#define LOOP(max_iterations, callback_fn, ctx)                                 \
+  _Pragma("unroll") for (int i = 0; i < max_iterations; i++) {                 \
+    if (callback_fn(i, ctx) == 1)                                              \
+      break;                                                                   \
+  }
+#else
 #define LOOP(max_iterations, callback_fn, ctx)                                 \
   if (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 17, 0)) {                      \
     bpf_loop(max_iterations, callback_fn, ctx, 0);                             \
@@ -22,3 +31,4 @@
         break;                                                                 \
     }                                                                          \
   }
+#endif

@@ -1,6 +1,6 @@
 use bpf_common::{
-    aya::include_bytes_aligned, parsing::BufferIndex, program::BpfContext, BpfSender, Program,
-    ProgramBuilder, ProgramError,
+    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Program, ProgramBuilder,
+    ProgramError,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";
@@ -10,11 +10,8 @@ pub async fn program(
     sender: impl BpfSender<FsEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
-    let mut builder = ProgramBuilder::new(
-        ctx,
-        MODULE_NAME,
-        include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe.bpf.o")).into(),
-    );
+    let binary = ebpf_program!(&ctx);
+    let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary);
     // LSM hooks provide the perfet intercept point for file system operations.
     // If LSM eBPF programs is not supported, we'll attach to the same kernel
     // functions, but using kprobes.

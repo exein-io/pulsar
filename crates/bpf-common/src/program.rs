@@ -110,6 +110,39 @@ impl BpfContext {
     pub fn lsm_supported(&self) -> bool {
         self.lsm_supported
     }
+
+    pub fn kernel_version(&self) -> &KernelVersion {
+        &self.kernel_version
+    }
+}
+
+/// Return the correct version of the eBPF binary to load.
+/// On kernel >= 5.13.0 we'll load 'probe_full.bpf.o'
+/// On kernel < 5.13.0 we'll load 'probe_noloop.bpf.o'
+/// Note: Both programs are embedded in the pulsar binary. The choice is made
+/// at runtime.
+#[macro_export]
+macro_rules! ebpf_program {
+    ( $ctx: expr ) => {{
+        use bpf_common::aya::include_bytes_aligned;
+        use bpf_common::feature_autodetect::kernel_version::KernelVersion;
+
+        let full = include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe_full.bpf.o")).into();
+        let no_loop =
+            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe_noloop.bpf.o")).into();
+        if $ctx.kernel_version().as_i32()
+            >= (KernelVersion {
+                major: 5,
+                minor: 13,
+                patch: 0,
+            })
+            .as_i32()
+        {
+            full
+        } else {
+            no_loop
+        }
+    }};
 }
 
 #[derive(Error, Debug)]
