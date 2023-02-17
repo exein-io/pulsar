@@ -23,6 +23,7 @@ impl TestSuiteRunner {
         let (tx_log, mut rx_log) = mpsc::unbounded_channel();
         replace_logger(tx_log.clone());
         replace_panic_hook(tx_log);
+        bpf_common::bump_memlock_rlimit().unwrap();
         // Spawn the actual runner, which receives tests over a channel.
         let (tx_test, mut rx_test) = mpsc::channel::<TestRequest>(1);
         tokio::spawn(async move {
