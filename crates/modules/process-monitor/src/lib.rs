@@ -187,8 +187,7 @@ pub mod pulsar {
 pub mod test_suite {
     use crate::filtering::maps::PolicyDecision;
     use bpf_common::aya::programs::RawTracePoint;
-    use bpf_common::aya::Bpf;
-    use bpf_common::program::load_test_program;
+    use bpf_common::aya::{Bpf, BpfLoader};
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use filtering::config::Rule;
@@ -616,6 +615,12 @@ pub mod test_suite {
             false,
         )
         .unwrap();
-        load_test_program(ebpf_program!(&ctx)).unwrap()
+        const PIN_PATH: &str = "/sys/fs/bpf/process-monitor-test";
+        let _ = std::fs::create_dir(PIN_PATH);
+        let bpf = BpfLoader::new()
+            .map_pin_path(PIN_PATH)
+            .load(ebpf_program!(&ctx))
+            .unwrap();
+        bpf
     }
 }
