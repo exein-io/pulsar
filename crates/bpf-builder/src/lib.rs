@@ -9,7 +9,7 @@ static INCLUDE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/include");
 // Given the filename of an eBPF program source code, compile it to OUT_DIR.
 // We'll build two versions:
 // - `probe_full.bpf.o`: will contain the full version
-// - `probe_noloop.bpf.o`: will contain a version with the NOLOOP constant
+// - `probe_noloop.bpf.o`: will contain a version with the FEATURE_NO_FN_POINTERS constant
 //   defined. This version should be loaded on kernel < 5.13, where taking
 //   the address of a static function would result in a verifier error.
 //   See
@@ -26,8 +26,12 @@ pub fn build(probe: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     compile(probe, out_path.join("probe_full.bpf.o"), &[])
         .context("Error compiling full version")?;
-    compile(probe, out_path.join("probe_noloop.bpf.o"), &["-DNOLOOP"])
-        .context("Error compiling no-loop version")?;
+    compile(
+        probe,
+        out_path.join("probe_noloop.bpf.o"),
+        &["-DFEATURE_NO_FN_POINTERS"],
+    )
+    .context("Error compiling no-loop version")?;
 
     Ok(())
 }
