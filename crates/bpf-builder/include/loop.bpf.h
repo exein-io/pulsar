@@ -13,7 +13,7 @@
 // Note: callback_fn must be declared as `static __always_inline` to satisfy the
 // verifier. For some reason, having this double call to the same non-inline
 // function seems to cause issues.
-#ifdef NOLOOP
+#ifdef FEATURE_NO_FN_POINTERS
 // On kernel <= 5.13 taking the address of a function results in a verifier
 // error, even if inside a dead-code elimination branch.
 #define LOOP(max_iterations, callback_fn, ctx)                                 \
