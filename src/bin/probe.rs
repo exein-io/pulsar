@@ -69,9 +69,7 @@ where
     } else {
         BpfLogLevel::Error
     };
-    let lsm_supported = tokio::task::spawn_blocking(lsm_supported)
-        .await
-        .unwrap_or(false);
+    let lsm_supported = tokio::task::spawn_blocking(lsm_supported).await.unwrap();
     let ctx = BpfContext::new(Pinning::Disabled, 512, log_level, lsm_supported).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");
     loop {

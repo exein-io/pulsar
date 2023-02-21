@@ -75,9 +75,9 @@ impl PulsarDaemon {
             "false" => false,
             "autodetect" => tokio::task::spawn_blocking(lsm_supported)
                 .await
-                .unwrap_or(false),
+                .unwrap(),
             x => anyhow::bail!(
-                "'lsm_supoprt' has invalid value {x:?}. The valid values are 'true', 'false' and 'autodetect'"
+                "'lsm_support' has invalid value {x:?}. The valid values are 'true', 'false' and 'autodetect'"
             ),
         };
         let bpf_context =
