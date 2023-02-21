@@ -7,9 +7,7 @@ use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() {
-    let lsm_supported = tokio::task::spawn_blocking(lsm_supported)
-        .await
-        .unwrap_or(false);
+    let lsm_supported = tokio::task::spawn_blocking(lsm_supported).await.unwrap();
     let ctx =
         BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Disabled, lsm_supported).unwrap();
     let (tx, mut rx) = mpsc::channel(100);
