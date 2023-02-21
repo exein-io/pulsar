@@ -2,6 +2,7 @@ use clap::Parser;
 use run::run_with_sudo;
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
+mod cross;
 mod run;
 
 #[derive(Debug, Parser)]
@@ -21,6 +22,8 @@ enum Command {
     Probe(run::Options),
     /// Run eBPF test suite with admin privileges
     Test(run::Options),
+    /// Cross compile and run on the specified target
+    Cross(cross::Options),
 }
 
 fn main() {
@@ -34,6 +37,7 @@ fn main() {
         Command::Pulsar(opts) => run_with_sudo("pulsar-exec", &["pulsar"], opts),
         Command::Probe(opts) => run_with_sudo("probe", &[], opts),
         Command::Test(opts) => run_with_sudo("test-suite", &[], opts),
+        Command::Cross(opts) => cross::run(opts),
     };
 
     if let Err(e) = ret {
