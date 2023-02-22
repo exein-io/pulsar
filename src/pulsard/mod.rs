@@ -1,6 +1,7 @@
 use anyhow::{ensure, Result};
 use bpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
+use nix::unistd::geteuid;
 use pulsar_core::{bus::Bus, pdk::TaskLauncher};
 use tokio::signal::unix::{signal, SignalKind};
 
@@ -25,8 +26,7 @@ pub async fn pulsar_daemon_run(
 ) -> Result<()> {
     log::trace!("Pulsar Daemon Options: {:?}", options);
 
-    let is_root = unsafe { libc::getuid() } == 0;
-    ensure!(is_root, "You must run this as root user!!!");
+    ensure!(geteuid().is_root(), "You must run this as root user!!!");
 
     bpf_fs::check_or_mount_bpf_fs()?;
 

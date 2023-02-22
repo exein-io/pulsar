@@ -29,6 +29,7 @@ desktop-notifier = { path = "crates/modules/desktop-notifier", optional = true }
 tokio = { version = "1.15.0", features = ["full"] }
 env_logger = "0.10.0"
 libc = "0.2"
+nix = "0.26.2"
 log = "0.4.14"
 anyhow = "1.0.53"
 clap = { version = "4.0.13", features = ["derive"] }
