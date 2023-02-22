@@ -7,7 +7,9 @@ useful to test eBPF programs under different kernels.
 |------------|--------|-------------------------------------------------------|
 | ubuntu2004 |    5.4 | Won't work because the lack of `bpf_probe_read_kernel`|
 | ubuntu2010 |    5.8 |                                                       |
+| debian_bullseye | 5.10 |                                                 |
 | archlinux  |   5.17 |                                                       |
+| fedora36  |   5.17  |                                                       |
 
 Example usage:
 

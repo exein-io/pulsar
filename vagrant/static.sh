@@ -10,8 +10,6 @@
 set -e
 
 features="--no-default-features --features core"
-excluded="--exclude threat-response-lua"
-
 
 export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
 cargo build --bin pulsar-exec ${features}
