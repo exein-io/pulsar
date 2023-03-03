@@ -210,6 +210,7 @@ pub mod test_suite {
             tests: vec![
                 fork_event(),
                 exec_event(),
+                relative_exec_event(),
                 exit_event(),
                 exit_event_no_thread(),
                 inherit_policy(),
@@ -264,6 +265,30 @@ pub mod test_suite {
                         (argc, 2, "number of arguments"),
                         (argv, String::from("echo\0-n\0"), "arguments")
                     ),
+                )
+                .report()
+        })
+    }
+
+    fn relative_exec_event() -> TestCase {
+        TestCase::new("relative_exec_event", async {
+            let mut child_pid = Pid::from_raw(0);
+            let echo_buff = which("echo").unwrap();
+            let echo_path = echo_buff.as_path().to_str().unwrap().to_string();
+            test_runner()
+                .run(|| {
+                    let mut child = std::process::Command::new("./echo")
+                        .current_dir(echo_buff.as_path().parent().unwrap())
+                        .arg("-n")
+                        .spawn()
+                        .unwrap();
+                    child_pid = Pid::from_raw(child.id() as i32);
+                    child.wait().unwrap();
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(ProcessEvent::Exec, (filename, echo_path, "exec filename")),
                 )
                 .report()
         })

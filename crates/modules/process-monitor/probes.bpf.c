@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "buffer.bpf.h"
 #include "common.bpf.h"
+#include "get_path.bpf.h"
 #include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -117,28 +118,23 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   event->pid = tgid;
   event->exec.argc = BPF_CORE_READ(bprm, argc);
 
-  //  data_loc_filename is the offset from the beginning of the ctx structure
-  //  of the executable filename
-  const char *filename = BPF_CORE_READ(bprm, filename);
-  buffer_index_init(&event->buffer, &event->exec.filename);
-  buffer_append_str(&event->buffer, &event->exec.filename, filename,
-                    BUFFER_MAX);
+  // We want to get the absolute path of the executable we're running.
+  // When executing a process with a relative path, bprm->filename won't be
+  // enough and we'll have to do a full path traversal. When starts with /
+  // though, we can just copy it, as an optimization.
+  const char *bprm_filename = BPF_CORE_READ(bprm, filename);
+  char first_character = 0;
+  bpf_core_read(&first_character, 1, bprm_filename);
+  if (first_character == '/') {
+    buffer_index_init(&event->buffer, &event->exec.filename);
+    buffer_append_str(&event->buffer, &event->exec.filename, bprm_filename,
+                      BUFFER_MAX);
+  } else {
+    struct path path = BPF_CORE_READ(bprm, file, f_path);
+    get_path_str(path.dentry, &path, &event->buffer, &event->exec.filename);
+  }
 
-  struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-  struct mm_struct *mm = BPF_CORE_READ(task, mm);
-  long start = BPF_CORE_READ(mm, arg_start);
-  long end = BPF_CORE_READ(mm, arg_end);
-  int len = end - start;
-  buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
-                            len);
-
-  output_event(ctx, &events, event, sizeof(struct process_event),
-               event->buffer.len);
-
-  char image[MAX_IMAGE_LEN];
-  __builtin_memset(&image, 0, sizeof(image));
-  bpf_core_read_str(&image, MAX_IMAGE_LEN, filename);
+  char *image = (char *)&event->buffer.buffer;
 
   // Check whitelist
   char *res = bpf_map_lookup_elem(&whitelist, image);
@@ -153,6 +149,18 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
     LOG_DEBUG("targeting %s", image);
     update_interest(tgid, true, res);
   }
+
+  struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+  struct mm_struct *mm = BPF_CORE_READ(task, mm);
+  long start = BPF_CORE_READ(mm, arg_start);
+  long end = BPF_CORE_READ(mm, arg_end);
+  int len = end - start;
+  buffer_index_init(&event->buffer, &event->exec.argv);
+  buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
+                            len);
+
+  output_event(ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
 
   return 0;
 }
