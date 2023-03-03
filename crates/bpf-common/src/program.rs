@@ -123,13 +123,15 @@ impl BpfContext {
 /// at runtime.
 #[macro_export]
 macro_rules! ebpf_program {
-    ( $ctx: expr ) => {{
+    ( $ctx: expr , $probe: expr) => {{
         use bpf_common::aya::include_bytes_aligned;
         use bpf_common::feature_autodetect::kernel_version::KernelVersion;
 
-        let full = include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe_full.bpf.o")).into();
+        let full =
+            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".full.bpf.o")).into();
         let no_loop =
-            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/probe_no_fn_ptr.bpf.o")).into();
+            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".no_fn_ptr.bpf.o"))
+                .into();
         if $ctx.kernel_version().as_i32()
             >= (KernelVersion {
                 major: 5,

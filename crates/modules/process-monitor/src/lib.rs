@@ -11,7 +11,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
-    let binary = ebpf_program!(&ctx);
+    let binary = ebpf_program!(&ctx, "probes");
     let mut program = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
@@ -619,7 +619,7 @@ pub mod test_suite {
         let _ = std::fs::create_dir(PIN_PATH);
         let bpf = BpfLoader::new()
             .map_pin_path(PIN_PATH)
-            .load(ebpf_program!(&ctx))
+            .load(ebpf_program!(&ctx, "probes"))
             .unwrap();
         bpf
     }
