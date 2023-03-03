@@ -68,7 +68,7 @@ We create `build.rs` in order to build the program.
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    bpf_builder::build("probe.bpf.c")
+    bpf_builder::build("probe", "probe.bpf.c")
 }
 ```
 
@@ -86,7 +86,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<EventT>,
 ) -> Result<Program, ProgramError> {
-    let binary = ebpf_program!(&ctx);
+    let binary = ebpf_program!(&ctx, "probe");
     let program = ProgramBuilder::new(
         ctx,
         "file_created",

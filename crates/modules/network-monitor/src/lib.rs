@@ -50,7 +50,7 @@ pub async fn program(
     sender: impl BpfSender<NetworkEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
-    let binary = ebpf_program!(&ctx);
+    let binary = ebpf_program!(&ctx, "probes");
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .tracepoint("syscalls", "sys_exit_accept4")
         .tracepoint("syscalls", "sys_exit_accept")
