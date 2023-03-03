@@ -204,7 +204,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
 }
 
 static __always_inline u16 get_sock_protocol(struct sock *sk) {
-  u16 proto = BPF_CORE_READ(sk, sk_protocol);
+  u64 proto = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_protocol);
   // TODO: clean this up
   if (proto == IPPROTO_UDP) {
     return PROTO_UDP;
