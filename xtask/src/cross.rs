@@ -43,10 +43,10 @@ pub(crate) fn run(options: Options) -> Result<()> {
     } = options;
     cmd!(
         sh,
-        "cross build --target {target} --workspace --bin {binary}"
+        "cross build --target {target} --target-dir target/cross --workspace --bin {binary}"
     )
     .run()?;
-    let binary_file = format!("target/{target}/debug/{binary}");
+    let binary_file = format!("target/cross/{target}/debug/{binary}");
     cmd!(sh, "llvm-strip {binary_file}").run()?;
     match command {
         Command::Build { destination } => cmd!(sh, "cp {binary_file} {destination}").run()?,
