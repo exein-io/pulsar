@@ -1233,7 +1233,6 @@ dependencies = [
  "file-system-monitor",
  "futures-util",
  "lazy_static",
- "libc",
  "log",
  "logger",
  "network-monitor",
@@ -1252,7 +1251,6 @@ name = "pulsar-core"
 version = "0.5.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "bpf-common",
  "log",
  "nix",
@@ -1967,7 +1965,6 @@ checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 name = "validatron"
 version = "0.5.0"
 dependencies = [
- "anyhow",
  "lalrpop",
  "lalrpop-util",
  "log",

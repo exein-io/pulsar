@@ -11,7 +11,6 @@ validatron = { path = "../validatron" }
 
 serde = { version = "1.0.136", features = ["derive"] }
 toml_edit = { version = "0.15.0", features = ["easy"] }
-async-trait = "0.1.52"
 tokio = { version = "1", features = ["full"] }
 semver = { version = "1.0.4", features = ["serde"] }
 anyhow = "1.0.53"
