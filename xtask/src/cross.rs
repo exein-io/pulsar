@@ -6,11 +6,15 @@ use xshell::{cmd, Shell};
 pub(crate) struct Options {
     /// Target architecture
     #[clap(long, default_value = "x86_64-unknown-linux-musl")]
-    pub(crate) target: String,
+    target: String,
 
     /// Binary to compile
     #[clap(long, default_value = "test-suite")]
-    pub(crate) binary: String,
+    binary: String,
+
+    /// Build and run the release target
+    #[clap(long)]
+    release: bool,
 
     #[clap(subcommand)]
     command: Command,
@@ -39,14 +43,17 @@ pub(crate) fn run(options: Options) -> Result<()> {
     let Options {
         target,
         binary,
+        release,
         command,
     } = options;
+    let args = if release { Some("--release") } else { None };
     cmd!(
         sh,
-        "cross build --target {target} --target-dir target/cross --workspace --bin {binary}"
+        "cross build --target {target} --target-dir target/cross --workspace --bin {binary} {args...}"
     )
     .run()?;
-    let binary_file = format!("target/cross/{target}/debug/{binary}");
+    let build_type = if release { "release" } else { "debug" };
+    let binary_file = format!("target/cross/{target}/{build_type}/{binary}");
     cmd!(sh, "llvm-strip {binary_file}").run()?;
     match command {
         Command::Build { destination } => cmd!(sh, "cp {binary_file} {destination}").run()?,
