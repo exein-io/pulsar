@@ -7,5 +7,6 @@ async fn main() {
         TestSuiteRunner::spawn().run_tests(modules()).await;
     } else {
         eprintln!("test-suite must be run as root");
+        std::process::exit(1);
     }
 }
