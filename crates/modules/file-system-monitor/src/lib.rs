@@ -10,7 +10,7 @@ pub async fn program(
     sender: impl BpfSender<FsEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
-    let binary = ebpf_program!(&ctx, "probe");
+    let binary = ebpf_program!(&ctx, "probes");
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary);
     // LSM hooks provide the perfet intercept point for file system operations.
     // If LSM eBPF programs is not supported, we'll attach to the same kernel

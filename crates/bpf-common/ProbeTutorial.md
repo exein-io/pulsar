@@ -51,7 +51,7 @@ bpf-common = { path = "../../bpf-common", features = ["build"] }
 The most important dependency is `bpf-common`, which re-exports [aya](https://github.com/aya-rs/aya)
 and contains some useful utilities for running, building and testing probes.
 
-Next we create write a simple eBPF program, we'll name it `probe.bpf.c`.
+Next we create write a simple eBPF program, we'll name it `probes.bpf.c`.
 
 ```c
 #include "common.bpf.h"
@@ -68,7 +68,7 @@ We create `build.rs` in order to build the program.
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    bpf_builder::build("probe", "probe.bpf.c")
+    bpf_builder::build("probes", "probes.bpf.c")
 }
 ```
 
@@ -86,7 +86,7 @@ pub async fn program(
     ctx: BpfContext,
     sender: impl BpfSender<EventT>,
 ) -> Result<Program, ProgramError> {
-    let binary = ebpf_program!(&ctx, "probe");
+    let binary = ebpf_program!(&ctx, "probes");
     let program = ProgramBuilder::new(
         ctx,
         "file_created",
