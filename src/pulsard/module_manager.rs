@@ -1,6 +1,5 @@
 use std::pin::Pin;
 
-use anyhow::anyhow;
 use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
@@ -73,24 +72,43 @@ impl ModuleManager {
     /// Handle unrecoverable error coming from modules.
     ///
     /// It will stop the module through [`PulsarModuleTask::stop`] method.
-    fn handle_module_error(&mut self, err: ModuleError) {
+    async fn handle_module_error(&mut self, err: ModuleError) {
         if let ModuleStatus::Running = self.status {
-            self.running_task.take().unwrap().0.send_signal();
-            // TODO: await task
-            self.status = ModuleStatus::Failed(err.to_string());
-            log::error!(
-                "Module error in {}: {:?}",
-                self.task_launcher.name(),
-                anyhow!(err)
-            );
+            let (tx_shutdown, task) = self.running_task.take().unwrap();
+            tx_shutdown.send_signal();
+            let result = task.await;
+
+            match result {
+                Ok(_) => {
+                    log::error!(
+                        "Error in module {}: {err}. Module stopped",
+                        self.task_launcher.name()
+                    );
+
+                    self.status = ModuleStatus::Failed(err.to_string());
+                }
+                Err(join_err) => {
+                    let err_msg = format!(
+                        "Error in module {}: {err}. Stopping module failed: {:?}",
+                        self.task_launcher.name(),
+                        join_err
+                    );
+
+                    log::error!("{err_msg}");
+
+                    self.status = ModuleStatus::Failed(err_msg);
+                }
+            }
         } else {
-            let msg = format!(
-                "Stopping {} failed. Module Error {}",
+            let err_msg = format!(
+                "Error in module {err}. Stopping module {} failed: Module found in status: {:?}",
                 self.task_launcher.name(),
-                err
+                self.status
             );
-            log::error!("{msg}");
-            self.status = ModuleStatus::Failed(msg);
+
+            log::error!("{err_msg}");
+
+            self.status = ModuleStatus::Failed(err_msg);
         }
     }
 
@@ -98,6 +116,12 @@ impl ModuleManager {
     async fn handle_cmd(&mut self, cmd: ModuleManagerCommand) {
         match cmd {
             ModuleManagerCommand::StartModule { tx_reply } => {
+                // Check if the  module is already running
+                if let ModuleStatus::Running = self.status {
+                    let _ = tx_reply.send(());
+                    return;
+                }
+
                 let ctx = ModuleContext::new(
                     self.config.clone(),
                     self.bus.clone(),
@@ -135,15 +159,24 @@ impl ModuleManager {
                     tx_shutdown.send_signal();
                     let result = task.await;
                     match result {
-                        Ok(()) => log::info!("Module {} exited", self.task_launcher.name()),
-                        Err(err) => log::warn!(
-                            "Module {} exit failure: {:?}",
-                            self.task_launcher.name(),
-                            err
-                        ),
+                        Ok(()) => {
+                            log::info!("Module {} exited", self.task_launcher.name());
+
+                            self.status = ModuleStatus::Stopped;
+
+                            Ok(())
+                        }
+                        Err(err) => {
+                            let err_msg =
+                                format!("Module {} exit failure: {err}", self.task_launcher.name());
+
+                            log::warn!("{err_msg}");
+
+                            self.status = ModuleStatus::Failed(err.to_string());
+
+                            Err(err.to_string())
+                        }
                     }
-                    self.status = ModuleStatus::Stopped;
-                    Ok(())
                 } else {
                     let err_msg = format!(
                         "Stopping module {} failed: Module found in status: {:?}",
@@ -259,7 +292,7 @@ pub fn create_module_manager(
 async fn run_module_manager_actor(mut actor: ModuleManager) {
     loop {
         tokio::select!(
-            Some(err) = actor.rx_err.recv() => actor.handle_module_error(err),
+            Some(err) = actor.rx_err.recv() => actor.handle_module_error(err).await,
             cmd = actor.rx_cmd.recv() => match cmd {
                 Some(cmd) => actor.handle_cmd(cmd).await,
                 None => return
