@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
+#include "vmlinux.h"
+
+#include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
 #include "common.bpf.h"
 #include "get_path.bpf.h"
@@ -38,6 +41,19 @@ OUTPUT_MAP(events, fs_event, {
   struct file_rename_event rename;
 });
 
+// A struct path contains a dentry and it's mount point.
+// Most LSM methods take the dentry of the target file and its parent folder
+// struct path. This utility function returns the struct path of the dentry,
+// by combining it with the struct vfsmount extracted by the parent dentry.
+static __always_inline struct path make_path(struct dentry *target_dentry,
+                                             struct path *parent_path) {
+  struct path target_path = {
+      .dentry = target_dentry,
+      .mnt = BPF_CORE_READ(parent_path, mnt),
+  };
+  return target_path;
+}
+
 PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
                 umode_t, mode, unsigned int, dev);
 static __always_inline void on_path_mknod(void *ctx, struct path *dir,
@@ -46,7 +62,8 @@ static __always_inline void on_path_mknod(void *ctx, struct path *dir,
   struct fs_event *event = fs_event_init(FILE_CREATED);
   if (!event)
     return;
-  get_path_str(dentry, dir, &event->buffer, &event->created);
+  struct path path = make_path(dentry, dir);
+  get_path_str(&path, &event->buffer, &event->created);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
@@ -56,7 +73,8 @@ static __always_inline void on_path_unlink(void *ctx, struct path *dir,
   struct fs_event *event = fs_event_init(FILE_DELETED);
   if (!event)
     return;
-  get_path_str(dentry, dir, &event->buffer, &event->deleted);
+  struct path path = make_path(dentry, dir);
+  get_path_str(&path, &event->buffer, &event->deleted);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
@@ -66,7 +84,7 @@ static __always_inline void on_file_open(void *ctx, struct file *file) {
   if (!event)
     return;
   struct path path = BPF_CORE_READ(file, f_path);
-  get_path_str(path.dentry, &path, &event->buffer, &event->opened.filename);
+  get_path_str(&path, &event->buffer, &event->opened.filename);
   event->opened.flags = BPF_CORE_READ(file, f_flags);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
@@ -79,8 +97,10 @@ static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
   struct fs_event *event = fs_event_init(FILE_LINK);
   if (!event)
     return;
-  get_path_str(new_dentry, new_dir, &event->buffer, &event->link.source);
-  get_path_str(old_dentry, new_dir, &event->buffer, &event->link.destination);
+  struct path new_path = make_path(new_dentry, new_dir);
+  get_path_str(&new_path, &event->buffer, &event->link.source);
+  struct path old_path = make_path(old_dentry, new_dir);
+  get_path_str(&old_path, &event->buffer, &event->link.destination);
   event->link.hard_link = true;
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
@@ -93,7 +113,8 @@ static __always_inline void on_path_symlink(void *ctx, struct path *dir,
   struct fs_event *event = fs_event_init(FILE_LINK);
   if (!event)
     return;
-  get_path_str(dentry, dir, &event->buffer, &event->link.source);
+  struct path path = make_path(dentry, dir);
+  get_path_str(&path, &event->buffer, &event->link.source);
   buffer_index_init(&event->buffer, &event->link.destination);
   buffer_append_str(&event->buffer, &event->link.destination, old_name,
                     BUFFER_MAX);
@@ -108,7 +129,8 @@ static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
   struct fs_event *event = fs_event_init(DIR_CREATED);
   if (!event)
     return;
-  get_path_str(dentry, dir, &event->buffer, &event->dir_created);
+  struct path path = make_path(dentry, dir);
+  get_path_str(&path, &event->buffer, &event->dir_created);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
@@ -118,7 +140,8 @@ static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
   struct fs_event *event = fs_event_init(DIR_DELETED);
   if (!event)
     return;
-  get_path_str(dentry, dir, &event->buffer, &event->dir_deleted);
+  struct path path = make_path(dentry, dir);
+  get_path_str(&path, &event->buffer, &event->dir_deleted);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
 
@@ -132,7 +155,9 @@ static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
   struct fs_event *event = fs_event_init(FILE_RENAME);
   if (!event)
     return;
-  get_path_str(old_dentry, old_dir, &event->buffer, &event->rename.source);
-  get_path_str(new_dentry, new_dir, &event->buffer, &event->rename.destination);
+  struct path old_path = make_path(old_dentry, old_dir);
+  struct path new_path = make_path(new_dentry, new_dir);
+  get_path_str(&old_path, &event->buffer, &event->rename.source);
+  get_path_str(&new_path, &event->buffer, &event->rename.destination);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }

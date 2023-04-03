@@ -21,6 +21,7 @@ pub fn build(name: &str, source: &str) -> Result<(), Box<dyn std::error::Error>>
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/buffer.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/output.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/loop.bpf.h");
+    println!("cargo:rerun-if-changed={INCLUDE_PATH}/get_path.bpf.h");
 
     let out_file = PathBuf::from(env::var("OUT_DIR")?).join(name);
 
