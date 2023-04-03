@@ -131,7 +131,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
                       BUFFER_MAX);
   } else {
     struct path path = BPF_CORE_READ(bprm, file, f_path);
-    get_path_str(path.dentry, &path, &event->buffer, &event->exec.filename);
+    get_path_str(&path, &event->buffer, &event->exec.filename);
   }
 
   char *image = (char *)&event->buffer.buffer;

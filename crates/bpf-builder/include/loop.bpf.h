@@ -18,7 +18,7 @@
 // error, even if inside a dead-code elimination branch.
 #define LOOP(max_iterations, callback_fn, ctx)                                 \
   _Pragma("unroll") for (int i = 0; i < max_iterations; i++) {                 \
-    if (callback_fn(i, ctx) == 1)                                              \
+    if (callback_fn(i, ctx) == LOOP_STOP)                                      \
       break;                                                                   \
   }
 #else
@@ -27,8 +27,11 @@
     bpf_loop(max_iterations, callback_fn, ctx, 0);                             \
   } else {                                                                     \
     _Pragma("unroll") for (int i = 0; i < max_iterations; i++) {               \
-      if (callback_fn(i, ctx) == 1)                                            \
+      if (callback_fn(i, ctx) == LOOP_STOP)                                    \
         break;                                                                 \
     }                                                                          \
   }
 #endif
+
+#define LOOP_CONTINUE 0
+#define LOOP_STOP 1
