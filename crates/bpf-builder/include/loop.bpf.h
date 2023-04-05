@@ -16,17 +16,17 @@
 #ifdef FEATURE_NO_FN_POINTERS
 // On kernel <= 5.13 taking the address of a function results in a verifier
 // error, even if inside a dead-code elimination branch.
-#define LOOP(max_iterations, callback_fn, ctx)                                 \
-  _Pragma("unroll") for (int i = 0; i < max_iterations; i++) {                 \
+#define LOOP(max_iterations, max_unroll, callback_fn, ctx)                     \
+  _Pragma("unroll") for (int i = 0; i < 10; i++) {                             \
     if (callback_fn(i, ctx) == LOOP_STOP)                                      \
       break;                                                                   \
   }
 #else
-#define LOOP(max_iterations, callback_fn, ctx)                                 \
+#define LOOP(max_iterations, max_unroll, callback_fn, ctx)                     \
   if (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 17, 0)) {                      \
     bpf_loop(max_iterations, callback_fn, ctx, 0);                             \
   } else {                                                                     \
-    _Pragma("unroll") for (int i = 0; i < max_iterations; i++) {               \
+    _Pragma("unroll") for (int i = 0; i < max_unroll; i++) {                   \
       if (callback_fn(i, ctx) == LOOP_STOP)                                    \
         break;                                                                 \
     }                                                                          \
