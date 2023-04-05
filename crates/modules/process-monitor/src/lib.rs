@@ -273,7 +273,7 @@ pub mod test_suite {
     fn relative_exec_event() -> TestCase {
         TestCase::new("relative_exec_event", async {
             let mut child_pid = Pid::from_raw(0);
-            let echo_buff = which("echo").unwrap();
+            let echo_buff = which("echo").unwrap().canonicalize().unwrap();
             let echo_path = echo_buff.as_path().to_str().unwrap().to_string();
             test_runner()
                 .run(|| {
