@@ -117,6 +117,10 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   event->timestamp = bpf_ktime_get_ns();
   event->pid = tgid;
   event->exec.argc = BPF_CORE_READ(bprm, argc);
+  // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
+  // be used as a lookup key for the target and whitelist maps and garbage
+  // would make the search fail.
+  __builtin_memset((char *)&event->buffer.buffer, 0, MAX_IMAGE_LEN);
 
   // We want to get the absolute path of the executable we're running.
   // When executing a process with a relative path, bprm->filename won't be
