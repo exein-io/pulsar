@@ -429,15 +429,17 @@ pub mod test_suite {
                 success: true,
                 lines: vec![],
             };
+            // load ebpf and clear interest map
+            let mut bpf = load_ebpf();
+            attach_raw_tracepoint(&mut bpf, "sched_process_exec");
+            let mut interest_map = InterestMap::load(&mut bpf).unwrap();
+            let mut target_map = RuleMap::target(&mut bpf).unwrap();
+            let mut whitelist_map = RuleMap::whitelist(&mut bpf).unwrap();
             // for each rule type (whitelist, whitelist&children, target, target&children)
             // check if exec is updating it as expected
             for (is_target, with_children) in
                 [(true, true), (true, false), (false, true), (false, false)]
             {
-                // load ebpf and clear interest map
-                let mut bpf = load_ebpf();
-                attach_raw_tracepoint(&mut bpf, "sched_process_exec");
-                let mut interest_map = InterestMap::load(&mut bpf).unwrap();
                 interest_map.clear().unwrap();
 
                 // add rule to target echo
@@ -447,26 +449,26 @@ pub mod test_suite {
                     with_children,
                 };
                 let rules = vec![rule];
-                let mut rule_map = if is_target {
-                    RuleMap::target(&mut bpf).unwrap()
+                target_map.clear().unwrap();
+                whitelist_map.clear().unwrap();
+                if is_target {
+                    target_map.install(&rules).unwrap();
                 } else {
-                    RuleMap::whitelist(&mut bpf).unwrap()
-                };
-                rule_map.clear().unwrap();
-                rule_map.install(&rules).unwrap();
+                    whitelist_map.install(&rules).unwrap();
+                }
 
                 // set old value to wrong value to make sure we're making a change
                 // try both values of with_children
                 for old_with_children in [true, false] {
+                    let old_value = PolicyDecision {
+                        interesting: !is_target,
+                        children_interesting: old_with_children,
+                    }
+                    .as_raw();
                     // run the targeted command
                     let interest_map_ref = &mut interest_map;
                     let child_pid = fork_and_run(|| {
                         // before calling exec, we want to update our interest
-                        let old_value = PolicyDecision {
-                            interesting: !is_target,
-                            children_interesting: old_with_children,
-                        }
-                        .as_raw();
                         let pid = std::process::id() as i32;
                         interest_map_ref.0.insert(pid, old_value, 0).unwrap();
                         let exec_binary = CString::new(image.as_str()).unwrap();
@@ -495,9 +497,9 @@ pub mod test_suite {
                         report
                         .lines
                         .push(format!("is_target={is_target} with_children={with_children} old_with_children={old_with_children}"));
-                        report
-                            .lines
-                            .push(format!("expecting {child_pid}={expected_interest}"));
+                        report.lines.push(format!(
+                            "expecting {child_pid}={expected_interest}, but was {actual_interest} (old value was {old_value})"
+                        ));
                         report.success = false;
                     }
                 }
