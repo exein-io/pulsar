@@ -9,6 +9,6 @@ set -x
 set -e
 
 # Compile eBPF to /tmp/obj.o
-clang -g -O2 -c $1 -o /tmp/obj.o -target bpf -D__TARGET_ARCH_x86 -I crates/bpf-common/include/ -I crates/bpf-common/include/x86_64/
+clang -g -O2 -c $1 -o /tmp/obj.o -target bpf -D__TARGET_ARCH_x86 -I crates/bpf-builder/include/ -I crates/bpf-builder/include/x86_64/
 sleep 1
 llvm-objdump -S --no-show-raw-insn /tmp/obj.o
