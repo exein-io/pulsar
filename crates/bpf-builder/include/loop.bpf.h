@@ -17,7 +17,7 @@
 // On kernel <= 5.13 taking the address of a function results in a verifier
 // error, even if inside a dead-code elimination branch.
 #define LOOP(max_iterations, max_unroll, callback_fn, ctx)                     \
-  _Pragma("unroll") for (int i = 0; i < 10; i++) {                             \
+  _Pragma("unroll") for (int i = 0; i < max_unroll; i++) {                     \
     if (callback_fn(i, ctx) == LOOP_STOP)                                      \
       break;                                                                   \
   }
