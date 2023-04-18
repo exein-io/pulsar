@@ -97,10 +97,10 @@ static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
   struct fs_event *event = fs_event_init(FILE_LINK);
   if (!event)
     return;
-  struct path new_path = make_path(new_dentry, new_dir);
-  get_path_str(&new_path, &event->buffer, &event->link.source);
-  struct path old_path = make_path(old_dentry, new_dir);
-  get_path_str(&old_path, &event->buffer, &event->link.destination);
+  struct path source = make_path(new_dentry, new_dir);
+  get_path_str(&source, &event->buffer, &event->link.source);
+  struct path destination = make_path(old_dentry, new_dir);
+  get_path_str(&destination, &event->buffer, &event->link.destination);
   event->link.hard_link = true;
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
@@ -155,9 +155,9 @@ static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
   struct fs_event *event = fs_event_init(FILE_RENAME);
   if (!event)
     return;
-  struct path old_path = make_path(old_dentry, old_dir);
-  struct path new_path = make_path(new_dentry, new_dir);
-  get_path_str(&old_path, &event->buffer, &event->rename.source);
-  get_path_str(&new_path, &event->buffer, &event->rename.destination);
+  struct path source = make_path(old_dentry, old_dir);
+  struct path destination = make_path(new_dentry, new_dir);
+  get_path_str(&source, &event->buffer, &event->rename.source);
+  get_path_str(&destination, &event->buffer, &event->rename.destination);
   output_event(ctx, &events, event, sizeof(struct fs_event), event->buffer.len);
 }
