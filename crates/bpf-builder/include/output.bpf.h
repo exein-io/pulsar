@@ -8,8 +8,10 @@
   struct struct_name {                                                         \
     u64 timestamp;                                                             \
     pid_t pid;                                                                 \
-    u32 event_type;                                                            \
-    union variants;                                                            \
+    struct {                                                                   \
+      u32 event_type;                                                          \
+      union variants;                                                          \
+    };                                                                         \
     struct buffer buffer;                                                      \
   };                                                                           \
                                                                                \
