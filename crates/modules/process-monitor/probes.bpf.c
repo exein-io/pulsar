@@ -10,6 +10,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define EVENT_EXEC 1
 #define EVENT_EXIT 2
 #define EVENT_CHANGE_PARENT 3
+#define EVENT_CGROUP_MKDIR 4
 
 #define MAX_IMAGE_LEN 100
 #define MAX_ORPHANS 30
@@ -32,6 +33,11 @@ struct change_parent_event {
   pid_t ppid;
 };
 
+struct cgroup_mkdir_event {
+  struct buffer_index path;
+  u64 id;
+};
+
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, char[MAX_IMAGE_LEN]);
@@ -51,6 +57,7 @@ OUTPUT_MAP(events, process_event, {
   struct exec_event exec;
   struct exit_event exit;
   struct change_parent_event change_parent;
+  struct cgroup_mkdir_event cgroup_mkdir;
 });
 
 struct pending_dead_process {
@@ -268,5 +275,26 @@ int BPF_PROG(sched_switch) {
     output_event(ctx, &events, event, sizeof(struct process_event),
                  event->buffer.len);
   }
+  return 0;
+}
+
+SEC("raw_tracepoint/cgroup_mkdir")
+int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return 0;
+  struct process_event *event = output_temp();
+  if (!event)
+    return 0;
+  event->event_type = EVENT_CGROUP_MKDIR;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+  event->buffer.len = 0;
+  event->cgroup_mkdir.id = BPF_CORE_READ(cgrp, kn, id);
+  buffer_index_init(&event->buffer, &event->cgroup_mkdir.path);
+  buffer_append_str(&event->buffer, &event->cgroup_mkdir.path, path,
+                    BUFFER_MAX);
+  output_event(ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
   return 0;
 }

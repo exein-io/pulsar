@@ -241,7 +241,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "nix",
+ "nix 0.26.2",
  "procfs",
  "sys-mount",
  "thiserror",
@@ -272,6 +272,19 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "cgroups-rs"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b098e7c3a70d03c288fa0a96ccf13e770eb3d78c4cc0e1549b3c13215d5f965"
+dependencies = [
+ "libc",
+ "log",
+ "nix 0.25.1",
+ "regex",
+ "thiserror",
+]
 
 [[package]]
 name = "chrono"
@@ -556,7 +569,7 @@ dependencies = [
  "bpf-builder",
  "bpf-common",
  "log",
- "nix",
+ "nix 0.26.2",
  "pulsar-core",
  "tokio",
 ]
@@ -1038,7 +1051,7 @@ dependencies = [
  "bpf-common",
  "dns-parser",
  "log",
- "nix",
+ "nix 0.26.2",
  "pulsar-core",
  "tokio",
 ]
@@ -1048,6 +1061,18 @@ name = "new_debug_unreachable"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
+
+[[package]]
+name = "nix"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
+dependencies = [
+ "autocfg",
+ "bitflags",
+ "cfg-if",
+ "libc",
+]
 
 [[package]]
 name = "nix"
@@ -1231,9 +1256,11 @@ dependencies = [
  "anyhow",
  "bpf-builder",
  "bpf-common",
+ "cgroups-rs",
  "log",
- "nix",
+ "nix 0.26.2",
  "pulsar-core",
+ "rand",
  "thiserror",
  "tokio",
  "which",
@@ -1269,7 +1296,7 @@ dependencies = [
  "log",
  "logger",
  "network-monitor",
- "nix",
+ "nix 0.26.2",
  "process-monitor",
  "pulsar-core",
  "rules-engine",
@@ -1286,7 +1313,7 @@ dependencies = [
  "anyhow",
  "bpf-common",
  "log",
- "nix",
+ "nix 0.26.2",
  "semver",
  "serde",
  "thiserror",
@@ -1719,7 +1746,7 @@ dependencies = [
  "libtest-mimic",
  "log",
  "network-monitor",
- "nix",
+ "nix 0.26.2",
  "process-monitor",
  "tokio",
 ]

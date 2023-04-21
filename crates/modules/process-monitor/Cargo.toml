@@ -6,7 +6,12 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-test-suite = ["bpf-common/test-utils", "which"]
+test-suite = [
+  "bpf-common/test-utils",
+  "which",
+  "cgroups-rs",
+  "rand"
+]
 
 [dependencies]
 bpf-common = { path = "../../bpf-common" }
@@ -16,8 +21,12 @@ tokio = { version = "1", features = ["full"] }
 nix = "0.26.2"
 log = "0.4"
 thiserror = "1"
-which = { version = "4.2.5", optional = true }
 anyhow = "1.0.65"
+
+# Test deps
+which = { version = "4.2.5", optional = true }
+cgroups-rs = { version = "0.3.2", optional = true }
+rand = { version = "0.8.5", optional = true }
 
 [build-dependencies]
 bpf-builder = { path = "../../bpf-builder" }
