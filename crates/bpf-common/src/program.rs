@@ -435,6 +435,14 @@ impl Program {
                                 );
                             }
                             for buffer in buffers.iter_mut().take(events.read) {
+                                if buffer.len() < event_size {
+                                    log::error!("sizeof T: {}", size_of::<T>());
+                                    log::error!(
+                                        "sizeof RawBpfEvent<T>: {}",
+                                        size_of::<RawBpfEvent<T>>()
+                                    );
+                                    panic!("Buffer too short. buffer.len() = {}", buffer.len(),);
+                                }
                                 let mut buffer =
                                     std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
                                 let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;

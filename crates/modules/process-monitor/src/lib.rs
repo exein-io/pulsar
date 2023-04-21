@@ -17,6 +17,7 @@ pub async fn program(
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
         .raw_tracepoint("sched_switch")
+        .raw_tracepoint("cgroup_mkdir")
         .start()
         .await?;
     program.read_events("events", sender).await?;
@@ -42,6 +43,10 @@ pub enum ProcessEvent {
     },
     ChangeParent {
         ppid: Pid,
+    },
+    CgroupMkdir {
+        path: BufferIndex<str>,
+        id: u64,
     },
 }
 
@@ -130,6 +135,7 @@ pub mod pulsar {
                         pid: event.pid,
                         ppid,
                     },
+                    _ => return,
                 });
             }),
         )
@@ -178,6 +184,7 @@ pub mod pulsar {
                 ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {
                     ppid: ppid.as_raw(),
                 },
+                _ => todo!(),
             })
         }
     }
@@ -190,13 +197,16 @@ pub mod test_suite {
     use bpf_common::aya::{Bpf, BpfLoader};
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
+    use cgroups_rs::cgroup_builder::CgroupBuilder;
     use filtering::config::Rule;
     use filtering::maps::{InterestMap, RuleMap};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
     use nix::unistd::execv;
     use nix::unistd::{fork, ForkResult};
+    use rand::prelude::*;
     use std::ffi::CString;
     use std::fs;
+    use std::os::unix::prelude::MetadataExt;
     use std::process::exit;
     use std::thread::sleep;
     use std::time::Duration;
@@ -218,6 +228,7 @@ pub mod test_suite {
                 threads_are_ignored(),
                 exit_cleans_up_resources(),
                 parent_change(),
+                cgroup_mkdir(),
             ],
         }
     }
@@ -649,5 +660,33 @@ pub mod test_suite {
             .load(ebpf_program!(&ctx, "probes"))
             .unwrap();
         bpf
+    }
+
+    fn cgroup_mkdir() -> TestCase {
+        TestCase::new("cgroup_mkdir", async {
+            let cg_name = format!("pulsar_cgroup_mkdir_{}", random::<u32>());
+            let cg_path = format!("/{cg_name}");
+            let mut cg_id = 0;
+
+            test_runner()
+                .run(|| {
+                    let hierarchy = cgroups_rs::hierarchies::V2::new();
+                    let cg = CgroupBuilder::new(&cg_name)
+                        .build(Box::new(hierarchy))
+                        .expect("Error creating cgroup");
+                    // the cgroup id the the inode of the directory in cgroupfs
+                    cg_id = std::fs::metadata(format!("/sys/fs/cgroup/{cg_name}"))
+                        .expect("Error reading cgroup inode")
+                        .ino();
+                    cg.delete().expect("Error deleting cgroup");
+                })
+                .await
+                .expect_event(event_check!(
+                    ProcessEvent::CgroupMkdir,
+                    (id, cg_id, "cgroup id"),
+                    (path, cg_path, "cgroup path")
+                ))
+                .report()
+        })
     }
 }
