@@ -18,6 +18,7 @@ pub async fn program(
         .raw_tracepoint("sched_process_fork")
         .raw_tracepoint("sched_switch")
         .raw_tracepoint("cgroup_mkdir")
+        .raw_tracepoint("cgroup_rmdir")
         .start()
         .await?;
     program.read_events("events", sender).await?;
@@ -45,6 +46,10 @@ pub enum ProcessEvent {
         ppid: Pid,
     },
     CgroupMkdir {
+        path: BufferIndex<str>,
+        id: u64,
+    },
+    CgroupRmdir {
         path: BufferIndex<str>,
         id: u64,
     },
@@ -229,6 +234,7 @@ pub mod test_suite {
                 exit_cleans_up_resources(),
                 parent_change(),
                 cgroup_mkdir(),
+                cgroup_rmdir(),
             ],
         }
     }
@@ -664,29 +670,50 @@ pub mod test_suite {
 
     fn cgroup_mkdir() -> TestCase {
         TestCase::new("cgroup_mkdir", async {
-            let cg_name = format!("pulsar_cgroup_mkdir_{}", random::<u32>());
-            let cg_path = format!("/{cg_name}");
-            let mut cg_id = 0;
+            let name = format!("pulsar_cgroup_mkdir_{}", random::<u32>());
+            let path = format!("/{name}");
+            let mut id = 0;
 
             test_runner()
-                .run(|| {
-                    let hierarchy = cgroups_rs::hierarchies::V2::new();
-                    let cg = CgroupBuilder::new(&cg_name)
-                        .build(Box::new(hierarchy))
-                        .expect("Error creating cgroup");
-                    // the cgroup id the the inode of the directory in cgroupfs
-                    cg_id = std::fs::metadata(format!("/sys/fs/cgroup/{cg_name}"))
-                        .expect("Error reading cgroup inode")
-                        .ino();
-                    cg.delete().expect("Error deleting cgroup");
-                })
+                .run(|| create_delete_cgroup(name, &mut id))
                 .await
                 .expect_event(event_check!(
                     ProcessEvent::CgroupMkdir,
-                    (id, cg_id, "cgroup id"),
+                    (id, id, "cgroup id"),
+                    (path, path, "cgroup path")
+                ))
+                .report()
+        })
+    }
+
+    fn cgroup_rmdir() -> TestCase {
+        TestCase::new("cgroup_rmdir", async {
+            let name = format!("pulsar_cgroup_rmdir_{}", random::<u32>());
+            let cg_path = format!("/{name}");
+            let mut id = 0;
+
+            test_runner()
+                .run(|| create_delete_cgroup(name, &mut id))
+                .await
+                .expect_event(event_check!(
+                    ProcessEvent::CgroupRmdir,
+                    (id, id, "cgroup id"),
                     (path, cg_path, "cgroup path")
                 ))
                 .report()
         })
+    }
+
+    // Create a cgroup v2 with the given name and set id to its inode number
+    fn create_delete_cgroup(name: String, id: &mut u64) {
+        let hierarchy = cgroups_rs::hierarchies::V2::new();
+        let cg = CgroupBuilder::new(&name)
+            .build(Box::new(hierarchy))
+            .expect("Error creating cgroup");
+        // the cgroup id the the inode of the directory in cgroupfs
+        *id = std::fs::metadata(format!("/sys/fs/cgroup/{name}"))
+            .expect("Error reading cgroup inode")
+            .ino();
+        cg.delete().expect("Error deleting cgroup");
     }
 }
