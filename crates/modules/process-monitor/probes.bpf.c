@@ -12,6 +12,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define EVENT_CHANGE_PARENT 3
 #define EVENT_CGROUP_MKDIR 4
 #define EVENT_CGROUP_RMDIR 5
+#define EVENT_CGROUP_ATTACH 6
 
 #define MAX_IMAGE_LEN 100
 #define MAX_ORPHANS 30
@@ -34,7 +35,13 @@ struct change_parent_event {
   pid_t ppid;
 };
 
-struct group_event {
+struct cgroup_event {
+  struct buffer_index path;
+  u64 id;
+};
+
+struct cgroup_attach_event {
+  pid_t pid;
   struct buffer_index path;
   u64 id;
 };
@@ -58,8 +65,9 @@ OUTPUT_MAP(events, process_event, {
   struct exec_event exec;
   struct exit_event exit;
   struct change_parent_event change_parent;
-  struct group_event cgroup_mkdir;
-  struct group_event cgroup_rmdir;
+  struct cgroup_event cgroup_mkdir;
+  struct cgroup_event cgroup_rmdir;
+  struct cgroup_attach_event cgroup_attach;
 });
 
 struct pending_dead_process {
@@ -316,6 +324,29 @@ int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
   event->cgroup_rmdir.id = BPF_CORE_READ(cgrp, kn, id);
   buffer_index_init(&event->buffer, &event->cgroup_rmdir.path);
   buffer_append_str(&event->buffer, &event->cgroup_rmdir.path, path,
+                    BUFFER_MAX);
+  output_event(ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
+  return 0;
+}
+
+SEC("raw_tracepoint/cgroup_attach_task")
+int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
+             struct task_struct *task) {
+  pid_t tgid = interesting_tgid();
+  if (tgid < 0)
+    return 0;
+  struct process_event *event = output_temp();
+  if (!event)
+    return 0;
+  event->event_type = EVENT_CGROUP_ATTACH;
+  event->timestamp = bpf_ktime_get_ns();
+  event->pid = tgid;
+  event->buffer.len = 0;
+  event->cgroup_attach.id = BPF_CORE_READ(cgrp, kn, id);
+  event->cgroup_attach.pid = BPF_CORE_READ(task, tgid);
+  buffer_index_init(&event->buffer, &event->cgroup_attach.path);
+  buffer_append_str(&event->buffer, &event->cgroup_attach.path, path,
                     BUFFER_MAX);
   output_event(ctx, &events, event, sizeof(struct process_event),
                event->buffer.len);

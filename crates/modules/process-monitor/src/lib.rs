@@ -19,6 +19,7 @@ pub async fn program(
         .raw_tracepoint("sched_switch")
         .raw_tracepoint("cgroup_mkdir")
         .raw_tracepoint("cgroup_rmdir")
+        .raw_tracepoint("cgroup_attach_task")
         .start()
         .await?;
     program.read_events("events", sender).await?;
@@ -50,6 +51,11 @@ pub enum ProcessEvent {
         id: u64,
     },
     CgroupRmdir {
+        path: BufferIndex<str>,
+        id: u64,
+    },
+    CgroupAttach {
+        pid: Pid,
         path: BufferIndex<str>,
         id: u64,
     },
@@ -206,6 +212,7 @@ pub mod test_suite {
     use filtering::config::Rule;
     use filtering::maps::{InterestMap, RuleMap};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
+    use nix::sys::signal::Signal::SIGKILL;
     use nix::unistd::execv;
     use nix::unistd::{fork, ForkResult};
     use rand::prelude::*;
@@ -235,6 +242,7 @@ pub mod test_suite {
                 parent_change(),
                 cgroup_mkdir(),
                 cgroup_rmdir(),
+                cgroup_attach(),
             ],
         }
     }
@@ -698,6 +706,55 @@ pub mod test_suite {
                 .expect_event(event_check!(
                     ProcessEvent::CgroupRmdir,
                     (id, id, "cgroup id"),
+                    (path, cg_path, "cgroup path")
+                ))
+                .report()
+        })
+    }
+
+    fn cgroup_attach() -> TestCase {
+        TestCase::new("cgroup_attach", async {
+            let name = format!("pulsar_cgroup_attach_{}", random::<u32>());
+            let cg_path = format!("/{name}");
+            let mut id = 0;
+            let mut pid = Pid::from_raw(32);
+
+            test_runner()
+                .run(|| {
+                    // - Create a cgroup
+                    let hierarchy = cgroups_rs::hierarchies::V2::new();
+                    let cg = CgroupBuilder::new(&name)
+                        .build(Box::new(hierarchy))
+                        .expect("Error creating cgroup");
+                    id = std::fs::metadata(format!("/sys/fs/cgroup/{name}"))
+                        .expect("Error reading cgroup inode")
+                        .ino();
+
+                    // - Spawn a child process
+                    match unsafe { fork() }.unwrap() {
+                        ForkResult::Child => {
+                            sleep(Duration::from_secs(1));
+                            exit(0);
+                        }
+                        ForkResult::Parent { child } => pid = child,
+                    }
+
+                    // - Attach it to the Cgroup
+                    cg.add_task_by_tgid((pid.as_raw() as u64).into())
+                        .expect("Could not attach child do cgroup");
+
+                    // - Kill the child process
+                    _ = nix::sys::signal::kill(pid, SIGKILL);
+                    nix::sys::wait::waitpid(pid, None).unwrap();
+
+                    // - Destroy the cgroup
+                    cg.delete().expect("Error deleting cgroup");
+                })
+                .await
+                .expect_event(event_check!(
+                    ProcessEvent::CgroupAttach,
+                    (id, id, "cgroup id"),
+                    (pid, pid, "attached process"),
                     (path, cg_path, "cgroup path")
                 ))
                 .report()
