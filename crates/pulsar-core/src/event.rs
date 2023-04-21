@@ -213,6 +213,19 @@ pub enum Payload {
     ChangeParent {
         ppid: i32,
     },
+    CgroupCreated {
+        cgroup_path: String,
+        cgroup_id: u64,
+    },
+    CgroupDeleted {
+        cgroup_path: String,
+        cgroup_id: u64,
+    },
+    CgroupAttach {
+        cgroup_path: String,
+        cgroup_id: u64,
+        attached_pid: i32,
+    },
     SyscallActivity {
         #[validatron(skip)]
         histogram: Vec<u64>,
@@ -280,6 +293,9 @@ impl fmt::Display for Payload {
             Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
+            Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
+            Payload::CgroupDeleted { cgroup_path, cgroup_id } => write!(f,"Cgroup deleted {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
+            Payload::CgroupAttach { cgroup_path, cgroup_id, attached_pid } => write!(f,"Process attached to cgroup {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id}, attached_pid {attached_pid} }}"),
             Payload::SyscallActivity { .. } => write!(f,"Syscall Activity"),
             Payload::Bind { address, is_tcp } => write!(f,"Bind {{ address: {address}, is_tcp: {is_tcp} }}"),
             Payload::Listen { address } => write!(f,"Listen {{ address: {address} }}"),  

@@ -195,7 +195,19 @@ pub mod pulsar {
                 ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {
                     ppid: ppid.as_raw(),
                 },
-                _ => todo!(),
+                ProcessEvent::CgroupMkdir { path, id } => Payload::CgroupCreated {
+                    cgroup_path: path.string(&buffer)?,
+                    cgroup_id: id,
+                },
+                ProcessEvent::CgroupRmdir { path, id } => Payload::CgroupDeleted {
+                    cgroup_path: path.string(&buffer)?,
+                    cgroup_id: id,
+                },
+                ProcessEvent::CgroupAttach { pid, path, id } => Payload::CgroupAttach {
+                    cgroup_path: path.string(&buffer)?,
+                    cgroup_id: id,
+                    attached_pid: pid.as_raw(),
+                },
             })
         }
     }
@@ -717,7 +729,7 @@ pub mod test_suite {
             let name = format!("pulsar_cgroup_attach_{}", random::<u32>());
             let cg_path = format!("/{name}");
             let mut id = 0;
-            let mut pid = Pid::from_raw(32);
+            let mut child_pid = Pid::from_raw(0);
 
             test_runner()
                 .run(|| {
@@ -736,16 +748,16 @@ pub mod test_suite {
                             sleep(Duration::from_secs(1));
                             exit(0);
                         }
-                        ForkResult::Parent { child } => pid = child,
+                        ForkResult::Parent { child } => child_pid = child,
                     }
 
                     // - Attach it to the Cgroup
-                    cg.add_task_by_tgid((pid.as_raw() as u64).into())
+                    cg.add_task_by_tgid((child_pid.as_raw() as u64).into())
                         .expect("Could not attach child do cgroup");
 
                     // - Kill the child process
-                    _ = nix::sys::signal::kill(pid, SIGKILL);
-                    nix::sys::wait::waitpid(pid, None).unwrap();
+                    _ = nix::sys::signal::kill(child_pid, SIGKILL);
+                    nix::sys::wait::waitpid(child_pid, None).unwrap();
 
                     // - Destroy the cgroup
                     cg.delete().expect("Error deleting cgroup");
@@ -754,7 +766,7 @@ pub mod test_suite {
                 .expect_event(event_check!(
                     ProcessEvent::CgroupAttach,
                     (id, id, "cgroup id"),
-                    (pid, pid, "attached process"),
+                    (pid, child_pid, "attached process"),
                     (path, cg_path, "cgroup path")
                 ))
                 .report()
