@@ -7,6 +7,6 @@ repository.workspace = true
 
 [dependencies]
 anyhow = "1.0.58"
-clap = { version = "4.1.1", features = ["derive"] }
+clap = { version = "4.2.4", features = ["derive"] }
 xshell = "0.2.2"
 signal-hook = "0.3.14"
