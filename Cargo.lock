@@ -250,6 +250,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "bpf-filtering"
+version = "0.5.0"
+dependencies = [
+ "anyhow",
+ "bpf-builder",
+ "bpf-common",
+ "log",
+ "nix 0.26.2",
+ "pulsar-core",
+ "thiserror",
+ "tokio",
+ "which",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1741,6 +1756,7 @@ name = "test-suite"
 version = "0.5.0"
 dependencies = [
  "bpf-common",
+ "bpf-filtering",
  "file-system-monitor",
  "futures",
  "libtest-mimic",

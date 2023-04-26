@@ -7,6 +7,7 @@ repository.workspace = true
 
 [dependencies]
 bpf-common = { path = "../crates/bpf-common", features = ["test-utils", "test-suite"] }
+bpf-filtering = { path = "../crates/bpf-filtering", features = ["test-suite"] }
 file-system-monitor = { path = "../crates/modules/file-system-monitor", features = ["test-suite"] }
 network-monitor = { path = "../crates/modules/network-monitor", features = ["test-suite"] }
 process-monitor = { path = "../crates/modules/process-monitor", features = ["test-suite"] }
