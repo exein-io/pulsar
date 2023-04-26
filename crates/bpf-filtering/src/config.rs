@@ -19,6 +19,8 @@ pub(crate) struct Config {
     pub(crate) rule_map_name: String,
     /// Sets the default tracking status for Pid 1 and when finding missing entries.
     pub(crate) track_by_default: bool,
+    /// Whitelist the current process
+    pub(crate) ignore_self: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -73,14 +75,14 @@ impl TryFrom<&ModuleConfig> for Config {
                 with_children,
             }));
         }
-        let track_by_default = config.with_default("track_by_default", true)?;
 
         Ok(Config {
             pid_targets,
             rules,
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
-            track_by_default,
+            track_by_default: config.with_default("track_by_default", true)?,
+            ignore_self: config.with_default("ignore_self", true)?,
         })
     }
 }

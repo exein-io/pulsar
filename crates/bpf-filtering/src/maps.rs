@@ -119,24 +119,41 @@ where
 #[derive(Clone, Copy)]
 pub struct Image(pub(crate) [u8; MAX_IMAGE_LEN]);
 // We must explicitly mark Image as a plain old data which can be safely memcopied by aya.
-unsafe impl aya::Pod for Image {}
+unsafe impl bpf_common::aya::Pod for Image {}
+
+#[derive(thiserror::Error, Debug)]
+pub enum InvalidImage {
+    #[error("process image coming from string must be ascii")]
+    NotAscii,
+    #[error("process image must be smaller than {MAX_IMAGE_LEN}")]
+    TooLong,
+}
+
+impl TryFrom<Vec<u8>> for Image {
+    type Error = InvalidImage;
+
+    fn try_from(mut data: Vec<u8>) -> Result<Self, Self::Error> {
+        if data.len() > MAX_IMAGE_LEN {
+            return Err(InvalidImage::TooLong);
+        }
+        data.resize(MAX_IMAGE_LEN, 0);
+        let mut image_array = [0; MAX_IMAGE_LEN];
+        image_array.clone_from_slice(&data[..]);
+        Ok(Image(image_array))
+    }
+}
 
 impl FromStr for Image {
-    type Err = String;
+    type Err = InvalidImage;
 
     fn from_str(image: &str) -> Result<Self, Self::Err> {
         if !image.is_ascii() {
-            Err("process image must be ascii".to_string())
+            Err(InvalidImage::NotAscii)
         } else if image.len() >= MAX_IMAGE_LEN {
-            Err(format!(
-                "process image must be smaller than {MAX_IMAGE_LEN}"
-            ))
+            Err(InvalidImage::TooLong)
         } else {
-            let mut image_vec: Vec<u8> = image.bytes().collect();
-            image_vec.resize(MAX_IMAGE_LEN, 0);
-            let mut image_array = [0; MAX_IMAGE_LEN];
-            image_array.clone_from_slice(&image_vec[..]);
-            Ok(Image(image_array))
+            let data: Vec<u8> = image.bytes().collect();
+            Image::try_from(data)
         }
     }
 }
