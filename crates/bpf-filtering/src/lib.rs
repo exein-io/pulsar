@@ -50,8 +50,8 @@
 //! We should check `procfs` and build a tree of all interesting.
 //! We build the `interesting` map by starting from pid 0 and applying recursively the choices above by checking the process `/proc/{}/exe`.
 
-pub(crate) mod config;
-pub(crate) mod initializer;
+pub mod config;
+pub mod initializer;
 pub(crate) mod maps;
 pub(crate) mod process_tree;
 #[cfg(feature = "test-suite")]

@@ -29,7 +29,7 @@ const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 /// 4. Apply events generated since step 1:
 ///    this makes sure the eBPF code didn't fill map_interest with wrong data
 ///    because of unitialized entries.
-pub(crate) async fn setup_events_filter(
+pub async fn setup_events_filter(
     bpf: &mut Bpf,
     mut config: Config,
     process_tracker: &ProcessTrackerHandle,

@@ -1271,6 +1271,7 @@ dependencies = [
  "anyhow",
  "bpf-builder",
  "bpf-common",
+ "bpf-filtering",
  "cgroups-rs",
  "log",
  "nix 0.26.2",
