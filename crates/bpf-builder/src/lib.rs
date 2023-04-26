@@ -20,6 +20,7 @@ pub fn build(name: &str, source: &str) -> Result<(), Box<dyn std::error::Error>>
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/common.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/buffer.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/output.bpf.h");
+    println!("cargo:rerun-if-changed={INCLUDE_PATH}/interest_tracking.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/loop.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/get_path.bpf.h");
 

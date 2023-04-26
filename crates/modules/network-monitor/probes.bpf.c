@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "buffer.bpf.h"
 #include "common.bpf.h"
+#include "interest_tracking.bpf.h"
 #include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -64,6 +65,8 @@ struct close_event {
 struct arguments {
   void *data[3];
 };
+
+MAP_INTEREST(m_interest, PINNING_ENABLED);
 
 OUTPUT_MAP(events, network_event, {
   struct bind_event bind;
@@ -265,7 +268,7 @@ static __always_inline void on_socket_accept(void *ctx, struct socket *sock,
   // from newsock, we'd get empty data.
   // For this reason, we'll just save the socket pointer and read it when
   // the accept syscall exits.
-  if (interesting_tgid() >= 0) {
+  if (tracker_interesting_tgid(&m_interest) >= 0) {
     struct arguments args = {0};
     args.data[0] = newsock;
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -352,7 +355,7 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
 
 static __always_inline void save_recvmsg_addr(void *ctx,
                                               struct sockaddr *addr) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&m_interest);
   if (tgid < 0)
     return;
   struct arguments args = {0};
@@ -366,7 +369,7 @@ PULSAR_LSM_HOOK(socket_recvmsg, struct socket *, sock, struct msghdr *, msg,
 static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
                                               struct msghdr *msg, int size,
                                               int flags) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&m_interest);
   if (tgid < 0)
     return;
   u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -391,7 +394,7 @@ static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
 }
 
 static __always_inline void do_recvmsg(void *ctx, long ret) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&m_interest);
   if (tgid < 0)
     return;
 
@@ -452,7 +455,7 @@ int tcp_set_state(struct pt_regs *regs) {
   // this function may be called after the process has already exited,
   // so we don't want to log errors in case tgid has already been
   // deleted from map_interest
-  if (!is_interesting(tgid, __func__, false))
+  if (!tracker_is_interesting(&m_interest, tgid, __func__, false, true))
     return 0;
 
   int ret;

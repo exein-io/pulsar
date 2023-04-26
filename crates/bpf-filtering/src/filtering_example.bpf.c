@@ -2,7 +2,7 @@
 #include "interest_tracking.bpf.h"
 
 MAP_RULES(m_rules);
-MAP_INTEREST(m_interest, false);
+MAP_INTEREST(m_interest, PINNING_DISABLED);
 
 SEC("raw_tracepoint/sched_process_fork")
 int BPF_PROG(process_fork, struct task_struct *parent,

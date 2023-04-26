@@ -13,10 +13,10 @@ type Map<K, V> = aya::maps::HashMap<aya::maps::MapData, K, V>;
 pub(crate) struct InterestMap(pub(crate) Map<i32, u8>);
 
 /// Default name for map interest
-pub const DEFAULT_INTEREST: &str = "map_interest";
+pub const DEFAULT_INTEREST: &str = "m_interest";
 
 /// Default name for rules map
-pub const DEFAULT_RULES: &str = "rules";
+pub const DEFAULT_RULES: &str = "m_rules";
 
 impl InterestMap {
     /// Try to load the map from eBPF
@@ -96,9 +96,9 @@ where
 {
     Map::try_from(
         bpf.take_map(name)
-            .with_context(|| format!("Error finding {name}"))?,
+            .with_context(|| format!("Error finding eBPF map {name}"))?,
     )
-    .with_context(|| format!("Error loading {name} as HashMap"))
+    .with_context(|| format!("Error loading eBPF map {name} as HashMap"))
 }
 
 /// Remove all entries from the given eBPF hash map

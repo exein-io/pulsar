@@ -1,11 +1,23 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #pragma once
 
+#include "common.bpf.h"
+
+struct bpf_map_def_aya {
+  unsigned int type;
+  unsigned int key_size;
+  unsigned int value_size;
+  unsigned int max_entries;
+  unsigned int map_flags;
+  // aya extensions:
+  unsigned int id;      // unused
+  unsigned int pinning; // enables pinning
+};
+
 // This header-only library allows to apply eBPF tracing hooks only to some
 // processes.
-// See ./filtering_example.bpf.c for example usage (it's compiled as part of the test suite)
-
-#include "common.bpf.h"
+// See ./filtering_example.bpf.c for example usage (it's compiled as part of the
+// test suite)
 
 #define MAX_IMAGE_LEN 100
 
@@ -19,12 +31,12 @@
 #define RULE_INTEREST 1
 #define RULE_EXTENDS 2
 #define MAP_RULES(map_rules)                                                   \
-  struct bpf_map_def_aya SEC("maps/" #map_rules) map_rules = {                 \
-      .type = BPF_MAP_TYPE_HASH,                                               \
-      .key_size = MAX_IMAGE_LEN,                                               \
-      .value_size = sizeof(u8),                                                \
-      .max_entries = 100,                                                      \
-  };
+  struct {                                                                     \
+    __uint(type, BPF_MAP_TYPE_HASH);                                           \
+    __type(key, char[MAX_IMAGE_LEN]);                                          \
+    __type(value, u8);                                                         \
+    __uint(max_entries, 100);                                                  \
+  } map_rules SEC(".maps");
 
 // Define a map containing the interest for each process on the system.
 // > map_interest[<process pid>] = <INTEREST BITMAP>
@@ -35,6 +47,8 @@
 // 0          1              Don't track the given process and its children
 #define INTEREST_TRACK_SELF 1
 #define INTEREST_TRACK_CHILDREN 2
+#define PINNING_ENABLED 0
+#define PINNING_DISABLED 0
 #define MAP_INTEREST(map_interest, pinning_enabled)                            \
   struct bpf_map_def_aya SEC("maps/" #map_interest) map_interest = {           \
       .type = BPF_MAP_TYPE_HASH,                                               \
@@ -45,8 +59,8 @@
   };
 
 static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
-                                        struct task_struct *parent,
-                                        struct task_struct *child) {
+                                         struct task_struct *parent,
+                                         struct task_struct *child) {
   pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
 
@@ -71,7 +85,7 @@ static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
 
 // Check if the new process filename should result in tracker changes
 static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
-                                                struct bpf_map_def_aya *rules,
+                                                void *rules,
                                                 struct task_struct *p,
                                                 const char *filename) {
   pid_t tgid = BPF_CORE_READ(p, group_leader, pid);
@@ -169,7 +183,6 @@ tracker_is_interesting(struct bpf_map_def_aya *tracker, u32 tgid,
   bool target = *value & INTEREST_TRACK_SELF;
   return target;
 }
-
 
 // Debugging tips
 // --------------

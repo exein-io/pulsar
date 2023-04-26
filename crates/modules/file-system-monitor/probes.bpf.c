@@ -5,6 +5,7 @@
 #include "buffer.bpf.h"
 #include "common.bpf.h"
 #include "get_path.bpf.h"
+#include "interest_tracking.bpf.h"
 char LICENSE[] SEC("license") = "GPL";
 
 #define FILE_CREATED 0
@@ -30,6 +31,8 @@ struct file_rename_event {
   struct buffer_index source;
   struct buffer_index destination;
 };
+
+MAP_INTEREST(m_interest, PINNING_ENABLED);
 
 OUTPUT_MAP(events, fs_event, {
   struct buffer_index created;

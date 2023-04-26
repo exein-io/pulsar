@@ -2,6 +2,7 @@
 #pragma once
 
 #include "buffer.bpf.h"
+#include "interest_tracking.bpf.h"
 
 #define OUTPUT_MAP(map_name, struct_name, variants)                            \
   /* Event struct definition */                                                \
@@ -17,7 +18,7 @@
                                                                                \
   static __always_inline struct struct_name *struct_name##_init(               \
       int event_variant) {                                                     \
-    pid_t tgid = interesting_tgid();                                           \
+    pid_t tgid = tracker_interesting_tgid(&m_interest);                        \
     if (tgid < 0)                                                              \
       return NULL;                                                             \
                                                                                \
