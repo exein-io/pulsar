@@ -1,7 +1,7 @@
 use crate::config::Rule;
 use crate::maps::{InterestMap, PolicyDecision, RuleMap};
 use bpf_common::aya::programs::RawTracePoint;
-use bpf_common::aya::{include_bytes_aligned, Bpf, BpfLoader};
+use bpf_common::aya::{self, include_bytes_aligned, Bpf, BpfLoader};
 use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
 use bpf_common::{ebpf_program, Pid, ProgramError};
@@ -21,6 +21,7 @@ pub fn tests() -> TestSuite {
             exec_updates_interest(),
             threads_are_ignored(),
             exit_cleans_up_resources(),
+            uninteresting_processes_ignored(),
         ],
     }
 }
@@ -175,6 +176,47 @@ fn exec_updates_interest() -> TestCase {
                     report.success = false;
                 }
             }
+        }
+        report
+    })
+}
+
+/// Make sure uninteresting events are not tracked.
+/// This tests the tracker_interesting_tgid function, which should return -1 when
+/// called from processes whose entry in m_interest is not INTEREST_TRACK_SELF.
+fn uninteresting_processes_ignored() -> TestCase {
+    TestCase::new("uninteresting_processes_ignored", async {
+        let mut report = TestReport {
+            success: true,
+            lines: vec![],
+        };
+        let mut bpf = load_ebpf();
+        attach_raw_tracepoint(&mut bpf, "sys_enter");
+
+        let mut interest_map = InterestMap::load(&mut bpf, INTEREST_MAP_NAME).unwrap();
+        interest_map.clear().unwrap();
+
+        let not_interesting = PolicyDecision {
+            interesting: false,
+            children_interesting: false,
+        }
+        .as_raw();
+        let our_pid = std::process::id() as i32;
+        interest_map.0.insert(our_pid, not_interesting, 0).unwrap();
+
+        let mut skipped_map: aya::maps::HashMap<_, i32, u64> = aya::maps::HashMap::try_from(
+            bpf.map_mut("skipped_map")
+                .expect("Error finding eBPF map skipped_map"),
+        )
+        .unwrap();
+        skipped_map.insert(our_pid, 0, 0).unwrap();
+        let skipped_counter = skipped_map.get(&our_pid, 0).unwrap();
+
+        if skipped_counter == 0 {
+            report
+                .lines
+                .push("✗ event for uninteresting process not skipped".to_string());
+            report.success = false;
         }
         report
     })
