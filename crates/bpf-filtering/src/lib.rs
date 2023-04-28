@@ -52,7 +52,7 @@
 
 pub mod config;
 pub mod initializer;
-pub(crate) mod maps;
-pub(crate) mod process_tree;
+pub mod maps;
+pub mod process_tree;
 #[cfg(feature = "test-suite")]
 pub mod test_suite;
