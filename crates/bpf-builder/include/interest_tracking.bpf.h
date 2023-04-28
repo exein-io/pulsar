@@ -47,7 +47,7 @@ struct bpf_map_def_aya {
 // 0          1              Don't track the given process and its children
 #define INTEREST_TRACK_SELF 1
 #define INTEREST_TRACK_CHILDREN 2
-#define PINNING_ENABLED 0
+#define PINNING_ENABLED 1
 #define PINNING_DISABLED 0
 #define MAP_INTEREST(map_interest, pinning_enabled)                            \
   struct bpf_map_def_aya SEC("maps/" #map_interest) map_interest = {           \

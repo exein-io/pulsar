@@ -157,6 +157,7 @@ impl Initializer {
         if decision.interesting {
             log::debug!("tracking {} {}", process.pid, process.image);
         }
+        log::trace!("{}: {}", process.pid, decision.as_raw());
         self.cache.insert(process.pid, decision);
         self.interest_map.set(process.pid, decision)?;
         Ok(())
