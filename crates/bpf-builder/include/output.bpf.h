@@ -34,12 +34,12 @@
   }                                                                            \
                                                                                \
   /* Output map definition */                                                  \
-  struct bpf_map_def_aya SEC("maps/events") map_name = {                       \
-      .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,                                   \
-      .key_size = sizeof(int),                                                 \
-      .value_size = sizeof(u32),                                               \
-      .max_entries = 0,                                                        \
-  };
+  struct {                                                                     \
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);                               \
+    __type(key, int);                                                          \
+    __type(value, u32);                                                        \
+    __uint(max_entries, 0);                                                    \
+  } map_name SEC(".maps");
 
 // The BPF stack limit of 512 bytes is exceeded by network_event,
 // so we use a per-cpu array as a workaround
