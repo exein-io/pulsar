@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-#include "buffer.bpf.h"
+#include "bpf/bpf_core_read.h"
 #include "common.bpf.h"
+
+#include "bpf/bpf_helpers.h"
+#include "buffer.bpf.h"
 #include "get_path.bpf.h"
 #include "interest_tracking.bpf.h"
+#include "loop.bpf.h"
 #include "output.bpf.h"
+#include "vmlinux.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -15,7 +20,8 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define EVENT_CGROUP_RMDIR 5
 #define EVENT_CGROUP_ATTACH 6
 
-#define MAX_ORPHANS 30
+#define MAX_ORPHANS 100
+#define MAX_ORPHANS_UNROLL 30
 
 struct fork_event {
   pid_t ppid;
@@ -165,6 +171,31 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   return 0;
 }
 
+struct append_next_orphan_ctx {
+  struct list_head *next;
+  struct list_head *last;
+  struct pending_dead_process *pending;
+};
+
+// Append to the pending orphans the next child process.
+// Used in the collect_orphans loop.
+static __always_inline long append_next_orphan(u32 i, void *callback_ctx) {
+  struct append_next_orphan_ctx *c = callback_ctx;
+  // Once we find the same element we started at, we know we've
+  // iterated all children and we can exit the loop.
+  if (c->next == c->last) {
+    if (i < MAX_ORPHANS) // satisfy verifier (always true)
+      c->pending->orphans[i] = NULL;
+    return LOOP_STOP;
+  }
+  struct task_struct *task = container_of(c->next, struct task_struct, sibling);
+  if (i < MAX_ORPHANS) // satisfy verifier (always true)
+    c->pending->orphans[i] = task;
+
+  c->next = BPF_CORE_READ(task, sibling.next);
+  return LOOP_CONTINUE;
+}
+
 // When a process exits, we have to add all its children to orphans_map. This
 // will be checked as soon as possibile (the scheduler iteration which happens
 // immediately after an exit syscall) for changes to a process parent.
@@ -175,23 +206,18 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   if (!pending) {
     return;
   }
+  LOG_DEBUG("%d is DEAD (tgid = %d)", p, tgid);
+
   pending->dead_parent = tgid;
   pending->timestamp = bpf_ktime_get_ns();
   // Collect orphans by iterating the dead process children
-  struct list_head *next = BPF_CORE_READ(p, children.next);
-  int i;
-  for (i = 0; i < MAX_ORPHANS; i = i + 1) {
-    // Once we find the same element we started at, we know we've
-    // iterated all children and we can exit the loop.
-    if (next == &p->children) {
-      pending->orphans[i] = NULL;
-      break;
-    }
-    struct task_struct *task = container_of(next, struct task_struct, sibling);
-    pending->orphans[i] = task;
-    LOG_DEBUG("Pending check for new parent of %d ", BPF_CORE_READ(task, pid));
-    next = BPF_CORE_READ(task, sibling.next);
-  }
+  struct append_next_orphan_ctx c;
+  c.next = BPF_CORE_READ(p, children.next);
+  c.last = &p->children;
+  c.pending = pending;
+
+  struct task_struct *task = container_of(c.next, struct task_struct, sibling);
+  LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, append_next_orphan, &c);
 }
 
 // This is attached to tracepoint:sched:sched_process_exit
@@ -235,6 +261,34 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   return 0;
 }
 
+struct check_next_orphan_ctx {
+  void *ctx;
+  struct pending_dead_process *pending;
+};
+
+// Append to the pending orphans the next child process.
+// Used in the collect_orphans loop.
+static __always_inline long check_next_orphan(u32 i, void *callback_ctx) {
+  struct check_next_orphan_ctx *c = callback_ctx;
+  if (i >= MAX_ORPHANS) // satisfy verifier (never true)
+    return LOOP_STOP;
+  struct task_struct *orphan = c->pending->orphans[i];
+  if (orphan == NULL)
+    return LOOP_STOP;
+  struct process_event *event = output_temp();
+  if (!event)
+    return 0;
+  event->event_type = EVENT_CHANGE_PARENT;
+  event->buffer.len = 0;
+  event->timestamp = c->pending->timestamp;
+  event->pid = BPF_CORE_READ(orphan, pid);
+  event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
+  LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
+  output_event(c->ctx, &events, event, sizeof(struct process_event),
+               event->buffer.len);
+  return LOOP_CONTINUE;
+}
+
 /// On task switch, check if there are pending orphans and signal
 /// their parent changed.
 SEC("raw_tracepoint/sched_switch")
@@ -246,24 +300,10 @@ int BPF_PROG(sched_switch) {
     return 0;
   }
   pending->dead_parent = 0;
-  int i;
-  // TODO: use LOOP
-  for (i = 0; i < MAX_ORPHANS; i = i + 1) {
-    struct task_struct *orphan = pending->orphans[i];
-    if (orphan == NULL)
-      break;
-    struct process_event *event = output_temp();
-    if (!event)
-      return 0;
-    event->event_type = EVENT_CHANGE_PARENT;
-    event->buffer.len = 0;
-    event->timestamp = pending->timestamp;
-    event->pid = BPF_CORE_READ(orphan, pid);
-    event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
-    LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
-    output_event(ctx, &events, event, sizeof(struct process_event),
-                 event->buffer.len);
-  }
+  struct check_next_orphan_ctx c;
+  c.pending = pending;
+  c.ctx = ctx;
+  LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, check_next_orphan, &c);
   return 0;
 }
 
