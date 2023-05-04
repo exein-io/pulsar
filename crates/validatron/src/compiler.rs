@@ -1,11 +1,11 @@
-use crate::{parser, ValidatronError, ValidatronVariant};
+use crate::{validator, Condition, Validatron, ValidatronError};
 
-pub struct CompiledRule<T: ValidatronVariant + 'static> {
+pub struct CompiledRule<T: Validatron + 'static> {
     pub name: String,
     pub condition: CompiledCondition<T>,
 }
 
-impl<T: ValidatronVariant> CompiledRule<T> {
+impl<T: Validatron> CompiledRule<T> {
     pub fn is_match(&self, e: &T) -> bool {
         (self.condition.0)(e)
     }
@@ -13,54 +13,45 @@ impl<T: ValidatronVariant> CompiledRule<T> {
 
 pub struct CompiledCondition<T>(pub(crate) Box<dyn Fn(&T) -> bool + Send + Sync>);
 
-pub fn validate_condition<T: ValidatronVariant>(
-    condition: parser::Condition,
-    variant: &str,
-) -> Result<(usize, ValidatedCondition<T>), ValidatronError> {
+pub fn validate_condition<T: Validatron + 'static>(
+    condition: Condition,
+) -> Result<ValidatedCondition<T>, ValidatronError> {
     match condition {
-        parser::Condition::And { l, r } => {
-            let (ul, l) = validate_condition(*l, variant)?;
-            let (ur, r) = validate_condition(*r, variant)?;
-            assert_eq!(ul, ur);
-            Ok((
-                ul,
-                ValidatedCondition::And {
-                    l: Box::new(l),
-                    r: Box::new(r),
-                },
-            ))
+        Condition::And { l, r } => {
+            let l = validate_condition(*l)?;
+            let r = validate_condition(*r)?;
+
+            Ok(ValidatedCondition::And {
+                l: Box::new(l),
+                r: Box::new(r),
+            })
         }
-        parser::Condition::Or { l, r } => {
-            let (ul, l) = validate_condition(*l, variant)?;
-            let (ur, r) = validate_condition(*r, variant)?;
-            assert_eq!(ul, ur);
-            Ok((
-                ul,
-                ValidatedCondition::Or {
-                    l: Box::new(l),
-                    r: Box::new(r),
-                },
-            ))
+        Condition::Or { l, r } => {
+            let l = validate_condition(*l)?;
+            let r = validate_condition(*r)?;
+
+            Ok(ValidatedCondition::Or {
+                l: Box::new(l),
+                r: Box::new(r),
+            })
         }
 
-        parser::Condition::Not { inner } => {
-            let (u, vc) = validate_condition(*inner, variant)?;
-            Ok((
-                u,
-                ValidatedCondition::Not {
-                    inner: Box::new(vc),
-                },
-            ))
+        Condition::Not { inner } => {
+            let vc = validate_condition(*inner)?;
+            Ok(ValidatedCondition::Not {
+                inner: Box::new(vc),
+            })
         }
-        parser::Condition::Base { field, op, value } => {
-            let (var_num, validated_field_fn) =
-                ValidatronVariant::validate(variant, &field, op, &value)?;
-            Ok((
-                var_num,
-                ValidatedCondition::Base {
-                    inner: validated_field_fn,
-                },
-            ))
+        Condition::Base {
+            field_path,
+            op,
+            value,
+        } => {
+            let validated_field_fn = validator::get_valid_rule::<T>(field_path, op, value)?;
+
+            Ok(ValidatedCondition::Base {
+                inner: validated_field_fn.rule_fn,
+            })
         }
     }
 }

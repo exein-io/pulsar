@@ -12,7 +12,7 @@ use tokio::sync::{
     broadcast::{self, error::RecvError},
     mpsc,
 };
-use validatron::{Primitive, ValidatronTypeProvider};
+use validatron::Validatron;
 
 use super::{
     process_tracker::{ProcessInfo, ProcessTrackerHandle},
@@ -82,11 +82,11 @@ impl fmt::Display for ModuleName {
     }
 }
 
-impl ValidatronTypeProvider for ModuleName {
-    fn field_type() -> validatron::ValidatronType<Self> {
-        validatron::ValidatronType::Primitive(Primitive {
-            parse_fn: Box::new(|s| Ok(ModuleName(Cow::Owned(s.to_string())))),
-            handle_op_fn: Box::new(|op| match op {
+impl Validatron for ModuleName {
+    fn get_class() -> validatron::ValidatronClass {
+        Self::class_builder().primitive(
+            Box::new(|s| Ok(ModuleName(Cow::Owned(s.to_string())))),
+            Box::new(|op| match op {
                 validatron::Operator::String(op) => match op {
                     validatron::StringOperator::StartsWith => {
                         Ok(Box::new(|a, b| a.0.as_ref().starts_with(b.0.as_ref())))
@@ -101,7 +101,7 @@ impl ValidatronTypeProvider for ModuleName {
                     "ModuleName".to_string(),
                 )),
             }),
-        })
+        )
     }
 }
 

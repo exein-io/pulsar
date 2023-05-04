@@ -9,10 +9,14 @@ repository.workspace = true
 validatron = { path = "../../validatron" }
 pulsar-core = { path = "../../pulsar-core" }
 
-log = "0.4"
+log = "0.4.17"
 anyhow = "1"
 tokio = "1.15.0"
-glob = "0.3.0"
-thiserror = "1"
-serde_yaml = "0.8"
-serde = { version = "1", features = ["derive"] }
+glob = "0.3.1"
+thiserror = "1.0.40"
+serde = { version = "1.0.160", features = ["derive"] }
+serde_yaml = "0.9.21"
+lalrpop-util = { version="0.19.9", features=["lexer"] }
+
+[build-dependencies]
+lalrpop = "0.19.9"
