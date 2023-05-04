@@ -97,3 +97,7 @@
 - name: Linux Kernel Module Injection Detected
   type: Exec
   condition: payload.filename ENDS_WITH "/modprobe" AND NOT payload.argv CONTAINS "-r"
+
+- name: Executable deleted itself
+  type: FileDeleted
+  condition: payload.filename == header.image

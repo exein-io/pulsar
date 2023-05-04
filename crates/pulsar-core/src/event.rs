@@ -5,17 +5,14 @@ use std::{
 };
 
 use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
-use validatron::{
-    Operator, Primitive, ValidatronError, ValidatronStruct, ValidatronTypeProvider,
-    ValidatronVariant,
-};
+use validatron::{Operator, Validatron, ValidatronError};
 
 use crate::{
     kernel::{self},
     pdk::ModuleName,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 pub struct Event {
     pub(crate) header: Header,
     pub(crate) payload: Payload,
@@ -31,52 +28,7 @@ impl Event {
     }
 }
 
-impl ValidatronVariant for Event {
-    fn validate(
-        variant: &str,
-        field_compare: &validatron::Field,
-        op: validatron::Operator,
-        value: &str,
-    ) -> Result<(usize, Box<dyn Fn(&Self) -> bool + Send + Sync>), validatron::ValidatronError>
-    {
-        match field_compare {
-            validatron::Field::Simple(s) => {
-                Err(validatron::ValidatronError::FieldNotSimple(s.to_string()))
-            }
-            validatron::Field::Struct { name, inner_field } => match name.as_str() {
-                "header" => {
-                    let var_num = Payload::var_num_of(variant)?;
-                    let validated_struct = validatron::process_struct(
-                        inner_field,
-                        |event: &Self| &event.header,
-                        op,
-                        value,
-                    );
-                    validated_struct.map(|vc| (var_num, vc))
-                }
-
-                "payload" => validatron::process_variant(
-                    variant,
-                    inner_field,
-                    |event: &Self| &event.payload,
-                    op,
-                    value,
-                ),
-                _ => Err(validatron::ValidatronError::FieldNotFound(name.clone())),
-            },
-        }
-    }
-
-    fn var_num(&self) -> usize {
-        self.payload.var_num()
-    }
-
-    fn var_num_of(variant: &str) -> Result<usize, validatron::ValidatronError> {
-        Payload::var_num_of(variant)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ValidatronStruct)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 pub struct Header {
     pub image: String,
     pub pid: i32,
@@ -167,7 +119,7 @@ impl<T: Into<toml_edit::easy::Value>> From<T> for Value {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ValidatronVariant)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 #[serde(tag = "type", content = "content")]
 pub enum Payload {
     FileCreated {
@@ -275,6 +227,7 @@ pub enum Payload {
         #[validatron(skip)]
         value: Value,
     },
+    #[validatron(skip)]
     Empty,
 }
 
@@ -323,7 +276,7 @@ impl fmt::Display for Payload {
 }
 
 /// Encapsulates IP and port.
-#[derive(Debug, Clone, Serialize, Deserialize, ValidatronStruct, ValidatronTypeProvider)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 pub struct Host {
     pub ip: IpAddr,
     pub port: u16,
@@ -407,10 +360,10 @@ impl FileFlags {
     ];
 }
 
-impl ValidatronTypeProvider for FileFlags {
-    fn field_type() -> validatron::ValidatronType<Self> {
-        validatron::ValidatronType::Primitive(Primitive {
-            parse_fn: Box::new(|s| {
+impl Validatron for FileFlags {
+    fn get_class() -> validatron::ValidatronClass {
+        Self::class_builder().primitive(
+            Box::new(|s| {
                 FileFlags::ACC_MODE_FLAGS
                     .iter()
                     .chain(FileFlags::OTHER_FLAGS.iter())
@@ -418,7 +371,7 @@ impl ValidatronTypeProvider for FileFlags {
                     .map(|(_, flag)| Self(*flag))
                     .ok_or_else(|| ValidatronError::FieldValueParseError(s.to_string()))
             }),
-            handle_op_fn: Box::new(|op| match op {
+            Box::new(|op| match op {
                 Operator::Multi(op) => match op {
                     validatron::MultiOperator::Contains => Ok(Box::new(|a, b| {
                         if FileFlags::ACC_MODE_FLAGS
@@ -437,7 +390,7 @@ impl ValidatronTypeProvider for FileFlags {
                     "FileFlags".to_string(),
                 )),
             }),
-        })
+        )
     }
 }
 
@@ -487,11 +440,11 @@ impl From<Vec<String>> for Argv {
     }
 }
 
-impl ValidatronTypeProvider for Argv {
-    fn field_type() -> validatron::ValidatronType<Self> {
-        validatron::ValidatronType::Primitive(Primitive {
-            parse_fn: Box::new(|s| Ok(Argv(vec![s.to_string()]))),
-            handle_op_fn: Box::new(|op| match op {
+impl Validatron for Argv {
+    fn get_class() -> validatron::ValidatronClass {
+        Self::class_builder().primitive(
+            Box::new(|s| Ok(Argv(vec![s.to_string()]))),
+            Box::new(|op| match op {
                 Operator::Multi(op) => match op {
                     validatron::MultiOperator::Contains => {
                         Ok(Box::new(|a, b| b.0.iter().all(|item| a.0.contains(item))))
@@ -502,7 +455,7 @@ impl ValidatronTypeProvider for Argv {
                     "Argv".to_string(),
                 )),
             }),
-        })
+        )
     }
 }
 

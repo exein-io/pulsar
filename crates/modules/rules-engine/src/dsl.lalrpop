@@ -1,10 +1,9 @@
-use std::str::FromStr;
-use crate::{Operator, Condition, Field, RelationalOperator, StringOperator, MultiOperator};
-
+use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, Match, Field, Condition};
 use lalrpop_util::ParseError;
-use super::DslError;
 
-grammar;
+use super::{DslError};
+
+grammar(variant: &str);
 
 pub Condition: Condition = {
     <l:Condition> "AND" <r:SignedCondition> => Condition::And{l: Box::new(l), r: Box::new(r)},
@@ -18,18 +17,23 @@ SignedCondition: Condition = {
 }
 
 BaseCondition: Condition = {
-    <f: Field> <op: Operator> <value: Value> => Condition::Base {
-        field: f,
+    <f: FieldPath> <op: Operator> <value: Value> => Condition::Base {
+        field_path: f,
         op,
-        value
+        value: Match::Value(value)
     },
-    <f: Field> "IN" <list: ValueList> =>? {
+    <f: FieldPath> <op: Operator> <value: FieldPath> => Condition::Base {
+        field_path: f,
+        op,
+        value: Match::Field(value)
+    },
+    <f: FieldPath> "IN" <list: ValueList> =>? {
         let mut iterator = list.into_iter();
 
         let first = Condition::Base {
-            field: f.clone(),
+            field_path: f.clone(),
             op: Operator::Relational(RelationalOperator::Equals),
-            value: iterator.next().ok_or(ParseError::User {
+            value: iterator.next().map(|x| Match::Value(x)).ok_or(ParseError::User {
                 error: DslError::EmptyList
             })?
         };
@@ -38,9 +42,9 @@ BaseCondition: Condition = {
             Condition::Or {
                 l: Box::new(acc),
                 r: Box::new(Condition::Base {
-                    field: f.clone(),
+                    field_path: f.clone(),
                     op: Operator::Relational(RelationalOperator::Equals),
-                    value: x
+                    value: Match::Value(x)
                 })
             }
         });
@@ -84,14 +88,34 @@ Operator: Operator = {
     "CONTAINS" => Operator::Multi(MultiOperator::Contains),
 }
 
-Field: Field = {
-    <s: r"[a-zA-Z]\w+[\.[a-zA-Z]\w+]*"> =>? Field::from_str(<>)
-        .map_err(|err| ParseError::User {
-            error: DslError::Field {
-                field: <>.to_string(),
-                cause: err.to_string()
+FieldPath: Vec<Field> = {
+    <Dot<Ident>> => {
+        let mut payload_subpath = false;
+        <>.into_iter().enumerate().map(|(index,value)| {
+            if index == 0 && value == "payload" {
+                payload_subpath = true;
             }
-        })
+            if index == 1 && payload_subpath {
+                Field::Adt{variant_name: variant.to_string(), field_name: value}
+            } else {
+               Field::Simple { field_name: value }
+            }  
+        }).collect()
+    }
+}
+
+Dot<T>: Vec<T> = {
+    <mut v:(<T> ".")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+}
+
+Ident: String = {
+    <s: r"[a-zA-Z]+\w*"> => <>.to_string()
 }
 
 extern {
