@@ -15,6 +15,7 @@ test-suite = [
 
 [dependencies]
 bpf-common = { path = "../../bpf-common" }
+bpf-filtering = { path = "../../bpf-filtering" }
 pulsar-core = { path = "../../pulsar-core" }
 
 tokio = { version = "1", features = ["full"] }

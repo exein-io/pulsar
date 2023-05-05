@@ -37,19 +37,12 @@
 //!   - on fork we set `interesting[child pid] = interesting[parent pid].children_interesting`
 //! - It's consulted by every other probe before executing
 //!
-//! **`whitelist: HasMap<Image, bool>`**
-//! - Contains the whitelist images and weather the "whitelist" status extends to children
+//! **`rules: HasMap<Image, (track: bool, extend_to_children: bool)>`**
+//! - Contains the target/whitelist images and weather the rule extends to children
 //! - Generated and updated by userspace.
 //! - It's consulted by `process_monitor` on `exec` to check if we should update something
-//!   - If exec image is in whitelist we set `interesting[my pid].interesting = false`
-//!   - if exec image is in whitelist and extended to children, we set `interesting[my pid].children_interesting = false`
-//!
-//! **`targets: HasMap<Image, bool>`**
-//! - Contains the target images and weather the "target" status extends to children
-//! - Generated and updated by userspace.
-//! - It's consulted by `process_monitor` on `exec` to check if we should update something
-//!   - If exec image is in target we set `interesting[my pid].interesting = true`
-//!   - if exec image is in whitelist and extended to children, we set `interesting[my pid].children_interesting = true`
+//!   - If exec image is in target/whitelist we set `interesting[my pid].interesting = track`
+//!   - if exec image is in target/whitelist and extended to children, we set `interesting[my pid].children_interesting = track`
 //!
 //! ## Startup procedure
 //!
@@ -57,7 +50,9 @@
 //! We should check `procfs` and build a tree of all interesting.
 //! We build the `interesting` map by starting from pid 0 and applying recursively the choices above by checking the process `/proc/{}/exe`.
 
-pub(crate) mod config;
-pub(crate) mod initializer;
-pub(crate) mod maps;
-pub(crate) mod process_tree;
+pub mod config;
+pub mod initializer;
+pub mod maps;
+pub mod process_tree;
+#[cfg(feature = "test-suite")]
+pub mod test_suite;

@@ -81,7 +81,7 @@ impl ModuleManager {
             match result {
                 Ok(_) => {
                     log::error!(
-                        "Error in module {}: {err}. Module stopped",
+                        "Error in module {}. Module stopped. {err:?}",
                         self.task_launcher.name()
                     );
 
