@@ -74,7 +74,7 @@ fn inherit_policy() -> TestCase {
                 }
                 .as_raw();
                 let pid = std::process::id() as i32;
-                interest_map.0.insert(pid, parent_value, 0).unwrap();
+                interest_map.0.map.insert(pid, parent_value, 0).unwrap();
             }
 
             // fork the child
@@ -86,7 +86,7 @@ fn inherit_policy() -> TestCase {
                 children_interesting: interest_in_child,
             }
             .as_raw();
-            let actual_interest = interest_map.0.get(&child_pid, 0).ok();
+            let actual_interest = interest_map.0.map.get(&child_pid, 0).ok();
             if Some(expected_interest) != actual_interest {
                 report.lines.push(format!(
                     "expecting {child_pid}={expected_interest} (was {actual_interest:?})"
@@ -143,7 +143,7 @@ fn exec_updates_interest() -> TestCase {
                     }
                     .as_raw();
                     let pid = std::process::id() as i32;
-                    interest_map_ref.0.insert(pid, old_value, 0).unwrap();
+                    interest_map_ref.0.map.insert(pid, old_value, 0).unwrap();
                     let exec_binary = CString::new(image.as_str()).unwrap();
                     execv(
                         &exec_binary,
@@ -165,7 +165,7 @@ fn exec_updates_interest() -> TestCase {
                     },
                 }
                 .as_raw();
-                let actual_interest = interest_map.0.get(&child_pid, 0).unwrap();
+                let actual_interest = interest_map.0.map.get(&child_pid, 0).unwrap();
                 if expected_interest != actual_interest {
                     report
                         .lines
@@ -202,7 +202,11 @@ fn uninteresting_processes_ignored() -> TestCase {
         }
         .as_raw();
         let our_pid = std::process::id() as i32;
-        interest_map.0.insert(our_pid, not_interesting, 0).unwrap();
+        interest_map
+            .0
+            .map
+            .insert(our_pid, not_interesting, 0)
+            .unwrap();
 
         let mut skipped_map: aya::maps::HashMap<_, i32, u64> = aya::maps::HashMap::try_from(
             bpf.map_mut("skipped_map")
@@ -257,7 +261,7 @@ fn threads_are_ignored() -> TestCase {
         };
 
         // make sure we've not created an interest entry for it
-        if interest_map.0.get(&child_thread, 0).is_ok() {
+        if interest_map.0.map.get(&child_thread, 0).is_ok() {
             report.success = false;
             report
                 .lines
@@ -265,7 +269,7 @@ fn threads_are_ignored() -> TestCase {
         }
         // make sure we've not overridden the parent interest
         // with the child one.
-        if interest_map.0.get(&our_pid, 0).is_ok() {
+        if interest_map.0.map.get(&our_pid, 0).is_ok() {
             report.success = false;
             report
                 .lines
@@ -287,14 +291,14 @@ fn exit_cleans_up_resources() -> TestCase {
         let interest_map_ref = &mut interest_map;
         let child_pid = fork_and_run(move || {
             let pid = std::process::id() as i32;
-            interest_map_ref.0.insert(pid, 0, 0).unwrap();
+            interest_map_ref.0.map.insert(pid, 0, 0).unwrap();
             std::process::exit(0);
         })
         .as_raw();
 
         // make sure exit hook deleted it
         TestReport {
-            success: interest_map.0.get(&child_pid, 0).is_err(),
+            success: interest_map.0.map.get(&child_pid, 0).is_err(),
             lines: vec![format!(
                 "exit should have deleted PID {child_pid} from map_interest"
             )],
