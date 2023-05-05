@@ -32,7 +32,7 @@ struct file_rename_event {
   struct buffer_index destination;
 };
 
-MAP_INTEREST(m_interest, PINNING_ENABLED);
+GLOBAL_INTEREST_MAP_DECLARATION;
 
 OUTPUT_MAP(events, fs_event, {
   struct buffer_index created;
@@ -62,7 +62,7 @@ PULSAR_LSM_HOOK(path_mknod, struct path *, dir, struct dentry *, dentry,
 static __always_inline void on_path_mknod(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode,
                                           unsigned int dev) {
-  struct fs_event *event = fs_event_init(FILE_CREATED);
+  struct fs_event *event = fs_event_init(FILE_CREATED, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path path = make_path(dentry, dir);
@@ -73,7 +73,7 @@ static __always_inline void on_path_mknod(void *ctx, struct path *dir,
 PULSAR_LSM_HOOK(path_unlink, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_unlink(void *ctx, struct path *dir,
                                            struct dentry *dentry) {
-  struct fs_event *event = fs_event_init(FILE_DELETED);
+  struct fs_event *event = fs_event_init(FILE_DELETED, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path path = make_path(dentry, dir);
@@ -83,7 +83,7 @@ static __always_inline void on_path_unlink(void *ctx, struct path *dir,
 
 PULSAR_LSM_HOOK(file_open, struct file *, file);
 static __always_inline void on_file_open(void *ctx, struct file *file) {
-  struct fs_event *event = fs_event_init(FILE_OPENED);
+  struct fs_event *event = fs_event_init(FILE_OPENED, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path path = BPF_CORE_READ(file, f_path);
@@ -97,7 +97,7 @@ PULSAR_LSM_HOOK(path_link, struct dentry *, old_dentry, struct path *, new_dir,
 static __always_inline void on_path_link(void *ctx, struct dentry *old_dentry,
                                          struct path *new_dir,
                                          struct dentry *new_dentry) {
-  struct fs_event *event = fs_event_init(FILE_LINK);
+  struct fs_event *event = fs_event_init(FILE_LINK, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path source = make_path(new_dentry, new_dir);
@@ -113,7 +113,7 @@ PULSAR_LSM_HOOK(path_symlink, struct path *, dir, struct dentry *, dentry,
 static __always_inline void on_path_symlink(void *ctx, struct path *dir,
                                             struct dentry *dentry,
                                             char *old_name) {
-  struct fs_event *event = fs_event_init(FILE_LINK);
+  struct fs_event *event = fs_event_init(FILE_LINK, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path path = make_path(dentry, dir);
@@ -129,7 +129,7 @@ PULSAR_LSM_HOOK(path_mkdir, struct path *, dir, struct dentry *, dentry,
                 umode_t, mode);
 static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
                                           struct dentry *dentry, umode_t mode) {
-  struct fs_event *event = fs_event_init(DIR_CREATED);
+  struct fs_event *event = fs_event_init(DIR_CREATED, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path path = make_path(dentry, dir);
@@ -140,7 +140,7 @@ static __always_inline void on_path_mkdir(void *ctx, struct path *dir,
 PULSAR_LSM_HOOK(path_rmdir, struct path *, dir, struct dentry *, dentry);
 static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
                                           struct dentry *dentry) {
-  struct fs_event *event = fs_event_init(DIR_DELETED);
+  struct fs_event *event = fs_event_init(DIR_DELETED, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path path = make_path(dentry, dir);
@@ -155,7 +155,7 @@ static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
                                            struct dentry *old_dentry,
                                            struct path *new_dir,
                                            struct dentry *new_dentry) {
-  struct fs_event *event = fs_event_init(FILE_RENAME);
+  struct fs_event *event = fs_event_init(FILE_RENAME, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct path source = make_path(old_dentry, old_dir);

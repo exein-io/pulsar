@@ -23,11 +23,11 @@ struct bpf_map_def_aya {
 
 // Define a map containing the rules for deciding what is of interest.
 // > map_rules["/usr/bin/process"] = <RULE BITMAP>
-// RULE_INTEREST RULE_EXTENDS Description
-// 1             0            Track the given process
-// 1             1            Track the given process and its children
-// 0             0            Don't track the given process
-// 0             1            Don't track the given process and its children
+// RULE_EXTENDS RULE_INTEREST Description
+// 0            1             Track the given process
+// 1            1             Track the given process and its children
+// 0            0             Don't track the given process
+// 1            0             Don't track the given process and its children
 #define RULE_INTEREST 1
 #define RULE_EXTENDS 2
 #define MAP_RULES(map_rules)                                                   \
@@ -40,11 +40,11 @@ struct bpf_map_def_aya {
 
 // Define a map containing the interest for each process on the system.
 // > map_interest[<process pid>] = <INTEREST BITMAP>
-// TRACK_SELF TRACK_CHILDREN Description
-// 1          0              Track the given process but not its children
-// 1          1              Track the given process and its children
-// 0          0              Don't track the given process
-// 0          1              Don't track the given process and its children
+// TRACK_CHILDREN TRACK_SELF Description
+// 0              1          Track the given process, but not its children
+// 1              1          Track the given process and its children
+// 0              0          Don't track the given process and its children
+// 1              0          Track only the children, not the process itself
 #define INTEREST_TRACK_SELF 1
 #define INTEREST_TRACK_CHILDREN 2
 #define PINNING_ENABLED 1
@@ -57,6 +57,12 @@ struct bpf_map_def_aya {
       .max_entries = 16384,                                                    \
       .pinning = pinning_enabled,                                              \
   };
+// By default, all probes should use the global "m_interest" map,
+// which is managed by process-monitor
+#define GLOBAL_INTEREST_MAP m_interest
+// Declare the global map
+#define GLOBAL_INTEREST_MAP_DECLARATION                                        \
+  MAP_INTEREST(GLOBAL_INTEREST_MAP, PINNING_ENABLED)
 
 static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
                                          struct task_struct *parent,

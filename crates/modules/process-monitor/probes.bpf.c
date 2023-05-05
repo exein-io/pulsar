@@ -47,7 +47,7 @@ struct cgroup_attach_event {
   u64 id;
 };
 
-MAP_INTEREST(m_interest, PINNING_ENABLED);
+GLOBAL_INTEREST_MAP_DECLARATION;
 MAP_RULES(m_rules);
 
 OUTPUT_MAP(events, process_event, {
@@ -93,7 +93,7 @@ int BPF_PROG(process_fork, struct task_struct *parent,
     return 0;
   }
   // Propagate whitelist to child
-  tracker_fork(&m_interest, parent, child);
+  tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
   struct process_event *event = output_temp();
@@ -148,7 +148,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   char *image = (char *)&event->buffer.buffer;
 
   // Check target and whitelist
-  tracker_check_rules(&m_interest, &m_rules, p, image);
+  tracker_check_rules(&GLOBAL_INTEREST_MAP, &m_rules, p, image);
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
@@ -208,7 +208,7 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   }
 
   // cleanup resources from map_interest
-  if (!tracker_remove(&m_interest, p)) {
+  if (!tracker_remove(&GLOBAL_INTEREST_MAP, p)) {
     LOG_DEBUG("%d not found in map_interest during exit", tgid);
     // Multiple threads may exit at the same time, causing the check above
     // to pass multiple times. Since we want to generate only one event,
@@ -269,7 +269,7 @@ int BPF_PROG(sched_switch) {
 
 SEC("raw_tracepoint/cgroup_mkdir")
 int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path) {
-  pid_t tgid = tracker_interesting_tgid(&m_interest);
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
   struct process_event *event = output_temp();
@@ -290,7 +290,7 @@ int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path) {
 
 SEC("raw_tracepoint/cgroup_rmdir")
 int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
-  pid_t tgid = tracker_interesting_tgid(&m_interest);
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
   struct process_event *event = output_temp();
@@ -312,7 +312,7 @@ int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
 SEC("raw_tracepoint/cgroup_attach_task")
 int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
              struct task_struct *task) {
-  pid_t tgid = tracker_interesting_tgid(&m_interest);
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
   struct process_event *event = output_temp();
