@@ -22,6 +22,7 @@ pub struct ProcessTrackerHandle {
 enum TrackerRequest {
     GetProcessInfo(InfoRequest),
     UpdateProcess(TrackerUpdate),
+    IsDescendantOf(DescendantRequest),
 }
 
 #[derive(Debug)]
@@ -46,11 +47,16 @@ pub enum TrackerUpdate {
         timestamp: Timestamp,
     },
 }
-
 struct InfoRequest {
     pid: Pid,
     ts: Timestamp,
     tx_reply: oneshot::Sender<Result<ProcessInfo, TrackerError>>,
+}
+
+struct DescendantRequest {
+    pid: Pid,
+    image: String,
+    tx_reply: oneshot::Sender<Result<bool, TrackerError>>,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -88,6 +94,19 @@ impl ProcessTrackerHandle {
     pub fn update(&self, request: TrackerUpdate) {
         let r = self.tx.send(TrackerRequest::UpdateProcess(request));
         assert!(r.is_ok());
+    }
+
+    pub async fn is_descendant_of(&self, pid: Pid, image: String) -> Result<bool, TrackerError> {
+        let (tx_reply, rx_reply) = oneshot::channel();
+        let r = self
+            .tx
+            .send(TrackerRequest::IsDescendantOf(DescendantRequest {
+                pid,
+                image,
+                tx_reply,
+            }));
+        assert!(r.is_ok());
+        rx_reply.await.unwrap()
     }
 }
 
@@ -191,6 +210,21 @@ impl ProcessTracker {
                     }
                     x => {
                         let _ = info_request.tx_reply.send(x);
+                    }
+                }
+            }
+            TrackerRequest::IsDescendantOf(descendant_request) => {
+                let r = self.is_descendant_of(descendant_request.pid, &descendant_request.image);
+                match r {
+                    Err(TrackerError::ProcessNotFound) => {
+                        log::warn!(
+                            "Error in the descendant request for {} with image {}",
+                            descendant_request.pid,
+                            descendant_request.image
+                        );
+                    }
+                    x => {
+                        let _ = descendant_request.tx_reply.send(x);
                     }
                 }
             }
@@ -348,6 +382,42 @@ impl ProcessTracker {
                 self.pending_requests.push((deadline, req));
             }
         });
+    }
+
+    /// Check if a PID is descendant of a target image
+    fn is_descendant_of(&self, pid: Pid, target_image: &str) -> Result<bool, TrackerError> {
+        let mut process = match self.data.get(&pid) {
+            Some(p) => p,
+            None => return Err(TrackerError::ProcessNotFound),
+        };
+
+        // First, check if the process itself is the target image
+        if process.original_image.eq(target_image)
+            || process
+                .exec_changes
+                .values()
+                .any(|image| image.eq(target_image))
+        {
+            return Ok(true);
+        }
+
+        // Loop through the parent processes until we find the target image
+        // Exit if we reach the root process
+        while process.ppid != Pid::from_raw(0) {
+            if process.original_image.eq(target_image)
+                || process
+                    .exec_changes
+                    .values()
+                    .any(|image| image.eq(target_image))
+            {
+                return Ok(true);
+            }
+            process = self
+                .data
+                .get(&process.ppid)
+                .ok_or(TrackerError::ProcessNotFound)?;
+        }
+        Ok(false)
     }
 }
 
