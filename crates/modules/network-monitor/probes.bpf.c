@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "buffer.bpf.h"
 #include "common.bpf.h"
+#include "interest_tracking.bpf.h"
 #include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -64,6 +65,8 @@ struct close_event {
 struct arguments {
   void *data[3];
 };
+
+GLOBAL_INTEREST_MAP_DECLARATION;
 
 OUTPUT_MAP(events, network_event, {
   struct bind_event bind;
@@ -217,7 +220,8 @@ PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
                 int, addrlen);
 void __always_inline on_socket_bind(void *ctx, struct socket *sock,
                                     struct sockaddr *address, int addrlen) {
-  struct network_event *event = network_event_init(EVENT_BIND);
+  struct network_event *event =
+      network_event_init(EVENT_BIND, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   copy_sockaddr(address, &event->bind.addr, false);
@@ -230,7 +234,8 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
 PULSAR_LSM_HOOK(socket_listen, struct socket *, sock, int, backlog);
 void __always_inline on_socket_listen(void *ctx, struct socket *sock,
                                       int backlog) {
-  struct network_event *event = network_event_init(EVENT_LISTEN);
+  struct network_event *event =
+      network_event_init(EVENT_LISTEN, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct sock *sk = BPF_CORE_READ(sock, sk);
@@ -245,7 +250,8 @@ PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
 static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
                                               struct sockaddr *address,
                                               int addrlen) {
-  struct network_event *event = network_event_init(EVENT_CONNECT);
+  struct network_event *event =
+      network_event_init(EVENT_CONNECT, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   event->timestamp = bpf_ktime_get_ns();
@@ -265,7 +271,7 @@ static __always_inline void on_socket_accept(void *ctx, struct socket *sock,
   // from newsock, we'd get empty data.
   // For this reason, we'll just save the socket pointer and read it when
   // the accept syscall exits.
-  if (interesting_tgid() >= 0) {
+  if (tracker_interesting_tgid(&GLOBAL_INTEREST_MAP) >= 0) {
     struct arguments args = {0};
     args.data[0] = newsock;
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -291,7 +297,8 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
   }
 
   // Emit event
-  struct network_event *event = network_event_init(EVENT_ACCEPT);
+  struct network_event *event =
+      network_event_init(EVENT_ACCEPT, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   struct sock *sk = BPF_CORE_READ(sock, sk);
@@ -331,7 +338,8 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
   u16 proto = get_sock_protocol(sk);
   void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
 
-  struct network_event *event = network_event_init(EVENT_SEND);
+  struct network_event *event =
+      network_event_init(EVENT_SEND, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
   event->send.proto = proto;
@@ -352,7 +360,7 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
 
 static __always_inline void save_recvmsg_addr(void *ctx,
                                               struct sockaddr *addr) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
   struct arguments args = {0};
@@ -366,7 +374,7 @@ PULSAR_LSM_HOOK(socket_recvmsg, struct socket *, sock, struct msghdr *, msg,
 static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
                                               struct msghdr *msg, int size,
                                               int flags) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
   u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -391,7 +399,7 @@ static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
 }
 
 static __always_inline void do_recvmsg(void *ctx, long ret) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
 
@@ -405,7 +413,8 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
   struct sock *sk = (struct sock *)args->data[0];
   void *iov_base = (void *)args->data[1];
 
-  struct network_event *event = network_event_init(EVENT_RECV);
+  struct network_event *event =
+      network_event_init(EVENT_RECV, &GLOBAL_INTEREST_MAP);
   if (!event)
     return;
 
@@ -452,7 +461,8 @@ int tcp_set_state(struct pt_regs *regs) {
   // this function may be called after the process has already exited,
   // so we don't want to log errors in case tgid has already been
   // deleted from map_interest
-  if (!is_interesting(tgid, __func__, false))
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, false,
+                              true))
     return 0;
 
   int ret;
@@ -485,7 +495,8 @@ int tcp_set_state(struct pt_regs *regs) {
   short ipver = family == AF_INET ? 4 : 6;
   u32 key = 0;
 
-  struct network_event *event = network_event_init(EVENT_CLOSE);
+  struct network_event *event =
+      network_event_init(EVENT_CLOSE, &GLOBAL_INTEREST_MAP);
   if (!event)
     return 0;
   event->close.original_pid = original_pid;

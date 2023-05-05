@@ -57,6 +57,7 @@ members = [
     "crates/bpf-builder",
     "crates/engine-api",
     "crates/validatron",
+    "crates/bpf-filtering",
     "xtask",
     "test-suite",
 ]

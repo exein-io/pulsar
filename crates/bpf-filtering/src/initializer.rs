@@ -19,7 +19,7 @@ const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// Setup maps and process tracker by reading from procfs.
 ///
-/// In order not to loose anything, this strategy is used:
+/// In order not to lose anything, this strategy is used:
 /// 1. Start process-tracker eBPF
 /// 2. Setup targets and whitelist map:
 ///    eBPF code will start applying these rules on newly spawned processes.
@@ -29,7 +29,7 @@ const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 /// 4. Apply events generated since step 1:
 ///    this makes sure the eBPF code didn't fill map_interest with wrong data
 ///    because of unitialized entries.
-pub(crate) async fn setup_events_filter(
+pub async fn setup_events_filter(
     bpf: &mut Bpf,
     mut config: Config,
     process_tracker: &ProcessTrackerHandle,
@@ -38,20 +38,15 @@ pub(crate) async fn setup_events_filter(
     // Add a rule to ignore the pulsar executable itself
     if config.ignore_self {
         match whitelist_for_current_process() {
-            Ok(rule) => config.whitelist.push(rule),
+            Ok(rule) => config.rules.push(rule),
             Err(err) => log::error!("Failed to add current process to whitelist: {:?}", err),
         }
     }
 
-    // setup targets map
-    let mut target_map = RuleMap::target(bpf)?;
+    // setup rule map
+    let mut target_map = RuleMap::load(bpf, &config.rule_map_name)?;
     target_map.clear()?;
-    target_map.install(&config.targets)?;
-
-    // setup whitelist map
-    let mut whitelist_map = RuleMap::whitelist(bpf)?;
-    whitelist_map.clear()?;
-    whitelist_map.install(&config.whitelist)?;
+    target_map.install(&config.rules)?;
 
     // load process list from procfs
     let mut process_tree = ProcessTree::load_from_procfs()?;
@@ -108,7 +103,7 @@ struct Initializer {
 impl Initializer {
     fn new(bpf: &mut Bpf, config: Config) -> Result<Self> {
         // clear whitelist map
-        let mut interest_map = InterestMap::load(bpf)?;
+        let mut interest_map = InterestMap::load(bpf, &config.interest_map_name)?;
         interest_map.clear()?;
         let cache = Default::default();
 
@@ -127,21 +122,19 @@ impl Initializer {
                     process.parent
                 );
             }
-            PolicyDecision::default()
+            PolicyDecision {
+                interesting: self.config.track_by_default,
+                children_interesting: self.config.track_by_default,
+            }
         });
         let inherited_interest = parent_result.children_interesting;
         let mut decision = PolicyDecision {
             interesting: inherited_interest,
             children_interesting: inherited_interest,
         };
-        let whitelist_match = self
+        let rule_match = self
             .config
-            .whitelist
-            .iter()
-            .find(|r| r.image.to_string() == process.image);
-        let targets_match = self
-            .config
-            .targets
+            .rules
             .iter()
             .find(|r| r.image.to_string() == process.image);
         let pid_targets_match = self
@@ -149,16 +142,10 @@ impl Initializer {
             .pid_targets
             .iter()
             .find(|r| r.pid == process.pid);
-        if let Some(rule) = whitelist_match {
-            decision.interesting = false;
+        if let Some(rule) = rule_match {
+            decision.interesting = rule.track;
             if rule.with_children {
-                decision.children_interesting = false;
-            }
-        };
-        if let Some(rule) = targets_match {
-            decision.interesting = true;
-            if rule.with_children {
-                decision.children_interesting = true;
+                decision.children_interesting = rule.track;
             }
         };
         if let Some(rule) = pid_targets_match {
@@ -170,6 +157,7 @@ impl Initializer {
         if decision.interesting {
             log::debug!("tracking {} {}", process.pid, process.image);
         }
+        log::trace!("{}: {}", process.pid, decision.as_raw());
         self.cache.insert(process.pid, decision);
         self.interest_map.set(process.pid, decision)?;
         Ok(())
@@ -184,5 +172,6 @@ fn whitelist_for_current_process() -> Result<Rule> {
     Ok(Rule {
         image: Image::try_from(pulsar_exec.into_os_string().into_vec())?,
         with_children: true,
+        track: false,
     })
 }

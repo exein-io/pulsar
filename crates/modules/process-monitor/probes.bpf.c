@@ -2,6 +2,7 @@
 #include "buffer.bpf.h"
 #include "common.bpf.h"
 #include "get_path.bpf.h"
+#include "interest_tracking.bpf.h"
 #include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -46,19 +47,8 @@ struct cgroup_attach_event {
   u64 id;
 };
 
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, char[MAX_IMAGE_LEN]);
-  __type(value, u8);
-  __uint(max_entries, 100);
-} target SEC(".maps");
-
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, char[MAX_IMAGE_LEN]);
-  __type(value, u8);
-  __uint(max_entries, 100);
-} whitelist SEC(".maps");
+GLOBAL_INTEREST_MAP_DECLARATION;
+MAP_RULES(m_rules);
 
 OUTPUT_MAP(events, process_event, {
   struct fork_event fork;
@@ -103,7 +93,7 @@ int BPF_PROG(process_fork, struct task_struct *parent,
     return 0;
   }
   // Propagate whitelist to child
-  inherit_interest(parent_tgid, child_tgid);
+  tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
   struct process_event *event = output_temp();
@@ -157,19 +147,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   char *image = (char *)&event->buffer.buffer;
 
-  // Check whitelist
-  char *res = bpf_map_lookup_elem(&whitelist, image);
-  if (res) {
-    LOG_DEBUG("whitelisting %s", image);
-    update_interest(tgid, false, res);
-  }
-
-  // Check target list
-  res = bpf_map_lookup_elem(&target, image);
-  if (res) {
-    LOG_DEBUG("targeting %s", image);
-    update_interest(tgid, true, res);
-  }
+  // Check target and whitelist
+  tracker_check_rules(&GLOBAL_INTEREST_MAP, &m_rules, p, image);
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
@@ -229,9 +208,9 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   }
 
   // cleanup resources from map_interest
-  if (bpf_map_delete_elem(&map_interest, &tgid) != 0) {
+  if (!tracker_remove(&GLOBAL_INTEREST_MAP, p)) {
     LOG_DEBUG("%d not found in map_interest during exit", tgid);
-    // Multiple threads may exit at the same time, causing the loop above
+    // Multiple threads may exit at the same time, causing the check above
     // to pass multiple times. Since we want to generate only one event,
     // we'll consider a missing entry in map_interest as a signal that
     // we've already emitted the exit event.
@@ -290,7 +269,7 @@ int BPF_PROG(sched_switch) {
 
 SEC("raw_tracepoint/cgroup_mkdir")
 int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
   struct process_event *event = output_temp();
@@ -311,7 +290,7 @@ int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path) {
 
 SEC("raw_tracepoint/cgroup_rmdir")
 int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
   struct process_event *event = output_temp();
@@ -333,7 +312,7 @@ int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
 SEC("raw_tracepoint/cgroup_attach_task")
 int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
              struct task_struct *task) {
-  pid_t tgid = interesting_tgid();
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
   struct process_event *event = output_temp();
