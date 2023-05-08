@@ -57,7 +57,7 @@ struct InfoRequest {
 struct DescendantRequest {
     pid: Pid,
     image: String,
-    tx_reply: oneshot::Sender<Result<bool, TrackerError>>,
+    tx_reply: oneshot::Sender<bool>,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -108,7 +108,7 @@ impl ProcessTrackerHandle {
                 tx_reply,
             }));
         assert!(r.is_ok());
-        rx_reply.await.unwrap().unwrap_or(false)
+        rx_reply.await.unwrap()
     }
 }
 
@@ -218,15 +218,16 @@ impl ProcessTracker {
             TrackerRequest::IsDescendantOf(descendant_request) => {
                 let r = self.is_descendant_of(descendant_request.pid, &descendant_request.image);
                 match r {
-                    Err(TrackerError::ProcessNotFound) => {
+                    Err(e) => {
                         log::warn!(
-                            "Error in the descendant request for {} with image {}",
+                            "Error in the descendant request for {} with image {}: {:?}",
                             descendant_request.pid,
-                            descendant_request.image
+                            descendant_request.image,
+                            e
                         );
-                        let _ = descendant_request.tx_reply.send(Ok(false));
+                        let _ = descendant_request.tx_reply.send(false);
                     }
-                    x => {
+                    Ok(x) => {
                         let _ = descendant_request.tx_reply.send(x);
                     }
                 }
