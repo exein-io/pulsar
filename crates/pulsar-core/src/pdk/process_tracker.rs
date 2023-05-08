@@ -47,6 +47,7 @@ pub enum TrackerUpdate {
         timestamp: Timestamp,
     },
 }
+
 struct InfoRequest {
     pid: Pid,
     ts: Timestamp,
@@ -96,6 +97,7 @@ impl ProcessTrackerHandle {
         assert!(r.is_ok());
     }
 
+    /// Check if the process with the given PID is a descendant of the given image.
     pub async fn is_descendant_of(&self, pid: Pid, image: String) -> Result<bool, TrackerError> {
         let (tx_reply, rx_reply) = oneshot::channel();
         let r = self
@@ -222,6 +224,7 @@ impl ProcessTracker {
                             descendant_request.pid,
                             descendant_request.image
                         );
+                        let _ = descendant_request.tx_reply.send(Ok(false));
                     }
                     x => {
                         let _ = descendant_request.tx_reply.send(x);
@@ -386,10 +389,7 @@ impl ProcessTracker {
 
     /// Check if a PID is descendant of a target image
     fn is_descendant_of(&self, pid: Pid, target_image: &str) -> Result<bool, TrackerError> {
-        let mut process = match self.data.get(&pid) {
-            Some(p) => p,
-            None => return Err(TrackerError::ProcessNotFound),
-        };
+        let mut process = self.data.get(&pid).ok_or(TrackerError::ProcessNotFound)?;
 
         // First, check if the process itself is the target image
         if process.original_image.eq(target_image)
@@ -403,7 +403,7 @@ impl ProcessTracker {
 
         // Loop through the parent processes until we find the target image
         // Exit if we reach the root process
-        while process.ppid != Pid::from_raw(0) {
+        loop {
             if process.original_image.eq(target_image)
                 || process
                     .exec_changes
@@ -412,12 +412,16 @@ impl ProcessTracker {
             {
                 return Ok(true);
             }
+
+            if process.ppid == Pid::from_raw(0) {
+                return Ok(false);
+            }
+
             process = self
                 .data
                 .get(&process.ppid)
                 .ok_or(TrackerError::ProcessNotFound)?;
         }
-        Ok(false)
     }
 }
 
