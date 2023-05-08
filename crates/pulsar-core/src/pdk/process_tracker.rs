@@ -98,7 +98,7 @@ impl ProcessTrackerHandle {
     }
 
     /// Check if the process with the given PID is a descendant of the given image.
-    pub async fn is_descendant_of(&self, pid: Pid, image: String) -> Result<bool, TrackerError> {
+    pub async fn is_descendant_of(&self, pid: Pid, image: String) -> bool {
         let (tx_reply, rx_reply) = oneshot::channel();
         let r = self
             .tx
@@ -108,7 +108,7 @@ impl ProcessTrackerHandle {
                 tx_reply,
             }));
         assert!(r.is_ok());
-        rx_reply.await.unwrap()
+        rx_reply.await.unwrap().unwrap_or(false)
     }
 }
 
@@ -390,16 +390,6 @@ impl ProcessTracker {
     /// Check if a PID is descendant of a target image
     fn is_descendant_of(&self, pid: Pid, target_image: &str) -> Result<bool, TrackerError> {
         let mut process = self.data.get(&pid).ok_or(TrackerError::ProcessNotFound)?;
-
-        // First, check if the process itself is the target image
-        if process.original_image.eq(target_image)
-            || process
-                .exec_changes
-                .values()
-                .any(|image| image.eq(target_image))
-        {
-            return Ok(true);
-        }
 
         // Loop through the parent processes until we find the target image
         // Exit if we reach the root process
