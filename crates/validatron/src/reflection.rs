@@ -1,3 +1,42 @@
+//! This module contains the core of the library.
+//! 
+//! It's a small reflection system to provide information on types at runtime.
+//! 
+//! Typically it's not needed to directly interact with this layer because the procedural macro does all the job,
+//! unless there is the need to create a new [Primitive] type or a [Collection] type.
+//! 
+//! At the core of the system there is the [Validatron] trait. The implementation of this trait consists in
+//! implementing the [Validatron::get_class] method. This method demands for a [ValidatronClass] as a return value
+//! and the only way to create this type is to use the [ClassBuilder]. The class builder is a per type helper
+//! created with the default method [Validatron::class_builder]. In case of a struct:
+//! 
+//! ```
+//! pub struct MyStruct {
+//!     pub a: i32,
+//!     pub b: i32,
+//!     pub c: i32,
+//! }
+//! 
+//! impl Validatron for MyStruct {
+//!     fn get_class() -> ValidatronClass {
+//!         Self::class_builder()
+//!             .struct_class_builder()
+//!             .add_field("a", Box::new(|t| &t.a))
+//!             .add_field("b", Box::new(|t| &t.b))
+//!             .add_field("c", Box::new(|t| &t.c))
+//!             .build()
+//!     }
+//! }
+//! ```
+//! 
+//! The [ClassBuilder] can build 4 types of class
+//! - [Primitive] : representation of a base type. It needs a parsing function and a function to know which operator is available
+//! on it and how to use it. 
+//! - [Struct] : representation of a struct. It needs the description of its fields and how to access each one.
+//! - [Enum] : representation of a enum. It needs the description of its fields, including the relative variant, and how to access each one.
+//! - [Collection] : representation of a collection. It requires that the current type implements `IntoIterator<Item = &'x U>` if `U` is the
+//! type of the items in the collection. 
+
 use std::marker::PhantomData;
 
 mod adt;
@@ -12,6 +51,9 @@ pub use structure::*;
 
 use crate::{Operator, ValidatronError};
 
+/// The trait at the core of validatron.
+/// 
+/// A type implementing this trait exposes details on the type itself. 
 pub trait Validatron: Sized {
     fn class_builder() -> ClassBuilder<Self> {
         ClassBuilder {
@@ -27,6 +69,7 @@ impl<T: Validatron> Validatron for &T {
     }
 }
 
+/// Main entrypoint to build a [ValidatronClass].
 pub struct ClassBuilder<T> {
     _phantom: PhantomData<T>,
 }
@@ -72,6 +115,7 @@ where
     }
 }
 
+/// Contains all the details of the type with which it is associated.
 pub struct ValidatronClass {
     kind: ValidatronClassKind,
     // this space is to implement method calls
@@ -96,6 +140,7 @@ impl ValidatronClass {
     }
 }
 
+/// Inner type of a [ValidatronClass].
 pub enum ValidatronClassKind {
     Primitive(Primitive),
     Struct(Struct),

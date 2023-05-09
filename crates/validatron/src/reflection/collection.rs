@@ -26,6 +26,7 @@ impl CollectionClassBuilder {
     }
 }
 
+/// Collection type representation.
 pub struct Collection {
     name: &'static str,
     inner: Box<dyn CollectionTypeDyn>,

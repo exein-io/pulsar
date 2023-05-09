@@ -21,21 +21,23 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
         }
     }
 
-    // decide if implment a parametric variant: can be parametric over access_function but costs size due to monomorphization T*F, but cost should be minimal because of the body of the function
-    pub fn add_variant<F: Validatron + 'static>(
+    // TODO: decide if implment a parametric variant: can be parametric over access_function but costs size due to monomorphization T*F,
+    // but cost should be minimal because of the body of the function
+    /// Insert a field into the variant definition.
+    pub fn add_variant_field<F: Validatron + 'static>(
         mut self,
         variant_name: &'static str,
         field_name: &'static str,
         access_fn: Box<dyn Fn(&T) -> Option<&F> + Send + Sync>,
     ) -> Self {
-        let variant_type = VariantType::<T, F> {
+        let variant_attribute_type = VariantAttributeType::<T, F> {
             extractor: access_fn,
         };
         let variant = VariantAttribute {
             variant_name,
             field_name,
             parent_enum_name: self.name,
-            inner: Box::new(variant_type),
+            inner: Box::new(variant_attribute_type),
         };
 
         add_variant(&mut self.variants, variant_name, field_name, variant);
@@ -43,6 +45,7 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
         self
     }
 
+    /// Finalize the enum class.
     pub fn build(self) -> ValidatronClass {
         ValidatronClass {
             kind: ValidatronClassKind::Enum(Enum {
@@ -53,7 +56,7 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
     }
 }
 
-// no monomorphization
+// no monomorphization helper
 fn add_variant(
     fields_map: &mut HashMap<&'static str, HashMap<&'static str, VariantAttribute>>,
     variant_name: &'static str,
@@ -70,6 +73,7 @@ fn add_variant(
     }
 }
 
+/// Enum type representation.
 pub struct Enum {
     name: &'static str,
     variants: HashMap<&'static str, HashMap<&'static str, VariantAttribute>>,
@@ -101,11 +105,12 @@ impl Enum {
     }
 }
 
+/// Enum attribute representation.
 pub struct VariantAttribute {
     variant_name: &'static str,
     field_name: &'static str,
     parent_enum_name: &'static str,
-    inner: Box<dyn VariantTypeDyn>,
+    inner: Box<dyn VariantAttributeTypeDyn>,
 }
 
 impl VariantAttribute {
@@ -138,7 +143,7 @@ impl VariantAttribute {
     }
 }
 
-trait VariantTypeDyn {
+trait VariantAttributeTypeDyn {
     fn get_class(&self) -> ValidatronClass;
 
     fn into_extractor_fn(
@@ -150,7 +155,7 @@ trait VariantTypeDyn {
     ) -> Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync>;
 }
 
-struct VariantType<T, U>
+struct VariantAttributeType<T, U>
 where
     T: Validatron,
     U: Validatron,
@@ -158,7 +163,7 @@ where
     extractor: Box<dyn Fn(&T) -> Option<&U> + Send + Sync>,
 }
 
-impl<T, U> VariantTypeDyn for VariantType<T, U>
+impl<T, U> VariantAttributeTypeDyn for VariantAttributeType<T, U>
 where
     T: Validatron + 'static,
     U: Validatron + 'static,
