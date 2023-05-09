@@ -43,6 +43,10 @@ impl Primitive {
         self.inner.compare_fn_any_value(op, value)
     }
 
+    /// # Safety
+    ///
+    /// The `unsafe` is related to the returned function. That function accepts values as [Any],
+    /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn compare_fn_any_value_unchecked(
         &self,
         op: Operator,
@@ -61,6 +65,10 @@ impl Primitive {
         self.inner.compare_fn_any_multi(op)
     }
 
+    /// # Safety
+    ///
+    /// The `unsafe` is related to the returned function. That function accepts values as [Any],
+    /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn compare_fn_any_multi_unchecked(
         &self,
         op: Operator,

@@ -10,31 +10,28 @@
 //!     my_value: i32
 //! }
 //!
-//! fn main() {
+//! let rule = get_valid_rule::<MyStruct>(
+//!     vec![Field::Simple {
+//!         field_name: "my_value".to_string(),
+//!     }],
+//!     Operator::Relational(RelationalOperator::Equals),
+//!     Match::Value("42".to_string()),
+//! )
+//! .unwrap();
 //!
-//!     let rule = get_valid_rule::<MyStruct>(
-//!         vec![Field::Simple {
-//!             field_name: "my_value".to_string(),
-//!         }],
-//!         Operator::Relational(RelationalOperator::Equals),
-//!         Match::Value("42".to_string()),
-//!     )
-//!     .unwrap();
+//! let test = MyStruct { my_value: 42 };
 //!
-//!     let test = MyStruct { my_value: 42 };
-//!
-//!     assert!(rule.is_match(&test))
-//! }
+//! assert!(rule.is_match(&test))
 //! ```
 //!
 //! It will check if the field `my_value` exists in the `MyStruct` type and if it's possible to parse the input string `"42"` into the
 //! specific field type [i32]
 //!
-//! On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example: 
+//! On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
 //!
 //! ```
 //! use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Match};
-//! 
+//!
 //! #[derive(Validatron)]
 //! struct MyStruct {
 //!     my_value: i32,

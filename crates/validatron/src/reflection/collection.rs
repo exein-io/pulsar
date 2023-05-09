@@ -8,7 +8,7 @@ use crate::{Validatron, ValidatronClass, ValidatronClassKind, ValidatronError};
 pub struct CollectionClassBuilder(());
 
 impl CollectionClassBuilder {
-    pub(crate) fn new<T, U>() -> ValidatronClass
+    pub(crate) fn create_class<T, U>() -> ValidatronClass
     where
         T: Validatron + 'static,
         U: Validatron + 'static,
@@ -49,6 +49,10 @@ impl Collection {
         self.inner.contains_fn_any_value(value)
     }
 
+    /// # Safety
+    ///
+    /// The `unsafe` is related to the returned function. That function accepts values as [Any],
+    /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn contains_fn_any_value_unchecked(
         &self,
         value: &str,
@@ -63,6 +67,10 @@ impl Collection {
         self.inner.contains_fn_any_multi()
     }
 
+    /// # Safety
+    ///
+    /// The `unsafe` is related to the returned function. That function accepts values as [Any],
+    /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn contains_fn_any_multi_unchecked(
         &self,
     ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync>, ValidatronError> {

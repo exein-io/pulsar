@@ -17,7 +17,7 @@ impl<T: Validatron + 'static> ValidRule<T> {
 }
 
 /// Represents a valid field of a type `T`,
-/// 
+///
 /// It contains the associated [ValidatronClass] and the extractor from a type `T`.
 struct ValidField<T: Validatron> {
     class: ValidatronClass,
@@ -31,7 +31,7 @@ enum ExtractorFrom<T: Validatron> {
 }
 
 impl<T: Validatron + 'static> ExtractorFrom<T> {
-    fn to_extract_fn(self) -> Box<dyn Fn(&T) -> Option<&dyn Any> + Send + Sync> {
+    fn into_extract_fn(self) -> Box<dyn Fn(&T) -> Option<&dyn Any> + Send + Sync> {
         match self {
             ExtractorFrom::Some(extract_fn) => extract_fn,
             ExtractorFrom::None => Box::new(|t| Some(t as &dyn Any)),
@@ -65,7 +65,7 @@ pub fn get_valid_rule<T: Validatron + 'static>(
                 let compare_fn =
                     unsafe { first_field_primitive.compare_fn_any_value_unchecked(op, &value) }?;
 
-                let extractor_fn = first_field.extractor.to_extract_fn();
+                let extractor_fn = first_field.extractor.into_extract_fn();
 
                 Ok(ValidRule {
                     rule_fn: Box::new(move |t| match extractor_fn(t) {
@@ -89,8 +89,8 @@ pub fn get_valid_rule<T: Validatron + 'static>(
                     let compare_fn =
                         unsafe { first_field_primitive.compare_fn_any_multi_unchecked(op) }?;
 
-                    let first_extractor_fn = first_field.extractor.to_extract_fn();
-                    let second_extractor_fn = second_field.extractor.to_extract_fn();
+                    let first_extractor_fn = first_field.extractor.into_extract_fn();
+                    let second_extractor_fn = second_field.extractor.into_extract_fn();
 
                     Ok(ValidRule {
                         rule_fn: Box::new(move |t| {
@@ -119,7 +119,7 @@ pub fn get_valid_rule<T: Validatron + 'static>(
                         },
                     }?;
 
-                    let extractor_fn = first_field.extractor.to_extract_fn();
+                    let extractor_fn = first_field.extractor.into_extract_fn();
 
                     Ok(ValidRule {
                         rule_fn: Box::new(move |t| match extractor_fn(t) {
@@ -148,8 +148,8 @@ pub fn get_valid_rule<T: Validatron + 'static>(
                     {
                         let compare_fn = unsafe { collection.contains_fn_any_multi_unchecked() }?;
 
-                        let first_extractor_fn = first_field.extractor.to_extract_fn();
-                        let second_extractor_fn = second_field.extractor.to_extract_fn();
+                        let first_extractor_fn = first_field.extractor.into_extract_fn();
+                        let second_extractor_fn = second_field.extractor.into_extract_fn();
 
                         Ok(ValidRule {
                             rule_fn: Box::new(move |t| {
