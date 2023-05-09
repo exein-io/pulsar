@@ -110,6 +110,10 @@ impl Attribute {
         self.inner.into_extractor_fn()
     }
 
+    /// # Safety
+    ///
+    /// The `unsafe` is related to the returned function. That function accepts values as [Any],
+    /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn into_extractor_fn_unchecked(
         self,
     ) -> Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + Sync> {

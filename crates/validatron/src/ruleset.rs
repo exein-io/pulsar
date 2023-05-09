@@ -4,7 +4,7 @@ use crate::{
 };
 
 /// Set of rules for a type `T`, ready for the match on an instance of that type.
-/// 
+///
 /// The rules are correct and compiled each one into single closure.
 pub struct Ruleset<T: Validatron + 'static> {
     pub(crate) rules: Vec<CompiledRule<T>>,
@@ -17,7 +17,7 @@ impl<T: Validatron> Ruleset<T> {
     }
 
     /// Try to create a ruleset from a [Vec] of [Rule].
-    /// 
+    ///
     /// The rules will be validated and compiled to an optimized form.
     pub fn from_rules(rules: Vec<Rule>) -> Result<Self, ValidatronError> {
         let validated_conditions = rules
@@ -41,7 +41,7 @@ impl<T: Validatron> Ruleset<T> {
     }
 
     /// Perform the check on an instance of a type `T`, to see if there is match in the ruleset.
-    /// 
+    ///
     /// Method accepts a callback that will be executed when there is a positive match with a rule,
     /// having the matched rule as a parameter.  
     pub fn run<F: Fn(&CompiledRule<T>)>(&self, e: &T, cb: F) {
