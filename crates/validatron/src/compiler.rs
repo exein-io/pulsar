@@ -1,5 +1,8 @@
 use crate::{validator, Condition, Validatron, ValidatronError};
 
+/// Final form of a rule for a type `T`.
+/// 
+/// It possible to apply the rule on a reference of `T` to see it it matches.
 pub struct CompiledRule<T: Validatron + 'static> {
     pub name: String,
     pub condition: CompiledCondition<T>,
@@ -11,8 +14,16 @@ impl<T: Validatron> CompiledRule<T> {
     }
 }
 
+/// It contains the logic of a rule for a given type `T`.
+/// 
+/// It an abstraction of a function that takes a reference of type `T` and returns a [bool].
+/// 
+/// Its content is a closure generated with the [compile_condition] function 
 pub struct CompiledCondition<T>(pub(crate) Box<dyn Fn(&T) -> bool + Send + Sync>);
 
+/// Entrypoint to validate a condition for a given type `T`.
+/// 
+/// In case of success returns a [ValidatedCondition] for the given type `T`.
 pub fn validate_condition<T: Validatron + 'static>(
     condition: Condition,
 ) -> Result<ValidatedCondition<T>, ValidatronError> {
@@ -56,6 +67,10 @@ pub fn validate_condition<T: Validatron + 'static>(
     }
 }
 
+/// Representation of a valid rule for a type `T`.
+/// 
+/// Implemented as a tree of [ValidatedCondition::Base] connected with logical operators.
+/// The base type contains a functions that takes a reference to `T` and returns a [bool].
 pub enum ValidatedCondition<T> {
     And {
         l: Box<ValidatedCondition<T>>,
@@ -73,10 +88,19 @@ pub enum ValidatedCondition<T> {
     },
 }
 
+/// Compiler entrypoint.
+/// 
+/// It compiles a tree of [ValidatedCondition] into single [CompiledCondition] object.
+/// 
+/// It walks into the tree and recursively generates closures to its leaves returning a single 
+/// closures encapsulated in a [CompiledCondition] object.
 pub fn compile_condition<T: 'static>(c: ValidatedCondition<T>) -> CompiledCondition<T> {
     CompiledCondition(generate_closures(c))
 }
 
+/// Recursively generates closures for a [ValidatedCondition] tree of a type `T`.
+/// 
+/// Returns a new closure with all the logic of inside. 
 fn generate_closures<T: 'static>(
     c: ValidatedCondition<T>,
 ) -> Box<dyn Fn(&T) -> bool + Send + Sync> {

@@ -1,3 +1,5 @@
+//! This module contains implementation for Rust primitive types and few types other types of the standard library
+
 use crate::{
     MultiOperator, Operator, RelationalOperator, Validatron, ValidatronClass, ValidatronError,
 };

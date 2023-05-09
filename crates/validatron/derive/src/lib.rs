@@ -147,7 +147,7 @@ fn process_enum_fields(variants: &Punctuated<Variant, Comma>) -> Result<TokenStr
                             let field_name = field_ident.to_string();
 
                             quote! {
-                            .add_variant(
+                            .add_variant_field(
                                     #variant_name,
                                     #field_name,
                                     Box::new(|t| match &t {
@@ -185,7 +185,7 @@ fn process_enum_fields(variants: &Punctuated<Variant, Comma>) -> Result<TokenStr
                                 });
 
                             quote! {
-                            .add_variant(
+                            .add_variant_field(
                                     #variant_name,
                                     #field_name,
                                     Box::new(|t| match &t {

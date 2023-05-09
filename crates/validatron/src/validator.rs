@@ -5,6 +5,7 @@ use crate::{
     ValidatronError,
 };
 
+/// Represents a valid rule for a type `T`.
 pub struct ValidRule<T: Validatron> {
     pub(crate) rule_fn: Box<dyn Fn(&T) -> bool + Send + Sync>,
 }
@@ -15,11 +16,15 @@ impl<T: Validatron + 'static> ValidRule<T> {
     }
 }
 
+/// Represents a valid field of a type `T`,
+/// 
+/// It contains the associated [ValidatronClass] and the extractor from a type `T`.
 struct ValidField<T: Validatron> {
     class: ValidatronClass,
     extractor: ExtractorFrom<T>,
 }
 
+/// Represents the chain of access functions starting from the top of a type `T`.
 enum ExtractorFrom<T: Validatron> {
     Some(Box<dyn Fn(&T) -> Option<&dyn Any> + Send + Sync>),
     None,
@@ -32,9 +37,7 @@ impl<T: Validatron + 'static> ExtractorFrom<T> {
             ExtractorFrom::None => Box::new(|t| Some(t as &dyn Any)),
         }
     }
-}
 
-impl<T: Validatron + 'static> ExtractorFrom<T> {
     fn chain(self, next: Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync>) -> Self {
         match self {
             ExtractorFrom::Some(current) => {
@@ -45,6 +48,7 @@ impl<T: Validatron + 'static> ExtractorFrom<T> {
     }
 }
 
+/// Entrypoint to validate a base condition for a given type `T`.
 pub fn get_valid_rule<T: Validatron + 'static>(
     field_path: Vec<Field>,
     op: Operator,
@@ -464,7 +468,7 @@ mod test {
             fn get_class() -> ValidatronClass {
                 Self::class_builder()
                     .enum_class_builder()
-                    .add_variant(
+                    .add_variant_field(
                         "Unnamed",
                         "0",
                         Box::new(|t| match &t {
@@ -520,7 +524,7 @@ mod test {
             fn get_class() -> ValidatronClass {
                 Self::class_builder()
                     .enum_class_builder()
-                    .add_variant(
+                    .add_variant_field(
                         "Named",
                         "inner",
                         Box::new(|t| match &t {

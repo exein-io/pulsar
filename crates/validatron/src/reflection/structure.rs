@@ -21,7 +21,9 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
         }
     }
 
-    // decide if implment a parametric variant: can be parametric over access_function but costs size due to monomorphization T*F, but cost should be minimal because of the body of the function
+    // TODO: decide if implment a parametric variant: can be parametric over access_function but costs size due to monomorphization T*F,
+    // but cost should be minimal because of the body of the function
+    /// Insert a field into the struct definition.
     pub fn add_field<F: Validatron + 'static>(
         mut self,
         name: &'static str,
@@ -42,6 +44,7 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
         self
     }
 
+    /// Finalize the struct class.
     pub fn build(self) -> ValidatronClass {
         ValidatronClass {
             kind: ValidatronClassKind::Struct(Struct {
@@ -52,7 +55,7 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
     }
 }
 
-// no monomorphization
+// no monomorphization helper
 fn add_field(
     fields_map: &mut HashMap<&'static str, Attribute>,
     name: &'static str,
@@ -63,6 +66,7 @@ fn add_field(
     }
 }
 
+/// Struct type representation.
 pub struct Struct {
     name: &'static str,
     fields: HashMap<&'static str, Attribute>,
@@ -82,6 +86,7 @@ impl Struct {
     }
 }
 
+/// Struct attribute representation.
 pub struct Attribute {
     name: &'static str,
     parent_struct_name: &'static str,

@@ -2,6 +2,7 @@ use std::any::{type_name, Any, TypeId};
 
 use crate::{Operator, Validatron, ValidatronError};
 
+/// Primitive type representation.
 pub struct Primitive {
     name: &'static str,
     inner: Box<dyn PrimitiveTypeDyn>,
