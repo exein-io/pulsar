@@ -13,6 +13,10 @@ pub struct Config {
     pub pid_targets: Vec<PidRule>,
     /// List of image-based rules
     pub rules: Vec<Rule>,
+    /// List of cgroup paths to target.
+    /// Processes belonging to these cgroups are considered of interest,
+    /// despite what `pid_targets` and `rules` say.
+    pub cgroup_targets: Vec<String>,
     /// Map name of the interest map
     pub interest_map_name: String,
     /// Map name of the rules map
@@ -79,6 +83,7 @@ impl TryFrom<&ModuleConfig> for Config {
         Ok(Config {
             pid_targets,
             rules,
+            cgroup_targets: config.get_list("cgroup_targets")?,
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
             track_by_default: config.with_default("track_by_default", true)?,
