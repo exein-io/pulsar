@@ -52,6 +52,9 @@ pub async fn setup_events_filter(
     let mut process_tree = ProcessTree::load_from_procfs()?;
 
     let mut initializer = Initializer::new(bpf, config)?;
+    if let Err(err) = initializer.track_target_cgroups() {
+        log::warn!("Error loading cgroup information: {err:?}");
+    }
     for process in &process_tree {
         initializer.update(process)?;
         process_tracker.update(TrackerUpdate::Fork {
@@ -102,8 +105,8 @@ struct Initializer {
 
 impl Initializer {
     fn new(bpf: &mut Bpf, config: Config) -> Result<Self> {
-        // clear whitelist map
         let mut interest_map = InterestMap::load(bpf, &config.interest_map_name)?;
+        // clear interest map
         interest_map.clear()?;
         let cache = Default::default();
 
@@ -115,6 +118,17 @@ impl Initializer {
     }
 
     fn update(&mut self, process: &ProcessData) -> Result<()> {
+        // If we're already tracking a process, we don't want to override that decision and stop
+        // tracking it. This is useful for cgroups, which are checked before process hierarchy
+        if matches!(
+            self.cache.get(&process.pid),
+            Some(PolicyDecision {
+                interesting: true,
+                children_interesting: true,
+            })
+        ) {
+            return Ok(());
+        }
         let parent_result = self.cache.get(&process.parent).copied().unwrap_or_else(|| {
             if process.pid != PID_0 {
                 log::warn!(
@@ -157,9 +171,37 @@ impl Initializer {
         if decision.interesting {
             log::debug!("tracking {} {}", process.pid, process.image);
         }
-        log::trace!("{}: {}", process.pid, decision.as_raw());
-        self.cache.insert(process.pid, decision);
-        self.interest_map.set(process.pid, decision)?;
+        self.set_policy(process.pid, decision)
+    }
+
+    fn set_policy(&mut self, pid: Pid, policy: PolicyDecision) -> Result<()> {
+        log::trace!("{}: {}", pid, policy.as_raw());
+        self.cache.insert(pid, policy);
+        self.interest_map.set(pid, policy)
+    }
+
+    fn track_target_cgroups(&mut self) -> Result<()> {
+        let cgroups: Vec<String> = self
+            .config
+            .cgroup_targets
+            .iter()
+            // the cgroup.procfs file contains the list of pids belonging to this cgroup
+            .map(|cgroup| format!("/sys/fs/cgroup{cgroup}/cgroup.procs"))
+            .collect();
+        for cgroup in cgroups {
+            let processes = std::fs::read_to_string(&cgroup)
+                .with_context(|| format!("Error reading processes in cgroup {:?}", cgroup))?;
+            for process in processes.lines() {
+                let pid: i32 = process.parse().context("Invalid content")?;
+                self.set_policy(
+                    Pid::from_raw(pid),
+                    PolicyDecision {
+                        interesting: true,
+                        children_interesting: true,
+                    },
+                )?;
+            }
+        }
         Ok(())
     }
 }
