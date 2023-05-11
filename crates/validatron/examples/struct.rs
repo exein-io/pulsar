@@ -32,7 +32,7 @@ fn fixed_match(test: &MyStruct) -> Result<bool, Box<dyn Error>> {
         Match::Value("111".to_string()),
     )?;
 
-    Ok(rule.is_match(&test))
+    Ok(rule.is_match(test))
 }
 
 /// Match the field "a" against the field "b" using the "Greater" operator
@@ -47,7 +47,7 @@ fn dynamic_match(test: &MyStruct) -> Result<bool, Box<dyn Error>> {
         }]),
     )?;
 
-    Ok(rule.is_match(&test))
+    Ok(rule.is_match(test))
 }
 
 fn main() {
@@ -57,7 +57,7 @@ fn main() {
         c: 333,
     };
 
-    assert_eq!(fixed_match(&test).unwrap(), true);
+    assert!(fixed_match(&test).unwrap());
 
-    assert_eq!(dynamic_match(&test).unwrap(), false);
+    assert!(!dynamic_match(&test).unwrap());
 }
