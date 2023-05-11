@@ -1,7 +1,4 @@
-use crate::{
-    compiler::{compile_condition, validate_condition, CompiledRule},
-    Rule, ValidatedCondition, Validatron, ValidatronError,
-};
+use crate::{compiler::CompiledRule, Rule, Validatron, ValidatronError};
 
 /// Set of rules which can be applied over any instance of type `T`.
 ///
@@ -20,23 +17,15 @@ impl<T: Validatron> Ruleset<T> {
     ///
     /// The rules will be validated and compiled to an optimized form.
     pub fn from_rules(rules: Vec<Rule>) -> Result<Self, ValidatronError> {
-        let validated_conditions = rules
+        let compiled_rules = rules
             .into_iter()
-            .map(|rule| validate_condition(rule.condition).map(|validated| (rule.name, validated)))
-            .collect::<Result<Vec<(String, ValidatedCondition<T>)>, ValidatronError>>()?;
+            .map(Rule::compile)
+            .collect::<Result<Vec<_>, ValidatronError>>()?;
 
-        let compiled_conditions: Vec<CompiledRule<T>> = validated_conditions
-            .into_iter()
-            .map(|(name, c)| CompiledRule {
-                name,
-                condition: compile_condition(c),
-            })
-            .collect();
-
-        log::debug!("Loaded {} rules", compiled_conditions.len());
+        log::debug!("Loaded {} rules", compiled_rules.len());
 
         Ok(Self {
-            rules: compiled_conditions,
+            rules: compiled_rules,
         })
     }
 
