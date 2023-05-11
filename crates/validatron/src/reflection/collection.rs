@@ -7,11 +7,11 @@ use crate::{Validatron, ValidatronClass, ValidatronClassKind, ValidatronError};
 
 // The only operator currently supported on collections is MultiOperator::Contains.
 //
-/// These closure types work over dyn Any to simplify code, but expect to be called with
-/// the correct type.
-/// For maximum performance, the unchecked version will blindly assume the input type to be correct.
-/// When unsure about input correctness, the normal version must be called, which will return None
-/// when the input type is wrong.
+// These closure types work over dyn Any to simplify code, but expect to be called with
+// the correct type.
+// For maximum performance, the unchecked version will blindly assume the input type to be correct.
+// When unsure about input correctness, the normal version must be called, which will return None
+// when the input type is wrong.
 //
 // Check if collection contains const value
 type DynContainsFn = Box<dyn for<'c> Fn(&'c dyn Any) -> Option<bool> + Send + Sync>;
