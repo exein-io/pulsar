@@ -1,6 +1,26 @@
 use std::any::{type_name, Any, TypeId};
 
-use crate::{Operator, Validatron, ValidatronError};
+use crate::{HandleOperatorFn, Operator, Validatron, ValidatronError};
+
+// These closure are variations over OperatorFn<T>, since they all
+// implementat a particular operator over two values.
+//
+// There's callback definitions for:
+// - normal operators (Multi suffix): apply the given operator over the two input T and return bool
+// - constant operators (Mono suffix): take only one T as input and compares it the a constant value
+//
+// They all work over dyn Any to simplify code, but expect the input to be correct.
+// Because of this, we have two versions of each:
+// - a normal version which returns None if the input is invalid
+// - an unchecked version which just assumes the input to be valid. The caller
+//   MUST make sure to uphold this invariant.
+type DynOperatorMulti = Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync + 'static>;
+type DynOperatorMultiUnchecked = Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync + 'static>;
+type DynOperatorConst = Box<dyn Fn(&dyn Any) -> Option<bool> + Send + Sync + 'static>;
+type DynOperatorConstUnchecked = Box<dyn Fn(&dyn Any) -> bool + Send + Sync + 'static>;
+
+/// Value parsing function: given a string, try to parse T;
+pub type ParseFn<T> = Box<dyn Fn(&str) -> Result<T, ValidatronError> + Send + Sync + 'static>;
 
 /// Primitive type representation.
 pub struct Primitive {
@@ -10,16 +30,8 @@ pub struct Primitive {
 
 impl Primitive {
     pub(super) fn new<T: Validatron + Send + Sync + 'static>(
-        parse_fn: Box<dyn Fn(&str) -> Result<T, ValidatronError> + Send + Sync + 'static>,
-        handle_op_fn: Box<
-            dyn Fn(
-                    Operator,
-                )
-                    -> Result<Box<dyn Fn(&T, &T) -> bool + Send + Sync + 'static>, ValidatronError>
-                + Send
-                + Sync
-                + 'static,
-        >,
+        parse_fn: ParseFn<T>,
+        handle_op_fn: HandleOperatorFn<T>,
     ) -> Self {
         Self {
             name: type_name::<T>(),
@@ -38,8 +50,7 @@ impl Primitive {
         &self,
         op: Operator,
         value: &str,
-    ) -> Result<Box<dyn Fn(&dyn Any) -> Option<bool> + Send + Sync + 'static>, ValidatronError>
-    {
+    ) -> Result<DynOperatorConst, ValidatronError> {
         self.inner.compare_fn_any_value(op, value)
     }
 
@@ -51,17 +62,11 @@ impl Primitive {
         &self,
         op: Operator,
         value: &str,
-    ) -> Result<Box<dyn Fn(&dyn Any) -> bool + Send + Sync + 'static>, ValidatronError> {
+    ) -> Result<DynOperatorConstUnchecked, ValidatronError> {
         self.inner.compare_fn_any_value_unchecked(op, value)
     }
 
-    pub fn compare_fn_any_multi(
-        &self,
-        op: Operator,
-    ) -> Result<
-        Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync + 'static>,
-        ValidatronError,
-    > {
+    pub fn compare_fn_any_multi(&self, op: Operator) -> Result<DynOperatorMulti, ValidatronError> {
         self.inner.compare_fn_any_multi(op)
     }
 
@@ -72,8 +77,7 @@ impl Primitive {
     pub unsafe fn compare_fn_any_multi_unchecked(
         &self,
         op: Operator,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync + 'static>, ValidatronError>
-    {
+    ) -> Result<DynOperatorMultiUnchecked, ValidatronError> {
         self.inner.compare_fn_any_multi_unchecked(op)
     }
 
@@ -87,41 +91,27 @@ trait PrimitiveTypeDyn {
         &self,
         op: Operator,
         value: &str,
-    ) -> Result<Box<dyn Fn(&dyn Any) -> Option<bool> + Send + Sync + 'static>, ValidatronError>;
+    ) -> Result<DynOperatorConst, ValidatronError>;
 
     unsafe fn compare_fn_any_value_unchecked(
         &self,
         op: Operator,
         value: &str,
-    ) -> Result<Box<dyn Fn(&dyn Any) -> bool + Send + Sync + 'static>, ValidatronError>;
+    ) -> Result<DynOperatorConstUnchecked, ValidatronError>;
 
-    fn compare_fn_any_multi(
-        &self,
-        op: Operator,
-    ) -> Result<
-        Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync + 'static>,
-        ValidatronError,
-    >;
+    fn compare_fn_any_multi(&self, op: Operator) -> Result<DynOperatorMulti, ValidatronError>;
 
     unsafe fn compare_fn_any_multi_unchecked(
         &self,
         op: Operator,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync + 'static>, ValidatronError>;
+    ) -> Result<DynOperatorMultiUnchecked, ValidatronError>;
 
     fn field_type_id(&self) -> TypeId;
 }
 
 struct PrimitiveType<T> {
-    parse_fn: Box<dyn Fn(&str) -> Result<T, ValidatronError> + Send + Sync + 'static>,
-    handle_op_fn: Box<
-        dyn Fn(
-                Operator,
-            )
-                -> Result<Box<dyn Fn(&T, &T) -> bool + Send + Sync + 'static>, ValidatronError>
-            + Send
-            + Sync
-            + 'static,
-    >,
+    parse_fn: ParseFn<T>,
+    handle_op_fn: HandleOperatorFn<T>,
 }
 
 impl<T> PrimitiveTypeDyn for PrimitiveType<T>
@@ -132,8 +122,7 @@ where
         &self,
         op: Operator,
         value: &str,
-    ) -> Result<Box<dyn Fn(&dyn Any) -> Option<bool> + Send + Sync + 'static>, ValidatronError>
-    {
+    ) -> Result<DynOperatorConst, ValidatronError> {
         let value = (self.parse_fn)(value)?;
 
         let compare_fn = (self.handle_op_fn)(op)?;
@@ -149,7 +138,7 @@ where
         &self,
         op: Operator,
         value: &str,
-    ) -> Result<Box<dyn Fn(&dyn Any) -> bool + Send + Sync + 'static>, ValidatronError> {
+    ) -> Result<DynOperatorConstUnchecked, ValidatronError> {
         let value = (self.parse_fn)(value)?;
 
         let compare_fn = (self.handle_op_fn)(op)?;
@@ -160,13 +149,7 @@ where
         }))
     }
 
-    fn compare_fn_any_multi(
-        &self,
-        op: Operator,
-    ) -> Result<
-        Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync + 'static>,
-        ValidatronError,
-    > {
+    fn compare_fn_any_multi(&self, op: Operator) -> Result<DynOperatorMulti, ValidatronError> {
         let compare_fn = (self.handle_op_fn)(op)?;
 
         Ok(Box::new(move |first, second| {
@@ -183,8 +166,7 @@ where
     unsafe fn compare_fn_any_multi_unchecked(
         &self,
         op: Operator,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync + 'static>, ValidatronError>
-    {
+    ) -> Result<DynOperatorMultiUnchecked, ValidatronError> {
         let compare_fn = (self.handle_op_fn)(op)?;
 
         Ok(Box::new(move |first, second| {

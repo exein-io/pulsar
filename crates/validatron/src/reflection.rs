@@ -49,7 +49,7 @@ pub use collection::*;
 pub use primitive::*;
 pub use structure::*;
 
-use crate::{Operator, ValidatronError};
+use crate::HandleOperatorFn;
 
 /// The trait at the core of validatron.
 ///
@@ -77,16 +77,8 @@ pub struct ClassBuilder<T> {
 impl<T: Validatron + Send + Sync + 'static> ClassBuilder<T> {
     pub fn primitive(
         self,
-        parse_fn: Box<dyn Fn(&str) -> Result<T, ValidatronError> + Send + Sync + 'static>,
-        handle_op_fn: Box<
-            dyn Fn(
-                    Operator,
-                )
-                    -> Result<Box<dyn Fn(&T, &T) -> bool + Send + Sync + 'static>, ValidatronError>
-                + Send
-                + Sync
-                + 'static,
-        >,
+        parse_fn: ParseFn<T>,
+        handle_op_fn: HandleOperatorFn<T>,
     ) -> ValidatronClass {
         ValidatronClass {
             kind: ValidatronClassKind::Primitive(Primitive::new(parse_fn, handle_op_fn)),

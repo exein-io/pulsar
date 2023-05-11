@@ -6,6 +6,21 @@ use std::{
 
 use crate::{Validatron, ValidatronClass, ValidatronClassKind};
 
+/// Extractor closure which gets an object of type F from an enum of type T.
+/// Could return None if the enum is of the wrong variant.
+type EnumFieldExtractorFn<T, F> = Box<dyn Fn(&T) -> Option<&F> + Send + Sync>;
+
+/// Closures to extract a field from an enum.
+/// These closure types work over dyn Any to simplify code, but expect to be called with
+/// the correct type.
+/// For maximum performance, the unchecked version will blindly assume the input type to be correct.
+/// When unsure about input correctness, the normal version must be called, which will return None
+/// when the input type is wrong.
+/// Since the input could be of a variant which doesn't contain the value to extract,
+/// all these closure could return None.
+type DynEnumFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<Option<&dyn Any>>) + Send + Sync>;
+type UncheckedDynEnumFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync>;
+
 pub struct EnumClassBuilder<T> {
     name: &'static str,
     variants: HashMap<&'static str, HashMap<&'static str, VariantAttribute>>,
@@ -28,7 +43,7 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
         mut self,
         variant_name: &'static str,
         field_name: &'static str,
-        access_fn: Box<dyn Fn(&T) -> Option<&F> + Send + Sync>,
+        access_fn: EnumFieldExtractorFn<T, F>,
     ) -> Self {
         let variant_attribute_type = VariantAttributeType::<T, F> {
             extractor: access_fn,
@@ -130,9 +145,7 @@ impl VariantAttribute {
         self.inner.get_class()
     }
 
-    pub fn into_extractor_fn(
-        self,
-    ) -> Box<dyn (Fn(&dyn Any) -> Option<Option<&dyn Any>>) + Send + Sync> {
+    pub fn into_extractor_fn(self) -> DynEnumFieldExtractorFn {
         self.inner.into_extractor_fn()
     }
 
@@ -140,9 +153,7 @@ impl VariantAttribute {
     ///
     /// The `unsafe` is related to the returned function. That function accepts values as [Any],
     /// but must be called with values of the right type, because it doesn't perform checks.
-    pub unsafe fn into_extractor_fn_unchecked(
-        self,
-    ) -> Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync> {
+    pub unsafe fn into_extractor_fn_unchecked(self) -> UncheckedDynEnumFieldExtractorFn {
         self.inner.into_extractor_fn_unchecked()
     }
 }
@@ -150,35 +161,29 @@ impl VariantAttribute {
 trait VariantAttributeTypeDyn {
     fn get_class(&self) -> ValidatronClass;
 
-    fn into_extractor_fn(
-        self: Box<Self>,
-    ) -> Box<dyn (Fn(&dyn Any) -> Option<Option<&dyn Any>>) + Send + Sync>;
+    fn into_extractor_fn(self: Box<Self>) -> DynEnumFieldExtractorFn;
 
-    unsafe fn into_extractor_fn_unchecked(
-        self: Box<Self>,
-    ) -> Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync>;
+    unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynEnumFieldExtractorFn;
 }
 
-struct VariantAttributeType<T, U>
+struct VariantAttributeType<T, F>
 where
     T: Validatron,
-    U: Validatron,
+    F: Validatron,
 {
-    extractor: Box<dyn Fn(&T) -> Option<&U> + Send + Sync>,
+    extractor: EnumFieldExtractorFn<T, F>,
 }
 
-impl<T, U> VariantAttributeTypeDyn for VariantAttributeType<T, U>
+impl<T, F> VariantAttributeTypeDyn for VariantAttributeType<T, F>
 where
     T: Validatron + 'static,
-    U: Validatron + 'static,
+    F: Validatron + 'static,
 {
     fn get_class(&self) -> ValidatronClass {
-        U::get_class()
+        F::get_class()
     }
 
-    fn into_extractor_fn(
-        self: Box<Self>,
-    ) -> Box<dyn (Fn(&dyn Any) -> Option<Option<&dyn Any>>) + Send + Sync> {
+    fn into_extractor_fn(self: Box<Self>) -> DynEnumFieldExtractorFn {
         Box::new(move |source| {
             source
                 .downcast_ref()
@@ -186,9 +191,7 @@ where
         })
     }
 
-    unsafe fn into_extractor_fn_unchecked(
-        self: Box<Self>,
-    ) -> Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync> {
+    unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynEnumFieldExtractorFn {
         Box::new(move |source| {
             let source = &*(source as *const dyn Any as *const T);
 

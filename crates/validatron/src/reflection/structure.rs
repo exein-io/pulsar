@@ -6,6 +6,18 @@ use std::{
 
 use crate::{Validatron, ValidatronClass, ValidatronClassKind};
 
+/// Extractor closure which gets an object of type F from an object of type T
+type FieldExtractorFn<T, F> = Box<dyn Fn(&T) -> &F + Send + Sync>;
+
+/// Closures to extract a field from a struct object.
+/// These closure types work over dyn Any to simplify code, but expect to be called with
+/// the correct type.
+/// For maximum performance, the unchecked version will blindly assume the input type to be correct.
+/// When unsure about input correctness, the normal version must be called, which will return None
+/// when the input type is wrong.
+type DynFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync>;
+type UncheckedDynFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + Sync>;
+
 pub struct StructClassBuilder<T> {
     name: &'static str,
     fields: HashMap<&'static str, Attribute>,
@@ -21,13 +33,14 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
         }
     }
 
-    // TODO: decide if implment a parametric variant: can be parametric over access_function but costs size due to monomorphization T*F,
+    // TODO: decide if implment a parametric variant: can be parametric
+    // over access_function but costs size due to monomorphization T*F,
     // but cost should be minimal because of the body of the function
     /// Insert a field into the struct definition.
     pub fn add_field<F: Validatron + 'static>(
         mut self,
         name: &'static str,
-        access_fn: Box<dyn Fn(&T) -> &F + Send + Sync>,
+        access_fn: FieldExtractorFn<T, F>,
     ) -> Self {
         let attribute_type = AttributeType::<T, F> {
             extractor: access_fn,
@@ -106,7 +119,7 @@ impl Attribute {
         self.inner.get_class()
     }
 
-    pub fn into_extractor_fn(self) -> Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync> {
+    pub fn into_extractor_fn(self) -> DynFieldExtractorFn {
         self.inner.into_extractor_fn()
     }
 
@@ -114,9 +127,7 @@ impl Attribute {
     ///
     /// The `unsafe` is related to the returned function. That function accepts values as [Any],
     /// but must be called with values of the right type, because it doesn't perform checks.
-    pub unsafe fn into_extractor_fn_unchecked(
-        self,
-    ) -> Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + Sync> {
+    pub unsafe fn into_extractor_fn_unchecked(self) -> UncheckedDynFieldExtractorFn {
         self.inner.into_extractor_fn_unchecked()
     }
 }
@@ -124,13 +135,9 @@ impl Attribute {
 trait AttributeTypeDyn {
     fn get_class(&self) -> ValidatronClass;
 
-    fn into_extractor_fn(
-        self: Box<Self>,
-    ) -> Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync>;
+    fn into_extractor_fn(self: Box<Self>) -> DynFieldExtractorFn;
 
-    unsafe fn into_extractor_fn_unchecked(
-        self: Box<Self>,
-    ) -> Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + Sync>;
+    unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynFieldExtractorFn;
 }
 
 struct AttributeType<T, U>
@@ -150,9 +157,7 @@ where
         U::get_class()
     }
 
-    fn into_extractor_fn(
-        self: Box<Self>,
-    ) -> Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync> {
+    fn into_extractor_fn(self: Box<Self>) -> DynFieldExtractorFn {
         Box::new(move |source| {
             source
                 .downcast_ref()
@@ -160,9 +165,7 @@ where
         })
     }
 
-    unsafe fn into_extractor_fn_unchecked(
-        self: Box<Self>,
-    ) -> Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + Sync> {
+    unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynFieldExtractorFn {
         Box::new(move |source| {
             let source = &*(source as *const dyn Any as *const T);
 
