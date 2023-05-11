@@ -6,18 +6,18 @@ use std::{
 
 use crate::{Validatron, ValidatronClass, ValidatronClassKind};
 
-/// Extractor closure which gets an object of type F from an enum of type T.
-/// Could return None if the enum is of the wrong variant.
+// Extractor closure which gets an object of type F from an enum of type T.
+// Could return None if the enum is of the wrong variant.
 type EnumFieldExtractorFn<T, F> = Box<dyn Fn(&T) -> Option<&F> + Send + Sync>;
 
-/// Closures to extract a field from an enum.
-/// These closure types work over dyn Any to simplify code, but expect to be called with
-/// the correct type.
-/// For maximum performance, the unchecked version will blindly assume the input type to be correct.
-/// When unsure about input correctness, the normal version must be called, which will return None
-/// when the input type is wrong.
-/// Since the input could be of a variant which doesn't contain the value to extract,
-/// all these closure could return None.
+// Closures to extract a field from an enum.
+// These closure types work over dyn Any to simplify code, but expect to be called with
+// the correct type.
+// For maximum performance, the unchecked version will blindly assume the input type to be correct.
+// When unsure about input correctness, the normal version must be called, which will return None
+// when the input type is wrong.
+// Since the input could be of a variant which doesn't contain the value to extract,
+// all these closure could return None.
 type DynEnumFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<Option<&dyn Any>>) + Send + Sync>;
 type UncheckedDynEnumFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync>;
 
@@ -36,7 +36,8 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
         }
     }
 
-    // TODO: decide if implment a parametric variant: can be parametric over access_function but costs size due to monomorphization T*F,
+    // TODO: decide if implment a parametric variant: can be parametric
+    // over access_function but costs size due to monomorphization T*F,
     // but cost should be minimal because of the body of the function
     /// Insert a field into the variant definition.
     pub fn add_variant_field<F: Validatron + 'static>(

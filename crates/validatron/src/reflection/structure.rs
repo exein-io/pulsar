@@ -6,15 +6,15 @@ use std::{
 
 use crate::{Validatron, ValidatronClass, ValidatronClassKind};
 
-/// Extractor closure which gets an object of type F from an object of type T
+// Extractor closure which gets an object of type F from an object of type T
 type FieldExtractorFn<T, F> = Box<dyn Fn(&T) -> &F + Send + Sync>;
 
-/// Closures to extract a field from a struct object.
-/// These closure types work over dyn Any to simplify code, but expect to be called with
-/// the correct type.
-/// For maximum performance, the unchecked version will blindly assume the input type to be correct.
-/// When unsure about input correctness, the normal version must be called, which will return None
-/// when the input type is wrong.
+// Closures to extract a field from a struct object.
+// These closure types work over dyn Any to simplify code, but expect to be called with
+// the correct type.
+// For maximum performance, the unchecked version will blindly assume the input type to be correct.
+// When unsure about input correctness, the normal version must be called, which will return None
+// when the input type is wrong.
 type DynFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<&dyn Any>) + Send + Sync>;
 type UncheckedDynFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + Sync>;
 
@@ -140,21 +140,21 @@ trait AttributeTypeDyn {
     unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynFieldExtractorFn;
 }
 
-struct AttributeType<T, U>
+struct AttributeType<T, F>
 where
     T: Validatron,
-    U: Validatron,
+    F: Validatron,
 {
-    extractor: Box<dyn Fn(&T) -> &U + Send + Sync>,
+    extractor: Box<dyn Fn(&T) -> &F + Send + Sync>,
 }
 
-impl<T, U> AttributeTypeDyn for AttributeType<T, U>
+impl<T, F> AttributeTypeDyn for AttributeType<T, F>
 where
     T: Validatron + 'static,
-    U: Validatron + 'static,
+    F: Validatron + 'static,
 {
     fn get_class(&self) -> ValidatronClass {
-        U::get_class()
+        F::get_class()
     }
 
     fn into_extractor_fn(self: Box<Self>) -> DynFieldExtractorFn {
