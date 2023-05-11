@@ -21,48 +21,50 @@ impl<T: Validatron> CompiledRule<T> {
 /// Its content is a closure generated with the [compile_condition] function
 pub struct CompiledCondition<T>(pub(crate) Box<dyn Fn(&T) -> bool + Send + Sync>);
 
-/// Entrypoint to validate a condition for a given type `T`.
-///
-/// In case of success returns a [ValidatedCondition] for the given type `T`.
-pub fn validate_condition<T: Validatron + 'static>(
-    condition: Condition,
-) -> Result<ValidatedCondition<T>, ValidatronError> {
-    match condition {
-        Condition::And { l, r } => {
-            let l = validate_condition(*l)?;
-            let r = validate_condition(*r)?;
+impl Condition {
+    /// Entrypoint to validate a condition for a given type `T`.
+    ///
+    /// In case of success returns a [ValidatedCondition] for the given type `T`.
+    pub fn validate<T: Validatron + 'static>(
+        self,
+    ) -> Result<ValidatedCondition<T>, ValidatronError> {
+        match self {
+            Condition::And { l, r } => {
+                let l = l.validate()?;
+                let r = r.validate()?;
 
-            Ok(ValidatedCondition::And {
-                l: Box::new(l),
-                r: Box::new(r),
-            })
-        }
-        Condition::Or { l, r } => {
-            let l = validate_condition(*l)?;
-            let r = validate_condition(*r)?;
+                Ok(ValidatedCondition::And {
+                    l: Box::new(l),
+                    r: Box::new(r),
+                })
+            }
+            Condition::Or { l, r } => {
+                let l = l.validate()?;
+                let r = r.validate()?;
 
-            Ok(ValidatedCondition::Or {
-                l: Box::new(l),
-                r: Box::new(r),
-            })
-        }
+                Ok(ValidatedCondition::Or {
+                    l: Box::new(l),
+                    r: Box::new(r),
+                })
+            }
+            Condition::Not { inner } => {
+                let vc = inner.validate()?;
 
-        Condition::Not { inner } => {
-            let vc = validate_condition(*inner)?;
-            Ok(ValidatedCondition::Not {
-                inner: Box::new(vc),
-            })
-        }
-        Condition::Base {
-            field_path,
-            op,
-            value,
-        } => {
-            let validated_field_fn = validator::get_valid_rule::<T>(field_path, op, value)?;
+                Ok(ValidatedCondition::Not {
+                    inner: Box::new(vc),
+                })
+            }
+            Condition::Base {
+                field_path,
+                op,
+                value,
+            } => {
+                let validated_field_fn = validator::get_valid_rule::<T>(field_path, op, value)?;
 
-            Ok(ValidatedCondition::Base {
-                inner: validated_field_fn.rule_fn,
-            })
+                Ok(ValidatedCondition::Base {
+                    inner: validated_field_fn.rule_fn,
+                })
+            }
         }
     }
 }
@@ -88,14 +90,16 @@ pub enum ValidatedCondition<T> {
     },
 }
 
-/// Compiler entrypoint.
-///
-/// It compiles a tree of [ValidatedCondition] into single [CompiledCondition] object.
-///
-/// It walks into the tree and recursively generates closures to its leaves returning a single
-/// closures encapsulated in a [CompiledCondition] object.
-pub fn compile_condition<T: 'static>(c: ValidatedCondition<T>) -> CompiledCondition<T> {
-    CompiledCondition(generate_closures(c))
+impl<T: 'static> ValidatedCondition<T> {
+    /// Compiler entrypoint.
+    ///
+    /// It compiles a tree of [ValidatedCondition] into single [CompiledCondition] object.
+    ///
+    /// It walks into the tree and recursively generates closures to its leaves returning a single
+    /// closures encapsulated in a [CompiledCondition] object.
+    pub fn compile(self) -> CompiledCondition<T> {
+        CompiledCondition(generate_closures(self))
+    }
 }
 
 /// Recursively generates closures for a [ValidatedCondition] tree of a type `T`.

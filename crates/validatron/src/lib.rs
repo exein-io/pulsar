@@ -111,6 +111,17 @@ pub struct Rule {
     pub condition: Condition,
 }
 
+impl Rule {
+    pub fn compile<T: Validatron>(self) -> Result<CompiledRule<T>, ValidatronError> {
+        self.condition
+            .validate()
+            .map(|validated_condition| CompiledRule {
+                name: self.name,
+                condition: validated_condition.compile(),
+            })
+    }
+}
+
 /// Representation of conditions used as input to [validator::get_valid_rule] before validation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "content")]
