@@ -69,9 +69,9 @@ impl PulsarEngine {
     pub fn process(&self, event: &Event) {
         // Run the engine only on non threat events to avoid creating loops
         if event.header().threat.is_none() {
-            self.internal.ruleset.run(event, |rule| {
+            for rule in self.internal.ruleset.matches(event) {
                 emit_event(&self.internal.sender, event, &rule.name)
-            })
+            }
         }
     }
 }
