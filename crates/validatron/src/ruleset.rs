@@ -3,9 +3,9 @@ use crate::{
     Rule, ValidatedCondition, Validatron, ValidatronError,
 };
 
-/// Set of rules for a type `T`, ready for the match on an instance of that type.
+/// Set of rules which can be applied over any instance of type `T`.
 ///
-/// The rules are correct and compiled each one into single closure.
+/// Each rule has been validated and compiled into single closure.
 pub struct Ruleset<T: Validatron + 'static> {
     pub(crate) rules: Vec<CompiledRule<T>>,
 }
@@ -40,15 +40,8 @@ impl<T: Validatron> Ruleset<T> {
         })
     }
 
-    /// Perform the check on an instance of a type `T`, to see if there is match in the ruleset.
-    ///
-    /// Method accepts a callback that will be executed when there is a positive match with a rule,
-    /// having the matched rule as a parameter.  
-    pub fn run<F: Fn(&CompiledRule<T>)>(&self, e: &T, cb: F) {
-        for rule in &self.rules {
-            if rule.is_match(e) {
-                cb(rule)
-            }
-        }
+    /// Perform the check on an instance of a type `T` and returns an iterator over the matching rules.
+    pub fn matches<'a>(&'a self, e: &'a T) -> impl Iterator<Item = &CompiledRule<T>> {
+        self.rules.iter().filter(|rule| rule.is_match(e))
     }
 }
