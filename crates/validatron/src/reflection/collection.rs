@@ -5,6 +5,21 @@ use std::{
 
 use crate::{Validatron, ValidatronClass, ValidatronClassKind, ValidatronError};
 
+// The only operator currently supported on collections is MultiOperator::Contains.
+//
+/// These closure types work over dyn Any to simplify code, but expect to be called with
+/// the correct type.
+/// For maximum performance, the unchecked version will blindly assume the input type to be correct.
+/// When unsure about input correctness, the normal version must be called, which will return None
+/// when the input type is wrong.
+//
+// Check if collection contains const value
+type DynContainsFn = Box<dyn for<'c> Fn(&'c dyn Any) -> Option<bool> + Send + Sync>;
+type DynContainsFnUnchecked = Box<dyn for<'c> Fn(&'c dyn Any) -> bool + Send + Sync>;
+// Check if collection (second argument) contains the first argument
+type DynContainsMulti = Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync>;
+type DynContainsMultiUnchecked = Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync>;
+
 pub struct CollectionClassBuilder(());
 
 impl CollectionClassBuilder {
@@ -41,11 +56,7 @@ impl Collection {
         self.inner.get_value_class()
     }
 
-    pub fn contains_fn_any_value(
-        &self,
-        value: &str,
-    ) -> Result<Box<dyn for<'c> Fn(&'c dyn Any) -> Option<bool> + Send + Sync>, ValidatronError>
-    {
+    pub fn contains_fn_any_value(&self, value: &str) -> Result<DynContainsFn, ValidatronError> {
         self.inner.contains_fn_any_value(value)
     }
 
@@ -56,14 +67,11 @@ impl Collection {
     pub unsafe fn contains_fn_any_value_unchecked(
         &self,
         value: &str,
-    ) -> Result<Box<dyn for<'c> Fn(&'c dyn Any) -> bool + Send + Sync>, ValidatronError> {
+    ) -> Result<DynContainsFnUnchecked, ValidatronError> {
         self.inner.contains_fn_any_value_unchecked(value)
     }
 
-    pub fn contains_fn_any_multi(
-        &self,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync>, ValidatronError>
-    {
+    pub fn contains_fn_any_multi(&self) -> Result<DynContainsMulti, ValidatronError> {
         self.inner.contains_fn_any_multi()
     }
 
@@ -73,7 +81,7 @@ impl Collection {
     /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn contains_fn_any_multi_unchecked(
         &self,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync>, ValidatronError> {
+    ) -> Result<DynContainsMultiUnchecked, ValidatronError> {
         self.inner.contains_fn_any_multi_unchecked()
     }
 }
@@ -81,23 +89,18 @@ impl Collection {
 trait CollectionTypeDyn {
     fn get_value_class(&self) -> ValidatronClass;
 
-    fn contains_fn_any_value(
-        &self,
-        value: &str,
-    ) -> Result<Box<dyn for<'c> Fn(&'c dyn Any) -> Option<bool> + Send + Sync>, ValidatronError>;
+    fn contains_fn_any_value(&self, value: &str) -> Result<DynContainsFn, ValidatronError>;
 
     unsafe fn contains_fn_any_value_unchecked(
         &self,
         value: &str,
-    ) -> Result<Box<dyn for<'c> Fn(&'c dyn Any) -> bool + Send + Sync>, ValidatronError>;
+    ) -> Result<DynContainsFnUnchecked, ValidatronError>;
 
-    fn contains_fn_any_multi(
-        &self,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync>, ValidatronError>;
+    fn contains_fn_any_multi(&self) -> Result<DynContainsMulti, ValidatronError>;
 
     unsafe fn contains_fn_any_multi_unchecked(
         &self,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync>, ValidatronError>;
+    ) -> Result<DynContainsMultiUnchecked, ValidatronError>;
 }
 
 struct CollectionType<T, U>
@@ -120,11 +123,7 @@ where
         U::get_class()
     }
 
-    fn contains_fn_any_value(
-        &self,
-        value: &str,
-    ) -> Result<Box<dyn for<'c> Fn(&'c dyn Any) -> Option<bool> + Send + Sync>, ValidatronError>
-    {
+    fn contains_fn_any_value(&self, value: &str) -> Result<DynContainsFn, ValidatronError> {
         let ValidatronClassKind::Primitive(primitive) = U::get_class().into_kind() else {
             return Err(ValidatronError::CollectionValueNotPrimitive);
         };
@@ -149,7 +148,7 @@ where
     unsafe fn contains_fn_any_value_unchecked(
         &self,
         value: &str,
-    ) -> Result<Box<dyn for<'c> Fn(&'c dyn Any) -> bool + Send + Sync>, ValidatronError> {
+    ) -> Result<DynContainsFnUnchecked, ValidatronError> {
         let ValidatronClassKind::Primitive(primitive) = U::get_class().into_kind() else {
             return Err(ValidatronError::CollectionValueNotPrimitive);
         };
@@ -166,10 +165,7 @@ where
         }))
     }
 
-    fn contains_fn_any_multi(
-        &self,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync>, ValidatronError>
-    {
+    fn contains_fn_any_multi(&self) -> Result<DynContainsMulti, ValidatronError> {
         let ValidatronClassKind::Primitive(primitive) = U::get_class().into_kind() else {
             return Err(ValidatronError::CollectionValueNotPrimitive);
         };
@@ -194,7 +190,7 @@ where
 
     unsafe fn contains_fn_any_multi_unchecked(
         &self,
-    ) -> Result<Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync>, ValidatronError> {
+    ) -> Result<DynContainsMultiUnchecked, ValidatronError> {
         let ValidatronClassKind::Primitive(primitive) = U::get_class().into_kind() else {
             return Err(ValidatronError::CollectionValueNotPrimitive);
         };

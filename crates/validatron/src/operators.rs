@@ -4,7 +4,20 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-/// Representation of all possible operators.
+use crate::ValidatronError;
+
+/// An operator closure take two &T and returns whether the supplied arguments
+/// satisfy the Operator this closure implements.
+pub type OperatorFn<T> = Box<dyn Fn(&T, &T) -> bool + Send + Sync + 'static>;
+
+// The OperatorFactory of T, given an abstract operation, returns the concrete
+// closure which implements that specific check.
+pub type HandleOperatorFn<T> =
+    Box<dyn Fn(Operator) -> Result<OperatorFn<T>, ValidatronError> + Send + Sync + 'static>;
+
+/// Enum of all all possible operators.
+/// These represent the abastract operators, for the concrete
+/// implementstions of these, see OperatorFn<T>.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "content")]
 pub enum Operator {

@@ -24,21 +24,25 @@ struct ValidField<T: Validatron> {
     extractor: ExtractorFrom<T>,
 }
 
+// Generic extractor function: given a T, extracts something
+type ExtractorFn<T> = Box<dyn Fn(&T) -> Option<&dyn Any> + Send + Sync>;
+type AnyExtractorFn = Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync>;
+
 /// Represents the chain of access functions starting from the top of a type `T`.
 enum ExtractorFrom<T: Validatron> {
-    Some(Box<dyn Fn(&T) -> Option<&dyn Any> + Send + Sync>),
+    Some(ExtractorFn<T>),
     None,
 }
 
 impl<T: Validatron + 'static> ExtractorFrom<T> {
-    fn into_extract_fn(self) -> Box<dyn Fn(&T) -> Option<&dyn Any> + Send + Sync> {
+    fn into_extract_fn(self) -> ExtractorFn<T> {
         match self {
             ExtractorFrom::Some(extract_fn) => extract_fn,
             ExtractorFrom::None => Box::new(|t| Some(t as &dyn Any)),
         }
     }
 
-    fn chain(self, next: Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync>) -> Self {
+    fn chain(self, next: AnyExtractorFn) -> Self {
         match self {
             ExtractorFrom::Some(current) => {
                 ExtractorFrom::Some(Box::new(move |t| current(t).and_then(&next)))
@@ -200,8 +204,7 @@ fn get_valid_field_from_class<T: Validatron + 'static>(
 
                     // Wrapping the extractor_fn to uniform with variants
                     let extractor_fn = unsafe { attribute.into_extractor_fn_unchecked() };
-                    let extractor_fn: Box<dyn Fn(&dyn Any) -> Option<&dyn Any> + Send + Sync> =
-                        Box::new(move |f| Some(extractor_fn(f)));
+                    let extractor_fn: AnyExtractorFn = Box::new(move |f| Some(extractor_fn(f)));
 
                     let new_extractor = extractor.chain(extractor_fn);
 
