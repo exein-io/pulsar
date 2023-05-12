@@ -15,7 +15,6 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define EVENT_CGROUP_RMDIR 5
 #define EVENT_CGROUP_ATTACH 6
 
-#define MAX_IMAGE_LEN 100
 #define MAX_ORPHANS 30
 
 struct fork_event {
@@ -49,6 +48,7 @@ struct cgroup_attach_event {
 
 GLOBAL_INTEREST_MAP_DECLARATION;
 MAP_RULES(m_rules);
+MAP_CGROUP_RULES(m_cgroup_rules);
 
 OUTPUT_MAP(events, process_event, {
   struct fork_event fork;
@@ -312,6 +312,9 @@ int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
 SEC("raw_tracepoint/cgroup_attach_task")
 int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
              struct task_struct *task) {
+  tracker_check_cgroup_rules(&GLOBAL_INTEREST_MAP, &m_cgroup_rules, task, path);
+
+  // If the event is of interest, emit it as usual
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
