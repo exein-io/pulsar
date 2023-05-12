@@ -7,7 +7,11 @@ repository.workspace = true
 
 [features]
 default = []
-test-suite = ["bpf-common/test-utils", "which"]
+test-suite = [
+  "bpf-common/test-utils",
+  "which",
+  "cgroups-rs",
+]
 
 [dependencies]
 thiserror = "1"
@@ -18,6 +22,7 @@ nix = { version = "0.26.2", features = ["fs"] }
 bpf-common = { path = "../bpf-common" }
 pulsar-core = { path = "../pulsar-core" }
 which = { version = "4.2.5", optional = true }
+cgroups-rs = { version = "0.3.2", optional = true }
 
 [build-dependencies]
 bpf-builder = { path = "../bpf-builder" }
