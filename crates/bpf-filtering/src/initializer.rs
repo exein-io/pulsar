@@ -8,6 +8,8 @@ use pulsar_core::{
 };
 use tokio::sync::mpsc;
 
+use crate::maps::{Cgroup, Map};
+
 use super::{
     config::{Config, Rule},
     maps::InterestMap,
@@ -47,6 +49,17 @@ pub async fn setup_events_filter(
     let mut target_map = RuleMap::load(bpf, &config.rule_map_name)?;
     target_map.clear()?;
     target_map.install(&config.rules)?;
+
+    // setup cgroup rule map
+    let mut cgroups_map = Map::<Cgroup, u8>::load(bpf, &config.cgroup_rule_map_name)?;
+    cgroups_map.clear()?;
+    for cgroup in &config.cgroup_targets {
+        let cgroup: Cgroup = cgroup.parse().context("Invalid target cgroup")?;
+        cgroups_map
+            .map
+            .insert(cgroup, 0, 0)
+            .context("Error inserting in cgroup rule map")?;
+    }
 
     // load process list from procfs
     let mut process_tree = ProcessTree::load_from_procfs()?;
