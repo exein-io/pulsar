@@ -1,7 +1,7 @@
 use bpf_common::Pid;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
-use crate::maps::{DEFAULT_INTEREST, DEFAULT_RULES};
+use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
 
 use super::maps::Image;
 
@@ -21,6 +21,7 @@ pub struct Config {
     pub interest_map_name: String,
     /// Map name of the rules map
     pub rule_map_name: String,
+    pub cgroup_rule_map_name: String,
     /// Sets the default tracking status for Pid 1 and when finding missing entries.
     pub track_by_default: bool,
     /// Whitelist the current process
@@ -87,6 +88,7 @@ impl TryFrom<&ModuleConfig> for Config {
             cgroup_targets: config.get_list("cgroup_targets")?,
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
+            cgroup_rule_map_name: DEFAULT_CGROUP_RULES.to_string(),
             track_by_default: config.with_default("track_by_default", true)?,
             ignore_self: config.with_default("ignore_self", true)?,
         })
