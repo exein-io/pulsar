@@ -46,6 +46,7 @@ pub struct PidRule {
 }
 
 pub const MAX_IMAGE_LEN: usize = 100;
+pub const MAX_CGROUP_LEN: usize = 300;
 
 /// Extract Config from configuration file
 impl TryFrom<&ModuleConfig> for Config {

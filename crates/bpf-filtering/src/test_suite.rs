@@ -1,9 +1,11 @@
 use crate::config::Rule;
-use crate::maps::{InterestMap, PolicyDecision, RuleMap};
+use crate::maps::{Cgroup, InterestMap, Map, PolicyDecision, RuleMap};
 use bpf_common::aya::programs::RawTracePoint;
 use bpf_common::aya::{self, include_bytes_aligned, Bpf, BpfLoader};
 use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
+use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;
+use bpf_common::test_utils::random_name;
 use bpf_common::{ebpf_program, Pid, ProgramError};
 use nix::unistd::execv;
 use nix::unistd::{fork, ForkResult};
@@ -182,6 +184,10 @@ fn exec_updates_interest() -> TestCase {
     })
 }
 
+const INTERESTING: PolicyDecision = PolicyDecision {
+    interesting: true,
+    children_interesting: true,
+};
 const NOT_INTERESTING: PolicyDecision = PolicyDecision {
     interesting: false,
     children_interesting: false,
@@ -225,7 +231,7 @@ fn uninteresting_processes_ignored() -> TestCase {
     })
 }
 
-/// Check that cgroups
+// Make sure that when a process is attached to a target cgroup, it gets full interest
 fn cgroups_tracked() -> TestCase {
     TestCase::new("cgroups_tracked", async {
         let mut report = TestReport {
@@ -243,20 +249,21 @@ fn cgroups_tracked() -> TestCase {
             .set(Pid::from_raw(pid), NOT_INTERESTING)
             .unwrap();
 
-        let mut target_cgroup_map: aya::maps::HashMap<_, [u8; 300], u8> =
-            aya::maps::HashMap::try_from(
-                bpf.map_mut("m_cgroup_rules")
-                    .expect("Error finding eBPF map m_cgroup_rules"),
-            )
-            .unwrap();
-        // target_cgroup_map.insert(cgroup_path, 0, 0).unwrap();
+        let mut target_cgroup_map = Map::<Cgroup, u8>::load(&mut bpf, "m_cgroup_rules").unwrap();
+        let cgroup = random_name("/cgroups_tracked");
+        let cgroup_path: Cgroup = cgroup.parse().unwrap();
+        target_cgroup_map.map.insert(cgroup_path, 0, 0).unwrap();
 
-        // Create new cgroup and attach current process to it
+        // Spawn a process inside the targetted cgroup
+        let (child_pid, _id) = fork_in_temp_cgroup(&cgroup[1..]);
 
-        // report
-        //     .lines
-        //     .push("✗ event for uninteresting process not skipped".to_string());
-        // report.success = false;
+        if interest_map.0.map.get(&child_pid.as_raw(), 0).unwrap() != INTERESTING.as_raw() {
+            report
+                .lines
+                .push("✗ event for uninteresting process not skipped".to_string());
+            report.success = false;
+        }
+
         report
     })
 }

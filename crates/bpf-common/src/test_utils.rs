@@ -1,4 +1,18 @@
-use rand::prelude::*;
+use std::path::PathBuf;
+
+use rand::random;
+use which::which;
+
+/// Create a random file name with the given prefix
+pub fn random_name(prefix: &str) -> String {
+    format!("{}_{}", prefix, random::<u32>())
+}
+
+/// Resolve full path of the requested command
+pub fn find_executable(cmd: &str) -> PathBuf {
+    which(cmd).unwrap()
+}
+
 pub mod cgroup {
     use std::{os::unix::prelude::MetadataExt, process::exit, thread::sleep, time::Duration};
 
@@ -24,7 +38,7 @@ pub mod cgroup {
 
     /// Spawn a child process in a temporary cgroup with the given name.
     /// Return the child process pid and the cgroup id.
-    pub fn fork_in_temp_cgroup(name: String) -> (Pid, u64) {
+    pub fn fork_in_temp_cgroup(name: &str) -> (Pid, u64) {
         // - Create a cgroup
         let hierarchy = cgroups_rs::hierarchies::V2::new();
         let cg = CgroupBuilder::new(&name)
@@ -55,22 +69,5 @@ pub mod cgroup {
         cg.delete().expect("Error deleting cgroup");
 
         (child_pid, id)
-    }
-}
-
-pub mod file {
-    use std::path::PathBuf;
-
-    use rand::random;
-    use which::which;
-
-    /// Create a random file name with the given prefix
-    pub fn random_file(prefix: &str) -> String {
-        format!("{}_{}", prefix, random::<u32>())
-    }
-
-    /// Resolve full path of the requested command
-    pub fn find_executable(cmd: &str) -> PathBuf {
-        which(cmd).unwrap()
     }
 }
