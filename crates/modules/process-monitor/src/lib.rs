@@ -215,18 +215,15 @@ pub mod pulsar {
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
+    use bpf_common::test_utils::cgroup::{fork_in_temp_cgroup, temp_cgroup};
+    use bpf_common::test_utils::file::{find_executable, random_file};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
-    use cgroups_rs::cgroup_builder::CgroupBuilder;
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
-    use nix::sys::signal::Signal::SIGKILL;
     use nix::unistd::{fork, ForkResult};
-    use rand::prelude::*;
     use std::fs;
-    use std::os::unix::prelude::MetadataExt;
     use std::process::exit;
     use std::thread::sleep;
     use std::time::Duration;
-    use which::which;
 
     use super::*;
 
@@ -270,7 +267,7 @@ pub mod test_suite {
     fn exec_event() -> TestCase {
         TestCase::new("exec_event", async {
             let mut child_pid = Pid::from_raw(0);
-            let echo_buff = which("echo").unwrap();
+            let echo_buff = find_executable("echo");
             let echo_path = echo_buff.as_path().to_str().unwrap().to_string();
             test_runner()
                 .run(|| {
@@ -298,7 +295,7 @@ pub mod test_suite {
     fn relative_exec_event() -> TestCase {
         TestCase::new("relative_exec_event", async {
             let mut child_pid = Pid::from_raw(0);
-            let echo_buff = which("echo").unwrap().canonicalize().unwrap();
+            let echo_buff = find_executable("echo").canonicalize().unwrap();
             let echo_path = echo_buff.as_path().to_str().unwrap().to_string();
             test_runner()
                 .run(|| {
@@ -437,12 +434,12 @@ pub mod test_suite {
 
     fn cgroup_mkdir() -> TestCase {
         TestCase::new("cgroup_mkdir", async {
-            let name = format!("pulsar_cgroup_mkdir_{}", random::<u32>());
+            let name = random_file("pulsar_cgroup_mkdir");
             let path = format!("/{name}");
             let mut id = 0;
 
             test_runner()
-                .run(|| create_delete_cgroup(name, &mut id))
+                .run(|| id = temp_cgroup(name))
                 .await
                 .expect_event(event_check!(
                     ProcessEvent::CgroupMkdir,
@@ -455,12 +452,12 @@ pub mod test_suite {
 
     fn cgroup_rmdir() -> TestCase {
         TestCase::new("cgroup_rmdir", async {
-            let name = format!("pulsar_cgroup_rmdir_{}", random::<u32>());
+            let name = random_file("pulsar_cgroup_rmdir");
             let cg_path = format!("/{name}");
             let mut id = 0;
 
             test_runner()
-                .run(|| create_delete_cgroup(name, &mut id))
+                .run(|| id = temp_cgroup(name))
                 .await
                 .expect_event(event_check!(
                     ProcessEvent::CgroupRmdir,
@@ -473,42 +470,13 @@ pub mod test_suite {
 
     fn cgroup_attach() -> TestCase {
         TestCase::new("cgroup_attach", async {
-            let name = format!("pulsar_cgroup_attach_{}", random::<u32>());
+            let name = random_file("pulsar_cgroup_attach");
             let cg_path = format!("/{name}");
             let mut id = 0;
             let mut child_pid = Pid::from_raw(0);
 
             test_runner()
-                .run(|| {
-                    // - Create a cgroup
-                    let hierarchy = cgroups_rs::hierarchies::V2::new();
-                    let cg = CgroupBuilder::new(&name)
-                        .build(Box::new(hierarchy))
-                        .expect("Error creating cgroup");
-                    id = std::fs::metadata(format!("/sys/fs/cgroup/{name}"))
-                        .expect("Error reading cgroup inode")
-                        .ino();
-
-                    // - Spawn a child process
-                    match unsafe { fork() }.unwrap() {
-                        ForkResult::Child => {
-                            sleep(Duration::from_secs(1));
-                            exit(0);
-                        }
-                        ForkResult::Parent { child } => child_pid = child,
-                    }
-
-                    // - Attach it to the Cgroup
-                    cg.add_task_by_tgid((child_pid.as_raw() as u64).into())
-                        .expect("Could not attach child do cgroup");
-
-                    // - Kill the child process
-                    _ = nix::sys::signal::kill(child_pid, SIGKILL);
-                    nix::sys::wait::waitpid(child_pid, None).unwrap();
-
-                    // - Destroy the cgroup
-                    cg.delete().expect("Error deleting cgroup");
-                })
+                .run(|| (child_pid, id) = fork_in_temp_cgroup(name))
                 .await
                 .expect_event(event_check!(
                     ProcessEvent::CgroupAttach,
@@ -518,18 +486,5 @@ pub mod test_suite {
                 ))
                 .report()
         })
-    }
-
-    // Create a cgroup v2 with the given name and set id to its inode number
-    fn create_delete_cgroup(name: String, id: &mut u64) {
-        let hierarchy = cgroups_rs::hierarchies::V2::new();
-        let cg = CgroupBuilder::new(&name)
-            .build(Box::new(hierarchy))
-            .expect("Error creating cgroup");
-        // the cgroup id the the inode of the directory in cgroupfs
-        *id = std::fs::metadata(format!("/sys/fs/cgroup/{name}"))
-            .expect("Error reading cgroup inode")
-            .ino();
-        cg.delete().expect("Error deleting cgroup");
     }
 }

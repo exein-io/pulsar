@@ -22,6 +22,7 @@ pub fn tests() -> TestSuite {
             threads_are_ignored(),
             exit_cleans_up_resources(),
             uninteresting_processes_ignored(),
+            cgroups_tracked(),
         ],
     }
 }
@@ -181,6 +182,11 @@ fn exec_updates_interest() -> TestCase {
     })
 }
 
+const NOT_INTERESTING: PolicyDecision = PolicyDecision {
+    interesting: false,
+    children_interesting: false,
+};
+
 /// Make sure uninteresting events are not tracked.
 /// This tests the tracker_interesting_tgid function, which should return -1 when
 /// called from processes whose entry in m_interest is not INTEREST_TRACK_SELF.
@@ -196,16 +202,9 @@ fn uninteresting_processes_ignored() -> TestCase {
         let mut interest_map = InterestMap::load(&mut bpf, INTEREST_MAP_NAME).unwrap();
         interest_map.clear().unwrap();
 
-        let not_interesting = PolicyDecision {
-            interesting: false,
-            children_interesting: false,
-        }
-        .as_raw();
-        let our_pid = std::process::id() as i32;
+        let pid = std::process::id() as i32;
         interest_map
-            .0
-            .map
-            .insert(our_pid, not_interesting, 0)
+            .set(Pid::from_raw(pid), NOT_INTERESTING)
             .unwrap();
 
         let mut skipped_map: aya::maps::HashMap<_, i32, u64> = aya::maps::HashMap::try_from(
@@ -213,8 +212,8 @@ fn uninteresting_processes_ignored() -> TestCase {
                 .expect("Error finding eBPF map skipped_map"),
         )
         .unwrap();
-        skipped_map.insert(our_pid, 0, 0).unwrap();
-        let skipped_counter = skipped_map.get(&our_pid, 0).unwrap();
+        skipped_map.insert(pid, 0, 0).unwrap();
+        let skipped_counter = skipped_map.get(&pid, 0).unwrap();
 
         if skipped_counter == 0 {
             report
@@ -222,6 +221,42 @@ fn uninteresting_processes_ignored() -> TestCase {
                 .push("✗ event for uninteresting process not skipped".to_string());
             report.success = false;
         }
+        report
+    })
+}
+
+/// Check that cgroups
+fn cgroups_tracked() -> TestCase {
+    TestCase::new("cgroups_tracked", async {
+        let mut report = TestReport {
+            success: true,
+            lines: vec![],
+        };
+        let mut bpf = load_ebpf();
+        attach_raw_tracepoint(&mut bpf, "cgroup_attach_task");
+
+        let mut interest_map = InterestMap::load(&mut bpf, INTEREST_MAP_NAME).unwrap();
+        interest_map.clear().unwrap();
+
+        let pid = std::process::id() as i32;
+        interest_map
+            .set(Pid::from_raw(pid), NOT_INTERESTING)
+            .unwrap();
+
+        let mut target_cgroup_map: aya::maps::HashMap<_, [u8; 300], u8> =
+            aya::maps::HashMap::try_from(
+                bpf.map_mut("m_cgroup_rules")
+                    .expect("Error finding eBPF map m_cgroup_rules"),
+            )
+            .unwrap();
+        // target_cgroup_map.insert(cgroup_path, 0, 0).unwrap();
+
+        // Create new cgroup and attach current process to it
+
+        // report
+        //     .lines
+        //     .push("✗ event for uninteresting process not skipped".to_string());
+        // report.success = false;
         report
     })
 }

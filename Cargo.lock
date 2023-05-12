@@ -236,6 +236,7 @@ dependencies = [
  "aya",
  "bpf-builder",
  "bytes",
+ "cgroups-rs",
  "glob",
  "hex",
  "lazy_static",
@@ -243,10 +244,12 @@ dependencies = [
  "log",
  "nix 0.26.2",
  "procfs",
+ "rand",
  "sys-mount",
  "thiserror",
  "tokio",
  "tokio-fd",
+ "which",
 ]
 
 [[package]]
@@ -256,6 +259,7 @@ dependencies = [
  "anyhow",
  "bpf-builder",
  "bpf-common",
+ "cgroups-rs",
  "log",
  "nix 0.26.2",
  "pulsar-core",
@@ -1272,14 +1276,11 @@ dependencies = [
  "bpf-builder",
  "bpf-common",
  "bpf-filtering",
- "cgroups-rs",
  "log",
  "nix 0.26.2",
  "pulsar-core",
- "rand",
  "thiserror",
  "tokio",
- "which",
 ]
 
 [[package]]
