@@ -154,37 +154,44 @@ impl ModuleManager {
                 let _ = tx_reply.send(());
             }
             ModuleManagerCommand::StopModule { tx_reply } => {
-                let result = if let ModuleStatus::Running = self.status {
-                    let (tx_shutdown, task) = self.running_task.take().unwrap();
-                    tx_shutdown.send_signal();
-                    let result = task.await;
-                    match result {
-                        Ok(()) => {
-                            log::info!("Module {} exited", self.task_launcher.name());
+                let result = match self.status {
+                    ModuleStatus::Created | ModuleStatus::Stopped => Ok(()),
+                    ModuleStatus::Running => {
+                        let (tx_shutdown, task) = self.running_task.take().unwrap();
+                        tx_shutdown.send_signal();
+                        let result = task.await;
+                        match result {
+                            Ok(()) => {
+                                log::info!("Module {} exited", self.task_launcher.name());
 
-                            self.status = ModuleStatus::Stopped;
+                                self.status = ModuleStatus::Stopped;
 
-                            Ok(())
-                        }
-                        Err(err) => {
-                            let err_msg =
-                                format!("Module {} exit failure: {err}", self.task_launcher.name());
+                                Ok(())
+                            }
+                            Err(err) => {
+                                let err_msg = format!(
+                                    "Module {} exit failure: {err}",
+                                    self.task_launcher.name()
+                                );
 
-                            log::warn!("{err_msg}");
+                                log::warn!("{err_msg}");
 
-                            self.status = ModuleStatus::Failed(err.to_string());
+                                self.status = ModuleStatus::Failed(err.to_string());
 
-                            Err(err.to_string())
+                                Err(err.to_string())
+                            }
                         }
                     }
-                } else {
-                    let err_msg = format!(
-                        "Stopping module {} failed: Module found in status: {:?}",
-                        self.task_launcher.name(),
-                        self.status
-                    );
-                    Err(err_msg)
+                    ModuleStatus::Failed(_) => {
+                        let err_msg = format!(
+                            "Stopping module {} failed: Module found in status: {:?}",
+                            self.task_launcher.name(),
+                            self.status
+                        );
+                        Err(err_msg)
+                    }
                 };
+
                 // The `let _ =` ignores any errors when sending.
                 //
                 // This can happen if the `select!` macro is used
