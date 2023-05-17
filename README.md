@@ -14,7 +14,7 @@
   </p>
 </div>
 
-Pulsar is an event-driven framework for monitoring the activity of Linux devices at runtime, powered by [eBPF](https://ebpf.io/). 
+Pulsar is a security tool for monitoring the activity of Linux devices at runtime, powered by [eBPF](https://ebpf.io/). 
 
 The Pulsar core modules use eBPF probes to collect events from the kernel in a safe and efficient way. Pulsar events can be categorized in the four main following areas:
 
@@ -54,7 +54,7 @@ In the pulsar terminal you should see something similar to:
 [2023-02-07T14:29:09Z  THREAT  /usr/bin/ln (36267)] [rules-engine - { rule_name = "Create sensitive files symlink" }] File Link { source: /tmp/secret, destination: /etc/shadow, hard_link: false }
 ```
 
-As you can see from the `is_threat` field set to `true`, Pulsar is correctly identifying the symbolic link creation as a threat event.
+As you can see Pulsar identifies the previous command as a threat event.
 
 ### How does it work?
 
@@ -63,9 +63,9 @@ Behind the scenes, when an application performs an operation, it gets intercepte
 In the example above, the event produced matched the following rule:
 
 ```yaml
-- name: Read sensitive file
-  type: FileOpened
-  condition: (payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.filename STARTS_WITH "/etc/sudoers.d/" OR payload.filename STARTS_WITH "/etc/pam.d/") AND (payload.flags CONTAINS "O_RDONLY" OR payload.flags CONTAINS "O_RDWR")
+- name: Create sensitive files symlink
+  type: FileLink
+  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
 ```
 
 ## Installation
