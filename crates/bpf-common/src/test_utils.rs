@@ -41,7 +41,7 @@ pub mod cgroup {
     pub fn fork_in_temp_cgroup(name: &str) -> (Pid, u64) {
         // - Create a cgroup
         let hierarchy = cgroups_rs::hierarchies::V2::new();
-        let cg = CgroupBuilder::new(&name)
+        let cg = CgroupBuilder::new(name)
             .build(Box::new(hierarchy))
             .expect("Error creating cgroup");
         let id = std::fs::metadata(format!("/sys/fs/cgroup/{name}"))
