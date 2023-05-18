@@ -15,7 +15,12 @@ pub fn lsm_supported() -> bool {
     match try_load() {
         Ok(()) => true,
         Err(err) => {
-            log::warn!("LSM not supported: {err}");
+            if log::log_enabled!(log::Level::Debug) {
+                log::warn!("LSM not supported: {err:?}");
+            } else {
+                log::warn!("LSM not supported: {err}");
+            }
+
             false
         }
     }
