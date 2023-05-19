@@ -7,15 +7,15 @@ use syn::{
 };
 
 /// Procedural macro for implementing the `Validatron` trait for custom types.
-/// 
+///
 /// Basically it does the boring task of describing a new types using
 /// `Validatron` classes.
-/// 
+///
 /// Example:
 ///
 /// ```
 /// use validatron::Validatron;
-/// 
+///
 /// #[derive(Debug, Clone, Validatron)]
 /// pub struct MyStruct {
 ///     pub a: i32,
@@ -23,9 +23,9 @@ use syn::{
 ///     pub c: i32,
 /// }
 /// ```
-/// 
+///
 /// In this specific case the macro generates the following code:
-/// 
+///
 /// ```
 /// impl Validatron for MyStruct {
 ///     fn get_class() -> ValidatronClass {
@@ -38,26 +38,26 @@ use syn::{
 ///     }
 /// }
 /// ```
-/// 
+///
 /// The first parameter of `add_field` method is the name of the field, the second is
 /// the access function for this field given an instance of that type.
-/// 
+///
 /// Incase of tuple structs (`struct MyStruct(i32)`) the name of the field is going to be the index (`0`, `1`, etc.).
-/// 
+///
 /// Using it on an `enum` type is basically the same:
-/// 
+///
 /// ```
 /// use validatron::Validatron;
-/// 
+///
 /// #[derive(Debug, Clone, Validatron)]
 /// enum MyEnum {
 ///     Named { int: i32, float: f64 },
 ///     Unnamed(i32, String),
 /// }
 /// ```
-/// 
+///
 /// And it will generate the following code:
-/// 
+///
 /// ```
 /// impl Validatron for MyEnum {
 ///     fn get_class() -> ValidatronClass {
@@ -99,9 +99,9 @@ use syn::{
 ///     }
 /// }
 /// ```
-/// 
+///
 /// Notice the access function uses an `Option` as return value over the plain value of the implementation for `struct` types.
-/// 
+///
 /// The same rules of the previous example applies for named and unnamed field inside
 /// the variants.
 #[proc_macro_derive(Validatron, attributes(validatron))]
