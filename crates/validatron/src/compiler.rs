@@ -16,7 +16,7 @@ impl<T: Validatron> CompiledRule<T> {
 
 /// It contains the logic of a rule for a given type `T`.
 ///
-/// It an abstraction of a function that takes a reference of type `T` and returns a [bool].
+/// It is an abstraction of a function that takes a reference of type `T` and returns a [bool].
 ///
 /// Its content is a closure generated with the [compile_condition] function
 pub struct CompiledCondition<T>(pub(crate) Box<dyn Fn(&T) -> bool + Send + Sync>);
