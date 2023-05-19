@@ -25,7 +25,7 @@
 //! ```
 //!
 //! It will check if the field `my_value` exists in the `MyStruct` type and if it's possible to parse the input string `"42"` into the
-//! specific field type [i32]
+//! specific field type [i32].
 //!
 //! On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
 //!

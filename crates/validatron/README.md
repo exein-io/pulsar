@@ -2,11 +2,84 @@
 
 Validatron is a type checked condition framework to build complex rules for complex types. it's the base of the Pulsar's `rule-engine` module.
 
-### Validations
+Basically it's a way for check the correctness of rules over types and subsequent compilation into a single function.
 
-It's possible to validate rules against a complex type to check if a fields exists on that type and if comparing value matches the relative field type.
+It check if fields specified in a rules are valid for a given type. Example:
 
-It includes macros to generate implementations of the required traits.
+```rust
+use validatron::validator::get_valid_rule;
+#[derive(Validatron)]
+struct MyStruct {
+    my_value: i32
+}
+let rule = get_valid_rule::<MyStruct>(
+    vec![Field::Simple {
+        field_name: "my_value".to_string(),
+    }],
+    Operator::Relational(RelationalOperator::Equals),
+    Match::Value("42".to_string()),
+)
+.unwrap();
+let test = MyStruct { my_value: 42 };
+assert!(rule.is_match(&test))
+```
+
+It will check if the field `my_value` exists in the `MyStruct` type and if it's possible to parse the input string `"42"` into the
+specific field type (`i32`).
+
+On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
+
+```rust
+use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Match};
+#[derive(Validatron)]
+struct MyStruct {
+    my_value: i32,
+}
+let ruleset: Ruleset<MyStruct> = Ruleset::from_rules(vec![
+    Rule {
+        name: "my_value equal to 3 or 5".to_string(),
+        condition: Condition::Or {
+            l: Box::new(Condition::Base {
+                field_path: vec![Field::Simple {
+                    field_name: "my_value".to_string(),
+                }],
+                op: Operator::Relational(RelationalOperator::Equals),
+                value: Match::Value("3".to_string()),
+            }),
+            r: Box::new(Condition::Base {
+                field_path: vec![Field::Simple {
+                    field_name: "my_value".to_string(),
+                }],
+                op: Operator::Relational(RelationalOperator::Equals),
+                value: Match::Value("5".to_string()),
+            }),
+        },
+    },
+    Rule {
+        name: "my_value greater than 100".to_string(),
+        condition: Condition::Base {
+            field_path: vec![Field::Simple {
+                field_name: "my_value".to_string(),
+            }],
+            op: Operator::Relational(RelationalOperator::Greater),
+            value: Match::Value("100".to_string()),
+        },
+    },
+])
+.unwrap();
+let test = MyStruct {
+    my_value: 42
+};
+ruleset.run(&test, |rule| {
+    println!("Matched rule {}", rule.name)
+})
+```
+
+Check the [ruleset](./src/ruleset.rs) module for more details.
+
+To better understand the underlying implementation, take a look at the [reflection](./src/reflection.rs) module.
+
+It includes [macros](./derive/README.md) to generate implementations of the required traits.
 
 ### Closures for code generation
 
@@ -14,7 +87,7 @@ For the runtime it compiles rules using closures to generate code. It walks AST 
 
 ## Status
 
-Now have the base functionalities needed by Pulsar and a custom DSL. Missing features are work in progress. 
+Now have the base functionalities needed by Pulsar. Missing features are work in progress. 
 
 ## Contributing
 
