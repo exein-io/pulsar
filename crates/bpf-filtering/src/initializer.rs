@@ -39,7 +39,7 @@ pub async fn setup_events_filter(
 ) -> Result<()> {
     // Add a rule to ignore the pulsar executable itself
     if config.ignore_self {
-        match whitelist_for_current_process() {
+        match whitelist_for_current_process().await {
             Ok(rule) => config.rules.push(rule),
             Err(err) => log::error!("Failed to add current process to whitelist: {:?}", err),
         }
@@ -65,7 +65,7 @@ pub async fn setup_events_filter(
     let mut process_tree = ProcessTree::load_from_procfs()?;
 
     let mut initializer = Initializer::new(bpf, config)?;
-    if let Err(err) = initializer.track_target_cgroups() {
+    if let Err(err) = initializer.track_target_cgroups().await {
         log::warn!("Error loading cgroup information: {err:?}");
     }
     for process in &process_tree {
@@ -188,12 +188,12 @@ impl Initializer {
     }
 
     fn set_policy(&mut self, pid: Pid, policy: PolicyDecision) -> Result<()> {
-        log::trace!("{}: {}", pid, policy.as_raw());
+        log::trace!("Set policy for {}: {}", pid, policy.as_raw());
         self.cache.insert(pid, policy);
         self.interest_map.set(pid, policy)
     }
 
-    fn track_target_cgroups(&mut self) -> Result<()> {
+    async fn track_target_cgroups(&mut self) -> Result<()> {
         let cgroups: Vec<String> = self
             .config
             .cgroup_targets
@@ -202,7 +202,8 @@ impl Initializer {
             .map(|cgroup| format!("/sys/fs/cgroup{cgroup}/cgroup.procs"))
             .collect();
         for cgroup in cgroups {
-            let processes = std::fs::read_to_string(&cgroup)
+            let processes = tokio::fs::read_to_string(&cgroup)
+                .await
                 .with_context(|| format!("Error reading processes in cgroup {:?}", cgroup))?;
             for process in processes.lines() {
                 let pid: i32 = process.parse().context("Invalid content")?;
@@ -221,8 +222,9 @@ impl Initializer {
 
 /// Return a rule which whitelists the current executable.
 /// This is needed to avoid loops where pulsar events generate further events.
-fn whitelist_for_current_process() -> Result<Rule> {
-    let pulsar_exec = std::fs::read_link("/proc/self/exe")
+async fn whitelist_for_current_process() -> Result<Rule> {
+    let pulsar_exec = tokio::fs::read_link("/proc/self/exe")
+        .await
         .context("Failed to read current process executable name")?;
     Ok(Rule {
         image: Image::try_from(pulsar_exec.into_os_string().into_vec())?,
