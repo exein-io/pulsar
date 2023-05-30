@@ -5,7 +5,7 @@ use bpf_common::aya::{self, include_bytes_aligned, Bpf, BpfLoader};
 use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
 use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;
-use bpf_common::test_utils::random_name;
+use bpf_common::test_utils::random_name_with_prefix;
 use bpf_common::{ebpf_program, Pid, ProgramError};
 use nix::unistd::execv;
 use nix::unistd::{fork, ForkResult};
@@ -208,11 +208,13 @@ fn uninteresting_processes_ignored() -> TestCase {
         let mut interest_map = InterestMap::load(&mut bpf, INTEREST_MAP_NAME).unwrap();
         interest_map.clear().unwrap();
 
+        // Mark pid as "not interesting"
         let pid = std::process::id() as i32;
         interest_map
             .set(Pid::from_raw(pid), NOT_INTERESTING)
             .unwrap();
 
+        // The skipped map will count how many times sys_enter was called by "non interesting" processes
         let mut skipped_map: aya::maps::HashMap<_, i32, u64> = aya::maps::HashMap::try_from(
             bpf.map_mut("skipped_map")
                 .expect("Error finding eBPF map skipped_map"),
@@ -221,6 +223,12 @@ fn uninteresting_processes_ignored() -> TestCase {
         skipped_map.insert(pid, 0, 0).unwrap();
         let skipped_counter = skipped_map.get(&pid, 0).unwrap();
 
+        // Make sure the counter has increased.
+        // Notice how this generally happens the other way around: in pulsar events are emitted
+        // only for "interesting" processes and "non interesting" processes are skipped.
+        // This is why we've named the "skipped_map" like this. In this particular test-case
+        // it's the other way around: we increase skipped_counter when we would ignore
+        // a process.
         if skipped_counter == 0 {
             report
                 .lines
@@ -250,7 +258,7 @@ fn cgroups_tracked() -> TestCase {
             .unwrap();
 
         let mut target_cgroup_map = Map::<Cgroup, u8>::load(&mut bpf, "m_cgroup_rules").unwrap();
-        let cgroup = random_name("/cgroups_tracked");
+        let cgroup = random_name_with_prefix("/cgroups_tracked");
         let cgroup_path: Cgroup = cgroup.parse().unwrap();
         target_cgroup_map.map.insert(cgroup_path, 0, 0).unwrap();
 
@@ -258,9 +266,10 @@ fn cgroups_tracked() -> TestCase {
         let (child_pid, _id) = fork_in_temp_cgroup(&cgroup[1..]);
 
         if interest_map.0.map.get(&child_pid.as_raw(), 0).unwrap() != INTERESTING.as_raw() {
-            report
-                .lines
-                .push("✗ event for uninteresting process not skipped".to_string());
+            report.lines.push(
+                "✗ process attached to target cgroup is still marked as not interesting"
+                    .to_string(),
+            );
             report.success = false;
         }
 

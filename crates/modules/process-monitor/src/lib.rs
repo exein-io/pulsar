@@ -216,7 +216,7 @@ pub mod pulsar {
 pub mod test_suite {
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
     use bpf_common::test_utils::cgroup::{fork_in_temp_cgroup, temp_cgroup};
-    use bpf_common::test_utils::{find_executable, random_name};
+    use bpf_common::test_utils::{find_executable, random_name_with_prefix};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
     use nix::unistd::{fork, ForkResult};
@@ -434,7 +434,7 @@ pub mod test_suite {
 
     fn cgroup_mkdir() -> TestCase {
         TestCase::new("cgroup_mkdir", async {
-            let name = random_name("pulsar_cgroup_mkdir");
+            let name = random_name_with_prefix("pulsar_cgroup_mkdir");
             let path = format!("/{name}");
             let mut id = 0;
 
@@ -452,7 +452,7 @@ pub mod test_suite {
 
     fn cgroup_rmdir() -> TestCase {
         TestCase::new("cgroup_rmdir", async {
-            let name = random_name("pulsar_cgroup_rmdir");
+            let name = random_name_with_prefix("pulsar_cgroup_rmdir");
             let cg_path = format!("/{name}");
             let mut id = 0;
 
@@ -470,7 +470,7 @@ pub mod test_suite {
 
     fn cgroup_attach() -> TestCase {
         TestCase::new("cgroup_attach", async {
-            let name = random_name("pulsar_cgroup_attach");
+            let name = random_name_with_prefix("pulsar_cgroup_attach");
             let cg_path = format!("/{name}");
             let mut id = 0;
             let mut child_pid = Pid::from_raw(0);

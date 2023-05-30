@@ -4,7 +4,7 @@ use rand::random;
 use which::which;
 
 /// Create a random file name with the given prefix
-pub fn random_name(prefix: &str) -> String {
+pub fn random_name_with_prefix(prefix: &str) -> String {
     format!("{}_{}", prefix, random::<u32>())
 }
 
@@ -51,6 +51,9 @@ pub mod cgroup {
         // - Spawn a child process
         let child_pid = match unsafe { fork() }.unwrap() {
             ForkResult::Child => {
+                // The child process will be killed by the parent, so we could
+                // sleep forever, but we'll exit anyway after 1s in case the
+                // parent gets killed prematurely.
                 sleep(Duration::from_secs(1));
                 exit(0);
             }
