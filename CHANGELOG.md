@@ -5,6 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- 
+
+## [0.6.0] - 2023-06-05
+
+### Added
+- cross compilation task
+- bpf loop detection
+- extract absolute file paths on exec
+- cgroup support
+- collection support in rules
+- dynamic fields compare in rules
+
+### Changed
+- improved LSM autodetect
+- allow more that one BPF program per module
+- moved `get_path_str` to shared header
+- more modular event filtering
+- validatron rewrite
+
+### Fixed
+- uname parse for wsl2
+- module manager start command
+- memory alignments issue in bpf output event struct
+- warning on stopping never started modules
 
 ## [0.5.0] - 2023-02-06
 
