@@ -86,7 +86,7 @@ static __always_inline long get_dentry_name(u32 i, void *callback_ctx) {
   // programs.
   struct dentry *current_dentry = c->current.dentry;
   struct vfsmount *current_mnt = c->current.mnt;
-  struct dentry *parent_dentry = BPF_CORE_READ(c->current.dentry, d_parent);
+  struct dentry *parent_dentry = BPF_CORE_READ(current_dentry, d_parent);
 
   // Get root dentry of the file-system mount point.
   struct dentry *root_dentry = BPF_CORE_READ(current_mnt, mnt_root);
