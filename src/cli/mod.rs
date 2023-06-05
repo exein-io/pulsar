@@ -102,7 +102,7 @@ fn log_level_from_verbosity_flag_count(num: u8) -> log::Level {
 }
 
 fn show_backtrace() -> bool {
-    if log::max_level() > log::LevelFilter::Error {
+    if log::max_level() >= log::LevelFilter::Debug {
         return true;
     }
 
