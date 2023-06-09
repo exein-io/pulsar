@@ -315,8 +315,17 @@ pub mod test_suite {
     fn open_file() -> TestCase {
         TestCase::new("open_file", async {
             let path = temp_dir().join("open_file");
-            // See include/linux/fs.h
-            const FMODE_OPENED: i32 = 32768;
+
+            // Unless the kernel is configured with CONFIG_ARCH_32BIT_OFF_T,
+            // `force_o_largefile()` returns true and all open syscalls will
+            // automatically add the O_LARGEFILE flag. The flag is architecture-dependant
+            // and exported as 0 on libc (because userspace shouldn't specify it)
+            // For tests to pass, we'll have to ignore it.
+            const O_LARGEFILE: i32 = if cfg!(target_arch = "aarch64") {
+                0o400000
+            } else {
+                0o100000
+            };
 
             _ = std::fs::remove_file(&path);
             std::fs::write(&path, b"hello_world").unwrap();
@@ -332,7 +341,7 @@ pub mod test_suite {
                     (filename, path.to_str().unwrap().into(), "filename"),
                     (
                         flags,
-                        kernel::file::flags::O_RDWR | FMODE_OPENED,
+                        kernel::file::flags::O_RDWR | O_LARGEFILE,
                         "open flags"
                     )
                 ))
