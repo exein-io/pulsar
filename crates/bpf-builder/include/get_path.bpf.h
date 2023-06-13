@@ -44,8 +44,8 @@
 #define MAX_PATH_COMPONENTS 100
 #define MAX_PATH_UNROLL 20
 
-// Array of path components which is kept inside `struct get_path_ctx`.
-// bpf_loop requires `get_path_ctx` to be a stack variable, but that prevents
+// Array of path components which is kept inside `struct ctx_get_path`.
+// bpf_loop requires `ctx_get_path` to be a stack variable, but that prevents
 // us to store MAX_PATH_COMPONENTS items inside, as that's more than the allowed
 // stack space for eBPF programs. For this reason we allocate them on a
 // temporary PERCPU_ARRAY map.
@@ -62,20 +62,22 @@ struct {
   __uint(max_entries, 1);
 } components_map SEC(".maps");
 
-struct get_path_ctx {
+struct ctx_get_path {
   // Output of get_path_str
   struct buffer *buffer;
   struct buffer_index *index;
 
-  // Current dentry and vfsmount being iterated by get_dentry_name.
+  // Current dentry and vfsmount being iterated by loop_get_dentry_name.
   struct path current;
 
   // Internal list of path components, from dentry to the root
   struct components *components;
 };
 
-static __always_inline long get_dentry_name(u32 i, void *callback_ctx) {
-  struct get_path_ctx *c = callback_ctx;
+// Used to iterate over all the dentry ancestors of a file and append
+// their name to struct components.
+static __always_inline long loop_get_dentry_name(u32 i, void *callback_ctx) {
+  struct ctx_get_path *c = callback_ctx;
   // NOTE: we need to store fields in temporary variables because a call like
   // the the following results in a relocation error in kernel 5.5 x86:
   // BPF_CORE_READ(c->current.dentry, d_parent);
@@ -128,11 +130,12 @@ static __always_inline long get_dentry_name(u32 i, void *callback_ctx) {
   return LOOP_CONTINUE;
 }
 
-// Build the full path by joining the output components of get_dentry_name.
+// Build the full path by joining the output components of loop_get_dentry_name.
 // The loop starts from the end (t goes from (MAX_PATH_COMPONENTS-1) to 0)
 // because the first component will always be the initial dentry.
-static __always_inline long append_path_component(u32 i, void *callback_ctx) {
-  struct get_path_ctx *c = callback_ctx;
+static __always_inline long loop_append_path_component(u32 i,
+                                                       void *callback_ctx) {
+  struct ctx_get_path *c = callback_ctx;
   int t = c->components->total_components - i - 1;
   if (t < 0 || t >= MAX_PATH_COMPONENTS)
     return LOOP_STOP;
@@ -148,7 +151,7 @@ static void get_path_str(struct path *path, struct buffer *buffer,
                          struct buffer_index *index) {
 
   u32 key = 0;
-  struct get_path_ctx c;
+  struct ctx_get_path c;
   struct components *components = bpf_map_lookup_elem(&components_map, &key);
   if (!components) {
     LOG_ERROR("can't get context memory");
@@ -161,6 +164,6 @@ static void get_path_str(struct path *path, struct buffer *buffer,
   c.current.dentry = path->dentry;
   c.current.mnt = path->mnt;
   buffer_index_init(buffer, index);
-  LOOP(MAX_PATH_COMPONENTS, MAX_PATH_UNROLL, get_dentry_name, &c);
-  LOOP(MAX_PATH_COMPONENTS, MAX_PATH_UNROLL, append_path_component, &c);
+  LOOP(MAX_PATH_COMPONENTS, MAX_PATH_UNROLL, loop_get_dentry_name, &c);
+  LOOP(MAX_PATH_COMPONENTS, MAX_PATH_UNROLL, loop_append_path_component, &c);
 }

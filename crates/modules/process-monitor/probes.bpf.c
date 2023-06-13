@@ -171,16 +171,20 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   return 0;
 }
 
-struct append_next_orphan_ctx {
+// Context for loop_collect_orphan
+struct ctx_collect_orphan {
+  // Next process to check
   struct list_head *next;
+  // End of list
   struct list_head *last;
+  // Output data structure where orphans are saved
   struct pending_dead_process *pending;
 };
 
-// Append to the pending orphans the next child process.
-// Used in the collect_orphans loop.
-static __always_inline long append_next_orphan(u32 i, void *callback_ctx) {
-  struct append_next_orphan_ctx *c = callback_ctx;
+// Used to iterate over the children of a dead process and collect them
+// into a `struct pending_dead_process`. Used in the collect_orphans loop.
+static __always_inline long loop_collect_orphan(u32 i, void *callback_ctx) {
+  struct ctx_collect_orphan *c = callback_ctx;
   // Once we find the same element we started at, we know we've
   // iterated all children and we can exit the loop.
   if (c->next == c->last) {
@@ -211,13 +215,13 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   pending->dead_parent = tgid;
   pending->timestamp = bpf_ktime_get_ns();
   // Collect orphans by iterating the dead process children
-  struct append_next_orphan_ctx c;
+  struct ctx_collect_orphan c;
   c.next = BPF_CORE_READ(p, children.next);
   c.last = &p->children;
   c.pending = pending;
 
   struct task_struct *task = container_of(c.next, struct task_struct, sibling);
-  LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, append_next_orphan, &c);
+  LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_collect_orphan, &c);
 }
 
 // This is attached to tracepoint:sched:sched_process_exit
@@ -261,22 +265,25 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   return 0;
 }
 
-struct check_next_orphan_ctx {
+// Context for loop_orphan_adopted
+struct ctx_orphan_adopted {
+  // eBPF program context used for emitting events
   void *ctx;
+  // list of pending orphans we should check
   struct pending_dead_process *pending;
 };
 
-// Append to the pending orphans the next child process.
-// Used in the collect_orphans loop.
-static __always_inline long check_next_orphan(u32 i, void *callback_ctx) {
-  struct check_next_orphan_ctx *c = callback_ctx;
+// Used to iterate over all the orphans left by a dead process and
+// emit an event with their new parent. Used in the sched_switch loop.
+static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx) {
+  struct ctx_orphan_adopted *c = callback_ctx;
   if (i >= MAX_ORPHANS) // satisfy verifier (never true)
     return LOOP_STOP;
   struct task_struct *orphan = c->pending->orphans[i];
-  if (orphan == NULL)
+  if (orphan == NULL) // true when we're done
     return LOOP_STOP;
   struct process_event *event = output_temp();
-  if (!event)
+  if (!event) // memory error
     return 0;
   event->event_type = EVENT_CHANGE_PARENT;
   event->buffer.len = 0;
@@ -300,10 +307,10 @@ int BPF_PROG(sched_switch) {
     return 0;
   }
   pending->dead_parent = 0;
-  struct check_next_orphan_ctx c;
+  struct ctx_orphan_adopted c;
   c.pending = pending;
   c.ctx = ctx;
-  LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, check_next_orphan, &c);
+  LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_orphan_adopted, &c);
   return 0;
 }
 
