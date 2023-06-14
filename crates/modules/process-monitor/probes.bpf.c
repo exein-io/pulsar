@@ -210,7 +210,7 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   if (!pending) {
     return;
   }
-  LOG_DEBUG("%d is DEAD (tgid = %d)", p, tgid);
+  LOG_DEBUG("%d is DEAD ", tgid);
 
   pending->dead_parent = tgid;
   pending->timestamp = bpf_ktime_get_ns();
@@ -306,6 +306,17 @@ int BPF_PROG(sched_switch) {
   if (!pending || !pending->dead_parent) {
     return 0;
   }
+
+  // sched_switch could be called too soon, before the new parent
+  // of the child is set.
+  struct task_struct *first_orphan = pending->orphans[0];
+  pid_t first_new_parent = BPF_CORE_READ(first_orphan, parent, pid);
+  if (pending->dead_parent == first_new_parent) {
+    LOG_DEBUG("No new parent set yet for children of dead %d",
+              pending->dead_parent);
+    return 0;
+  }
+
   pending->dead_parent = 0;
   struct ctx_orphan_adopted c;
   c.pending = pending;
