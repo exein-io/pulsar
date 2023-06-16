@@ -82,7 +82,12 @@ static __always_inline int increase_nesting() {
     LOG_ERROR("can't get nesting counter");
     return -1;
   }
+#ifdef FEATURE_NO_FN_POINTERS
+  u64 counter = *nesting_level;
+  *nesting_level += 1;
+#else
   u64 counter = __sync_fetch_and_add(nesting_level, 1);
+#endif
   if (counter > 0) {
     LOG_ERROR("nesting_level = %d", counter + 1);
   }
@@ -93,7 +98,12 @@ static __always_inline int decrease_nesting() {
   u32 zero = 0;
   u64 *nesting_level = bpf_map_lookup_elem(&nesting_counter_map, &zero);
   if (nesting_level) {
+#ifdef FEATURE_NO_FN_POINTERS
+    *nesting_level -= 1;
+    return *nesting_level;
+#else
     return __sync_fetch_and_sub(nesting_level, 1);
+#endif
   } else {
     return -1;
   }
