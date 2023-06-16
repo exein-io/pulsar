@@ -1,8 +1,14 @@
 /// Manage output to userspace using a perf event array map
 #pragma once
 
+#include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
 #include "interest_tracking.bpf.h"
+
+// eBPF programs could interrupt each other, see "Are BPF programs preemptible?"
+// thread on the kernel BPF mailing list:
+// https://lore.kernel.org/bpf/878rhty100.fsf@cloudflare.com/T/#t
+#define MAX_PREEMPTION_NESTING_LEVEL 3
 
 #define OUTPUT_MAP(map_name, struct_name, variants)                            \
   /* Event struct definition */                                                \
@@ -47,7 +53,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, u32);
   __type(value, char[BUFFER_MAX * 2]);
-  __uint(max_entries, 1);
+  __uint(max_entries, MAX_PREEMPTION_NESTING_LEVEL);
 } temp_map SEC(".maps");
 
 // The init map contains configuration status for the eBPF program:
@@ -62,15 +68,51 @@ struct {
   __uint(max_entries, 1);
 } init_map SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __type(key, u32);
+  __type(value, u64);
+  __uint(max_entries, 1);
+} nesting_counter_map SEC(".maps");
+
+static __always_inline int increase_nesting() {
+  u32 zero = 0;
+  u64 *nesting_level = bpf_map_lookup_elem(&nesting_counter_map, &zero);
+  if (!nesting_level) {
+    LOG_ERROR("can't get nesting counter");
+    return -1;
+  }
+  u64 counter = __sync_fetch_and_add(nesting_level, 1);
+  if (counter > 0) {
+    LOG_ERROR("nesting_level = %d", counter + 1);
+  }
+  return counter;
+}
+
+static __always_inline int decrease_nesting() {
+  u32 zero = 0;
+  u64 *nesting_level = bpf_map_lookup_elem(&nesting_counter_map, &zero);
+  if (nesting_level) {
+    return __sync_fetch_and_sub(nesting_level, 1);
+  } else {
+    return -1;
+  }
+}
+
 // Get the temporary buffer inside temp_map as a void pointer, this can be cast
 // to the required event type and filled before submitting it for output. The
 // pointed at memory contiains BUFFER_MAX *2 bytes.
 static __always_inline void *output_temp() {
-  u32 key = 0;
+  int nesting_level = increase_nesting();
+  if (nesting_level < 0) {
+    LOG_ERROR("invalid nesting_level");
+    return NULL;
+  }
+  u32 key = nesting_level;
   void *event = bpf_map_lookup_elem(&temp_map, &key);
   if (!event) {
     LOG_ERROR("can't get event memory");
-    return 0;
+    return NULL;
   }
   return event;
 }
@@ -78,6 +120,8 @@ static __always_inline void *output_temp() {
 static __always_inline void output_event(void *ctx, void *output_map,
                                          void *event, int struct_len,
                                          int buffer_len) {
+  decrease_nesting();
+
   u32 key = STATUS_INITIALIZED;
   u32 *initialization_status = bpf_map_lookup_elem(&init_map, &key);
   if (!initialization_status || !*initialization_status) {
