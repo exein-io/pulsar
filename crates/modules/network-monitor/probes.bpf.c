@@ -413,6 +413,10 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
   struct sock *sk = (struct sock *)args->data[0];
   void *iov_base = (void *)args->data[1];
 
+  int len = ret;
+  if (len <= 0)
+    return;
+
   struct network_event *event =
       network_event_init(EVENT_RECV, &GLOBAL_INTEREST_MAP);
   if (!event)
@@ -420,10 +424,6 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
 
   u16 proto = get_sock_protocol(sk);
   event->recv.proto = proto;
-
-  int len = ret;
-  if (len <= 0)
-    return;
   event->recv.data_len = len;
   // Copy data only for UDP events since we want to intercept DNS replies
   if (proto == PROTO_UDP) {
