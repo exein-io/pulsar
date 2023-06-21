@@ -128,7 +128,7 @@ fn replace_logger(tx_log: mpsc::UnboundedSender<String>) {
     }
 
     log::set_boxed_logger(Box::new(SimpleLogger(tx_log)))
-        .map(|()| log::set_max_level(log::LevelFilter::Debug))
+        .map(|()| log::set_max_level(log::LevelFilter::Info))
         .expect("initalizing logger failed");
 }
 
