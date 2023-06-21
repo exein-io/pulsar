@@ -127,11 +127,10 @@ macro_rules! ebpf_program {
         use bpf_common::aya::include_bytes_aligned;
         use bpf_common::feature_autodetect::kernel_version::KernelVersion;
 
-        let full =
-            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".full.bpf.o")).into();
-        let no_loop =
-            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".no_fn_ptr.bpf.o"))
-                .into();
+        let version_5_13 =
+            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".5_13.bpf.o")).into();
+        let version_5_5 =
+            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".5_5.bpf.o")).into();
         if $ctx.kernel_version().as_i32()
             >= (KernelVersion {
                 major: 5,
@@ -140,9 +139,9 @@ macro_rules! ebpf_program {
             })
             .as_i32()
         {
-            full
+            version_5_13
         } else {
-            no_loop
+            version_5_5
         }
     }};
 }
