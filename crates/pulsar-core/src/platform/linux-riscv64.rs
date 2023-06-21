@@ -11,6 +11,7 @@ pub mod file {
         pub const O_TRUNC: i32 = 0x1000;
         pub const O_APPEND: i32 = 0x2000;
         pub const O_NONBLOCK: i32 = 0x4000;
+        pub const O_LARGEFILE: i32 = 0x8000;
         pub const O_DIRECTORY: i32 = 0x200000;
     }
 }
