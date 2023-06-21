@@ -261,7 +261,7 @@ pub mod test_suite {
         event_check,
         test_runner::{TestCase, TestRunner, TestSuite},
     };
-    use pulsar_core::kernel;
+    use pulsar_core::kernel::{self, file::flags::O_LARGEFILE};
 
     pub fn tests() -> TestSuite {
         TestSuite {
@@ -321,11 +321,7 @@ pub mod test_suite {
             // automatically add the O_LARGEFILE flag. The flag is architecture-dependant
             // and exported as 0 on libc (because userspace shouldn't specify it)
             // For tests to pass, we'll have to ignore it.
-            const O_LARGEFILE: i32 = if cfg!(target_arch = "aarch64") {
-                0o400000
-            } else {
-                0o100000
-            };
+            let expected_flags = kernel::file::flags::O_RDWR | O_LARGEFILE;
 
             _ = std::fs::remove_file(&path);
             std::fs::write(&path, b"hello_world").unwrap();
@@ -339,11 +335,7 @@ pub mod test_suite {
                 .expect_event(event_check!(
                     FsEvent::FileOpened,
                     (filename, path.to_str().unwrap().into(), "filename"),
-                    (
-                        flags,
-                        kernel::file::flags::O_RDWR | O_LARGEFILE,
-                        "open flags"
-                    )
+                    (flags, expected_flags, "open flags")
                 ))
                 .report()
         })
