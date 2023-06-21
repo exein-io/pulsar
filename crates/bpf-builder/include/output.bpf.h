@@ -23,11 +23,7 @@
   };                                                                           \
                                                                                \
   static __always_inline struct struct_name *struct_name##_init(               \
-      int event_variant, struct bpf_map_def_aya *tracker) {                    \
-    pid_t tgid = tracker_interesting_tgid(tracker);                            \
-    if (tgid < 0)                                                              \
-      return NULL;                                                             \
-                                                                               \
+      int event_variant, pid_t tgid) {                                         \
     struct struct_name *event = output_temp();                                 \
     if (!event)                                                                \
       return NULL;                                                             \

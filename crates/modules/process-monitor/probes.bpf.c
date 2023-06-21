@@ -102,18 +102,14 @@ int BPF_PROG(process_fork, struct task_struct *parent,
   tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
-  struct process_event *event = output_temp();
+  struct process_event *event = process_event_init(EVENT_FORK, child_tgid);
   if (!event)
     return 0;
-  event->event_type = EVENT_FORK;
-  event->buffer.len = 0;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = child_tgid;
+
   event->fork.ppid = parent_tgid;
 
   output_event(ctx, &events, event, sizeof(struct process_event),
                event->buffer.len);
-
   return 0;
 }
 
@@ -122,13 +118,9 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
              struct linux_binprm *bprm) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
-  struct process_event *event = output_temp();
+  struct process_event *event = process_event_init(EVENT_EXEC, tgid);
   if (!event)
     return 0;
-  event->event_type = EVENT_EXEC;
-  event->buffer.len = 0;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
   event->exec.argc = BPF_CORE_READ(bprm, argc);
   // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
   // be used as a lookup key for the target and whitelist maps and garbage
@@ -251,13 +243,9 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
     return 0;
   }
 
-  struct process_event *event = output_temp();
+  struct process_event *event = process_event_init(EVENT_EXIT, tgid);
   if (!event)
     return 0;
-  event->event_type = EVENT_EXIT;
-  event->timestamp = bpf_ktime_get_ns();
-  // The PID is the thread id of the progress group leader
-  event->pid = tgid;
   // NOTE: here we're assuming the exit code is set by the last exiting thread
   event->exit.exit_code = BPF_CORE_READ(p, exit_code) >> 8;
 
@@ -286,13 +274,10 @@ static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx) {
   struct task_struct *orphan = c->pending->orphans[i];
   if (orphan == NULL) // true when we're done
     return LOOP_STOP;
-  struct process_event *event = output_temp();
+  pid_t tgid = BPF_CORE_READ(orphan, pid);
+  struct process_event *event = process_event_init(EVENT_CHANGE_PARENT, tgid);
   if (!event) // memory error
     return 0;
-  event->event_type = EVENT_CHANGE_PARENT;
-  event->buffer.len = 0;
-  event->timestamp = c->pending->timestamp;
-  event->pid = BPF_CORE_READ(orphan, pid);
   event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
   LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
   output_event(c->ctx, &events, event, sizeof(struct process_event),
@@ -334,12 +319,9 @@ int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path) {
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
-  struct process_event *event = output_temp();
+  struct process_event *event = process_event_init(EVENT_CGROUP_MKDIR, tgid);
   if (!event)
     return 0;
-  event->event_type = EVENT_CGROUP_MKDIR;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
   event->buffer.len = 0;
   event->cgroup_mkdir.id = BPF_CORE_READ(cgrp, kn, id);
   buffer_index_init(&event->buffer, &event->cgroup_mkdir.path);
@@ -355,13 +337,9 @@ int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path) {
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
-  struct process_event *event = output_temp();
+  struct process_event *event = process_event_init(EVENT_CGROUP_RMDIR, tgid);
   if (!event)
     return 0;
-  event->event_type = EVENT_CGROUP_RMDIR;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-  event->buffer.len = 0;
   event->cgroup_rmdir.id = BPF_CORE_READ(cgrp, kn, id);
   buffer_index_init(&event->buffer, &event->cgroup_rmdir.path);
   buffer_append_str(&event->buffer, &event->cgroup_rmdir.path, path,
@@ -380,13 +358,9 @@ int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return 0;
-  struct process_event *event = output_temp();
+  struct process_event *event = process_event_init(EVENT_CGROUP_ATTACH, tgid);
   if (!event)
     return 0;
-  event->event_type = EVENT_CGROUP_ATTACH;
-  event->timestamp = bpf_ktime_get_ns();
-  event->pid = tgid;
-  event->buffer.len = 0;
   event->cgroup_attach.id = BPF_CORE_READ(cgrp, kn, id);
   event->cgroup_attach.pid = BPF_CORE_READ(task, tgid);
   buffer_index_init(&event->buffer, &event->cgroup_attach.path);
