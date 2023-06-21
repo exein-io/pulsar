@@ -222,6 +222,10 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
 
   struct task_struct *task = container_of(c.next, struct task_struct, sibling);
   LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_collect_orphan, &c);
+  // Log a warning if we couln't process all children
+  if (c.next != c.last) {
+    LOG_ERROR("Couldn't iterate all children. Too many of them");
+  }
 }
 
 // This is attached to tracepoint:sched:sched_process_exit
