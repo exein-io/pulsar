@@ -23,11 +23,29 @@
     struct buffer buffer;                                                      \
   };                                                                           \
                                                                                \
+  /* The BPF stack limit of 512 bytes is exceeded by network_event,*/          \
+  /* so we use a per-cpu array as a workaround*/                               \
+  struct {                                                                     \
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);                                   \
+    __type(key, u32);                                                          \
+    __type(value, struct struct_name);                                         \
+    __uint(max_entries, MAX_PREEMPTION_NESTING_LEVEL);                         \
+  } temp_##struct_name##map SEC(".maps");                                      \
+                                                                               \
   static __always_inline struct struct_name *struct_name##_init(               \
       int event_variant, pid_t tgid) {                                         \
-    struct struct_name *event = output_temp();                                 \
-    if (!event)                                                                \
+    int nesting_level = increase_nesting();                                    \
+    if (nesting_level < 0) {                                                   \
+      LOG_ERROR("invalid nesting_level");                                      \
       return NULL;                                                             \
+    }                                                                          \
+    u32 key = nesting_level;                                                   \
+    struct struct_name *event =                                                \
+        bpf_map_lookup_elem(&temp_##struct_name##map, &key);                   \
+    if (!event) {                                                              \
+      LOG_ERROR("can't get event memory for nesting level %d", nesting_level); \
+      return NULL;                                                             \
+    }                                                                          \
                                                                                \
     event->event_type = event_variant;                                         \
     event->timestamp = bpf_ktime_get_ns();                                     \
@@ -43,15 +61,6 @@
     __type(value, u32);                                                        \
     __uint(max_entries, 0);                                                    \
   } map_name SEC(".maps");
-
-// The BPF stack limit of 512 bytes is exceeded by network_event,
-// so we use a per-cpu array as a workaround
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, u32);
-  __type(value, char[BUFFER_MAX * 2]);
-  __uint(max_entries, MAX_PREEMPTION_NESTING_LEVEL);
-} temp_map SEC(".maps");
 
 // The init map contains configuration status for the eBPF program:
 // - The STATUS_INITIALIZED entry indicates the perf event array initialization
@@ -117,24 +126,6 @@ static __always_inline int increase_nesting() {
     return -1;
   }
   return counter;
-}
-
-// Get the temporary buffer inside temp_map as a void pointer, this can be cast
-// to the required event type and filled before submitting it for output. The
-// pointed at memory contiains BUFFER_MAX *2 bytes.
-static __always_inline void *output_temp() {
-  int nesting_level = increase_nesting();
-  if (nesting_level < 0) {
-    LOG_ERROR("invalid nesting_level");
-    return NULL;
-  }
-  u32 key = nesting_level;
-  void *event = bpf_map_lookup_elem(&temp_map, &key);
-  if (!event) {
-    LOG_ERROR("can't get event memory for nesting level %d", nesting_level);
-    return NULL;
-  }
-  return event;
 }
 
 static __always_inline void output_event(void *ctx, void *output_map,
