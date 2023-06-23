@@ -11,7 +11,7 @@
 // https://lore.kernel.org/bpf/878rhty100.fsf@cloudflare.com/T/#t
 #define MAX_PREEMPTION_NESTING_LEVEL 3
 
-#define OUTPUT_MAP(map_name, struct_name, variants)                            \
+#define OUTPUT_MAP(struct_name, variants)                                      \
   /* Event struct definition */                                                \
   struct struct_name {                                                         \
     u64 timestamp;                                                             \
@@ -30,18 +30,54 @@
     __type(key, u32);                                                          \
     __type(value, struct struct_name);                                         \
     __uint(max_entries, MAX_PREEMPTION_NESTING_LEVEL);                         \
-  } temp_##struct_name##map SEC(".maps");                                      \
+  } map_temp_##struct_name SEC(".maps");                                       \
                                                                                \
-  static __always_inline struct struct_name *struct_name##_init(               \
+  struct {                                                                     \
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);                                   \
+    __type(key, u32);                                                          \
+    __type(value, u64);                                                        \
+    __uint(max_entries, 1);                                                    \
+  } map_nesting_##struct_name SEC(".maps");                                    \
+                                                                               \
+  static __always_inline void decrease_nesting_##struct_name() {               \
+    u32 zero = 0;                                                              \
+    u64 *nesting_level =                                                       \
+        bpf_map_lookup_elem(&map_nesting_##struct_name, &zero);                \
+    if (nesting_level) {                                                       \
+      sync_decrement(nesting_level);                                           \
+    }                                                                          \
+  }                                                                            \
+                                                                               \
+  static __always_inline int increase_nesting_##struct_name() {                \
+    u32 zero = 0;                                                              \
+    u64 *nesting_level =                                                       \
+        bpf_map_lookup_elem(&map_nesting_##struct_name, &zero);                \
+    if (!nesting_level) {                                                      \
+      LOG_ERROR("can't get nesting counter");                                  \
+      return -1;                                                               \
+    }                                                                          \
+    u64 counter = sync_increment(nesting_level);                               \
+    if (counter > 0) {                                                         \
+      LOG_ERROR("nesting_level = %d", counter + 1);                            \
+    }                                                                          \
+    if (counter >= MAX_PREEMPTION_NESTING_LEVEL) {                             \
+      LOG_ERROR("nesting_level = %d", counter);                                \
+      sync_decrement(nesting_level);                                           \
+      return -1;                                                               \
+    }                                                                          \
+    return counter;                                                            \
+  }                                                                            \
+                                                                               \
+  static __always_inline struct struct_name *init_##struct_name(               \
       int event_variant, pid_t tgid) {                                         \
-    int nesting_level = increase_nesting();                                    \
+    int nesting_level = increase_nesting_##struct_name();                      \
     if (nesting_level < 0) {                                                   \
       LOG_ERROR("invalid nesting_level");                                      \
       return NULL;                                                             \
     }                                                                          \
     u32 key = nesting_level;                                                   \
     struct struct_name *event =                                                \
-        bpf_map_lookup_elem(&temp_##struct_name##map, &key);                   \
+        bpf_map_lookup_elem(&map_temp_##struct_name, &key);                    \
     if (!event) {                                                              \
       LOG_ERROR("can't get event memory for nesting level %d", nesting_level); \
       return NULL;                                                             \
@@ -60,7 +96,26 @@
     __type(key, int);                                                          \
     __type(value, u32);                                                        \
     __uint(max_entries, 0);                                                    \
-  } map_name SEC(".maps");
+  } map_output_##struct_name SEC(".maps");                                     \
+                                                                               \
+  static __always_inline void output_##struct_name(                            \
+      void *ctx, struct struct_name *event) {                                  \
+    decrease_nesting_##struct_name();                                          \
+    if (is_initialized()) {                                                    \
+      /* The output size is the full struct length,                            \
+       * minus the unused buffer len*/                                         \
+      unsigned int len =                                                       \
+          sizeof(struct struct_name) - (BUFFER_MAX - event->buffer.len);       \
+      if (len > 0 && len <= sizeof(struct struct_name)) {                      \
+        int ret = bpf_perf_event_output(ctx, &map_output_##struct_name,        \
+                                        BPF_F_CURRENT_CPU, event,              \
+                                        len & (BUFFER_MAX - 1));               \
+        if (ret) {                                                             \
+          LOG_ERROR("error %d emitting event of len %d", ret, len);            \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  }
 
 // The init map contains configuration status for the eBPF program:
 // - The STATUS_INITIALIZED entry indicates the perf event array initialization
@@ -74,12 +129,12 @@ struct {
   __uint(max_entries, 1);
 } init_map SEC(".maps");
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, u32);
-  __type(value, u64);
-  __uint(max_entries, 1);
-} nesting_counter_map SEC(".maps");
+// Return if the userspace is ready for events on the perf event array
+static __always_inline int is_initialized() {
+  u32 key = STATUS_INITIALIZED;
+  u32 *initialization_status = bpf_map_lookup_elem(&init_map, &key);
+  return initialization_status && *initialization_status;
+}
 
 // Get a value and increment it by one
 static __always_inline u64 sync_increment(u64 *value) {
@@ -99,54 +154,4 @@ static __always_inline void sync_decrement(u64 *value) {
 #else
   *value -= 1;
 #endif
-}
-
-static __always_inline void decrease_nesting() {
-  u32 zero = 0;
-  u64 *nesting_level = bpf_map_lookup_elem(&nesting_counter_map, &zero);
-  if (nesting_level) {
-    sync_decrement(nesting_level);
-  }
-}
-
-static __always_inline int increase_nesting() {
-  u32 zero = 0;
-  u64 *nesting_level = bpf_map_lookup_elem(&nesting_counter_map, &zero);
-  if (!nesting_level) {
-    LOG_ERROR("can't get nesting counter");
-    return -1;
-  }
-  u64 counter = sync_increment(nesting_level);
-  if (counter > 0) {
-    LOG_ERROR("nesting_level = %d", counter + 1);
-  }
-  if (counter >= MAX_PREEMPTION_NESTING_LEVEL) {
-    LOG_ERROR("nesting_level = %d", counter);
-    sync_decrement(nesting_level);
-    return -1;
-  }
-  return counter;
-}
-
-static __always_inline void output_event(void *ctx, void *output_map,
-                                         void *event, int struct_len,
-                                         int buffer_len) {
-  decrease_nesting();
-
-  u32 key = STATUS_INITIALIZED;
-  u32 *initialization_status = bpf_map_lookup_elem(&init_map, &key);
-  if (!initialization_status || !*initialization_status) {
-    // The userspace is not ready yet for events on the perf event array
-    return;
-  }
-
-  // The output size is the full struct length, minus the unused buffer len
-  unsigned int len = struct_len - (BUFFER_MAX - buffer_len);
-  if (len > 0 && len <= struct_len) {
-    int ret = bpf_perf_event_output(ctx, output_map, BPF_F_CURRENT_CPU, event,
-                                    len & (BUFFER_MAX - 1));
-    if (ret) {
-      LOG_ERROR("error %d emitting event of len %d", ret, len);
-    }
-  }
 }

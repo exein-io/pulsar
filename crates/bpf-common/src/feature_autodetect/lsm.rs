@@ -28,7 +28,7 @@ pub fn lsm_supported() -> bool {
 
 const PATH: &str = "/sys/kernel/security/lsm";
 static TEST_LSM_PROBE: &[u8] =
-    include_bytes_aligned!(concat!(env!("OUT_DIR"), "/test_lsm.full.bpf.o"));
+    include_bytes_aligned!(concat!(env!("OUT_DIR"), "/test_lsm.5_13.bpf.o"));
 
 fn try_load() -> Result<()> {
     // Check if LSM enabled
