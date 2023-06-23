@@ -79,7 +79,9 @@ pub async fn program(
             .kprobe("security_socket_recvmsg");
     }
     let mut program = builder.start().await?;
-    program.read_events("events", sender).await?;
+    program
+        .read_events("map_output_network_event", sender)
+        .await?;
     Ok(program)
 }
 

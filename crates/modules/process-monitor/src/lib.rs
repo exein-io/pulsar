@@ -21,7 +21,9 @@ pub async fn program(
         .raw_tracepoint("cgroup_attach_task")
         .start()
         .await?;
-    program.read_events("events", sender).await?;
+    program
+        .read_events("map_output_process_event", sender)
+        .await?;
     Ok(program)
 }
 

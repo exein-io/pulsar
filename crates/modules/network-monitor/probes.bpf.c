@@ -68,7 +68,7 @@ struct arguments {
 
 GLOBAL_INTEREST_MAP_DECLARATION;
 
-OUTPUT_MAP(events, network_event, {
+OUTPUT_MAP(network_event, {
   struct bind_event bind;
   struct address listen;
   struct connect_event connect;
@@ -223,14 +223,13 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
-  struct network_event *event = network_event_init(EVENT_BIND, tgid);
+  struct network_event *event = init_network_event(EVENT_BIND, tgid);
   if (!event)
     return;
   copy_sockaddr(address, &event->bind.addr, false);
   event->bind.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
 
-  output_event(ctx, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(ctx, event);
 }
 
 PULSAR_LSM_HOOK(socket_listen, struct socket *, sock, int, backlog);
@@ -239,14 +238,13 @@ void __always_inline on_socket_listen(void *ctx, struct socket *sock,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
-  struct network_event *event = network_event_init(EVENT_LISTEN, tgid);
+  struct network_event *event = init_network_event(EVENT_LISTEN, tgid);
   if (!event)
     return;
   struct sock *sk = BPF_CORE_READ(sock, sk);
   copy_skc_source(&sk->__sk_common, &event->listen);
 
-  output_event(ctx, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(ctx, event);
 }
 
 PULSAR_LSM_HOOK(socket_connect, struct socket *, sock, struct sockaddr *,
@@ -257,7 +255,7 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
-  struct network_event *event = network_event_init(EVENT_CONNECT, tgid);
+  struct network_event *event = init_network_event(EVENT_CONNECT, tgid);
   if (!event)
     return;
   event->timestamp = bpf_ktime_get_ns();
@@ -265,8 +263,7 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
   copy_sockaddr(address, &event->connect.destination, false);
   event->connect.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
 
-  output_event(ctx, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(ctx, event);
 }
 
 PULSAR_LSM_HOOK(socket_accept, struct socket *, sock, struct socket *, newsock);
@@ -306,14 +303,13 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
-  struct network_event *event = network_event_init(EVENT_ACCEPT, tgid);
+  struct network_event *event = init_network_event(EVENT_ACCEPT, tgid);
   if (!event)
     return;
   struct sock *sk = BPF_CORE_READ(sock, sk);
   copy_skc_source(&sk->__sk_common, &event->accept.destination);
   copy_skc_dest(&sk->__sk_common, &event->accept.source);
-  output_event(ctx, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(ctx, event);
 }
 
 static __always_inline void
@@ -349,7 +345,7 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
-  struct network_event *event = network_event_init(EVENT_SEND, tgid);
+  struct network_event *event = init_network_event(EVENT_SEND, tgid);
   if (!event)
     return;
   event->send.proto = proto;
@@ -364,8 +360,7 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
   copy_skc_source(&sk->__sk_common, &event->send.source);
   copy_skc_dest(&sk->__sk_common, &event->send.destination);
 
-  output_event(ctx, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(ctx, event);
 }
 
 static __always_inline void save_recvmsg_addr(void *ctx,
@@ -427,7 +422,7 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
   if (len <= 0)
     return;
 
-  struct network_event *event = network_event_init(EVENT_RECV, tgid);
+  struct network_event *event = init_network_event(EVENT_RECV, tgid);
   if (!event)
     return;
 
@@ -460,8 +455,7 @@ static __always_inline void do_recvmsg(void *ctx, long ret) {
     copy_skc_dest(&sk->__sk_common, &event->recv.destination);
   }
 
-  output_event(ctx, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(ctx, event);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -504,15 +498,14 @@ int tcp_set_state(struct pt_regs *regs) {
   short ipver = family == AF_INET ? 4 : 6;
   u32 key = 0;
 
-  struct network_event *event = network_event_init(EVENT_CLOSE, tgid);
+  struct network_event *event = init_network_event(EVENT_CLOSE, tgid);
   if (!event)
     return 0;
   event->close.original_pid = original_pid;
   copy_skc_source(&sk->__sk_common, &event->close.source);
   copy_skc_dest(&sk->__sk_common, &event->close.destination);
 
-  output_event(regs, &events, event, sizeof(struct network_event),
-               event->buffer.len);
+  output_network_event(regs, event);
   return 0;
 }
 
