@@ -23,6 +23,8 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define MAX_ORPHANS 50
 #define MAX_ORPHANS_UNROLL 30
 
+#define MAX_PENDING_DEAD_PARENTS 30
+
 struct fork_event {
   pid_t ppid;
 };
@@ -81,7 +83,7 @@ struct pending_dead_process {
 struct {
   __uint(type, BPF_MAP_TYPE_QUEUE);
   __type(value, struct pending_dead_process);
-  __uint(max_entries, 30);
+  __uint(max_entries, MAX_PENDING_DEAD_PARENTS);
 } orphans_map SEC(".maps");
 
 // This hook intercepts new process creations, inherits interest for the child
@@ -177,8 +179,6 @@ static __always_inline long loop_collect_orphan(u32 i, void *callback_ctx) {
   // Once we find the same element we started at, we know we've
   // iterated all children and we can exit the loop.
   if (c->next == c->last) {
-    if (i < MAX_ORPHANS) // satisfy verifier (always true)
-      c->pending.orphans[i] = NULL;
     return LOOP_STOP;
   }
   struct task_struct *task = container_of(c->next, struct task_struct, sibling);
@@ -203,13 +203,15 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   c.pending.dead_parent = tgid;
   c.pending.timestamp = bpf_ktime_get_ns();
 
-  struct task_struct *task = container_of(c.next, struct task_struct, sibling);
   LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_collect_orphan, &c);
   // Log a warning if we couln't process all children
   if (c.next != c.last) {
     LOG_ERROR("Couldn't iterate all children. Too many of them");
   }
-  bpf_map_push_elem(&orphans_map, &c.pending, 0);
+  u64 r = bpf_map_push_elem(&orphans_map, &c.pending, 0);
+  if (r) {
+    LOG_ERROR("Pushing to orphans_map failed: %d", r);
+  }
 }
 
 // This is attached to tracepoint:sched:sched_process_exit
@@ -268,7 +270,7 @@ static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx) {
   pid_t tgid = BPF_CORE_READ(orphan, pid);
   struct process_event *event = init_process_event(EVENT_CHANGE_PARENT, tgid);
   if (!event) // memory error
-    return 0;
+    return LOOP_STOP;
   event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
   LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
   output_process_event(c->ctx, event);
