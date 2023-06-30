@@ -273,7 +273,7 @@ impl fmt::Display for Payload {
                 write!(f," }}")
             },
             Payload::Send { source, destination, len, is_tcp } => write!(f,"Send {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"),
-            Payload::Custom { description, value } => write!(f,"Custom {{ description: {description} value: {value} }}"),
+            Payload::Custom { description, value:_ } => write!(f,"Custom {{ description: {description} }}"),
             Payload::Empty => write!(f,"Empty"),
         }
     }
