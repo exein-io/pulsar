@@ -1,10 +1,7 @@
 use std::{fs, path::Path, sync::Arc};
 
 use glob::glob;
-use pulsar_core::{
-    event::Value,
-    pdk::{Event, ModuleSender},
-};
+use pulsar_core::pdk::{Event, ModuleSender};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use validatron::{Rule, Ruleset, ValidatronError};
@@ -70,7 +67,9 @@ impl PulsarEngine {
         // Run the engine only on non threat events to avoid creating loops
         if event.header().threat.is_none() {
             for rule in self.internal.ruleset.matches(event) {
-                emit_event(&self.internal.sender, event, &rule.name)
+                self.internal
+                    .sender
+                    .send_threat_derived(event, rule.name.clone(), None)
             }
         }
     }
@@ -124,16 +123,6 @@ fn parse_rule(
         name: user_rule.name,
         condition,
     })
-}
-
-fn emit_event(sender: &ModuleSender, old_event: &Event, rule_name: &str) {
-    let data = RuleEngineData {
-        rule_name: rule_name.to_string(),
-    };
-
-    let data = Value::try_from(data).unwrap();
-
-    sender.send_threat_derived(old_event, data)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

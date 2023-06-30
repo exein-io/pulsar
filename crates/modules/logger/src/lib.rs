@@ -82,9 +82,14 @@ pub mod terminal {
         let pid = &header.pid;
         let payload = event.payload();
 
-        if let Some(Threat { source, info }) = &event.header().threat {
+        if let Some(Threat {
+            source,
+            description,
+            extra: _,
+        }) = &event.header().threat
+        {
             println!(
-                "[{time} \x1b[1;30;43mTHREAT\x1b[0m  {image} ({pid})] [{source} - {info}] {payload}"
+                "[{time} \x1b[1;30;43mTHREAT\x1b[0m  {image} ({pid})] [{source} - {description}] {payload}"
             )
         } else {
             let source = &header.source;

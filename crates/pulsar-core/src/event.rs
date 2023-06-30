@@ -47,17 +47,19 @@ pub struct Header {
 /// When an [`Event`] contains this information it should be considered
 /// a "threat event".
 ///
-/// It contains the name of the module that has identified the threat and
-/// custom additional information respectively in `source` and `info` fields.
+/// It contains the name of the module that has identified the threat, a human
+/// readable description and custom additional information respectively in the
+/// `source`, `description` and `info` fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Threat {
     pub source: ModuleName,
-    pub info: Value,
+    pub description: String,
+    pub extra: Option<Value>,
 }
 
 impl Display for Threat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write! {f, "{{ source: {}, info: {} }}", self.source, self.info}
+        write! {f, "{{ source: {}, info: {} }}", self.source, self.description}
     }
 }
 
@@ -225,6 +227,8 @@ pub enum Payload {
     },
     Custom {
         #[validatron(skip)]
+        description: String,
+        #[validatron(skip)]
         value: Value,
     },
     #[validatron(skip)]
@@ -269,7 +273,7 @@ impl fmt::Display for Payload {
                 write!(f," }}")
             },
             Payload::Send { source, destination, len, is_tcp } => write!(f,"Send {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"),
-            Payload::Custom { value } => write!(f,"Custom {{ value: {value} }}"),
+            Payload::Custom { description, value } => write!(f,"Custom {{ description: {description} value: {value} }}"),
             Payload::Empty => write!(f,"Empty"),
         }
     }
