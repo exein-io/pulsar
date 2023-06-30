@@ -173,16 +173,33 @@ impl ModuleSender {
     }
 
     /// Send a threat to the [`Bus`].
-    pub fn send_threat(&self, process: Pid, timestamp: Timestamp, threat_info: impl Into<Value>) {
-        self.send_internal(process, timestamp, Payload::Empty, Some(threat_info.into()))
+    pub fn send_threat(
+        &self,
+        process: Pid,
+        timestamp: Timestamp,
+        description: String,
+        extra: Option<Value>,
+    ) {
+        let threat = Threat {
+            source: self.module_name.clone(),
+            description,
+            extra,
+        };
+        self.send_internal(process, timestamp, Payload::Empty, Some(threat))
     }
 
     /// Send a threat event which was caused by another event to the [`Bus`].
     /// The new event shares the source headers and the payload.
-    pub fn send_threat_derived(&self, source_event: &Event, threat_info: impl Into<Value>) {
+    pub fn send_threat_derived(
+        &self,
+        source_event: &Event,
+        description: String,
+        extra: Option<Value>,
+    ) {
         let threat = Threat {
             source: self.module_name.clone(),
-            info: threat_info.into(),
+            description,
+            extra,
         };
 
         let _ = self.tx.send(Event {
@@ -194,24 +211,18 @@ impl ModuleSender {
         });
     }
 
-    /// Send a [`Payload`] to the [`Bus`] with optional [`Value`].
-    /// Adding a `Value` fills the [`Threat`] field in the header.
+    /// Send a [`Payload`] to the [`Bus`] with optional [`Threat`].
     fn send_internal(
         &self,
         process: Pid,
         timestamp: Timestamp,
         payload: Payload,
-        threat_info: Option<Value>,
+        threat: Option<Threat>,
     ) {
         let tx = self.tx.clone();
         let process_tracker = self.process_tracker.clone();
         let module_name = self.module_name.clone();
         tokio::spawn(async move {
-            let threat = threat_info.map(|info| Threat {
-                source: module_name.clone(),
-                info,
-            });
-
             let mut header = Header {
                 source: module_name.clone(),
                 threat,

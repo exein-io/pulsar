@@ -50,12 +50,14 @@ async fn module_task(
                 if let Some(forbidden_dns) = &config.forbidden_dns {
                     if let Payload::DnsQuery { questions } = event.payload() {
                         if questions.iter().any(|question| &question.name == forbidden_dns) {
-                            let mut info = HashMap::new();
-                            info.insert("anomaly_score".to_string(), "1.0".to_string());
+                            let desc = "Forbidden DNS query".to_string();
+                            let mut extra = HashMap::new();
+                            extra.insert("anomaly_score".to_string(), "1.0".to_string());
 
                             sender.send_threat_derived(
                                 &event,
-                                info
+                                desc,
+                                Some(extra.into())
                             );
                         }
                     }

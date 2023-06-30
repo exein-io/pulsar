@@ -47,10 +47,15 @@ async fn desktop_nitifier_task(
 
 /// Check if the given event is a threat which should be notified to the user
 async fn handle_event(config: &Config, event: Arc<Event>) {
-    if let Some(Threat { source, info }) = &event.header().threat {
+    if let Some(Threat {
+        source,
+        description,
+        extra: _,
+    }) = &event.header().threat
+    {
         let payload = event.payload();
         let title = format!("Pulsar module {source} identified a threat");
-        let body = format!("{info}\n Source event: {payload}");
+        let body = format!("{description}\n Source event: {payload}");
         notify_send(config, vec![title, body]).await;
     }
 }
