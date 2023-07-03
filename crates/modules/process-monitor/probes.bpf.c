@@ -54,6 +54,7 @@ struct namespaces
 struct fork_event
 {
   uid_t uid;
+  gid_t gid;
   pid_t ppid;
   struct namespaces namespaces;
   struct
@@ -257,6 +258,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   u64 uid_gid = bpf_get_current_uid_gid();
 
   event->fork.uid = uid_gid;
+  event->fork.gid = uid_gid >> 32;
   event->fork.ppid = parent_tgid;
   event->fork.namespaces.uts = BPF_CORE_READ(child, nsproxy, uts_ns, ns.inum);
   event->fork.namespaces.ipc = BPF_CORE_READ(child, nsproxy, ipc_ns, ns.inum);
