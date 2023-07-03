@@ -6,7 +6,7 @@ use bpf_common::{
     program::BpfContext,
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
-use nix::unistd::Uid;
+use nix::unistd::{Gid, Uid};
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
 
@@ -73,9 +73,11 @@ pub enum ContainerEngineKind {
 pub enum ProcessEvent {
     Fork {
         uid: Uid,
+        gid: Gid,
         ppid: Pid,
         namespaces: Namespaces,
         c_container_id: COption<CContainerId>,
+
     },
     Exec {
         uid: Uid,
@@ -158,6 +160,7 @@ pub mod pulsar {
                         ppid,
                         namespaces,
                         ref c_container_id,
+                        ..
                     } => {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
@@ -308,7 +311,7 @@ pub mod test_suite {
     use bpf_common::test_utils::{find_executable, random_name_with_prefix};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
-    use nix::unistd::{fork, ForkResult};
+    use nix::unistd::{fork, getgid, getuid, ForkResult};
     use std::fs;
     use std::process::exit;
     use std::thread::sleep;
@@ -333,12 +336,14 @@ pub mod test_suite {
         }
     }
 
-    /// Check we're generating the correct parent and child pid.
+    /// Check we're generating the correct parent pid, child pid, user id, group id.
     /// Note: we must make sure to use the real process id (kernel space tgid)
     /// and not the thread id (kernel space pid)
     fn fork_event() -> TestCase {
         TestCase::new("fork_event", async {
             let mut child_pid = Pid::from_raw(0);
+            let user_id = getuid();
+            let group_id = getgid();
             test_runner()
                 .run(|| child_pid = fork_and_return(0))
                 .await
@@ -346,7 +351,9 @@ pub mod test_suite {
                     child_pid,
                     event_check!(
                         ProcessEvent::Fork,
-                        (ppid, Pid::from_raw(std::process::id() as i32), "parent pid")
+                        (ppid, Pid::from_raw(std::process::id() as i32), "parent pid"),
+                        (uid, user_id.as_raw(), "user id"),
+                        (gid, group_id.as_raw(), "group id")
                     ),
                 )
                 .report()
