@@ -17,17 +17,23 @@ pub async fn program(
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
     let binary = ebpf_program!(&ctx, "probes");
-    let mut program = ProgramBuilder::new(ctx, MODULE_NAME, binary)
+    let attach_to_lsm = ctx.lsm_supported();
+    let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
         .raw_tracepoint("sched_switch")
         .raw_tracepoint("cgroup_mkdir")
         .raw_tracepoint("cgroup_rmdir")
-        .raw_tracepoint("cgroup_attach_task")
-        .start()
-        .await?;
-
+        .raw_tracepoint("cgroup_attach_task");
+    if attach_to_lsm {
+        builder = builder.lsm("task_fix_setuid").lsm("task_fix_setgid");
+    } else {
+        builder = builder
+            .kprobe("security_task_fix_setuid")
+            .kprobe("security_task_fix_setgid");
+    }
+    let mut program = builder.start().await?;
     program
         .read_events("map_output_process_event", sender)
         .await?;
@@ -105,6 +111,10 @@ pub enum ProcessEvent {
         pid: Pid,
         path: BufferIndex<str>,
         id: u64,
+    },
+    CredentialsChange {
+        uid: u32,
+        gid: u32,
     },
 }
 
@@ -269,8 +279,10 @@ pub mod pulsar {
                 payload, buffer, ..
             } = event;
             Ok(match payload {
-                ProcessEvent::Fork { ppid, .. } => Payload::Fork {
+                ProcessEvent::Fork { ppid, uid, gid, .. } => Payload::Fork {
                     ppid: ppid.as_raw(),
+                    uid: uid.as_raw(),
+                    gid: uid.as_raw(),
                 },
                 ProcessEvent::Exec {
                     filename,
@@ -299,6 +311,9 @@ pub mod pulsar {
                     cgroup_id: id,
                     attached_pid: pid.as_raw(),
                 },
+                ProcessEvent::CredentialsChange { uid, gid } => {
+                    Payload::CredentialsChange { uid, gid }
+                }
             })
         }
     }
@@ -311,7 +326,7 @@ pub mod test_suite {
     use bpf_common::test_utils::{find_executable, random_name_with_prefix};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
-    use nix::unistd::{fork, getgid, getuid, ForkResult};
+    use nix::unistd::{fork, getgid, getuid, setgid, setuid, ForkResult};
     use std::fs;
     use std::process::exit;
     use std::thread::sleep;
@@ -332,6 +347,8 @@ pub mod test_suite {
                 cgroup_mkdir(),
                 cgroup_rmdir(),
                 cgroup_attach(),
+                credentials_change_uid(),
+                credentials_change_gid(),
             ],
         }
     }
@@ -580,6 +597,58 @@ pub mod test_suite {
                     (pid, child_pid, "attached process"),
                     (path, cg_path, "cgroup path")
                 ))
+                .report()
+        })
+    }
+
+    fn credentials_change_uid() -> TestCase {
+        TestCase::new("credentials_change_uid", async {
+            let mut child_pid = Pid::from_raw(0);
+            let uid = 1000;
+            let gid = getgid().as_raw();
+            test_runner()
+                .run(|| {
+                    child_pid = fork_and_run(|| {
+                        // change user id
+                        setuid(uid.into()).unwrap();
+                        exit(0);
+                    })
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(
+                        ProcessEvent::CredentialsChange,
+                        (uid, uid, "user id"),
+                        (gid, gid, "group id")
+                    ),
+                )
+                .report()
+        })
+    }
+
+    fn credentials_change_gid() -> TestCase {
+        TestCase::new("credentials_change_gid", async {
+            let mut child_pid = Pid::from_raw(0);
+            let uid = getuid().as_raw();
+            let gid = 1000;
+            test_runner()
+                .run(|| {
+                    child_pid = fork_and_run(|| {
+                        // change group id
+                        setgid(gid.into()).unwrap();
+                        exit(0);
+                    })
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(
+                        ProcessEvent::CredentialsChange,
+                        (uid, uid, "user id"),
+                        (gid, gid, "group id")
+                    ),
+                )
                 .report()
         })
     }
