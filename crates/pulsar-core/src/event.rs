@@ -10,10 +10,7 @@ use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
 use strum::{EnumDiscriminants, EnumString};
 use validatron::{Operator, Validatron, ValidatronError};
 
-use crate::{
-    kernel::{self},
-    pdk::ModuleName,
-};
+use crate::{kernel, pdk::ModuleName};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 pub struct Event {
@@ -207,6 +204,8 @@ pub enum Payload {
     },
     Fork {
         ppid: i32,
+        uid: u32,
+        gid: u32,
     },
     Exec {
         filename: String,
@@ -218,6 +217,10 @@ pub enum Payload {
     },
     ChangeParent {
         ppid: i32,
+    },
+    CredentialsChange {
+        uid: u32,
+        gid: u32,
     },
     CgroupCreated {
         cgroup_path: String,
@@ -298,10 +301,11 @@ impl fmt::Display for Payload {
             Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
-            Payload::Fork { ppid } => write!(f,"Fork {{ ppid: {ppid} }}"),
+            Payload::Fork { ppid, uid, gid } => write!(f,"Fork {{ ppid: {ppid} uid: {uid} gid: {gid} }}"),
             Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
+            Payload::CredentialsChange { uid, gid } => write!(f,"Credentials changed {{ uid: {uid} gid: {gid} }}"),
             Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
             Payload::CgroupDeleted { cgroup_path, cgroup_id } => write!(f,"Cgroup deleted {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
             Payload::CgroupAttach { cgroup_path, cgroup_id, attached_pid } => write!(f,"Process attached to cgroup {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id}, attached_pid {attached_pid} }}"),
