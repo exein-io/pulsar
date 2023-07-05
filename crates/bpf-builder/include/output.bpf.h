@@ -151,27 +151,27 @@ static __always_inline int is_initialized() {
 
 // Get a value and increment it by one
 static __always_inline u64 sync_increment(u64 *value) {
-#ifdef FEATURE_ATOMICS
-  return __sync_fetch_and_add(value, 1);
-#else
-  // If we miss atomic operations, it still shouldn't cause problems:
-  // - the nesting levels are kept on a PERCPU array
-  // - even if an eBPF program interrupts this, the nesting level
-  //   will be left in a consistent state as all eBPF programs will
-  //   reset the counter to its previous value before exiting.
-  u64 old_value = *value;
-  *value += 1;
-  return old_value;
-#endif
+  if (HAVE_FEATURE_ATOMICS) {
+    return __sync_fetch_and_add(value, 1);
+  } else {
+    // If we miss atomic operations, it still shouldn't cause problems:
+    // - the nesting levels are kept on a PERCPU array
+    // - even if an eBPF program interrupts this, the nesting level
+    //   will be left in a consistent state as all eBPF programs will
+    //   reset the counter to its previous value before exiting.
+    u64 old_value = *value;
+    *value += 1;
+    return old_value;
+  }
 }
 
 // Decremnet value by one
 static __always_inline u64 sync_decrement(u64 *value) {
-#ifdef FEATURE_ATOMICS
-  return __sync_fetch_and_sub(value, 1);
-#else
-  u64 old_value = *value;
-  *value -= 1;
-  return old_value;
-#endif
+  if (HAVE_FEATURE_ATOMICS) {
+    return __sync_fetch_and_sub(value, 1);
+  } else {
+    u64 old_value = *value;
+    *value -= 1;
+    return old_value;
+  }
 }

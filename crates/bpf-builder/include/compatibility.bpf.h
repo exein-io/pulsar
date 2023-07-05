@@ -27,21 +27,24 @@
 // Check these links for more details:
 // https://github.com/Exein-io/pulsar/issues/158
 // https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
-//
-//
-// ## FEATURE_ATOMICS (since 5.12)
-//
-// Kernel 5.12 introduced support for atomic operations like
-// __sync_fetch_and_add, __sync_fetch_and_sub etc.
-//
 
 #ifdef VERSION_5_13
-
-#define FEATURE_ATOMICS
 #define FEATURE_FN_POINTERS
+#endif
 
+// ## FEATURE_ATOMICS (since 5.12)
+//
+// Kernel 5.12 introduced support for atomic operations in 86_64 like
+// __sync_fetch_and_add, __sync_fetch_and_sub etc.
+//
+// arm64 support was introduced in 5.18 with commit 1902472b4fa97.
+
+#if defined(__TARGET_ARCH_x86)
+#define HAVE_FEATURE_ATOMICS (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 12, 0))
+#elif defined(__TARGET_ARCH_arm64)
+#define HAVE_FEATURE_ATOMICS (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 18, 0))
+#elif defined(__TARGET_ARCH_riscv)
+#define HAVE_FEATURE_ATOMICS (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 19, 0))
 #else
-
-// Pulsar minimum supported kernel version is 5.5
-
+#define HAVE_FEATURE_ATOMICS false
 #endif
