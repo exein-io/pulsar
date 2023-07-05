@@ -2,6 +2,7 @@ use anyhow::Context;
 use bpf_common::{
     containers::ContainerError,
     ebpf_program,
+    feature_autodetect::kernel_version::KernelVersion,
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
@@ -18,6 +19,13 @@ pub async fn program(
 ) -> Result<Program, ProgramError> {
     let binary = ebpf_program!(&ctx, "probes");
     let attach_to_lsm = ctx.lsm_supported();
+    // LSM task_fix_set* calls are available since kernel commit 39030e1351aa1, in 5.10
+    let has_cred_specific_functions = ctx.kernel_version()
+        >= &KernelVersion {
+            major: 5,
+            minor: 10,
+            patch: 0,
+        };
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
@@ -28,10 +36,12 @@ pub async fn program(
         .raw_tracepoint("cgroup_attach_task");
     if attach_to_lsm {
         builder = builder.lsm("task_fix_setuid").lsm("task_fix_setgid");
-    } else {
+    } else if has_cred_specific_functions {
         builder = builder
             .kprobe("security_task_fix_setuid")
             .kprobe("security_task_fix_setgid");
+    } else {
+        builder = builder.kprobe("commit_creds")
     }
     let mut program = builder.start().await?;
     program
@@ -83,7 +93,6 @@ pub enum ProcessEvent {
         ppid: Pid,
         namespaces: Namespaces,
         c_container_id: COption<CContainerId>,
-
     },
     Exec {
         uid: Uid,
@@ -282,7 +291,7 @@ pub mod pulsar {
                 ProcessEvent::Fork { ppid, uid, gid, .. } => Payload::Fork {
                     ppid: ppid.as_raw(),
                     uid: uid.as_raw(),
-                    gid: uid.as_raw(),
+                    gid: gid.as_raw(),
                 },
                 ProcessEvent::Exec {
                     filename,
@@ -369,8 +378,8 @@ pub mod test_suite {
                     event_check!(
                         ProcessEvent::Fork,
                         (ppid, Pid::from_raw(std::process::id() as i32), "parent pid"),
-                        (uid, user_id.as_raw(), "user id"),
-                        (gid, group_id.as_raw(), "group id")
+                        (uid, user_id, "user id"),
+                        (gid, group_id, "group id")
                     ),
                 )
                 .report()
