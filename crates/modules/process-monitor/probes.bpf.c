@@ -21,7 +21,7 @@ char LICENSE[] SEC("license") = "GPL v2";
 #define EVENT_CGROUP_ATTACH 6
 #define EVENT_CREDS_CHANGE 7
 
-#define MAX_ORPHANS 50
+#define MAX_ORPHANS 45
 #define MAX_ORPHANS_UNROLL 30
 
 #define MAX_PENDING_DEAD_PARENTS 30
