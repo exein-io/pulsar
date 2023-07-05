@@ -8,7 +8,7 @@ use nix::fcntl::AtFlags;
 use nix::sys::utsname::uname;
 use nix::unistd::{faccessat, AccessFlags};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct KernelVersion {
     pub major: u32,
     pub minor: u32,
