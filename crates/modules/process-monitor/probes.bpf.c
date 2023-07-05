@@ -651,3 +651,9 @@ static __always_inline void on_task_fix_setgid(void *ctx, struct cred *new,
                                                struct cred *old, int flags) {
   on_creds_change(ctx, new);
 }
+
+SEC("kprobe/commit_creds")
+int BPF_KPROBE(commit_creds, struct cred *new) {
+  on_creds_change(ctx, new);
+  return 0;
+}
