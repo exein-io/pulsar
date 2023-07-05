@@ -31,17 +31,27 @@
 //
 // ## FEATURE_ATOMICS (since 5.12)
 //
-// Kernel 5.12 introduced support for atomic operations like
+// Kernel 5.12 introduced support for atomic operations in 86_64 like
 // __sync_fetch_and_add, __sync_fetch_and_sub etc.
 //
+// arm64 support was introduced in 5.18 with commit 1902472b4fa97.
 
 #ifdef VERSION_5_13
 
-#define FEATURE_ATOMICS
-#define FEATURE_FN_POINTERS
+#define FEATURE_FN_POINTERS 1
+
+#if defined(__TARGET_ARCH_x86)
+#define FEATURE_ATOMICS 1
+#elif defined(__TARGET_ARCH_arm64)
+#define FEATURE_ATOMICS (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 18, 0))
+#else
+#define FEATURE_ATOMICS 0
+#endif
 
 #else
-
 // Pulsar minimum supported kernel version is 5.5
+
+#define FEATURE_ATOMICS 0
+#define FEATURE_FN_POINTERS 0
 
 #endif
