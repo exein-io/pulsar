@@ -89,7 +89,7 @@ struct {
 // This hook intercepts new process creations, inherits interest for the child
 // from the parent and emits a fork event.
 SEC("raw_tracepoint/sched_process_fork")
-int BPF_PROG(process_fork, struct task_struct *parent,
+int BPF_PROG(sched_process_fork, struct task_struct *parent,
              struct task_struct *child) {
   pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
