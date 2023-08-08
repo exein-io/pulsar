@@ -246,8 +246,12 @@ impl ProgramBuilder {
             let mut bpf = BpfLoader::new()
                 .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
-                .set_global("log_level", &(self.ctx.log_level as i32))
-                .set_global("LINUX_KERNEL_VERSION", &self.ctx.kernel_version.as_i32())
+                .set_global("log_level", &(self.ctx.log_level as i32), true)
+                .set_global(
+                    "LINUX_KERNEL_VERSION",
+                    &self.ctx.kernel_version.as_i32(),
+                    true,
+                )
                 .load(&self.probe)?;
             for program in self.programs {
                 program.attach(&mut bpf, &btf)?;
