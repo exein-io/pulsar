@@ -11,6 +11,8 @@
 //! created with the default method [Validatron::class_builder]. In case of a struct:
 //!
 //! ```
+//! use validatron::{Validatron, ValidatronClass};
+//!
 //! pub struct MyStruct {
 //!     pub a: i32,
 //!     pub b: i32,

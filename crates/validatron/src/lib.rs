@@ -3,7 +3,7 @@
 //! It check if fields specified in a rules are valid for a given type. Example:
 //!
 //! ```
-//! use validatron::validator::get_valid_rule;
+//! use validatron::{validator::get_valid_rule, Validatron, Field, Match, RelationalOperator, Operator};
 //!
 //! #[derive(Validatron)]
 //! struct MyStruct {
@@ -30,7 +30,7 @@
 //! On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
 //!
 //! ```
-//! use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Match};
+//! use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Match, Field};
 //!
 //! #[derive(Validatron)]
 //! struct MyStruct {
@@ -74,9 +74,9 @@
 //!     my_value: 42
 //! };
 //!
-//! ruleset.run(&test, |rule| {
+//! for rule in ruleset.matches(&test) {
 //!     println!("Matched rule {}", rule.name)
-//! })
+//! }
 //! ```
 //!
 //! Check the [ruleset] module for more details.
