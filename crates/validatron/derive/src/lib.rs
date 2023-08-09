@@ -13,7 +13,7 @@ use syn::{
 ///
 /// Example:
 ///
-/// ```
+/// ```ignore
 /// use validatron::Validatron;
 ///
 /// #[derive(Debug, Clone, Validatron)]
@@ -26,7 +26,7 @@ use syn::{
 ///
 /// In this specific case the macro generates the following code:
 ///
-/// ```
+/// ```ignore
 /// impl Validatron for MyStruct {
 ///     fn get_class() -> ValidatronClass {
 ///         Self::class_builder()
@@ -46,7 +46,7 @@ use syn::{
 ///
 /// Using it on an `enum` type is basically the same:
 ///
-/// ```
+/// ```ignore
 /// use validatron::Validatron;
 ///
 /// #[derive(Debug, Clone, Validatron)]
@@ -58,7 +58,7 @@ use syn::{
 ///
 /// And it will generate the following code:
 ///
-/// ```
+/// ```ignore
 /// impl Validatron for MyEnum {
 ///     fn get_class() -> ValidatronClass {
 ///         Self::class_builder()
