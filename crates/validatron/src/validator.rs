@@ -85,9 +85,11 @@ pub fn get_valid_rule<T: Validatron + 'static>(
                     ExtractorFrom::None,
                 )?;
 
-                let ValidatronClassKind::Primitive(second_field_primitive) = second_field.class.into_kind() else {
-                        return Err(ValidatronError::ComparingFieldNotPrimitive);
-                    };
+                let ValidatronClassKind::Primitive(second_field_primitive) =
+                    second_field.class.into_kind()
+                else {
+                    return Err(ValidatronError::ComparingFieldNotPrimitive);
+                };
 
                 if first_field_primitive.field_type_id() == second_field_primitive.field_type_id() {
                     let compare_fn =
@@ -112,8 +114,11 @@ pub fn get_valid_rule<T: Validatron + 'static>(
 
         ValidatronClassKind::Collection(collection) => {
             let Operator::Multi(op) = op else {
-                return Err(ValidatronError::OperatorNotAllowedOnType(op, "Collection".to_string())); // TODO: put name of collection
-             };
+                return Err(ValidatronError::OperatorNotAllowedOnType(
+                    op,
+                    "Collection".to_string(),
+                )); // TODO: put name of collection
+            };
 
             match value {
                 Match::Value(value) => {
@@ -139,11 +144,15 @@ pub fn get_valid_rule<T: Validatron + 'static>(
                         ExtractorFrom::None,
                     )?;
 
-                    let ValidatronClassKind::Primitive(collection_value_primitive) = collection.get_value_class().into_kind() else {
+                    let ValidatronClassKind::Primitive(collection_value_primitive) =
+                        collection.get_value_class().into_kind()
+                    else {
                         return Err(ValidatronError::CollectionValueNotPrimitive);
                     };
 
-                    let ValidatronClassKind::Primitive(second_field_primitive) = second_field.class.into_kind() else {
+                    let ValidatronClassKind::Primitive(second_field_primitive) =
+                        second_field.class.into_kind()
+                    else {
                         return Err(ValidatronError::DifferentFieldsType);
                     };
 
@@ -183,10 +192,7 @@ fn get_valid_field_from_class<T: Validatron + 'static>(
     let current_field = field_path.pop_front();
 
     let Some(current_field) = current_field else {
-        return Ok(ValidField{
-            class,
-            extractor
-        });
+        return Ok(ValidField { class, extractor });
     };
 
     // top match field to support methods
