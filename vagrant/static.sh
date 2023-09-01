@@ -3,17 +3,13 @@
 
 # Run this from the repository root folder
 
-# Make sure the correct target is installed.
-# sudo apt-get install musl-tools
-# rustup target add x86_64-unknown-linux-musl
-
 set -e
 
 features="--no-default-features --features core"
 
 export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
-cargo build --bin pulsar-exec ${features}
-cargo build --package test-suite
+cross build --bin pulsar-exec ${features}
+cross build --package test-suite
 
 for vagrantfile in vagrant/*/Vagrantfile
 do
