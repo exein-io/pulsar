@@ -2,6 +2,7 @@
 #include "buffer.bpf.h"
 #include "common.bpf.h"
 #include "interest_tracking.bpf.h"
+#include "iov_iter_compat.h"
 #include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -312,6 +313,27 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
   output_network_event(ctx, event);
 }
 
+#define ITER_UBUF 5
+
+static __always_inline void
+*get_iov_base(const void *msg_iter) {
+  // Definition of `struct iov_iter` used in new kernels (>=6.4).
+  const struct iov_iter *msg_iter_nocompat = msg_iter;
+
+  // Check if `msg_iter` matches the new definition of `struct iov_iter`. The
+  // `__ubuf_iovec` field doesn't exist in kernels <= 6.4.
+  if (bpf_core_field_exists(msg_iter_nocompat->__ubuf_iovec)) {
+    if (BPF_CORE_READ(msg_iter_nocompat, iter_type) == ITER_UBUF) {
+      return BPF_CORE_READ(msg_iter_nocompat, __ubuf_iovec.iov_base);
+    }
+    return BPF_CORE_READ(msg_iter_nocompat, __iov, iov_base);
+  }
+
+  // Use the <= 6.4 definition, which we represent with `struct iov_iter_compat`.
+  const struct iov_iter_compat *msg_iter_compat = msg_iter;
+  return BPF_CORE_READ(msg_iter_compat, iov, iov_base);
+}
+
 static __always_inline void
 read_iovec(struct buffer *buffer, struct msg_event *output, void *iov_base) {
   size_t len = output->data_len;
@@ -340,7 +362,7 @@ static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
 
   struct sock *sk = BPF_CORE_READ(sock, sk);
   u16 proto = get_sock_protocol(sk);
-  void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
+  void *iov_base = get_iov_base(&msg->msg_iter);
 
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
@@ -384,7 +406,7 @@ static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
     return;
   u64 pid_tgid = bpf_get_current_pid_tgid();
   struct sock *sk = (struct sock *)BPF_CORE_READ(sock, sk);
-  void *iov_base = BPF_CORE_READ(msg, msg_iter.iov, iov_base);
+  void *iov_base = get_iov_base(&msg->msg_iter);
 
   struct arguments args = {0};
   args.data[0] = sk;
