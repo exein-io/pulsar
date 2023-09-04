@@ -26,7 +26,7 @@ logger = { path = "crates/modules/logger", optional = true }
 rules-engine = { path = "crates/modules/rules-engine", optional = true }
 desktop-notifier = { path = "crates/modules/desktop-notifier", optional = true }
 # External
-tokio = { version = "1.15.0", features = ["full"] }
+tokio = { version = "1.32.0", features = ["full"] }
 env_logger = "0.10.0"
 nix = "0.26.2"
 log = "0.4.14"
@@ -35,8 +35,8 @@ clap = { version = "4.2.4", features = ["derive"] }
 lazy_static = "1.4.0"
 serde = "1.0.136"
 semver = { version = "1.0.4", features = ["serde"] }
-rust-ini = "0.17.0"
-comfy-table = "5.0.1"
+rust-ini = "0.19.0"
+comfy-table = "7.0.1"
 futures-util = "0.3.25"
 
 [features]

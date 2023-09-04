@@ -11,12 +11,12 @@ pulsar-core = { path = "../../pulsar-core" }
 
 log = "0.4.17"
 anyhow = "1"
-tokio = "1.15.0"
+tokio = { version = "1", features = ["full"] }
 glob = "0.3.1"
 thiserror = "1.0.40"
 serde = { version = "1.0.160", features = ["derive"] }
 serde_yaml = "0.9.21"
-lalrpop-util = { version="0.19.9", features=["lexer"] }
+lalrpop-util = { version="0.20.0", features=["lexer"] }
 
 [build-dependencies]
-lalrpop = "0.19.9"
+lalrpop = "0.20.0"

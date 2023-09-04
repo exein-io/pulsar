@@ -23,8 +23,8 @@ tokio-fd = "0.3.0"
 log = "0.4"
 anyhow = "1"
 nix = { version = "0.26.2", features = ["fs"] }
-sys-mount = {version = "1.5.1", default-features = false}
-procfs = { version = "0.14.2", default-features = false }
+sys-mount = {version = "2.1.0", default-features = false}
+procfs = { version = "0.15.1", default-features = false }
 libc = "0.2"
 glob = "0.3.0"
 hex = "0.4.3"

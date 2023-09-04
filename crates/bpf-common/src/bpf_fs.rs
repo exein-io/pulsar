@@ -3,7 +3,7 @@ use procfs::process::{MountInfo, Process};
 use std::fs::DirBuilder;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::Path;
-use sys_mount::{Mount, MountFlags};
+use sys_mount::Mount;
 
 const BPF_FS_PATH: &str = "/sys/fs/bpf";
 const BPF: &str = "bpf";
@@ -53,14 +53,10 @@ fn mount_bpf_fs() -> Result<()> {
 
     log::debug!("Mount BPF file system");
 
-    Mount::new(
-        BPF,
-        BPF_FS_PATH,
-        sys_mount::FilesystemType::Manual(BPF),
-        MountFlags::empty(),
-        None,
-    )
-    .context("Failed to mount BPF file system")?;
+    Mount::builder()
+        .fstype(sys_mount::FilesystemType::Manual(BPF))
+        .mount(BPF, BPF_FS_PATH)
+        .context("Failed to mount BPF file system")?;
 
     Ok(())
 }

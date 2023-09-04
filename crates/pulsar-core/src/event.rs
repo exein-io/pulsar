@@ -64,7 +64,7 @@ impl Display for Threat {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Value(toml_edit::easy::Value);
+pub struct Value(toml::Value);
 
 impl Value {
     /// Convert a `T` into `Value` which is an enum that can represent
@@ -76,7 +76,7 @@ impl Value {
     where
         T: ser::Serialize,
     {
-        toml_edit::easy::Value::try_from(value)
+        toml::Value::try_from(value)
             .map(Self)
             .map_err(|err| err.to_string())
     }
@@ -94,7 +94,7 @@ impl Value {
     where
         T: DeserializeOwned,
     {
-        toml_edit::easy::Value::try_into(self.0).map_err(|err| err.to_string())
+        toml::Value::try_into(self.0).map_err(|err| err.to_string())
     }
 }
 
@@ -114,8 +114,8 @@ impl Display for Value {
 /// without a serialization step.
 ///
 /// The implementation relies on the conversion implementation of
-/// [`toml_edit::easy::Value`] for the standard types.
-impl<T: Into<toml_edit::easy::Value>> From<T> for Value {
+/// [`toml::Value`] for the standard types.
+impl<T: Into<toml::Value>> From<T> for Value {
     fn from(t: T) -> Self {
         Self(t.into())
     }

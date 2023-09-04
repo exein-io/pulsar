@@ -10,7 +10,7 @@ bpf-common = { path = "../bpf-common" }
 validatron = { path = "../validatron" }
 
 serde = { version = "1.0.136", features = ["derive"] }
-toml_edit = { version = "0.15.0", features = ["easy"] }
+toml = "0.7.6"
 tokio = { version = "1", features = ["full"] }
 semver = { version = "1.0.4", features = ["serde"] }
 anyhow = "1.0.53"
