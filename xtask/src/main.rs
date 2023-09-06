@@ -4,6 +4,7 @@ use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
 mod cross;
 mod run;
+mod vmlinux;
 
 #[derive(Debug, Parser)]
 #[clap(disable_help_subcommand = true)]
@@ -24,6 +25,8 @@ enum Command {
     Test(run::Options),
     /// Cross compile and run on the specified target
     Cross(cross::Options),
+    /// Build headers with BTF type definitions.
+    Vmlinux(vmlinux::Options),
 }
 
 fn main() {
@@ -38,6 +41,7 @@ fn main() {
         Command::Probe(opts) => run_with_sudo("probe", &[], opts),
         Command::Test(opts) => run_with_sudo("test-suite", &[], opts),
         Command::Cross(opts) => cross::run(opts),
+        Command::Vmlinux(opts) => vmlinux::run(opts),
     };
 
     if let Err(e) = ret {
