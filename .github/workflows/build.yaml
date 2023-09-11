@@ -17,14 +17,20 @@ jobs:
         platform:
           - target: x86_64-unknown-linux-gnu
             cross: false
+            all-targets: true
           - target: x86_64-unknown-linux-musl
             cross: false
+            all-targets: true
           - target: aarch64-unknown-linux-gnu
             cross: true
+            all-targets: true
           - target: aarch64-unknown-linux-musl
             cross: true
+            all-targets: true
           - target: riscv64gc-unknown-linux-gnu
             cross: true
+            # Dependencies of xtask might fail to build on riscv64.
+            all-targets: false
 
     steps:
       - name: Code checkout
@@ -41,12 +47,21 @@ jobs:
           override: true
           components: clippy
 
-      - name: Build (default features)
+      - name: Build (default features, all crates)
         uses: actions-rs/cargo@v1
+        if: ${{ matrix.platforms.all-targets }}
         with:
           use-cross: ${{ matrix.platform.cross }}
           command: build
           args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets
+
+      - name: Build (default features)
+        uses: actions-rs/cargo@v1
+        if: ${{ !matrix.platforms.all-targets }}
+        with:
+          use-cross: ${{ matrix.platform.cross }}
+          command: build
+          args: --locked --target=${{ matrix.platform.target }}
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"
@@ -87,12 +102,21 @@ jobs:
           override: true
           components: clippy
 
-      - name: Build (default features)
+      - name: Build (all crates)
         uses: actions-rs/cargo@v1
+        if: ${{ matrix.platform.all-targets }}
         with:
           use-cross: ${{ matrix.platform.cross }}
           command: build
           args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets --release
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        if: ${{ !matrix.platform.all-targets }}
+        with:
+          use-cross: ${{ matrix.platform.cross }}
+          command: build
+          args: --locked --target=${{ matrix.platform.target }} --release
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"

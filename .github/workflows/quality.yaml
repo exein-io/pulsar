@@ -59,14 +59,20 @@ jobs:
         platform:
           - target: x86_64-unknown-linux-gnu
             cross: false
+            all-targets: true
           - target: x86_64-unknown-linux-musl
             cross: false
+            all-targets: true
           - target: aarch64-unknown-linux-gnu
             cross: true
+            all-targets: true
           - target: aarch64-unknown-linux-musl
             cross: true
+            all-targets: true
+          # Dependencies of xtask might fail to build on riscv64.
           - target: riscv64gc-unknown-linux-gnu
             cross: true
+            all-targets: false
 
     steps:
       - name: Code checkout
@@ -83,12 +89,21 @@ jobs:
           override: true
           components: clippy
 
-      - name: Clippy (default features)
+      - name: Clippy (all crates, default features)
         uses: actions-rs/cargo@v1
+        if: ${{ matrix.platform.all-targets }}
         with:
           use-cross: ${{ matrix.platform.cross }}
           command: clippy
           args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets -- -D warnings
+
+      - name: Clippy (default features)
+        uses: actions-rs/cargo@v1
+        if: ${{ !matrix.platform.all-targets }}
+        with:
+          use-cross: ${{ matrix.platform.cross }}
+          command: clippy
+          args: --locked --target=${{ matrix.platform.target }} -- -D warnings
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"
