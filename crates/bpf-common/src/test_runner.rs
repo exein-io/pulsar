@@ -34,11 +34,10 @@
 //! ```
 
 use std::fmt::Debug;
-use std::{future::Future, pin::Pin, time::Duration};
+use std::{future::Future, pin::Pin, sync::OnceLock, time::Duration};
 
 use anyhow::Context;
 use bytes::Bytes;
-use lazy_static::lazy_static;
 use tokio::sync::mpsc;
 
 use crate::feature_autodetect::lsm::lsm_supported;
@@ -105,16 +104,15 @@ impl<T: Debug> TestRunner<T> {
         let (tx, rx) = mpsc::unbounded_channel();
         let sender = TestSender { tx };
 
-        lazy_static! {
-            static ref BPF_CONTEXT: BpfContext =
-                BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug, lsm_supported())
-                    .unwrap();
-        }
+        static BPF_CONTEXT: OnceLock<BpfContext> = OnceLock::new();
 
-        let ctx = BPF_CONTEXT.clone();
+        let ctx = BPF_CONTEXT.get_or_init(|| {
+            BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug, lsm_supported()).unwrap()
+        });
+
         Self {
             rx,
-            ebpf: Box::pin(ebpf_fn(ctx, sender)),
+            ebpf: Box::pin(ebpf_fn(ctx.clone(), sender)),
         }
     }
 
