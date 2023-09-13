@@ -25,6 +25,7 @@ network-monitor = { path = "crates/modules/network-monitor", optional = true }
 logger = { path = "crates/modules/logger", optional = true }
 rules-engine = { path = "crates/modules/rules-engine", optional = true }
 desktop-notifier = { path = "crates/modules/desktop-notifier", optional = true }
+smtp-notifier = { path = "crates/modules/smtp-notifier", optional = true }
 # External
 tokio = { version = "1.15.0", features = ["full"] }
 env_logger = "0.10.0"
@@ -53,6 +54,7 @@ members = [
     "crates/modules/rules-engine",
     "crates/modules/logger",
     "crates/modules/desktop-notifier",
+    "crates/modules/smtp-notifier",
     "crates/pulsar-core",
     "crates/bpf-common",
     "crates/bpf-builder",

@@ -81,7 +81,7 @@ fn add_variant(
 ) {
     if fields_map
         .entry(variant_name)
-        .or_insert(HashMap::new())
+        .or_default()
         .insert(field_name, variant)
         .is_some()
     {
