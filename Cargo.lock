@@ -264,7 +264,6 @@ dependencies = [
  "cgroups-rs",
  "glob",
  "hex",
- "lazy_static",
  "libc",
  "log",
  "nix 0.26.2",
@@ -1292,9 +1291,9 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.56"
+version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b63bdb0cd06f1f4dedf69b254734f9b45af66e4a031e42a7480257d9898b435"
+checksum = "18fb31db3f9bddb2ea821cde30a9f70117e3f119938b5ee630b7403aa6e2ead9"
 dependencies = [
  "unicode-ident",
 ]
@@ -1340,7 +1339,6 @@ dependencies = [
  "env_logger",
  "file-system-monitor",
  "futures-util",
- "lazy_static",
  "log",
  "logger",
  "network-monitor",

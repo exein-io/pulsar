@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use lazy_static::lazy_static;
+use std::sync::OnceLock;
 
-lazy_static! {
-    pub static ref SYSCALLS: HashMap<usize, &'static str> = {
+pub fn syscalls() -> &'static HashMap<usize, &'static str> {
+    static SYSCALLS: OnceLock<HashMap<usize, &'static str>> = OnceLock::new();
+
+    SYSCALLS.get_or_init(|| {
         let mut m = HashMap::new();
 
         m.insert(0, "RESTART_SYSCALL");
@@ -362,5 +364,5 @@ lazy_static! {
         m.insert(357, "BPF");
         m.insert(358, "EXECVEAT");
         m
-    };
+    })
 }

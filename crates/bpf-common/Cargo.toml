@@ -28,7 +28,6 @@ procfs = { version = "0.14.2", default-features = false }
 libc = "0.2"
 glob = "0.3.0"
 hex = "0.4.3"
-lazy_static = "1.4.0"
 
 # Test deps
 which = { version = "4.2.5", optional = true }

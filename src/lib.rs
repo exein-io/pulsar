@@ -59,7 +59,7 @@
 use std::env;
 
 use anyhow::Result;
-use lazy_static::lazy_static;
+use std::sync::OnceLock;
 
 pub use pulsar_core::pdk::TaskLauncher;
 
@@ -70,16 +70,14 @@ pub mod pulsar;
 pub mod pulsard;
 
 pub(crate) fn version() -> &'static str {
+    static VERSION: OnceLock<String> = OnceLock::new();
     #[cfg(debug_assertions)]
-    lazy_static! {
-        static ref VERSION: String = format!("{}+dev", env!("CARGO_PKG_VERSION"));
-    }
+    let v = VERSION.get_or_init(|| format!("{}+dev", env!("CARGO_PKG_VERSION")));
 
     #[cfg(not(debug_assertions))]
-    lazy_static! {
-        static ref VERSION: String = env!("CARGO_PKG_VERSION").to_string();
-    }
-    &VERSION
+    let v = VERSION.get_or_init(|| env!("CARGO_PKG_VERSION").to_string());
+
+    v
 }
 
 pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
