@@ -1,0 +1,18 @@
+[package]
+name = "smtp-notifier"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+pulsar-core = { path = "../../pulsar-core" }
+
+tokio = { version = "1", features = ["full"] }
+lettre = { version = "0.10.4", default-features = false, features = ["smtp-transport", "tokio1-native-tls", "tokio1", "builder"] }
+
+[target.'cfg(target_env = "musl")'.dependencies]
+openssl = { version = "0.10.57",  features = ["vendored"]}
+
+[target.'cfg(target_env = "gnu")'.dependencies]
+openssl = { version = "0.10.57" }

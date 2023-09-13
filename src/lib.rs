@@ -94,6 +94,8 @@ pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
         rules_engine::module(),
         #[cfg(feature = "desktop-notifier")]
         desktop_notifier::module(),
+        #[cfg(feature = "smtp-notifier")]
+        smtp_notifier::module(),
     ]
     .into_iter()
     .map(|x| Box::new(x) as Box<dyn TaskLauncher>)
