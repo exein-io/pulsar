@@ -87,7 +87,7 @@ jobs:
           override: true
           components: clippy
 
-      - name: Clippy (all crates, default features)
+      - name: Clippy (all crates)
         uses: actions-rs/cargo@v1
         with:
           use-cross: true
