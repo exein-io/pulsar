@@ -14,7 +14,7 @@
 //! The [`ModuleContext`] is the entrypoint to access all the functions available to the module. It provides instances of:
 //! - [`ModuleSender`] to send events
 //! - [`ModuleReceiver`] to receive events
-//! - [`ErrorSender`] to raise unrecoverable errors
+//! - [`ModuleSignal`] to send signals, ex. raise unrecoverable errors, add warnings
 //! - [`tokio::sync::watch::Receiver`] to get the configuration
 //!
 //! Check specific structs for more informations.
@@ -26,7 +26,7 @@
 //! ```
 //! use pulsar_core::pdk::{
 //!     ModuleContext, Payload, PulsarModule, PulsarModuleTask, Version, CleanExit,
-//!     ShutdownSignal, ModuleError,
+//!     ShutdownSignal, ModuleError, ModuleSignal,
 //! };
 //! use tokio::time::{sleep, Duration};
 //!

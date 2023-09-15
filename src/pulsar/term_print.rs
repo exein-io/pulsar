@@ -36,12 +36,13 @@ impl TermPrintable for Vec<ModuleOverview> {
         for module in sorted {
             let status_color = match module.status {
                 ModuleStatus::Created => Color::White,
-                ModuleStatus::Running => Color::Green,
+                ModuleStatus::Running(ref warnings) if warnings.is_empty() => Color::Green,
+                ModuleStatus::Running(_) => Color::Yellow,
                 ModuleStatus::Failed(_) => Color::Red,
                 ModuleStatus::Stopped => Color::Yellow,
             };
 
-            let status = format!("{:?}", module.status);
+            let status = format!("{}", module.status);
 
             table.add_row(vec![
                 Cell::new(module.name)

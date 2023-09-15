@@ -6,7 +6,7 @@ use tokio::sync::{broadcast, watch};
 
 use crate::{
     bus::Bus,
-    pdk::{ErrorSender, ModuleConfig, ModuleReceiver, ModuleSender, PulsarDaemonHandle},
+    pdk::{ModuleConfig, ModuleReceiver, ModuleSender, PulsarDaemonHandle, SignalSender},
 };
 
 use super::{process_tracker::ProcessTrackerHandle, ConfigError, ModuleError, ModuleName};
@@ -17,7 +17,7 @@ pub struct ModuleContext {
     module_name: ModuleName,
     cfg: watch::Receiver<ModuleConfig>,
     bus: Bus,
-    error_sender: ErrorSender,
+    signal_sender: SignalSender,
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     bpf_context: BpfContext,
@@ -29,7 +29,7 @@ impl ModuleContext {
         cfg: watch::Receiver<ModuleConfig>,
         bus: Bus,
         module_name: ModuleName,
-        error_sender: ErrorSender,
+        signal_sender: SignalSender,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
@@ -38,7 +38,7 @@ impl ModuleContext {
             cfg,
             bus,
             module_name,
-            error_sender,
+            signal_sender,
             daemon_handle,
             process_tracker,
             bpf_context,
@@ -90,7 +90,7 @@ impl ModuleContext {
             tx: self.bus.get_sender(),
             module_name: self.module_name.to_owned(),
             process_tracker: self.process_tracker.clone(),
-            error_sender: self.error_sender.clone(),
+            signal_sender: self.signal_sender.clone(),
         }
     }
 

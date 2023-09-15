@@ -149,15 +149,20 @@ pub struct ModuleSender {
     pub(crate) tx: Bus,
     pub(crate) module_name: ModuleName,
     pub(crate) process_tracker: ProcessTrackerHandle,
-    pub(crate) error_sender: ErrorSender,
+    pub(crate) signal_sender: SignalSender,
 }
 
 /// Raises unrecoverable errors from the module to the upper layer.
 ///
 /// Sending an error leads to a graceful shutdown of the module after [issue #7](https://github.com/Exein-io/pulsar/issues/7)
 /// will be closed.
-pub type ErrorSender = mpsc::Sender<ModuleError>;
+pub type SignalSender = mpsc::Sender<ModuleSignal>;
 pub type ModuleError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+pub enum ModuleSignal {
+    Warning(String),
+    Error(ModuleError),
+}
 
 impl ModuleSender {
     /// Send an event to the [`Bus`].
@@ -261,7 +266,14 @@ impl ModuleSender {
         // We don't want to make raise_error async, so we use try_send and ignore
         // the error. Since errors are fatal, it's not a problem to lose one when
         // the buffer is full.
-        let _ = self.error_sender.try_send(err);
+        let _ = self.signal_sender.try_send(ModuleSignal::Error(err));
+    }
+
+    pub async fn raise_warning(&self, warning: String) {
+        let _ = self
+            .signal_sender
+            .send(ModuleSignal::Warning(warning))
+            .await;
     }
 }
 
