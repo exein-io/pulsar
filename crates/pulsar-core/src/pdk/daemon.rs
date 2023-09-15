@@ -1,3 +1,5 @@
+use std::fmt;
+
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -150,9 +152,21 @@ impl PulsarDaemonHandle {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ModuleStatus {
     Created,
-    Running,
+    Running(Vec<String>),
     Failed(String),
     Stopped,
+}
+
+impl fmt::Display for ModuleStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ModuleStatus::Running(warnings) if !warnings.is_empty() => {
+                write!(f, "Running([\"{}\"])", warnings.join("\",\""))
+            }
+            ModuleStatus::Running(_) => write!(f, "Running"),
+            _ => write!(f, "{:?}", self),
+        }
+    }
 }
 
 /// Messages used for internal communication between [`PulsarDaemonHandle`] and the underlying PulsarDaemon actor.
