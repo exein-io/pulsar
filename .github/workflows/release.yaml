@@ -34,7 +34,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --bin pulsar-exec --release --target=x86_64-unknown-linux-musl
+          args: --bin pulsar-exec --release --target=x86_64-unknown-linux-musl --features openssl-vendored"
 
       # Compile aarch64 musl
       - name: Install Rust toolchain (aarch64-unknown-linux-musl)
@@ -48,7 +48,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --bin pulsar-exec --release --target=aarch64-unknown-linux-musl
+          args: --bin pulsar-exec --release --target=aarch64-unknown-linux-musl --features openssl-vendored"
 
       # Create Release
       - name: Create Release
