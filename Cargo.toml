@@ -39,9 +39,11 @@ comfy-table = "5.0.1"
 futures-util = "0.3.25"
 
 [features]
-default = ["core", "extra"]
+default = ["full"]
+full = ["core", "extra"]
 core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier"]
+openssl-vendored = []
 
 [workspace]
 members = [
