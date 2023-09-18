@@ -9,7 +9,7 @@ This module will send an email notification when Pulsar identifies a threat.
 |`user` (required)|string|user credential for smtp server|
 |`password` (required)|string|password credential for smtp server|
 |`server` (required)|string|smtp server url to use|
-|`receiver` (required) |string|email to send notifications to|
+|`receivers` (required) |string|comma separated emails to send notifications to|
 |`port`|int|port for smtp server|
 |`encryption`|string|encryption type to use for smtp: tls, starttls, none|
 |`sender`|string|set a different email sender (should be allowed by email provider)|
