@@ -53,7 +53,7 @@ async fn smtp_notifier_task(
                     let body = format!("{description}\n Source event: {payload}");
 
                     let mut message_builder = Message::builder()
-                        .to(config.receiver.parse()?)
+                        .to(config.receiver.clone())
                         .subject(subject);
 
                     if let Some(sender) =  &config.sender {
@@ -122,12 +122,12 @@ impl FromStr for Encryption {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct SmtpNotifierConfig {
     server: String,
     user: String,
     password: String,
-    receiver: String,
+    receiver: Mailbox,
     port: u16,
     encryption: Encryption,
     sender: Option<Mailbox>,
@@ -156,7 +156,7 @@ impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
             server: config.required::<String>("server")?,
             user: config.required::<String>("user")?,
             password: config.required::<String>("password")?,
-            receiver: config.required::<String>("receiver")?,
+            receiver: config.required::<Mailbox>("receiver")?,
             port: config.with_default::<u16>("port", 465)?,
             encryption: config.with_default::<Encryption>("encryption", Default::default())?,
             sender,
