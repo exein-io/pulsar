@@ -44,7 +44,7 @@ default = ["full"]
 full = ["core", "extra"]
 core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
-openssl-vendored = [ "smtp-notifier?/openssl-vendored"]
+openssl-vendored = ["smtp-notifier?/openssl-vendored"]
 
 [workspace]
 members = [
