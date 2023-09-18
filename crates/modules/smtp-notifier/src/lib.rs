@@ -1,5 +1,6 @@
 use std::{default::Default, error::Error, fmt, str::FromStr};
 
+use lettre::message::Mailbox;
 use pulsar_core::event::Threat;
 use pulsar_core::pdk::{
     CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
@@ -55,14 +56,14 @@ async fn smtp_notifier_task(
                         .to(config.receiver.parse()?)
                         .subject(subject);
 
-                    if config.set_from {
-                        message_builder = message_builder.from("Pulsar <pulsar-threat-notification@gmail.com>".parse()?);
+                    if let Some(sender) =  &config.sender {
+                        message_builder = message_builder.from(sender.clone());
                     }
 
                     let message = message_builder.body(body)?;
 
                     let smtp_transport = match config.encryption {
-                        Encryption::Plain => {
+                        Encryption::None => {
                             AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(config.server.as_str())
                         }
                         Encryption::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(config.server.as_str())?,
@@ -99,7 +100,7 @@ enum Encryption {
     #[default]
     Tls,
     StartTls,
-    Plain,
+    None,
 }
 
 impl fmt::Display for Encryption {
@@ -113,9 +114,9 @@ impl FromStr for Encryption {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "plain" => Ok(Encryption::Plain),
+            "none" => Ok(Encryption::None),
             "tls" => Ok(Encryption::Tls),
-            "start-tls" => Ok(Encryption::StartTls),
+            "starttls" => Ok(Encryption::StartTls),
             _ => Err(ParseEncryptionError),
         }
     }
@@ -129,13 +130,28 @@ struct SmtpNotifierConfig {
     receiver: String,
     port: u16,
     encryption: Encryption,
-    set_from: bool,
+    sender: Option<Mailbox>,
 }
 
 impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
     type Error = ConfigError;
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
+        let sender = match config.get_raw("sender") {
+            Some(s) => {
+                let mailbox = s
+                    .parse::<Mailbox>()
+                    .map_err(|err| ConfigError::InvalidValue {
+                        field: "sender".to_string(),
+                        value: s.to_string(),
+                        err: err.to_string(),
+                    })?;
+
+                Some(mailbox)
+            }
+            None => None,
+        };
+
         Ok(SmtpNotifierConfig {
             server: config.required::<String>("server")?,
             user: config.required::<String>("user")?,
@@ -143,7 +159,7 @@ impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
             receiver: config.required::<String>("receiver")?,
             port: config.with_default::<u16>("port", 465)?,
             encryption: config.with_default::<Encryption>("encryption", Default::default())?,
-            set_from: config.with_default::<bool>("set_from", true)?,
+            sender,
         })
     }
 }
