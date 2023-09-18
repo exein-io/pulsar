@@ -47,7 +47,7 @@ impl TryFrom<&ModuleConfig> for Config {
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            console: config.required("console").unwrap_or(true),
+            console: config.with_default("console", true)?,
             // file: config.required("file")?,
             // syslog: config.required("syslog")?,
         })
