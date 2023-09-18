@@ -53,8 +53,11 @@ async fn smtp_notifier_task(
                     let body = format!("{description}\n Source event: {payload}");
 
                     let mut message_builder = Message::builder()
-                        .to(config.receiver.clone())
                         .subject(subject);
+
+                    for receiver in config.receivers.iter() {
+                        message_builder = message_builder.to(receiver.clone())
+                    }
 
                     if let Some(sender) =  &config.sender {
                         message_builder = message_builder.from(sender.clone());
@@ -127,7 +130,7 @@ struct SmtpNotifierConfig {
     server: String,
     user: String,
     password: String,
-    receiver: Mailbox,
+    receivers: Vec<Mailbox>,
     port: u16,
     encryption: Encryption,
     sender: Option<Mailbox>,
@@ -152,11 +155,19 @@ impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
             None => None,
         };
 
+        let receivers = config.get_list::<Mailbox>("receivers")?;
+
+        if receivers.is_empty() {
+            return Err(ConfigError::RequiredValue {
+                field: "receivers".to_string(),
+            });
+        }
+
         Ok(SmtpNotifierConfig {
             server: config.required::<String>("server")?,
             user: config.required::<String>("user")?,
             password: config.required::<String>("password")?,
-            receiver: config.required::<Mailbox>("receiver")?,
+            receivers,
             port: config.with_default::<u16>("port", 465)?,
             encryption: config.with_default::<Encryption>("encryption", Default::default())?,
             sender,
