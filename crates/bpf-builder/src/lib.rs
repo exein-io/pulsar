@@ -47,6 +47,7 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[&str]) -> anyhow::Res
         .args(["-target", "bpf"])
         .arg("-c")
         .arg("-Werror")
+        .arg("-fno-stack-protector")
         .arg(format!(
             "-D__TARGET_ARCH_{}",
             match arch.as_str() {
