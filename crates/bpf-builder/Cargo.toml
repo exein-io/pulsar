@@ -6,4 +6,4 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-anyhow = "1"
+anyhow = { workspace = true }

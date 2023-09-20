@@ -9,15 +9,15 @@ repository.workspace = true
 test-suite = [ "bpf-common/test-utils" ]
 
 [dependencies]
-bpf-common = { path = "../../bpf-common" }
-bpf-filtering = { path = "../../bpf-filtering" }
-pulsar-core = { path = "../../pulsar-core" }
+bpf-common = { workspace = true }
+bpf-filtering = { workspace = true }
+pulsar-core = { workspace = true }
 
-tokio = { version = "1", features = ["full"] }
-nix = "0.26.2"
-log = "0.4"
-thiserror = "1"
-anyhow = "1.0.65"
+tokio = { workspace = true, features = ["full"] }
+nix = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 [build-dependencies]
-bpf-builder = { path = "../../bpf-builder" }
+bpf-builder = { workspace = true }

@@ -6,9 +6,9 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-pulsar-core = { path = "../../pulsar-core" }
-bpf-common = { path = "../../bpf-common" }
+pulsar-core = { workspace = true }
+bpf-common = { workspace = true }
 
-tokio = { version = "1", features = ["full"] }
-log = "0.4"
-chrono = { version = "0.4.23", features = ["std"], default-features = false }
+tokio = { workspace = true, features = ["full"] }
+log = { workspace = true }
+chrono = { workspace = true, features = ["std"] }
