@@ -15,25 +15,25 @@ test-utils = [
 ]
 
 [dependencies]
-aya = { git = "https://github.com/aya-rs/aya", rev = "761e4ddbe3abf8b9177ebd6984465fe66696728a", features = ["async_tokio"] }
-bytes = "1.3.0"
-thiserror = "1"
-tokio = { version = "1", features = ["full"] }
-tokio-fd = "0.3.0"
-log = "0.4"
-anyhow = "1"
-nix = { version = "0.26.2", features = ["fs"] }
-sys-mount = {version = "1.5.1", default-features = false}
-procfs = { version = "0.14.2", default-features = false }
-libc = "0.2"
-glob = "0.3.0"
-hex = "0.4.3"
+aya = { workspace = true, features = ["async_tokio"] }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-fd = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+nix = { workspace = true, features = ["fs"] }
+sys-mount = { workspace = true }
+procfs = { workspace = true }
+libc = { workspace = true }
+glob = { workspace = true }
+hex = { workspace = true }
 
 # Test deps
-which = { version = "4.2.5", optional = true }
-cgroups-rs = { version = "0.3.2", optional = true }
-rand = { version = "0.8.5", optional = true }
+which = { workspace = true, optional = true }
+cgroups-rs = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 
 
 [build-dependencies]
-bpf-builder = { path = "../bpf-builder" }
+bpf-builder = { workspace = true }

@@ -6,11 +6,11 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-anyhow = "1.0.58"
-clap = { version = "4.2.4", features = ["derive"] }
-num_cpus = "1.16"
-reqwest = { version = "0.11", default-features = false, features = ["blocking", "json", "rustls-tls"] }
-serde = { version = "1.0", features = ["derive"] }
-signal-hook = "0.3.14"
-uuid = { version = "1.4", features = ["v4"] }
-xshell = "0.2.2"
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+num_cpus = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { workspace = true, features = ["derive"] }
+signal-hook = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+xshell = { workspace = true }

@@ -14,17 +14,17 @@ test-suite = [
 ]
 
 [dependencies]
-thiserror = "1"
-tokio = { version = "1", features = ["full"] }
-log = "0.4"
-anyhow = "1"
-nix = { version = "0.26.2", features = ["fs"] }
-bpf-common = { path = "../bpf-common" }
-pulsar-core = { path = "../pulsar-core" }
-which = { version = "4.2.5", optional = true }
-cgroups-rs = { version = "0.3.2", optional = true }
-regex = "1.9"
-lazy_static = "1.4"
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+log = { workspace = true }
+anyhow = { workspace = true }
+nix = { workspace = true, features = ["fs"] }
+bpf-common = { workspace = true }
+pulsar-core = { workspace = true }
+regex = { workspace = true }
+which = { workspace = true, optional = true }
+cgroups-rs = { workspace = true, optional = true }
+lazy_static = { workspace = true }
 
 [build-dependencies]
-bpf-builder = { path = "../bpf-builder" }
+bpf-builder = { workspace = true }

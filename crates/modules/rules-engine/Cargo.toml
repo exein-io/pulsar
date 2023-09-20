@@ -6,17 +6,17 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-validatron = { path = "../../validatron" }
-pulsar-core = { path = "../../pulsar-core" }
+validatron = { workspace = true }
+pulsar-core = { workspace = true }
 
-log = "0.4.17"
-anyhow = "1"
-tokio = "1.15.0"
-glob = "0.3.1"
-thiserror = "1.0.40"
-serde = { version = "1.0.160", features = ["derive"] }
-serde_yaml = "0.9.21"
-lalrpop-util = { version="0.19.9", features=["lexer"] }
+log = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+glob = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml = { workspace = true }
+lalrpop-util = { workspace = true, features=["lexer"] }
 
 [build-dependencies]
-lalrpop = "0.19.9"
+lalrpop = { workspace = true }

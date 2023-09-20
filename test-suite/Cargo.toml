@@ -6,13 +6,13 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-bpf-common = { path = "../crates/bpf-common", features = ["test-utils", "test-suite"] }
-bpf-filtering = { path = "../crates/bpf-filtering", features = ["test-suite"] }
-file-system-monitor = { path = "../crates/modules/file-system-monitor", features = ["test-suite"] }
-network-monitor = { path = "../crates/modules/network-monitor", features = ["test-suite"] }
-process-monitor = { path = "../crates/modules/process-monitor", features = ["test-suite"] }
-libtest-mimic =  "0.6.0"
-tokio = { version = "1", features = ["full"] }
-log = { version = "0.4", features = ["std"] }
-futures = "0.3.21"
-nix = "0.26.2"
+bpf-common = { workspace = true }
+bpf-filtering = { workspace = true }
+file-system-monitor = { workspace = true }
+network-monitor = { workspace = true }
+process-monitor = { workspace = true }
+libtest-mimic =  { workspace = true }
+tokio = { workspace = true }
+log = { workspace = true }
+futures = { workspace = true }
+nix = { workspace = true }

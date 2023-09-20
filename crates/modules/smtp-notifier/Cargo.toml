@@ -6,21 +6,21 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-pulsar-core = { path = "../../pulsar-core" }
+pulsar-core = { workspace = true }
 
-tokio = { version = "1", features = ["full"] }
-anyhow = "1.0"
-lettre = { version = "0.10.4", default-features = false, features = [
+tokio = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+lettre = { workspace = true, features = [
     "smtp-transport",
     "tokio1-native-tls",
     "tokio1",
     "builder",
 ] }
-openssl = { version = "0.10.57" }
-leon = "2.0.1"
-gethostname = "0.4.3"
-chrono = { version = "0.4.31" }
-rand = "0.8.5"
+openssl = { workspace = true }
+leon = { workspace = true }
+gethostname = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
 
 [features]
 openssl-vendored = ["openssl/vendored"]

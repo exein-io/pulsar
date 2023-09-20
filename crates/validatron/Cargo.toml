@@ -6,7 +6,7 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-serde = { version = "1.0.160", features = ["derive"] }
-log = "0.4.17"
-thiserror = "1.0.40"
-validatron-derive = {path = "derive"}
+serde = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+thiserror = { workspace = true }
+validatron-derive = { workspace = true }
