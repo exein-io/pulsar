@@ -10,7 +10,7 @@ use pulsar_core::{
     bus::Bus,
     pdk::{
         process_tracker::start_process_tracker, ModuleConfig, ModuleDetails, ModuleOverview,
-        ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
+        ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle, PulsarModule,
     },
 };
 use tokio::sync::mpsc;
@@ -40,7 +40,7 @@ impl PulsarDaemon {
     /// Construct a new [`PulsarDaemon`]
     async fn new(
         bus: Bus,
-        modules: Vec<Box<dyn TaskLauncher>>,
+        modules: Vec<PulsarModule>,
         config: PulsarConfig,
         rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     ) -> anyhow::Result<Self> {
@@ -85,9 +85,9 @@ impl PulsarDaemon {
         #[cfg(debug_assertions)]
         let trace_pipe_handle = bpf_common::trace_pipe::start().await;
 
-        for task_launcher in modules {
-            let module_name = task_launcher.name().to_owned();
-            let module_details = task_launcher.details().to_owned();
+        for pulsar_module in modules {
+            let module_name = pulsar_module.name.to_owned();
+            let module_details = pulsar_module.info.to_owned();
 
             log::info!("Starting module {module_name}");
             let config = config.get_watched_module_config(&module_name);
@@ -99,7 +99,7 @@ impl PulsarDaemon {
                 bus.clone(),
                 daemon_handle.clone(),
                 process_tracker.clone(),
-                task_launcher,
+                pulsar_module,
                 config,
                 bpf_context.clone(),
             );
@@ -290,7 +290,7 @@ impl PulsarDaemon {
 /// Returns the [`PulsarDaemonHandle`] that can be used to interact with the [`PulsarDaemon`] actor.
 pub async fn start_daemon(
     bus: Bus,
-    modules: Vec<Box<dyn TaskLauncher>>,
+    modules: Vec<PulsarModule>,
     config: PulsarConfig,
 ) -> anyhow::Result<PulsarDaemonHandle> {
     let (tx_cmd, rx_cmd) = mpsc::channel(8);

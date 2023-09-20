@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use engine::PulsarEngine;
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
-    Version,
+    ConfigError, Event, Module, ModuleConfig, ModuleContext, ModuleError, PulsarModule, Version,
 };
 
 mod dsl;
@@ -14,36 +14,43 @@ pub use engine::RuleEngineData;
 const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 const MODULE_NAME: &str = "rules-engine";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        rules_engine_task,
-    )
+pub struct RulesEngine {
+    engine: PulsarEngine,
 }
 
-async fn rules_engine_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let config: Config = rx_config.read()?;
-    let mut engine = PulsarEngine::new(&config.rules_path, ctx.get_sender())?;
+impl RulesEngine {
+    pub fn new(engine: PulsarEngine) -> Self {
+        Self { engine }
+    }
+}
 
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            _ = rx_config.changed() => {
-                let config: Config = rx_config.read()?;
-                engine = PulsarEngine::new(&config.rules_path, ctx.get_sender())?;
-            }
-            // handle pulsar message
-            event = receiver.recv() => {
-                let event = event?;
-                engine.process(&event)
+#[async_trait]
+impl Module for RulesEngine {
+    fn start() -> PulsarModule {
+        PulsarModule::new(
+            MODULE_NAME,
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            |ctx: &ModuleContext| {
+                let config: Config = ctx.get_config().read()?;
+                let sender = ctx.get_sender();
+
+                let rules_engine = RulesEngine::new(PulsarEngine::new(&config.rules_path, sender)?);
+                Ok(rules_engine)
             },
-        }
+        )
+    }
+
+    fn on_change(&mut self, ctx: &ModuleContext) -> Result<(), ModuleError> {
+        let config: Config = ctx.get_config().read()?;
+        let sender = ctx.get_sender();
+        let rules_engine = RulesEngine::new(PulsarEngine::new(&config.rules_path, sender)?);
+        *self = rules_engine;
+        Ok(())
+    }
+
+    async fn on_event(&mut self, event: &Event, _ctx: &ModuleContext) -> Result<(), ModuleError> {
+        self.engine.process(event);
+        Ok(())
     }
 }
 

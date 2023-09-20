@@ -1,52 +1,70 @@
 use std::{
     os::unix::process::CommandExt,
     process::{Command, Stdio},
-    sync::Arc,
 };
 
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use pulsar_core::{
     event::Threat,
     pdk::{
-        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-        ShutdownSignal, Version,
+        ConfigError, Event, Module, ModuleConfig, ModuleContext, ModuleError, PulsarModule, Version,
     },
 };
 
 const MODULE_NAME: &str = "desktop-notifier";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        desktop_nitifier_task,
-    )
+#[derive(Clone)]
+pub struct DesktopNotifier {
+    user_id: u32,
+    display: String,
+    notify_send_executable: String,
+    bus_address: String,
 }
 
-async fn desktop_nitifier_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let mut config = rx_config.read()?;
+impl TryFrom<&ModuleConfig> for DesktopNotifier {
+    type Error = ConfigError;
 
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            _ = rx_config.changed() => {
-                config = rx_config.read()?;
-                continue;
-            }
-            msg = receiver.recv() => {
-                handle_event(&config, msg?).await;
-            }
-        }
+    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
+        let user_id = config.with_default("user_id", 1000)?;
+        Ok(Self {
+            user_id,
+            display: config.with_default("display", ":0".to_string())?,
+            notify_send_executable: config
+                .with_default("notify_send_executable", "notify-send".to_string())?,
+            bus_address: config
+                .with_default("bus_address", format!("unix:path=/run/user/{user_id}/bus"))?,
+        })
+    }
+}
+
+#[async_trait]
+impl Module for DesktopNotifier {
+    fn start() -> PulsarModule {
+        PulsarModule::new(
+            MODULE_NAME,
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            |ctx: &ModuleContext| {
+                let desktop_notifier: DesktopNotifier = ctx.get_config().read()?;
+                Ok(desktop_notifier)
+            },
+        )
+    }
+
+    async fn on_event(&mut self, event: &Event, _ctx: &ModuleContext) -> Result<(), ModuleError> {
+        handle_event(self, event).await;
+        Ok(())
+    }
+
+    fn on_change(&mut self, ctx: &ModuleContext) -> Result<(), ModuleError> {
+        let desktop_notifier: DesktopNotifier = ctx.get_config().read()?;
+        *self = desktop_notifier;
+        Ok(())
     }
 }
 
 /// Check if the given event is a threat which should be notified to the user
-async fn handle_event(config: &Config, event: Arc<Event>) {
+async fn handle_event(config: &DesktopNotifier, event: &Event) {
     if let Some(Threat {
         source,
         description,
@@ -61,7 +79,7 @@ async fn handle_event(config: &Config, event: Arc<Event>) {
 }
 
 /// Send a desktop notification spawning `notify-send` with the provided arguments
-async fn notify_send(config: &Config, args: Vec<String>) {
+async fn notify_send(config: &DesktopNotifier, args: Vec<String>) {
     let mut command = Command::new(&config.notify_send_executable);
     command
         .args(args)
@@ -95,28 +113,4 @@ async fn notify_send(config: &Config, args: Vec<String>) {
             Ok(Err(err)) | Err(err) => log::error!("Error sending desktop notification: {err:?}"),
         }
     });
-}
-
-#[derive(Clone)]
-struct Config {
-    user_id: u32,
-    display: String,
-    notify_send_executable: String,
-    bus_address: String,
-}
-
-impl TryFrom<&ModuleConfig> for Config {
-    type Error = ConfigError;
-
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let user_id = config.with_default("user_id", 1000)?;
-        Ok(Self {
-            user_id,
-            display: config.with_default("display", ":0".to_string())?,
-            notify_send_executable: config
-                .with_default("notify_send_executable", "notify-send".to_string())?,
-            bus_address: config
-                .with_default("bus_address", format!("unix:path=/run/user/{user_id}/bus"))?,
-        })
-    }
 }

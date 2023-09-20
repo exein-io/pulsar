@@ -10,6 +10,12 @@ pulsar-core = { path = "../../pulsar-core" }
 
 tokio = { version = "1", features = ["full"] }
 lettre = { version = "0.10.4", default-features = false, features = ["smtp-transport", "tokio1-native-tls", "tokio1", "builder"] }
+async-trait = "0.1.73"
+
+[target.'cfg(target_env = "musl")'.dependencies]
+openssl = { version = "0.10.57",  features = ["vendored"]}
+
+[target.'cfg(target_env = "gnu")'.dependencies]
 openssl = { version = "0.10.57" }
 
 [features]

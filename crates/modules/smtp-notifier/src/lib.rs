@@ -3,10 +3,10 @@ use std::{default::Default, error::Error, fmt, str::FromStr};
 use lettre::message::Mailbox;
 use pulsar_core::event::Threat;
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
-    Version,
+    ConfigError, Event, Module, ModuleConfig, ModuleContext, ModuleError, PulsarModule, Version,
 };
 
+use async_trait::async_trait;
 use lettre::{
     transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,
     Tokio1Executor,
@@ -14,76 +14,119 @@ use lettre::{
 
 const MODULE_NAME: &str = "smtp-notifier";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        smtp_notifier_task,
-    )
+#[derive(Clone, Debug)]
+pub struct SmtpNotifier {
+    server: String,
+    user: String,
+    password: String,
+    receivers: Vec<Mailbox>,
+    port: u16,
+    encryption: Encryption,
+    sender: Option<Mailbox>,
 }
 
-async fn smtp_notifier_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let mut config: SmtpNotifierConfig = rx_config.read()?;
+impl TryFrom<&ModuleConfig> for SmtpNotifier {
+    type Error = ConfigError;
 
-    loop {
-        tokio::select! {
-            // Handle configuration changes:
-            _ = rx_config.changed() => {
-                config = rx_config.read()?;
-                continue;
+    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
+        let sender = match config.get_raw("sender") {
+            Some(s) => {
+                let mailbox = s
+                    .parse::<Mailbox>()
+                    .map_err(|err| ConfigError::InvalidValue {
+                        field: "sender".to_string(),
+                        value: s.to_string(),
+                        err: err.to_string(),
+                    })?;
+
+                Some(mailbox)
             }
-            r = shutdown.recv() => return r,
-            msg = receiver.recv() => {
-                let event = msg?;
+            None => None,
+        };
 
-                // Check if the even is a threat and send a email if it is
-                if let Some(Threat {
-                    source,
-                    description,
-                    extra: _,
-                }) = &event.header().threat
-                {
-                    let payload = event.payload();
-                    let subject = format!("Pulsar Threat Notification: {source}");
-                    let body = format!("{description}\n Source event: {payload}");
+        let receivers = config.get_list::<Mailbox>("receivers")?;
 
-                    let mut message_builder = Message::builder()
-                        .subject(subject);
-
-                    for receiver in config.receivers.iter() {
-                        message_builder = message_builder.to(receiver.clone())
-                    }
-
-                    if let Some(sender) =  &config.sender {
-                        message_builder = message_builder.from(sender.clone());
-                    }
-
-                    let message = message_builder.body(body)?;
-
-                    let smtp_transport = match config.encryption {
-                        Encryption::None => {
-                            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(config.server.as_str())
-                        }
-                        Encryption::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(config.server.as_str())?,
-                        Encryption::StartTls => {
-                            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(config.server.as_str())?
-                        }
-                    };
-
-                    smtp_transport
-                        .credentials(Credentials::new(config.user.clone(), config.password.clone()))
-                        .port(config.port)
-                        .build()
-                        .send(message)
-                        .await?;
-                }
-            }
+        if receivers.is_empty() {
+            return Err(ConfigError::RequiredValue {
+                field: "receivers".to_string(),
+            });
         }
+
+        Ok(Self {
+            server: config.required::<String>("server")?,
+            user: config.required::<String>("user")?,
+            password: config.required::<String>("password")?,
+            receivers,
+            port: config.with_default::<u16>("port", 465)?,
+            encryption: config.with_default::<Encryption>("encryption", Default::default())?,
+            sender,
+        })
+    }
+}
+
+#[async_trait]
+impl Module for SmtpNotifier {
+    fn start() -> PulsarModule {
+        PulsarModule::new(
+            MODULE_NAME,
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            |ctx: &ModuleContext| {
+                let smtp_notifier: SmtpNotifier = ctx.get_config().read()?;
+                Ok(smtp_notifier)
+            },
+        )
+    }
+
+    fn on_change(&mut self, ctx: &ModuleContext) -> Result<(), ModuleError> {
+        let smtp_notifier: SmtpNotifier = ctx.get_config().read()?;
+        *self = smtp_notifier;
+        Ok(())
+    }
+
+    async fn on_event(&mut self, event: &Event, _ctx: &ModuleContext) -> Result<(), ModuleError> {
+        if let Some(Threat {
+            source,
+            description,
+            extra: _,
+        }) = &event.header().threat
+        {
+            let payload = event.payload();
+            let subject = format!("Pulsar Threat Notification: {source}");
+            let body = format!("{description}\n Source event: {payload}");
+
+            let mut message_builder = Message::builder().subject(subject);
+
+            for receiver in self.receivers.iter() {
+                message_builder = message_builder.to(receiver.clone())
+            }
+
+            if let Some(sender) = &self.sender {
+                message_builder = message_builder.from(sender.clone());
+            }
+
+            let message = message_builder.body(body)?;
+
+            let smtp_transport = match self.encryption {
+                Encryption::None => {
+                    AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(self.server.as_str())
+                }
+                Encryption::Tls => {
+                    AsyncSmtpTransport::<Tokio1Executor>::relay(self.server.as_str())?
+                }
+                Encryption::StartTls => {
+                    AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(self.server.as_str())?
+                }
+            };
+
+            smtp_transport
+                .credentials(Credentials::new(self.user.clone(), self.password.clone()))
+                .port(self.port)
+                .build()
+                .send(message)
+                .await?;
+        }
+
+        Ok(())
     }
 }
 
@@ -122,55 +165,5 @@ impl FromStr for Encryption {
             "starttls" => Ok(Encryption::StartTls),
             _ => Err(ParseEncryptionError),
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct SmtpNotifierConfig {
-    server: String,
-    user: String,
-    password: String,
-    receivers: Vec<Mailbox>,
-    port: u16,
-    encryption: Encryption,
-    sender: Option<Mailbox>,
-}
-
-impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
-    type Error = ConfigError;
-
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let sender = match config.get_raw("sender") {
-            Some(s) => {
-                let mailbox = s
-                    .parse::<Mailbox>()
-                    .map_err(|err| ConfigError::InvalidValue {
-                        field: "sender".to_string(),
-                        value: s.to_string(),
-                        err: err.to_string(),
-                    })?;
-
-                Some(mailbox)
-            }
-            None => None,
-        };
-
-        let receivers = config.get_list::<Mailbox>("receivers")?;
-
-        if receivers.is_empty() {
-            return Err(ConfigError::RequiredValue {
-                field: "receivers".to_string(),
-            });
-        }
-
-        Ok(SmtpNotifierConfig {
-            server: config.required::<String>("server")?,
-            user: config.required::<String>("user")?,
-            password: config.required::<String>("password")?,
-            receivers,
-            port: config.with_default::<u16>("port", 465)?,
-            encryption: config.with_default::<Encryption>("encryption", Default::default())?,
-            sender,
-        })
     }
 }

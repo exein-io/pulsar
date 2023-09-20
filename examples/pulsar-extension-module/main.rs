@@ -1,4 +1,4 @@
-use pulsar::TaskLauncher;
+use pulsar_core::pdk::Module;
 
 mod my_custom_module;
 
@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get all pulsar modules and append our custom ones
     let mut modules = pulsar::modules();
-    modules.push(Box::new(my_custom_module::module()) as Box<dyn TaskLauncher>);
+    modules.push(<my_custom_module::MyCustomModule as Module>::start());
 
     // Run pulsar-exec with crate provided modules
     match pulsar::run_pulsar_exec(&options, modules).await {

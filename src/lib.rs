@@ -61,7 +61,7 @@ use std::env;
 use anyhow::Result;
 use std::sync::OnceLock;
 
-pub use pulsar_core::pdk::TaskLauncher;
+pub use pulsar_core::pdk::{Module, PulsarModule};
 
 use cli::PulsarExecOpts;
 
@@ -80,26 +80,23 @@ pub(crate) fn version() -> &'static str {
     v
 }
 
-pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
-    [
+pub fn modules() -> Vec<PulsarModule> {
+    vec![
         #[cfg(feature = "process-monitor")]
-        process_monitor::pulsar::module(),
+        <process_monitor::pulsar::ProcessMonitor as Module>::start(),
         #[cfg(feature = "file-system-monitor")]
-        file_system_monitor::pulsar::module(),
+        <file_system_monitor::pulsar::FileSystemMonitor as Module>::start(),
         #[cfg(feature = "network-monitor")]
-        network_monitor::pulsar::module(),
+        <network_monitor::pulsar::NetworkMonitor as Module>::start(),
         #[cfg(feature = "logger")]
-        logger::module(),
+        <logger::Logger as Module>::start(),
         #[cfg(feature = "rules-engine")]
-        rules_engine::module(),
+        <rules_engine::RulesEngine as Module>::start(),
         #[cfg(feature = "desktop-notifier")]
-        desktop_notifier::module(),
+        <desktop_notifier::DesktopNotifier as Module>::start(),
         #[cfg(feature = "smtp-notifier")]
-        smtp_notifier::module(),
+        <smtp_notifier::SmtpNotifier as Module>::start(),
     ]
-    .into_iter()
-    .map(|x| Box::new(x) as Box<dyn TaskLauncher>)
-    .collect()
 }
 
 /// Init logger. We log from info level and above, hide timestamp
@@ -123,10 +120,7 @@ pub fn init_logger(override_log_level: log::Level) {
 }
 
 /// Main pulsar entrypoint
-pub async fn run_pulsar_exec(
-    options: &PulsarExecOpts,
-    modules: Vec<Box<dyn TaskLauncher>>,
-) -> Result<()> {
+pub async fn run_pulsar_exec(options: &PulsarExecOpts, modules: Vec<PulsarModule>) -> Result<()> {
     match &options.mode {
         cli::Mode::PulsarCli(options) => pulsar::pulsar_cli_run(options).await,
         cli::Mode::PulsarDaemon(options) => pulsard::pulsar_daemon_run(options, modules).await,
