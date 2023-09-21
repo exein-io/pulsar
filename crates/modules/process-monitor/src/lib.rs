@@ -1,8 +1,12 @@
 use anyhow::Context;
+
 use bpf_common::{
     ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
+use pulsar_core::pdk::Module;
+
+use async_trait::async_trait;
 
 const MODULE_NAME: &str = "process-monitor";
 
@@ -86,89 +90,96 @@ pub mod pulsar {
     };
     use tokio::sync::mpsc;
 
-    pub fn module() -> PulsarModule {
-        PulsarModule::new(
-            MODULE_NAME,
-            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            process_monitor_task,
-        )
-    }
+    #[derive(Default)]
+    pub struct ProcessMonitor;
 
-    async fn process_monitor_task(
-        ctx: ModuleContext,
-        mut shutdown: ShutdownSignal,
-    ) -> Result<CleanExit, ModuleError> {
-        let rx_config = ctx.get_config();
-        let filtering_config: bpf_filtering::config::Config = rx_config.read()?;
-        let process_tracker = ctx.get_process_tracker();
-        let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
-        let mut program = program(
-            ctx.get_bpf_context(),
-            // When generating events we must update process_tracker.
-            // We do this by wrapping the pulsar sender and calling this closure on every event.
-            BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
-                let _ = tx_processes.send(match event.payload {
-                    ProcessEvent::Fork { ppid } => TrackerUpdate::Fork {
-                        pid: event.pid,
-                        ppid,
-                        timestamp: event.timestamp,
-                    },
-                    ProcessEvent::Exec {
-                        ref filename,
-                        argc,
-                        ref argv,
-                    } => {
-                        let argv =
-                            extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
-                                log::error!("Error getting program arguments: {}", err);
-                                &[]
-                            }));
-                        if argv.len() != argc as usize {
-                            log::warn!(
-                                "argc ({}) doens't match argv ({:?}) for {}",
-                                argc,
-                                argv,
-                                event.pid
-                            )
-                        }
-                        TrackerUpdate::Exec {
+    #[async_trait]
+    impl Module for ProcessMonitor {
+        fn start() -> PulsarModule {
+            PulsarModule::new(
+                MODULE_NAME,
+                Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+                |_ctx: &ModuleContext| Ok(ProcessMonitor),
+            )
+        }
+
+        async fn run(
+            &mut self,
+            ctx: ModuleContext,
+            mut shutdown: ShutdownSignal,
+        ) -> Result<CleanExit, ModuleError> {
+            let filtering_config: bpf_filtering::config::Config = ctx.get_config().read()?;
+            let process_tracker = ctx.get_process_tracker();
+
+            let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
+
+            let mut program = program(
+                ctx.get_bpf_context(),
+                // When generating events we must update process_tracker.
+                // We do this by wrapping the pulsar sender and calling this closure on every event.
+                BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
+                    let _ = tx_processes.send(match event.payload {
+                        ProcessEvent::Fork { ppid } => TrackerUpdate::Fork {
                             pid: event.pid,
-                            // ignoring this error since it will be catched in IntoPayload
-                            image: filename.string(&event.buffer).unwrap_or_default(),
+                            ppid,
                             timestamp: event.timestamp,
-                            argv,
+                        },
+                        ProcessEvent::Exec {
+                            ref filename,
+                            argc,
+                            ref argv,
+                        } => {
+                            let argv = extract_parameters(
+                                argv.bytes(&event.buffer).unwrap_or_else(|err| {
+                                    log::error!("Error getting program arguments: {}", err);
+                                    &[]
+                                }),
+                            );
+                            if argv.len() != argc as usize {
+                                log::warn!(
+                                    "argc ({}) doens't match argv ({:?}) for {}",
+                                    argc,
+                                    argv,
+                                    event.pid
+                                )
+                            }
+                            TrackerUpdate::Exec {
+                                pid: event.pid,
+                                // ignoring this error since it will be catched in IntoPayload
+                                image: filename.string(&event.buffer).unwrap_or_default(),
+                                timestamp: event.timestamp,
+                                argv,
+                            }
                         }
-                    }
-                    ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
-                        pid: event.pid,
-                        timestamp: event.timestamp,
-                    },
-                    ProcessEvent::ChangeParent { ppid } => TrackerUpdate::SetNewParent {
-                        pid: event.pid,
-                        ppid,
-                    },
-                    _ => return,
-                });
-            }),
-        )
-        .await?;
+                        ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
+                            pid: event.pid,
+                            timestamp: event.timestamp,
+                        },
+                        ProcessEvent::ChangeParent { ppid } => TrackerUpdate::SetNewParent {
+                            pid: event.pid,
+                            ppid,
+                        },
+                        _ => return,
+                    });
+                }),
+            )
+            .await?;
+            // rx_processes will first be used during initialization,
+            // than it will be used to keep the process tracker updated
+            bpf_filtering::initializer::setup_events_filter(
+                program.bpf(),
+                filtering_config,
+                &process_tracker,
+                &mut rx_processes,
+            )
+            .await
+            .context("Error initializing process filtering")?;
 
-        bpf_filtering::initializer::setup_events_filter(
-            program.bpf(),
-            filtering_config,
-            &process_tracker,
-            &mut rx_processes,
-        )
-        .await
-        .context("Error initializing process filtering")?;
-
-        // rx_processes will first be used during initialization,
-        // than it will be used to keep the process tracker updated
-
-        loop {
-            tokio::select! {
-                r = shutdown.recv() => return r,
-                Some(msg) = rx_processes.recv() => process_tracker.update(msg),
+            loop {
+                tokio::select! {
+                    r = shutdown.recv() => return r,
+                    Some(msg) = rx_processes.recv() => process_tracker.update(msg),
+                }
             }
         }
     }

@@ -5,13 +5,15 @@ use crate::{
     event::{Event, Header, Payload, Threat, Value},
 };
 use anyhow::Result;
-use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
+use async_trait::async_trait;
+use bpf_common::{program::BpfEvent, time::Timestamp, Pid, Program, ProgramError};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{
     broadcast::{self, error::RecvError},
     mpsc,
 };
+
 use validatron::Validatron;
 
 use super::{
@@ -19,40 +21,83 @@ use super::{
     CleanExit, ModuleContext, ShutdownSignal,
 };
 
-pub type PulsarModuleTask = dyn Future<Output = Result<CleanExit, ModuleError>> + Send;
+#[async_trait]
+pub trait Module: Send + Sync {
+    fn start() -> PulsarModule
+    where
+        Self: Sized;
 
-pub type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModuleTask> + Send;
+    // default for producer only modules
+    async fn on_event(&mut self, _event: &Event, _ctx: &ModuleContext) -> Result<(), ModuleError> {
+        Ok(())
+    }
 
-/// Main implementation of [`TaskLauncher`] for creating Pulsar pluggable modules.
-///
-/// Contains informations to identify a module and the receipe to start its task.
+    //default for consumer only modules
+    async fn ebpf_probe(&self, _ctx: &ModuleContext) -> Result<Option<Program>, ProgramError> {
+        Ok(None)
+    }
+
+    //default for prodcuer only modules
+    fn on_change(&mut self, _ctx: &ModuleContext) -> Result<(), ModuleError> {
+        Ok(())
+    }
+
+    async fn run(
+        &mut self,
+        ctx: ModuleContext,
+        mut shutdown: ShutdownSignal,
+    ) -> Result<CleanExit, ModuleError> {
+        let _program = self.ebpf_probe(&ctx).await?;
+
+        let mut rx_config = ctx.get_config::<()>();
+        let mut receiver = ctx.get_receiver();
+        loop {
+            tokio::select! {
+               r = shutdown.recv() => return r,
+               _ = rx_config.changed() => {
+                   let _ = self.on_change(&ctx)?;
+                   continue
+               }
+               msg = receiver.recv() => {
+                   let event = msg?;
+                   self.on_event(&event, &ctx).await?;
+                   continue;
+               }
+            }
+        }
+    }
+    //default normal drop
+    // fn graceful_stop(self, ctx: &ModuleContext) {}
+}
+
+pub type ModuleSetupFn = dyn Fn(&ModuleContext) -> Result<Box<dyn Module>, ModuleError> + Send;
+
+// /// Contains informations to identify a module and the receipe to start its task.
 pub struct PulsarModule {
     pub name: ModuleName,
     pub info: ModuleDetails,
-    pub task_start_fn: Box<ModuleStartFn>,
+    pub setup_fn: Box<ModuleSetupFn>,
 }
 
 impl PulsarModule {
     /// Constucts a new [`PulsarModule<B: Bus>`].
-    pub fn new<N, F, Fut>(name: N, version: Version, task_start_fn: F) -> Self
+    pub fn new<N, F, M>(name: N, version: Version, setup_fn: F) -> Self
     where
         N: Into<ModuleName>,
-        F: Fn(ModuleContext, ShutdownSignal) -> Fut,
+        F: Fn(&ModuleContext) -> Result<M, ModuleError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<CleanExit, ModuleError>>,
-        Fut: Send + 'static,
+        M: Module + 'static,
     {
         Self {
             name: name.into(),
             info: ModuleDetails { version },
-            task_start_fn: Box::new(move |ctx, shutdown| {
-                let module = task_start_fn(ctx, shutdown);
-                Box::new(module)
+            setup_fn: Box::new(move |ctx| {
+                let module = setup_fn(ctx)?;
+                Ok(Box::new(module) as Box<dyn Module>)
             }),
         }
     }
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash)]
 pub struct ModuleName(Cow<'static, str>);
 
@@ -105,20 +150,20 @@ impl Validatron for ModuleName {
     }
 }
 
-impl TaskLauncher for PulsarModule {
-    fn run(&self, ctx: ModuleContext, shutdown: ShutdownSignal) -> Box<PulsarModuleTask> {
-        (self.task_start_fn)(ctx, shutdown)
-    }
-
-    fn name(&self) -> &ModuleName {
-        &self.name
-    }
-
-    fn details(&self) -> &ModuleDetails {
-        &self.info
-    }
-}
-
+// impl TaskLauncher for PulsarModule {
+//     fn run(&self, ctx: ModuleContext) -> Box<PulsarModuleTask> {
+//         (self.setup_fn)(&config, &ctx)
+//     }
+//
+//     fn name(&self) -> &ModuleName {
+//         &self.name
+//     }
+//
+//     fn details(&self) -> &ModuleDetails {
+//         &self.info
+//     }
+// }
+//
 /// Contains module informations
 #[derive(Debug, Clone)]
 pub struct ModuleDetails {
@@ -126,21 +171,21 @@ pub struct ModuleDetails {
     // pub author: String,
 }
 
-/// [`TaskLauncher`] is used as an internal trait to represent Pulsar modules.
-///
-/// Check instead [`PulsarModule`] for a module implementation.
-///
-/// The [`TaskLauncher::run`] method starts the module task and returns an pointer to a dynamic [`PulsarModuleTask`] trait object.
-pub trait TaskLauncher: Send {
-    /// Starts an asyncronous task in background a return a pointer to [`PulsarModuleTask`] to use it as an handle to stop the running task.
-    fn run(&self, ctx: ModuleContext, shutdown: ShutdownSignal) -> Box<PulsarModuleTask>;
-
-    /// Get the module name.
-    fn name(&self) -> &ModuleName;
-
-    // Get the module details.
-    fn details(&self) -> &ModuleDetails;
-}
+// /// [`TaskLauncher`] is used as an internal trait to represent Pulsar modules.
+// ///
+// /// Check instead [`PulsarModule`] for a module implementation.
+// ///
+// /// The [`TaskLauncher::run`] method starts the module task and returns an pointer to a dynamic [`PulsarModuleTask`] trait object.
+// pub trait TaskLauncher: Send {
+//     /// Starts an asyncronous task in background a return a pointer to [`PulsarModuleTask`] to use it as an handle to stop the running task.
+//     fn run(&self, ctx: ModuleContext, shutdown: ShutdownSignal) -> Box<PulsarModuleTask>;
+//
+//     /// Get the module name.
+//     fn name(&self) -> &ModuleName;
+//
+//     // Get the module details.
+//     fn details(&self) -> &ModuleDetails;
+// }
 
 /// Used to send events out from a module.
 ///

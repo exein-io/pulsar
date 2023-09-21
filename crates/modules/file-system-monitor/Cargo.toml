@@ -15,6 +15,7 @@ pulsar-core = { path = "../../pulsar-core" }
 nix = "0.26.2"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
+async-trait = "0.1.73"
 
 [build-dependencies]
 bpf-builder = { path = "../../bpf-builder" }

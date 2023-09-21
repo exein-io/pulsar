@@ -1,7 +1,10 @@
+use async_trait::async_trait;
 use bpf_common::{
     ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Program, ProgramBuilder,
     ProgramError,
 };
+
+use pulsar_core::pdk::{Module, ModuleError};
 
 const MODULE_NAME: &str = "file-system-monitor";
 
@@ -83,50 +86,54 @@ pub mod pulsar {
     use pulsar_core::{
         event::FileFlags,
         pdk::{
-            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError,
-            ModuleSender, Payload, PulsarModule, ShutdownSignal, Version,
+            ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleSender, Payload,
+            PulsarModule, Version,
         },
     };
     use tokio::{fs::File, io::AsyncReadExt};
 
-    pub fn module() -> PulsarModule {
-        PulsarModule::new(
-            MODULE_NAME,
-            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            fs_monitor_task,
-        )
+    pub struct FileSystemMonitor {
+        sender: ModuleSender,
+        config: Config,
     }
 
-    async fn fs_monitor_task(
-        ctx: ModuleContext,
-        mut shutdown: ShutdownSignal,
-    ) -> Result<CleanExit, ModuleError> {
-        let _program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
-        let mut receiver = ctx.get_receiver();
-        let mut rx_config = ctx.get_config();
-        let mut config: Config = rx_config.read()?;
-        let sender = ctx.get_sender();
-        loop {
-            // enable receiver only if the elf checker is enabled
-            let receiver_recv = async {
-                if config.elf_check_enabled {
-                    receiver.recv().await
-                } else {
-                    std::future::pending().await
-                }
-            };
-            tokio::select! {
-                Ok(msg) = receiver_recv => {
-                    check_elf(&sender, &config, msg.as_ref()).await;
-                }
-                _ = rx_config.changed() => {
-                    config = rx_config.read()?;
-                }
-                r = shutdown.recv() => return r,
-            }
+    impl FileSystemMonitor {
+        pub fn new(config: Config, sender: ModuleSender) -> Self {
+            Self { config, sender }
         }
     }
 
+    #[async_trait]
+    impl Module for FileSystemMonitor {
+        fn start() -> PulsarModule {
+            PulsarModule::new(
+                MODULE_NAME,
+                Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+                |ctx: &ModuleContext| {
+                    let config: Config = ctx.get_config().read()?;
+                    Ok(FileSystemMonitor::new(config, ctx.get_sender()))
+                },
+            )
+        }
+
+        async fn ebpf_probe(&self, ctx: &ModuleContext) -> Result<Option<Program>, ProgramError> {
+            let program = program(ctx.get_bpf_context(), ctx.get_sender()).await?;
+            Ok(Some(program))
+        }
+
+        async fn on_event(
+            &mut self,
+            event: &Event,
+            _ctx: &ModuleContext,
+        ) -> Result<(), ModuleError> {
+            if self.config.elf_check_enabled {
+                check_elf(&self.sender, &self.config, event).await;
+                Ok(())
+            } else {
+                Ok(())
+            }
+        }
+    }
     impl IntoPayload for FsEvent {
         type Error = IndexError;
 
@@ -181,7 +188,7 @@ pub mod pulsar {
         type Error = ConfigError;
 
         fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-            Ok(Config {
+            Ok(Self {
                 elf_check_enabled: config.with_default("elf_check_enabled", true)?,
                 elf_check_whitelist: config.get_list_with_default(
                     "elf_check_whitelist",

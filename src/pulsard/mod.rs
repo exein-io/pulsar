@@ -2,7 +2,7 @@ use anyhow::{ensure, Result};
 use bpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
 use nix::unistd::geteuid;
-use pulsar_core::{bus::Bus, pdk::TaskLauncher};
+use pulsar_core::{bus::Bus, pdk::PulsarModule};
 use tokio::signal::unix::{signal, SignalKind};
 
 use crate::cli::pulsard::PulsarDaemonOpts;
@@ -22,7 +22,7 @@ const GENERAL_CONFIG: &str = "pulsar";
 
 pub async fn pulsar_daemon_run(
     options: &PulsarDaemonOpts,
-    modules: Vec<Box<dyn TaskLauncher>>,
+    modules: Vec<PulsarModule>,
 ) -> Result<()> {
     log::trace!("Pulsar Daemon Options: {:?}", options);
 

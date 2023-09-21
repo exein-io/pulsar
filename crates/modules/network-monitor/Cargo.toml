@@ -16,6 +16,7 @@ tokio = { version = "1", features = ["full"] }
 log = "0.4"
 nix = "0.26.2"
 dns-parser = "0.8.0"
+async-trait = "0.1.73"
 
 [build-dependencies]
 bpf-builder = { path = "../../bpf-builder" }

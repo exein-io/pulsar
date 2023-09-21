@@ -12,3 +12,4 @@ bpf-common = { path = "../../bpf-common" }
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
 anyhow = "1.0.68"
+async-trait = "0.1.73"

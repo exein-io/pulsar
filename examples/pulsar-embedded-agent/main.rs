@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use pulsar::{cli, TaskLauncher};
+use pulsar::cli;
 use pulsar_core::pdk::ModuleContext;
 use tokio::sync::oneshot;
 
@@ -40,7 +40,7 @@ async fn spawn_pulsar() -> Result<ModuleContext> {
     // of the application.
     let (tx_ctx, rx_ctx) = oneshot::channel();
     let mut modules = pulsar::modules();
-    modules.push(Box::new(proxy_module::module(tx_ctx)) as Box<dyn TaskLauncher>);
+    modules.push(proxy_module::module(tx_ctx));
 
     tokio::spawn(async move {
         // Run pulsar-exec with crate provided modules

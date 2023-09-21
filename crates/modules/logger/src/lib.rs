@@ -1,48 +1,17 @@
+use async_trait::async_trait;
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-    ShutdownSignal, Version,
+    ConfigError, Event, Module, ModuleConfig, ModuleContext, ModuleError, PulsarModule, Version,
 };
 
 const MODULE_NAME: &str = "logger";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        logger_task,
-    )
-}
-
-async fn logger_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let mut logger = Logger::from_config(rx_config.read()?);
-
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            _ = rx_config.changed() => {
-                logger = Logger::from_config(rx_config.read()?);
-            }
-            msg = receiver.recv() => {
-                let msg = msg?;
-                logger.process(&msg)
-            },
-        }
-    }
-}
-
-#[derive(Clone)]
-struct Config {
+pub struct Logger {
     console: bool,
     // file: bool, //TODO:
     // syslog: bool, //TODO:
 }
 
-impl TryFrom<&ModuleConfig> for Config {
+impl TryFrom<&ModuleConfig> for Logger {
     type Error = ConfigError;
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
@@ -54,20 +23,36 @@ impl TryFrom<&ModuleConfig> for Config {
     }
 }
 
-struct Logger {
-    console: bool,
-}
-
 impl Logger {
-    fn from_config(rx_config: Config) -> Self {
-        let Config { console } = rx_config;
-        Self { console }
-    }
-
     fn process(&self, event: &Event) {
         if event.header().threat.is_some() && self.console {
             terminal::print_event(event);
         }
+    }
+}
+
+#[async_trait]
+impl Module for Logger {
+    fn start() -> PulsarModule {
+        PulsarModule::new(
+            MODULE_NAME,
+            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            |ctx: &ModuleContext| {
+                let logger: Logger = ctx.get_config().read()?;
+                Ok(logger)
+            },
+        )
+    }
+
+    async fn on_event(&mut self, event: &Event, _ctx: &ModuleContext) -> Result<(), ModuleError> {
+        self.process(event);
+        Ok(())
+    }
+
+    fn on_change(&mut self, ctx: &ModuleContext) -> Result<(), ModuleError> {
+        let logger: Logger = ctx.get_config().read()?;
+        *self = logger;
+        Ok(())
     }
 }
 

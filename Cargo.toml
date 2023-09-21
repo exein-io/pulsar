@@ -38,6 +38,7 @@ semver = { version = "1.0.4", features = ["serde"] }
 rust-ini = "0.17.0"
 comfy-table = "5.0.1"
 futures-util = "0.3.25"
+async-trait = "0.1.73"
 
 [features]
 default = ["full"]

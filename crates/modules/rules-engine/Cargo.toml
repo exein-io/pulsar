@@ -17,6 +17,7 @@ thiserror = "1.0.40"
 serde = { version = "1.0.160", features = ["derive"] }
 serde_yaml = "0.9.21"
 lalrpop-util = { version="0.19.9", features=["lexer"] }
+async-trait = "0.1.73"
 
 [build-dependencies]
 lalrpop = "0.19.9"
