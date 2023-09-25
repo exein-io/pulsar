@@ -3,6 +3,7 @@ use bpf_common::{
     ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
+use pulsar_core::event::Namespaces;
 
 const MODULE_NAME: &str = "process-monitor";
 
@@ -35,11 +36,13 @@ pub async fn program(
 pub enum ProcessEvent {
     Fork {
         ppid: Pid,
+        namespaces: Namespaces,
     },
     Exec {
         filename: BufferIndex<str>,
         argc: u32,
         argv: BufferIndex<str>, // 0 separated strings
+        namespaces: Namespaces,
     },
     Exit {
         exit_code: u32,
@@ -108,15 +111,17 @@ pub mod pulsar {
             // We do this by wrapping the pulsar sender and calling this closure on every event.
             BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
                 let _ = tx_processes.send(match event.payload {
-                    ProcessEvent::Fork { ppid } => TrackerUpdate::Fork {
+                    ProcessEvent::Fork { ppid, namespaces } => TrackerUpdate::Fork {
                         pid: event.pid,
                         ppid,
                         timestamp: event.timestamp,
+                        namespaces,
                     },
                     ProcessEvent::Exec {
                         ref filename,
                         argc,
                         ref argv,
+                        namespaces,
                     } => {
                         let argv =
                             extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
@@ -137,6 +142,7 @@ pub mod pulsar {
                             image: filename.string(&event.buffer).unwrap_or_default(),
                             timestamp: event.timestamp,
                             argv,
+                            namespaces,
                         }
                     }
                     ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
@@ -180,17 +186,20 @@ pub mod pulsar {
                 payload, buffer, ..
             } = event;
             Ok(match payload {
-                ProcessEvent::Fork { ppid } => Payload::Fork {
+                ProcessEvent::Fork { ppid, namespaces } => Payload::Fork {
                     ppid: ppid.as_raw(),
+                    namespaces,
                 },
                 ProcessEvent::Exec {
                     filename,
                     argc,
                     argv,
+                    namespaces,
                 } => Payload::Exec {
                     filename: filename.string(&buffer)?,
                     argc: argc as usize,
                     argv: extract_parameters(argv.bytes(&buffer)?).into(),
+                    namespaces,
                 },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
                 ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {

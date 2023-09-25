@@ -23,6 +23,8 @@ bpf-common = { path = "../bpf-common" }
 pulsar-core = { path = "../pulsar-core" }
 which = { version = "4.2.5", optional = true }
 cgroups-rs = { version = "0.3.2", optional = true }
+regex = "1.9"
+lazy_static = "1.4"
 
 [build-dependencies]
 bpf-builder = { path = "../bpf-builder" }

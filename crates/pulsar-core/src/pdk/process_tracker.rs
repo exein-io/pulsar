@@ -7,6 +7,8 @@ use tokio::{
     time,
 };
 
+use crate::event::Namespaces;
+
 pub fn start_process_tracker() -> ProcessTrackerHandle {
     let (tx, rx) = mpsc::unbounded_channel();
     let mut process_tracker = ProcessTracker::new(rx);
@@ -31,12 +33,14 @@ pub enum TrackerUpdate {
         pid: Pid,
         timestamp: Timestamp,
         ppid: Pid,
+        namespaces: Namespaces,
     },
     Exec {
         pid: Pid,
         timestamp: Timestamp,
         image: String,
         argv: Vec<String>,
+        namespaces: Namespaces,
     },
     SetNewParent {
         pid: Pid,
@@ -76,6 +80,7 @@ pub struct ProcessInfo {
     pub ppid: Pid,
     pub fork_time: Timestamp,
     pub argv: Vec<String>,
+    pub namespaces: Namespaces,
 }
 
 impl ProcessTrackerHandle {
@@ -136,6 +141,7 @@ struct ProcessData {
         String,    // new image name
     >,
     argv: Vec<String>,
+    namespaces: Namespaces,
 }
 
 /// Cleanup timeout in nanoseconds. This is how long an exited process
@@ -159,6 +165,7 @@ impl ProcessTracker {
                 original_image: "kernel".to_string(),
                 exec_changes: BTreeMap::new(),
                 argv: Vec::new(),
+                namespaces: Namespaces::default(),
             },
         );
         Self {
@@ -241,6 +248,7 @@ impl ProcessTracker {
                 pid,
                 timestamp,
                 ppid,
+                namespaces,
             } => {
                 self.data.insert(
                     pid,
@@ -255,6 +263,7 @@ impl ProcessTracker {
                             .get(&ppid)
                             .map(|parent| parent.argv.clone())
                             .unwrap_or_default(),
+                        namespaces,
                     },
                 );
                 if let Some(pending_updates) = self.pending_updates.remove(&pid) {
@@ -268,6 +277,7 @@ impl ProcessTracker {
                 timestamp,
                 ref mut image,
                 ref mut argv,
+                namespaces: _,
             } => {
                 if let Some(p) = self.data.get_mut(&pid) {
                     p.exec_changes.insert(timestamp, std::mem::take(image));
@@ -320,6 +330,7 @@ impl ProcessTracker {
             ppid: process.ppid,
             fork_time: process.fork_time,
             argv: process.argv.clone(),
+            namespaces: process.namespaces,
         })
     }
 
@@ -423,6 +434,16 @@ mod tests {
     const PID_1: Pid = Pid::from_raw(42);
     const PID_2: Pid = Pid::from_raw(43);
 
+    const NAMESPACES_1: Namespaces = Namespaces {
+        uts: 4026531835,
+        ipc: 4026531839,
+        mnt: 4026531841,
+        pid: 4026531836,
+        net: 4026531840,
+        time: 4026531834,
+        cgroup: 4026531838,
+    };
+
     #[tokio::test]
     async fn no_processes_by_default() {
         let process_tracker = start_process_tracker();
@@ -443,12 +464,14 @@ mod tests {
             ppid: PID_1,
             pid: PID_2,
             timestamp: 10.into(),
+            namespaces: NAMESPACES_1,
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: PID_2,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
             argv: Vec::new(),
+            namespaces: NAMESPACES_1,
         });
         process_tracker.update(TrackerUpdate::Exit {
             pid: PID_2,
@@ -466,6 +489,7 @@ mod tests {
                 ppid: PID_1,
                 fork_time: 10.into(),
                 argv: Vec::new(),
+                namespaces: NAMESPACES_1,
             }
         );
         assert_eq!(
@@ -475,6 +499,7 @@ mod tests {
                 ppid: PID_1,
                 fork_time: 10.into(),
                 argv: Vec::new(),
+                namespaces: NAMESPACES_1,
             }
         );
         assert_eq!(
@@ -498,11 +523,13 @@ mod tests {
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
             argv: Vec::new(),
+            namespaces: NAMESPACES_1,
         });
         process_tracker.update(TrackerUpdate::Fork {
             ppid: PID_1,
             pid: PID_2,
             timestamp: 10.into(),
+            namespaces: NAMESPACES_1,
         });
         assert_eq!(
             process_tracker.get(PID_2, 9.into()).await,
@@ -515,6 +542,7 @@ mod tests {
                 ppid: PID_1,
                 fork_time: 10.into(),
                 argv: Vec::new(),
+                namespaces: NAMESPACES_1,
             })
         );
         assert_eq!(
@@ -524,6 +552,7 @@ mod tests {
                 ppid: PID_1,
                 fork_time: 10.into(),
                 argv: Vec::new(),
+                namespaces: NAMESPACES_1,
             })
         );
         time::sleep(time::Duration::from_millis(1)).await;

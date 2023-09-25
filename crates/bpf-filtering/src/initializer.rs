@@ -74,12 +74,14 @@ pub async fn setup_events_filter(
             ppid: process.parent,
             pid: process.pid,
             timestamp: Timestamp::from(0),
+            namespaces: process.namespaces,
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: process.pid,
             image: process.image.to_string(),
             timestamp: Timestamp::from(0),
             argv: Vec::new(),
+            namespaces: process.namespaces,
         });
     }
 

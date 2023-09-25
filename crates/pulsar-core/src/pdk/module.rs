@@ -243,6 +243,7 @@ impl ModuleSender {
                     ppid,
                     fork_time,
                     argv: _,
+                    namespaces: _,
                 }) => {
                     header.image = image;
                     header.parent_pid = ppid.as_raw();

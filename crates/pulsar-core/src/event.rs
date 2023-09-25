@@ -158,11 +158,13 @@ pub enum Payload {
     },
     Fork {
         ppid: i32,
+        namespaces: Namespaces,
     },
     Exec {
         filename: String,
         argc: usize,
         argv: Argv,
+        namespaces: Namespaces,
     },
     Exit {
         exit_code: u32,
@@ -249,8 +251,8 @@ impl fmt::Display for Payload {
             Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
-            Payload::Fork { ppid } => write!(f,"Fork {{ ppid: {ppid} }}"),
-            Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
+            Payload::Fork { ppid, namespaces } => write!(f,"Fork {{ ppid: {ppid}, namespaces: {namespaces} }}"),
+            Payload::Exec { filename, argc, argv, namespaces } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, namespaces: {namespaces} }}"),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
@@ -475,6 +477,28 @@ impl From<Argv> for Vec<String> {
 impl fmt::Display for Argv {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         print_vec(f, &self.0)
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Validatron)]
+pub struct Namespaces {
+    pub uts: u32,
+    pub ipc: u32,
+    pub mnt: u32,
+    pub pid: u32,
+    pub net: u32,
+    pub time: u32,
+    pub cgroup: u32,
+}
+
+impl fmt::Display for Namespaces {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{ uts: {}, ipc: {}, mnt: {}, pid: {}, net: {}, time: {}, cgroup: {} }}",
+            self.uts, self.ipc, self.mnt, self.pid, self.net, self.time, self.cgroup
+        )
     }
 }
 
