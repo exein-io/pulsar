@@ -25,14 +25,26 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 #define MAX_PENDING_DEAD_PARENTS 30
 
+struct namespaces {
+  unsigned int uts;
+  unsigned int ipc;
+  unsigned int mnt;
+  unsigned int pid;
+  unsigned int net;
+  unsigned int time;
+  unsigned int cgroup; 
+};
+
 struct fork_event {
   pid_t ppid;
+  struct namespaces namespaces;
 };
 
 struct exec_event {
   struct buffer_index filename;
   int argc;
   struct buffer_index argv;
+  struct namespaces namespaces;
 };
 
 struct exit_event {
@@ -108,6 +120,13 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
     return 0;
 
   event->fork.ppid = parent_tgid;
+  event->fork.namespaces.uts = BPF_CORE_READ(child, nsproxy, uts_ns, ns.inum);
+  event->fork.namespaces.ipc = BPF_CORE_READ(child, nsproxy, ipc_ns, ns.inum);
+  event->fork.namespaces.mnt = BPF_CORE_READ(child, nsproxy, mnt_ns, ns.inum);
+  event->fork.namespaces.pid = BPF_CORE_READ(child, nsproxy, pid_ns_for_children, ns.inum);
+  event->fork.namespaces.net = BPF_CORE_READ(child, nsproxy, net_ns, ns.inum);
+  event->fork.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
+  event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
   output_process_event(ctx, event);
   return 0;
@@ -122,6 +141,15 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   if (!event)
     return 0;
   event->exec.argc = BPF_CORE_READ(bprm, argc);
+
+  event->exec.namespaces.uts = BPF_CORE_READ(p, nsproxy, uts_ns, ns.inum);
+  event->exec.namespaces.ipc = BPF_CORE_READ(p, nsproxy, ipc_ns, ns.inum);
+  event->exec.namespaces.mnt = BPF_CORE_READ(p, nsproxy, mnt_ns, ns.inum);
+  event->exec.namespaces.pid = BPF_CORE_READ(p, nsproxy, pid_ns_for_children, ns.inum);
+  event->exec.namespaces.net = BPF_CORE_READ(p, nsproxy, net_ns, ns.inum);
+  event->exec.namespaces.time = BPF_CORE_READ(p, nsproxy, time_ns, ns.inum);
+  event->exec.namespaces.cgroup = BPF_CORE_READ(p, nsproxy, cgroup_ns, ns.inum);
+
   // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
   // be used as a lookup key for the target and whitelist maps and garbage
   // would make the search fail.
