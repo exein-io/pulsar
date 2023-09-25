@@ -53,14 +53,11 @@ async fn smtp_notifier_task(
                     let body = format!("{description}\n Source event: {payload}");
 
                     let mut message_builder = Message::builder()
-                        .subject(subject);
+                        .subject(subject)
+                        .from(config.sender.clone());
 
                     for receiver in config.receivers.iter() {
                         message_builder = message_builder.to(receiver.clone())
-                    }
-
-                    if let Some(sender) =  &config.sender {
-                        message_builder = message_builder.from(sender.clone());
                     }
 
                     let message = message_builder.body(body)?;
@@ -76,7 +73,7 @@ async fn smtp_notifier_task(
                     };
 
                     smtp_transport
-                        .credentials(Credentials::new(config.user.clone(), config.password.clone()))
+                        .credentials(Credentials::new(config.username.clone(), config.password.clone()))
                         .port(config.port)
                         .build()
                         .send(message)
@@ -128,31 +125,38 @@ impl FromStr for Encryption {
 #[derive(Clone, Debug)]
 struct SmtpNotifierConfig {
     server: String,
-    user: String,
+    username: String,
     password: String,
     receivers: Vec<Mailbox>,
     port: u16,
     encryption: Encryption,
-    sender: Option<Mailbox>,
+    sender: Mailbox,
 }
 
 impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
     type Error = ConfigError;
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let sender = match config.get_raw("sender") {
-            Some(s) => {
-                let mailbox = s
-                    .parse::<Mailbox>()
-                    .map_err(|err| ConfigError::InvalidValue {
-                        field: "sender".to_string(),
-                        value: s.to_string(),
-                        err: err.to_string(),
-                    })?;
+        let username = config.required::<String>("username")?;
 
-                Some(mailbox)
-            }
-            None => None,
+        // Get sender from `sender` field or try to parse `username` as an email
+        let sender = match config.get_raw("sender") {
+            Some(s) => s
+                .parse::<Mailbox>()
+                .map_err(|err| ConfigError::InvalidValue {
+                    field: "sender".to_string(),
+                    value: s.to_string(),
+                    err: err.to_string(),
+                })?,
+            None => username
+                .parse::<Mailbox>()
+                .map_err(|err| ConfigError::InvalidValue {
+                    field: "username".to_string(),
+                    value: username.to_string(),
+                    err: format!(
+                        "if `username` is not the email address, a `sender` must be set: {err}"
+                    ),
+                })?,
         };
 
         let receivers = config.get_list::<Mailbox>("receivers")?;
@@ -165,7 +169,7 @@ impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
 
         Ok(SmtpNotifierConfig {
             server: config.required::<String>("server")?,
-            user: config.required::<String>("user")?,
+            username,
             password: config.required::<String>("password")?,
             receivers,
             port: config.with_default::<u16>("port", 465)?,
