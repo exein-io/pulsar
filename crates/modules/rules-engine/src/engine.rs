@@ -1,7 +1,10 @@
-use std::{fs, path::Path, sync::Arc};
+use std::{collections::HashMap, fs, path::Path, str::FromStr, sync::Arc};
 
 use glob::glob;
-use pulsar_core::pdk::{Event, ModuleSender};
+use pulsar_core::{
+    event::PayloadDiscriminant,
+    pdk::{Event, ModuleSender},
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use validatron::{Rule, Ruleset, ValidatronError};
@@ -42,6 +45,8 @@ pub enum PulsarEngineError {
         #[source]
         error: ValidatronError,
     },
+    #[error("Payload type '{0}' not found")]
+    PayloadTypeNotFound(String),
 }
 
 #[derive(Clone)]
@@ -55,21 +60,35 @@ impl PulsarEngine {
 
         let rules = parse_rules(raw_rules)?;
 
-        let ruleset =
-            Ruleset::from_rules(rules).map_err(|error| PulsarEngineError::RuleCompile { error })?;
+        let mut rulesets = HashMap::new();
+
+        for (discriminant, rules) in rules {
+            let ruleset = Ruleset::from_rules(rules)
+                .map_err(|error| PulsarEngineError::RuleCompile { error })?;
+
+            if rulesets.insert(discriminant, ruleset).is_some() {
+                unreachable!("hashmap rules -> ruleset is a 1:1 map")
+            };
+        }
 
         Ok(PulsarEngine {
-            internal: Arc::new(PulsarEngineInternal { ruleset, sender }),
+            internal: Arc::new(PulsarEngineInternal { rulesets, sender }),
         })
     }
 
     pub fn process(&self, event: &Event) {
         // Run the engine only on non threat events to avoid creating loops
         if event.header().threat.is_none() {
-            for rule in self.internal.ruleset.matches(event) {
-                self.internal
-                    .sender
-                    .send_threat_derived(event, rule.name.clone(), None)
+            // Get payload discriminant from current event
+            let discriminant = PayloadDiscriminant::from(event.payload());
+
+            // Match against a discriminant ruleset if there is one
+            if let Some(ruleset) = self.internal.rulesets.get(&discriminant) {
+                for rule in ruleset.matches(event) {
+                    self.internal
+                        .sender
+                        .send_threat_derived(event, rule.name.clone(), None)
+                }
             }
         }
     }
@@ -100,29 +119,42 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEn
     Ok(rules.into_iter().flatten().collect())
 }
 
-fn parse_rules(user_rules: Vec<UserRule>) -> Result<Vec<Rule>, PulsarEngineError> {
+fn parse_rules(
+    user_rules: Vec<UserRule>,
+) -> Result<HashMap<PayloadDiscriminant, Vec<Rule>>, PulsarEngineError> {
     let parser = dsl::dsl::ConditionParser::new();
 
     let rules = user_rules
         .into_iter()
         .map(|user_rule| parse_rule(&parser, user_rule))
-        .collect::<Result<Vec<Rule>, PulsarEngineError>>()?;
+        .collect::<Result<Vec<(PayloadDiscriminant, Rule)>, PulsarEngineError>>()?;
 
-    Ok(rules)
+    let mut m = HashMap::new();
+    for (k, v) in rules {
+        m.entry(k).or_insert_with(Vec::new).push(v)
+    }
+
+    Ok(m)
 }
 
 fn parse_rule(
     parser: &dsl::dsl::ConditionParser,
     user_rule: UserRule,
-) -> Result<Rule, PulsarEngineError> {
+) -> Result<(PayloadDiscriminant, Rule), PulsarEngineError> {
+    let payload_discriminant = PayloadDiscriminant::from_str(&user_rule.r#type)
+        .map_err(|_| PulsarEngineError::PayloadTypeNotFound(user_rule.r#type.clone()))?;
+
     let condition = parser
         .parse(&user_rule.r#type, &user_rule.condition)
         .map_err(|err| PulsarEngineError::DslError(user_rule.condition.clone(), err.to_string()))?;
 
-    Ok(Rule {
-        name: user_rule.name,
-        condition,
-    })
+    Ok((
+        payload_discriminant,
+        Rule {
+            name: user_rule.name,
+            condition,
+        },
+    ))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -131,7 +163,7 @@ pub struct RuleEngineData {
 }
 
 struct PulsarEngineInternal {
-    ruleset: Ruleset<Event>,
+    rulesets: HashMap<PayloadDiscriminant, Ruleset<Event>>,
     sender: ModuleSender,
 }
 
@@ -155,6 +187,7 @@ impl RuleFile {
 
 #[cfg(test)]
 mod tests {
+    use pulsar_core::event::PayloadDiscriminant;
     use validatron::{Condition, Field, Match, Operator, RelationalOperator, Rule};
 
     use crate::{
@@ -174,22 +207,25 @@ mod tests {
 
         let parsed = parse_rule(&parser, user_rule).unwrap();
 
-        let expected = Rule {
-            name: "Open netcat".to_string(),
-            condition: Condition::Base {
-                field_path: vec![
-                    Field::Simple {
-                        field_name: "payload".to_string(),
-                    },
-                    Field::Adt {
-                        variant_name: "Exec".to_string(),
-                        field_name: "filename".to_string(),
-                    },
-                ],
-                op: Operator::Relational(RelationalOperator::Equals),
-                value: Match::Value("/usr/bin/nc".to_string()),
+        let expected = (
+            PayloadDiscriminant::Exec,
+            Rule {
+                name: "Open netcat".to_string(),
+                condition: Condition::Base {
+                    field_path: vec![
+                        Field::Simple {
+                            field_name: "payload".to_string(),
+                        },
+                        Field::Adt {
+                            variant_name: "Exec".to_string(),
+                            field_name: "filename".to_string(),
+                        },
+                    ],
+                    op: Operator::Relational(RelationalOperator::Equals),
+                    value: Match::Value("/usr/bin/nc".to_string()),
+                },
             },
-        };
+        );
 
         assert_eq!(parsed, expected);
     }

@@ -17,3 +17,4 @@ anyhow = "1.0.53"
 log = "0.4"
 thiserror = "1.0.30"
 nix = "0.26.2"
+strum = { version = "0.25", features = ["derive"] }

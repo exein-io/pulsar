@@ -5,6 +5,7 @@ use std::{
 };
 
 use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
+use strum::{EnumDiscriminants, EnumString};
 use validatron::{Operator, Validatron, ValidatronError};
 
 use crate::{
@@ -121,8 +122,10 @@ impl<T: Into<toml_edit::easy::Value>> From<T> for Value {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validatron, EnumDiscriminants)]
 #[serde(tag = "type", content = "content")]
+#[strum_discriminants(derive(EnumString, Hash))]
+#[strum_discriminants(name(PayloadDiscriminant))]
 pub enum Payload {
     FileCreated {
         filename: String,
