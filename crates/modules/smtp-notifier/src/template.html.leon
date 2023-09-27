@@ -1,0 +1,81 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <style type="text/css">
+        #body \{
+            background-color: #2c3339;
+            font-family: monospace;
+            color: #f5f6f7;
+            text-align: center;
+            margin: 0 auto;
+            font-size: 14px;
+        \}
+
+        #logo \{
+            margin-top: 10px;
+            width: 20%;
+            height: auto;
+        \}
+
+        h2 \{
+            font-weight: normal;
+            margin: 40px;
+            font-size: 24px;
+        \}
+
+        .footer \{
+            background-color: #242526;
+            padding: 30px;
+            margin-top: 40px;
+            font-size: 12px;
+        \}
+
+        pre \{
+            padding: 20px;
+            max-width: 60%;
+            text-align: center;
+            margin: 20px auto;
+            border: 1px solid;
+            border-radius: 2px;
+        \}
+
+        .row \{
+            font-size: 16px;
+            padding-top: 2px;
+        \}
+
+        a \{
+            color: rgb(174, 129, 255);
+        \}
+    </style>
+</head>
+
+<body id="body">
+    <img id="logo"
+        src="https://raw.githubusercontent.com/Exein-io/pulsar/07677de701181ed959a9248841dd6d7285be5003/assets/pulsar-logo-white.png"
+        alt="Pulsar logo" />
+
+    <h2>
+        Pulsar has identified malicious activity on host <b>{ hostname }</b> at <b>{ timestamp } UTC</b>.
+    </h2>
+
+    <div class="row">
+        Module <b>{ threat_source }</b> identified the following event from process <b>{ image }</b>:
+        <br>
+    <pre>{ event_info }</pre>
+    </div>
+
+    <div class="row">
+        This threat event contains this additional piece of information:
+        <br>
+    <pre>{ threat_info }</pre>
+    </div>
+
+    <div class="footer">
+        <p>For more information about <b>rule-engine</b> generated threat, you can check the documentation <a
+                href="https://pulsar.sh/docs/concepts/rules" target="_blank">here</a></p>
+        <p>Copyright © 2023 Exein, SpA.</p>
+    </div>
+</body>
+
+</html>
