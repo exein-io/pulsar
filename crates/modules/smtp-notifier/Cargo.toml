@@ -9,10 +9,18 @@ repository.workspace = true
 pulsar-core = { path = "../../pulsar-core" }
 
 tokio = { version = "1", features = ["full"] }
-lettre = { version = "0.10.4", default-features = false, features = ["smtp-transport", "tokio1-native-tls", "tokio1", "builder"] }
+anyhow = "1.0"
+lettre = { version = "0.10.4", default-features = false, features = [
+    "smtp-transport",
+    "tokio1-native-tls",
+    "tokio1",
+    "builder",
+] }
 openssl = { version = "0.10.57" }
-minijinja = "1.0.8"
+leon = "2.0.1"
 gethostname = "0.4.3"
+chrono = { version = "0.4.31" }
+rand = "0.8.5"
 
 [features]
 openssl-vendored = ["openssl/vendored"]
