@@ -1,6 +1,9 @@
 use std::{default::Default, error::Error, fmt, str::FromStr};
 
+use gethostname::gethostname;
 use lettre::message::Mailbox;
+use lettre::message::header::ContentType;
+use minijinja::{context, Environment};
 use pulsar_core::event::Threat;
 use pulsar_core::pdk::{
     CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
@@ -30,6 +33,11 @@ async fn smtp_notifier_task(
     let mut rx_config = ctx.get_config();
     let mut config: SmtpNotifierConfig = rx_config.read()?;
 
+    let env = Environment::new();
+    let template = env
+        .template_from_str(include_str!("./email-template.jinja"))
+        .unwrap();
+
     loop {
         tokio::select! {
             // Handle configuration changes:
@@ -40,21 +48,32 @@ async fn smtp_notifier_task(
             r = shutdown.recv() => return r,
             msg = receiver.recv() => {
                 let event = msg?;
+                let header = event.header();
 
                 // Check if the even is a threat and send a email if it is
                 if let Some(Threat {
                     source,
                     description,
                     extra: _,
-                }) = &event.header().threat
+                }) = &header.threat
                 {
                     let payload = event.payload();
-                    let subject = format!("Pulsar Threat Notification: {source}");
-                    let body = format!("{description}\n Source event: {payload}");
+                    let subject = format!("Pulsar Threat Notification");
+                    let body = template
+                        .render(context! {
+                            hostname => gethostname().to_string_lossy(),
+                            timestamp => header.timestamp,
+                            source => source,
+                            image => header.image,
+                            event_info => payload.to_string(),
+                            threat_info => description
+                        })
+                        .unwrap();
 
                     let mut message_builder = Message::builder()
                         .subject(subject)
-                        .from(config.sender.clone());
+                        .from(config.sender.clone())
+                        .header(ContentType::TEXT_HTML);
 
                     for receiver in config.receivers.iter() {
                         message_builder = message_builder.to(receiver.clone())
