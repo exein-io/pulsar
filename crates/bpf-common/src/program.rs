@@ -4,7 +4,8 @@
 //!
 use core::fmt;
 use std::{
-    collections::HashSet, convert::TryFrom, fmt::Display, mem::size_of, sync::Arc, time::Duration,
+    collections::HashSet, convert::TryFrom, fmt::Display, mem::size_of, path::PathBuf, sync::Arc,
+    time::Duration,
 };
 
 use aya::{
@@ -178,6 +179,11 @@ pub enum ProgramError {
     BtfError(#[from] BtfError),
     #[error("running background aya task {0}")]
     JoinError(#[from] JoinError),
+    #[error("could not find the inode of {path}")]
+    InodeError {
+        path: PathBuf,
+        io_error: Box<std::io::Error>,
+    },
 }
 
 pub struct ProgramBuilder {

@@ -1,3 +1,4 @@
+pub mod containers;
 pub mod procfs;
 
 mod buffer_index;
