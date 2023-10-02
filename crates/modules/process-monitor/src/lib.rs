@@ -1,9 +1,16 @@
+use std::{fs, os::unix::fs::MetadataExt};
+
 use anyhow::Context;
 use bpf_common::{
-    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
-    ProgramBuilder, ProgramError,
+    aya::maps::HashMap,
+    ebpf_program,
+    parsing::{containers::ContainerError, procfs, BufferIndex, IndexError},
+    program::BpfContext,
+    BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use pulsar_core::event::Namespaces;
+use thiserror::Error;
+use which::which;
 
 const MODULE_NAME: &str = "process-monitor";
 
@@ -22,10 +29,38 @@ pub async fn program(
         .raw_tracepoint("cgroup_attach_task")
         .start()
         .await?;
+
+    let mut container_runtimes_map: HashMap<_, u64, u8> = program
+        .bpf()
+        .map_mut("container_runtimes_map")
+        .unwrap()
+        .try_into()?;
+    for container_runtime in ["crun", "containerd-shim-runc-v2", "runc", "youki"] {
+        if let Ok(runtime_path) = which(container_runtime) {
+            let ino = fs::metadata(&runtime_path)
+                .map_err(|e| ProgramError::InodeError {
+                    path: runtime_path,
+                    io_error: Box::new(e),
+                })?
+                .ino();
+            container_runtimes_map.insert(ino, 0, 0)?;
+        }
+    }
+
     program
         .read_events("map_output_process_event", sender)
         .await?;
     Ok(program)
+}
+
+#[derive(Error, Debug)]
+pub enum ProcessEventError {
+    #[error(transparent)]
+    Index(#[from] IndexError),
+    #[error(transparent)]
+    Container(#[from] ContainerError),
+    #[error("container not found for process {0}")]
+    ContainerNotFound(Pid),
 }
 
 // The events sent from eBPF to userspace must be byte by byte
@@ -37,12 +72,14 @@ pub enum ProcessEvent {
     Fork {
         ppid: Pid,
         namespaces: Namespaces,
+        is_new_container: u32,
     },
     Exec {
         filename: BufferIndex<str>,
         argc: u32,
         argv: BufferIndex<str>, // 0 separated strings
         namespaces: Namespaces,
+        is_new_container: u32,
     },
     Exit {
         exit_code: u32,
@@ -82,7 +119,7 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{parsing::containers::ContainerInfo, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
         process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
         Payload, PulsarModule, ShutdownSignal, Version,
@@ -112,17 +149,26 @@ pub mod pulsar {
             // We do this by wrapping the pulsar sender and calling this closure on every event.
             BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
                 let _ = tx_processes.send(match event.payload {
-                    ProcessEvent::Fork { ppid, namespaces } => TrackerUpdate::Fork {
-                        pid: event.pid,
+                    ProcessEvent::Fork {
                         ppid,
-                        timestamp: event.timestamp,
                         namespaces,
-                    },
+                        is_new_container,
+                    } => {
+                        let is_new_container = is_new_container == 1;
+                        TrackerUpdate::Fork {
+                            pid: event.pid,
+                            ppid,
+                            timestamp: event.timestamp,
+                            namespaces,
+                            is_new_container,
+                        }
+                    }
                     ProcessEvent::Exec {
                         ref filename,
                         argc,
                         ref argv,
                         namespaces,
+                        is_new_container,
                     } => {
                         let argv =
                             extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
@@ -137,6 +183,7 @@ pub mod pulsar {
                                 event.pid
                             )
                         }
+                        let is_new_container = is_new_container == 1;
                         TrackerUpdate::Exec {
                             pid: event.pid,
                             // ignoring this error since it will be catched in IntoPayload
@@ -144,6 +191,7 @@ pub mod pulsar {
                             timestamp: event.timestamp,
                             argv,
                             namespaces,
+                            is_new_container,
                         }
                     }
                     ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
@@ -181,27 +229,63 @@ pub mod pulsar {
     }
 
     impl IntoPayload for ProcessEvent {
-        type Error = IndexError;
-        fn try_into_payload(event: BpfEvent<ProcessEvent>) -> Result<Payload, IndexError> {
+        type Error = ProcessEventError;
+        fn try_into_payload(event: BpfEvent<ProcessEvent>) -> Result<Payload, ProcessEventError> {
             let BpfEvent {
-                payload, buffer, ..
+                pid,
+                payload,
+                buffer,
+                ..
             } = event;
             Ok(match payload {
-                ProcessEvent::Fork { ppid, namespaces } => Payload::Fork {
-                    ppid: ppid.as_raw(),
+                ProcessEvent::Fork {
+                    ppid,
                     namespaces,
-                },
+                    is_new_container,
+                    ..
+                } => {
+                    let is_new_container = is_new_container == 1;
+                    let container = match procfs::get_process_container_id(pid) {
+                        Ok(Some(container_id)) => {
+                            Some(ContainerInfo::from_container_id(container_id)?)
+                        }
+                        Ok(None) => None,
+                        Err(_) => None,
+                    };
+
+                    Payload::Fork {
+                        ppid: ppid.as_raw(),
+                        namespaces,
+                        is_new_container,
+                        container,
+                    }
+                }
                 ProcessEvent::Exec {
                     filename,
                     argc,
                     argv,
                     namespaces,
-                } => Payload::Exec {
-                    filename: filename.string(&buffer)?,
-                    argc: argc as usize,
-                    argv: extract_parameters(argv.bytes(&buffer)?).into(),
-                    namespaces,
-                },
+                    is_new_container,
+                    ..
+                } => {
+                    let is_new_container = is_new_container == 1;
+                    let container = match procfs::get_process_container_id(pid) {
+                        Ok(Some(container_id)) => {
+                            Some(ContainerInfo::from_container_id(container_id)?)
+                        }
+                        Ok(None) => None,
+                        Err(_) => None,
+                    };
+
+                    Payload::Exec {
+                        filename: filename.string(&buffer)?,
+                        argc: argc as usize,
+                        argv: extract_parameters(argv.bytes(&buffer)?).into(),
+                        namespaces,
+                        is_new_container,
+                        container,
+                    }
+                }
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
                 ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {
                     ppid: ppid.as_raw(),

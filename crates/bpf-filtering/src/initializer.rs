@@ -75,6 +75,7 @@ pub async fn setup_events_filter(
             pid: process.pid,
             timestamp: Timestamp::from(0),
             namespaces: process.namespaces,
+            is_new_container: false,
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: process.pid,
@@ -82,6 +83,7 @@ pub async fn setup_events_filter(
             timestamp: Timestamp::from(0),
             argv: Vec::new(),
             namespaces: process.namespaces,
+            is_new_container: false,
         });
     }
 

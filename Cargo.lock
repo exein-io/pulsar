@@ -272,15 +272,20 @@ dependencies = [
  "cgroups-rs",
  "glob",
  "hex",
+ "lazy_static",
  "libc",
  "log",
  "nix 0.26.2",
  "procfs",
  "rand",
+ "regex",
+ "serde",
+ "serde_json",
  "sys-mount",
  "thiserror",
  "tokio",
  "tokio-fd",
+ "validatron",
  "which",
 ]
 
@@ -1632,6 +1637,7 @@ dependencies = [
  "pulsar-core",
  "thiserror",
  "tokio",
+ "which",
 ]
 
 [[package]]

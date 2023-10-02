@@ -1,6 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 
-use bpf_common::{time::Timestamp, Pid};
+use bpf_common::{
+    parsing::{
+        containers::{self, ContainerInfo},
+        procfs::{self, ProcfsError},
+    },
+    time::Timestamp,
+    Pid,
+};
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -34,6 +41,7 @@ pub enum TrackerUpdate {
         timestamp: Timestamp,
         ppid: Pid,
         namespaces: Namespaces,
+        is_new_container: bool,
     },
     Exec {
         pid: Pid,
@@ -41,6 +49,7 @@ pub enum TrackerUpdate {
         image: String,
         argv: Vec<String>,
         namespaces: Namespaces,
+        is_new_container: bool,
     },
     SetNewParent {
         pid: Pid,
@@ -74,6 +83,14 @@ pub enum TrackerError {
     ProcessExited,
 }
 
+#[derive(Debug, Error)]
+pub enum ContainerError {
+    #[error(transparent)]
+    Procfs(#[from] ProcfsError),
+    #[error(transparent)]
+    Container(#[from] containers::ContainerError),
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProcessInfo {
     pub image: String,
@@ -81,6 +98,7 @@ pub struct ProcessInfo {
     pub fork_time: Timestamp,
     pub argv: Vec<String>,
     pub namespaces: Namespaces,
+    pub container: Option<ContainerInfo>,
 }
 
 impl ProcessTrackerHandle {
@@ -121,7 +139,9 @@ struct ProcessTracker {
     /// commands receiver
     rx: mpsc::UnboundedReceiver<TrackerRequest>,
     /// current processes
-    data: HashMap<Pid, ProcessData>,
+    processes: HashMap<Pid, ProcessData>,
+    /// current containers
+    containers: HashMap<Namespaces, ContainerInfo>,
     /// scheduled removal of exited processes
     next_cleanup: Timestamp,
     /// pending info requests arrived before the process was created
@@ -153,10 +173,10 @@ const EXIT_THRESHOLD: u64 = 5_000_000; // 5 millis
 
 impl ProcessTracker {
     fn new(rx: mpsc::UnboundedReceiver<TrackerRequest>) -> Self {
-        let mut data = HashMap::new();
+        let mut processes = HashMap::new();
         // Some eBPF events (eg. TCP connections closed) may be reported
         // to PID 0, which is part of the kernel.
-        data.insert(
+        processes.insert(
             Pid::from_raw(0),
             ProcessData {
                 ppid: Pid::from_raw(0),
@@ -170,7 +190,8 @@ impl ProcessTracker {
         );
         Self {
             rx,
-            data,
+            processes,
+            containers: HashMap::new(),
             next_cleanup: Timestamp::now() + CLEANUP_TIMEOUT,
             pending_requests: Vec::new(),
             pending_updates: HashMap::new(),
@@ -242,6 +263,17 @@ impl ProcessTracker {
         }
     }
 
+    fn handle_container(&mut self, pid: Pid, namespaces: Namespaces) -> Result<(), ContainerError> {
+        let container_id = procfs::get_process_container_id(pid)?;
+        if let Some(id) = container_id {
+            let container_info = ContainerInfo::from_container_id(id)?;
+            self.containers.insert(namespaces, container_info);
+        } else {
+            log::warn!("could not determine a continer ID of a new containerized process {pid}");
+        }
+        Ok(())
+    }
+
     fn handle_update(&mut self, mut update: TrackerUpdate) {
         match update {
             TrackerUpdate::Fork {
@@ -249,8 +281,13 @@ impl ProcessTracker {
                 timestamp,
                 ppid,
                 namespaces,
+                is_new_container,
             } => {
-                self.data.insert(
+                if is_new_container {
+                    self.handle_container(pid, namespaces)
+                        .unwrap_or_else(|err| log::error!("{err}"));
+                }
+                self.processes.insert(
                     pid,
                     ProcessData {
                         ppid,
@@ -259,7 +296,7 @@ impl ProcessTracker {
                         original_image: self.get_image(ppid, timestamp),
                         exec_changes: BTreeMap::new(),
                         argv: self
-                            .data
+                            .processes
                             .get(&ppid)
                             .map(|parent| parent.argv.clone())
                             .unwrap_or_default(),
@@ -277,9 +314,14 @@ impl ProcessTracker {
                 timestamp,
                 ref mut image,
                 ref mut argv,
-                namespaces: _,
+                namespaces,
+                is_new_container,
             } => {
-                if let Some(p) = self.data.get_mut(&pid) {
+                if is_new_container {
+                    self.handle_container(pid, namespaces)
+                        .unwrap_or_else(|err| log::error!("{err}"));
+                }
+                if let Some(p) = self.processes.get_mut(&pid) {
                     p.exec_changes.insert(timestamp, std::mem::take(image));
                     p.argv = std::mem::take(argv)
                 } else {
@@ -289,7 +331,7 @@ impl ProcessTracker {
                 }
             }
             TrackerUpdate::Exit { pid, timestamp } => {
-                if let Some(p) = self.data.get_mut(&pid) {
+                if let Some(p) = self.processes.get_mut(&pid) {
                     p.exit_time = Some(timestamp);
                 } else {
                     // if exit arrived before the fork, we save the event as pending
@@ -298,7 +340,7 @@ impl ProcessTracker {
                 }
             }
             TrackerUpdate::SetNewParent { pid, ppid } => {
-                if let Some(p) = self.data.get_mut(&pid) {
+                if let Some(p) = self.processes.get_mut(&pid) {
                     p.ppid = ppid;
                 } else {
                     log::warn!("{ppid} is the new parent of {pid}, but we couldn't find it")
@@ -308,7 +350,11 @@ impl ProcessTracker {
     }
 
     fn get_info(&self, pid: Pid, ts: Timestamp) -> Result<ProcessInfo, TrackerError> {
-        let process = self.data.get(&pid).ok_or(TrackerError::ProcessNotFound)?;
+        let process = self
+            .processes
+            .get(&pid)
+            .ok_or(TrackerError::ProcessNotFound)?;
+        let container: Option<ContainerInfo> = self.containers.get(&process.namespaces).cloned();
         if ts < process.fork_time {
             log::warn!(
                 "{} not forked yet {} < {} ({}ms)",
@@ -331,12 +377,13 @@ impl ProcessTracker {
             fork_time: process.fork_time,
             argv: process.argv.clone(),
             namespaces: process.namespaces,
+            container,
         })
     }
 
     /// get image name at a certain point of time
     fn get_image(&self, pid: Pid, ts: Timestamp) -> String {
-        match self.data.get(&pid) {
+        match self.processes.get(&pid) {
             Some(p) => p
                 .exec_changes
                 .range(..=ts)
@@ -354,7 +401,7 @@ impl ProcessTracker {
         let now = Timestamp::now();
         if now > self.next_cleanup {
             log::trace!("periodic process_tracker cleanup");
-            self.data.retain(|pid, v| match v.exit_time {
+            self.processes.retain(|pid, v| match v.exit_time {
                 Some(exit_time) if (now - exit_time) > CLEANUP_TIMEOUT.into() => {
                     log::trace!(
                         "deleting [{}:{:?}] from process_tracker",
@@ -401,7 +448,10 @@ impl ProcessTracker {
 
     /// Check if a PID is descendant of a target image
     fn is_descendant_of(&self, pid: Pid, target_image: &str) -> Result<bool, TrackerError> {
-        let mut process = self.data.get(&pid).ok_or(TrackerError::ProcessNotFound)?;
+        let mut process = self
+            .processes
+            .get(&pid)
+            .ok_or(TrackerError::ProcessNotFound)?;
 
         // Loop through the parent processes until we find the target image
         // Exit if we reach the root process
@@ -420,7 +470,7 @@ impl ProcessTracker {
             }
 
             process = self
-                .data
+                .processes
                 .get(&process.ppid)
                 .ok_or(TrackerError::ProcessNotFound)?;
         }
@@ -465,6 +515,7 @@ mod tests {
             pid: PID_2,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
+            is_new_container: false,
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: PID_2,
@@ -472,6 +523,7 @@ mod tests {
             timestamp: 15.into(),
             argv: Vec::new(),
             namespaces: NAMESPACES_1,
+            is_new_container: false,
         });
         process_tracker.update(TrackerUpdate::Exit {
             pid: PID_2,
@@ -490,6 +542,7 @@ mod tests {
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
+                container: None,
             }
         );
         assert_eq!(
@@ -500,6 +553,7 @@ mod tests {
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
+                container: None,
             }
         );
         assert_eq!(
@@ -524,12 +578,14 @@ mod tests {
             timestamp: 15.into(),
             argv: Vec::new(),
             namespaces: NAMESPACES_1,
+            is_new_container: false,
         });
         process_tracker.update(TrackerUpdate::Fork {
             ppid: PID_1,
             pid: PID_2,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
+            is_new_container: false,
         });
         assert_eq!(
             process_tracker.get(PID_2, 9.into()).await,
@@ -543,6 +599,7 @@ mod tests {
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
+                container: None,
             })
         );
         assert_eq!(
@@ -553,6 +610,7 @@ mod tests {
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
+                container: None,
             })
         );
         time::sleep(time::Duration::from_millis(1)).await;

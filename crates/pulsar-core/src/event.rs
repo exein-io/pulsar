@@ -4,6 +4,7 @@ use std::{
     time::SystemTime,
 };
 
+use bpf_common::parsing::containers::ContainerInfo;
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
 use strum::{EnumDiscriminants, EnumString};
@@ -71,6 +72,8 @@ pub struct Header {
     pub image: String,
     pub pid: i32,
     pub parent_pid: i32,
+    #[validatron(skip)]
+    pub container_id: Option<String>,
     #[validatron(skip)]
     pub threat: Option<Threat>,
     pub source: ModuleName,
@@ -196,11 +199,21 @@ pub enum Payload {
     Fork {
         ppid: i32,
         namespaces: Namespaces,
+        is_new_container: bool,
+        #[validatron(skip)]
+        container: Option<ContainerInfo>,
     },
     Exec {
         filename: String,
         argc: usize,
         argv: Argv,
+        namespaces: Namespaces,
+        is_new_container: bool,
+        #[validatron(skip)]
+        container: Option<ContainerInfo>,
+    },
+    Container {
+        info: ContainerInfo,
         namespaces: Namespaces,
     },
     Exit {
@@ -288,8 +301,9 @@ impl fmt::Display for Payload {
             Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
-            Payload::Fork { ppid, namespaces } => write!(f,"Fork {{ ppid: {ppid}, namespaces: {namespaces} }}"),
-            Payload::Exec { filename, argc, argv, namespaces } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, namespaces: {namespaces} }}"),
+            Payload::Fork { ppid, namespaces, is_new_container, container } => write!(f,"Fork {{ ppid: {ppid}, namespaces: {namespaces}, is_new_container: {is_new_container}, container: {container:?} }}"),
+            Payload::Exec { filename, argc, argv, namespaces, is_new_container, container } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, namespaces: {namespaces}, is_new_container: {is_new_container}, container: {container:?} }}"),
+            Payload::Container { info, namespaces } => write!(f,"Container {{ id: {}, image: {}, image_digest: {}, namespaces: {namespaces} }}", info.id, info.image, info.image_digest),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
@@ -518,7 +532,7 @@ impl fmt::Display for Argv {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Validatron)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize, Validatron)]
 pub struct Namespaces {
     pub uts: u32,
     pub ipc: u32,

@@ -1,7 +1,9 @@
 //! Utility functions used to extract data from procfs
 
 use glob::glob;
+use lazy_static::lazy_static;
 use nix::unistd::{Pid, Uid};
+use regex::Regex;
 use std::{
     fs::{self, File},
     io::{self, prelude::*, BufReader},
@@ -9,8 +11,17 @@ use std::{
 };
 use thiserror::Error;
 
+use super::containers::ContainerId;
+
 // Special value used to indicate openat should use the current working directory.
 const AT_FDCWD: i32 = -100;
+
+lazy_static! {
+    /// Pattern for matching cgroups created by Docker.
+    static ref RE_CGROUP_DOCKER: Regex = Regex::new(r"docker.(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
+    /// Pattern for matching cgroups created by libpod/podman.
+    static ref RE_CGROUP_LIBPOD: Regex = Regex::new(r"libpod.(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
+}
 
 #[derive(Error, Debug)]
 pub enum ProcfsError {
@@ -152,4 +163,60 @@ pub fn get_running_processes() -> Result<Vec<Pid>, ProcfsError> {
             Ok(Pid::from_raw(pid))
         })
         .collect()
+}
+
+fn get_container_id_from_cgroup(cgroup_info: &str) -> Option<ContainerId> {
+    if let Some(caps) = RE_CGROUP_DOCKER.captures(cgroup_info) {
+        let id = caps.name("id").unwrap();
+        return Some(ContainerId::Docker(id.as_str().to_string()));
+    }
+    if let Some(caps) = RE_CGROUP_LIBPOD.captures(cgroup_info) {
+        let id = caps.name("id").unwrap();
+        return Some(ContainerId::Libpod(id.as_str().to_string()));
+    }
+    None
+}
+
+pub fn get_process_container_id(pid: Pid) -> Result<Option<ContainerId>, ProcfsError> {
+    let path = format!("/proc/{pid}/cgroup");
+    let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
+
+    let reader = BufReader::new(file);
+    for line in reader.lines().flatten() {
+        if let Some(container_id) = get_container_id_from_cgroup(&line) {
+            return Ok(Some(container_id));
+        }
+    }
+
+    Ok(None)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_get_container_id_from_cgroup() {
+        let container_id = get_container_id_from_cgroup("0::/init.scope");
+        assert_eq!(container_id, None);
+
+        let container_id = get_container_id_from_cgroup("0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-gnome-Alacritty-3266.scope");
+        assert_eq!(container_id, None);
+
+        let container_id = get_container_id_from_cgroup("0::/system.slice/docker-14467e1a5a6da17b660a130932f1ab568f35586bac8bc5147987d9bba4da08de.scop");
+        assert_eq!(
+            container_id,
+            Some(ContainerId::Docker(
+                "14467e1a5a6da17b660a130932f1ab568f35586bac8bc5147987d9bba4da08de".to_owned()
+            ))
+        );
+
+        let container_id = get_container_id_from_cgroup("0::/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362.scope/container");
+        assert_eq!(
+            container_id,
+            Some(ContainerId::Libpod(
+                "3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362".to_owned()
+            ))
+        );
+    }
 }

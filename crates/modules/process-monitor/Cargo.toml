@@ -18,6 +18,7 @@ nix = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+which = { workspace = true }
 
 [build-dependencies]
 bpf-builder = { workspace = true }
