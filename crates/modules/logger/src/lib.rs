@@ -2,7 +2,17 @@ use pulsar_core::pdk::{
     CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
     ShutdownSignal, Version,
 };
+use std::{
+    env,
+    fs::File,
+    io,
+    os::{
+        fd::AsFd,
+        unix::{fs::MetadataExt, net::UnixDatagram},
+    },
+};
 
+const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
 const MODULE_NAME: &str = "logger";
 
 pub fn module() -> PulsarModule {
@@ -20,17 +30,36 @@ async fn logger_task(
 ) -> Result<CleanExit, ModuleError> {
     let mut receiver = ctx.get_receiver();
     let mut rx_config = ctx.get_config();
-    let mut logger = Logger::from_config(rx_config.read()?);
+    let sender = ctx.get_sender();
+
+    let mut logger = match Logger::from_config(rx_config.read()?) {
+        Ok(logr) => logr,
+        Err(logr) => {
+            sender
+                .raise_warning("Failed to connect to syslog".into())
+                .await;
+            logr
+        }
+    };
 
     loop {
         tokio::select! {
             r = shutdown.recv() => return r,
             _ = rx_config.changed() => {
-                logger = Logger::from_config(rx_config.read()?);
+                logger = match Logger::from_config(rx_config.read()?) {
+                    Ok(logr) => logr,
+                    Err(logr) => {
+                        sender.raise_warning("Failed to connect to syslog".into()).await;
+                        logr
+                    }
+                }
             }
             msg = receiver.recv() => {
                 let msg = msg?;
-                logger.process(&msg)
+                if let Err(e) = logger.process(&msg) {
+                    sender.raise_warning(format!("Writing to syslog failed: {e}")).await;
+                    logger = Logger { syslog: None, ..logger };
+                }
             },
         }
     }
@@ -40,7 +69,7 @@ async fn logger_task(
 struct Config {
     console: bool,
     // file: bool, //TODO:
-    // syslog: bool, //TODO:
+    syslog: bool,
 }
 
 impl TryFrom<&ModuleConfig> for Config {
@@ -50,51 +79,65 @@ impl TryFrom<&ModuleConfig> for Config {
         Ok(Self {
             console: config.with_default("console", true)?,
             // file: config.required("file")?,
-            // syslog: config.required("syslog")?,
+            syslog: config.with_default("syslog", true)?,
         })
     }
 }
 
+#[derive(Debug)]
 struct Logger {
     console: bool,
+    syslog: Option<UnixDatagram>,
 }
 
 impl Logger {
-    fn from_config(rx_config: Config) -> Self {
-        let Config { console } = rx_config;
-        Self { console }
-    }
+    fn from_config(rx_config: Config) -> Result<Self, Self> {
+        let Config { console, syslog } = rx_config;
 
-    fn process(&self, event: &Event) {
-        if event.header().threat.is_some() && self.console {
-            terminal::print_event(event);
-        }
-    }
-}
+        let connected_to_journal = io::stderr()
+            .as_fd()
+            .try_clone_to_owned()
+            .and_then(|fd| File::from(fd).metadata())
+            .map(|meta| format!("{}:{}", meta.dev(), meta.ino()))
+            .ok()
+            .and_then(|stderr| {
+                env::var_os("JOURNAL_STREAM").map(|s| s.to_string_lossy() == stderr.as_str())
+            })
+            .unwrap_or(false);
 
-pub mod terminal {
-    use chrono::{DateTime, Utc};
-    use pulsar_core::{event::Threat, pdk::Event};
+        let opt_sock = (syslog && !connected_to_journal)
+            .then(|| {
+                let sock = UnixDatagram::unbound().ok()?;
+                UNIX_SOCK_PATHS
+                    .iter()
+                    .find_map(|path| sock.connect(path).ok())
+                    .map(|_| sock)
+            })
+            .flatten();
 
-    pub fn print_event(event: &Event) {
-        let header = event.header();
-        let time = DateTime::<Utc>::from(header.timestamp).format("%Y-%m-%dT%TZ");
-        let image = &header.image;
-        let pid = &header.pid;
-        let payload = event.payload();
-
-        if let Some(Threat {
-            source,
-            description,
-            extra: _,
-        }) = &event.header().threat
-        {
-            println!(
-                "[{time} \x1b[1;30;43mTHREAT\x1b[0m  {image} ({pid})] [{source} - {description}] {payload}"
-            )
+        if syslog && opt_sock.is_none() {
+            Err(Self {
+                console,
+                syslog: opt_sock,
+            })
         } else {
-            let source = &header.source;
-            println!("[{time} \x1b[1;30;46mEVENT\x1b[0m  {image} ({pid})] [{source}] {payload}")
+            Ok(Self {
+                console,
+                syslog: opt_sock,
+            })
         }
+    }
+
+    fn process(&mut self, event: &Event) -> io::Result<()> {
+        if event.header().threat.is_some() {
+            if self.console {
+                println!("{:#}", event);
+            }
+
+            if let Some(ref mut syslog) = &mut self.syslog {
+                syslog.send(format!("{}", event).as_bytes())?;
+            }
+        }
+        Ok(())
     }
 }

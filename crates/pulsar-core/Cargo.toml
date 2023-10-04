@@ -8,7 +8,6 @@ repository.workspace = true
 [dependencies]
 bpf-common = { path = "../bpf-common" }
 validatron = { path = "../validatron" }
-
 serde = { workspace = true, features = ["derive"] }
 toml_edit = { workspace = true, features = ["easy"] }
 tokio = { workspace = true, features = ["full"] }
@@ -18,3 +17,4 @@ log = { workspace = true }
 thiserror = { workspace = true }
 nix = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
+chrono = { workspace = true, features = ["std"] }

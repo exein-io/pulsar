@@ -7,6 +7,7 @@ This module will log Pulsar threat events to stdout.
 |Config|Type|Description|
 |------|----|-----------|
 |console|bool|log to stdout|
+|syslog|bool|log to syslog|
 
 Default configuration:
 
@@ -14,6 +15,7 @@ Default configuration:
 [logger]
 enabled=true
 console=true
+syslog=true
 ```
 
 You disable this module with:

@@ -4,6 +4,7 @@ use std::{
     time::SystemTime,
 };
 
+use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
 use strum::{EnumDiscriminants, EnumString};
 use validatron::{Operator, Validatron, ValidatronError};
@@ -26,6 +27,42 @@ impl Event {
 
     pub fn payload(&self) -> &Payload {
         &self.payload
+    }
+}
+
+impl fmt::Display for Event {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let header = self.header();
+        let time = DateTime::<Utc>::from(header.timestamp).format("%Y-%m-%dT%TZ");
+        let image = &header.image;
+        let pid = &header.pid;
+        let payload = self.payload();
+
+        if let Some(Threat {
+            source,
+            description,
+            extra: _,
+        }) = &self.header().threat
+        {
+            if f.alternate() {
+                writeln!(f, "[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] [{source} - {description}] {payload}")
+            } else {
+                writeln!(
+                    f,
+                    "[{time} THREAT {image} ({pid})] [{source} - {description}] {payload}"
+                )
+            }
+        } else {
+            let source = &header.source;
+            if f.alternate() {
+                writeln!(
+                    f,
+                    "[{time} \x1b[1;30;46mEVENT\x1b[0m {image} ({pid})] [{source}] {payload}"
+                )
+            } else {
+                writeln!(f, "[{time} EVENT {image} ({pid})] [{source}] {payload}")
+            }
+        }
     }
 }
 
