@@ -1268,7 +1268,6 @@ name = "logger"
 version = "0.6.0"
 dependencies = [
  "bpf-common",
- "chrono",
  "log",
  "pulsar-core",
  "tokio",
@@ -1681,6 +1680,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "bpf-common",
+ "chrono",
  "log",
  "nix 0.26.2",
  "semver",
