@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #pragma once
 
 // The LOOP macro allows to iterate using the `bpf_loop` helper function when

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #pragma once
 
 // This file contains a list of kernel-version dependant features which must be

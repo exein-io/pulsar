@@ -56,7 +56,7 @@ Next we create write a simple eBPF program, we'll name it `probes.bpf.c`.
 ```c
 #include "common.bpf.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
+char LICENSE[] SEC("license") = "GPL v2";
 
 SEC("kprobe/security_inode_create")
 int security_inodei_create(struct pt_regs *ctx) {
@@ -137,7 +137,7 @@ We can now implement `probe.bpf.c` to get this example to work.
 ```c
 #include "common.bpf.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
+char LICENSE[] SEC("license") = "GPL v2";
 
 int my_pid = 0;
 

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 // Allow the eBPF side to send a buffer of dynamically sized arguments.
 //
 // The eBPF program sends event structures over a PerfEventArray, which the

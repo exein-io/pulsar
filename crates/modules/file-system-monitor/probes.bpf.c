@@ -6,7 +6,7 @@
 #include "common.bpf.h"
 #include "get_path.bpf.h"
 #include "interest_tracking.bpf.h"
-char LICENSE[] SEC("license") = "GPL";
+char LICENSE[] SEC("license") = "GPL v2";
 
 #define FILE_CREATED 0
 #define FILE_DELETED 1

@@ -10,7 +10,7 @@
 #include "output.bpf.h"
 #include "vmlinux.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
+char LICENSE[] SEC("license") = "GPL v2";
 
 #define EVENT_FORK 0
 #define EVENT_EXEC 1
