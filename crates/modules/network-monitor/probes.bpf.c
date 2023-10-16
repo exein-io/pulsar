@@ -5,7 +5,7 @@
 #include "iov_iter_compat.h"
 #include "output.bpf.h"
 
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
+char LICENSE[] SEC("license") = "GPL v2";
 
 #define ADDR_SIZE 16
 #define EVENT_BIND 0

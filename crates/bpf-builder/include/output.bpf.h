@@ -1,4 +1,6 @@
-/// Manage output to userspace using a perf event array map
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+// Manage output to userspace using a perf event array map
 #pragma once
 
 #include "bpf/bpf_helpers.h"
