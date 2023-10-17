@@ -1,20 +1,30 @@
-name: Dependency Audit
-# there is a problem with a dependency of a dependency : `time`. so for now I'm keeping it manual
-on: workflow_dispatch
-# on:
-#   pull_request:
-#     paths: 
-#       - '**/Cargo.toml'
-#       - '**/Cargo.lock'
+name: "Audit Dependencies"
+on:
+  # Run manually
+  workflow_dispatch:
+  # push:
+  #   paths:
+  #     # Run if workflow changes
+  #     - '.github/workflows/audit.yml'
+  #     # Run on changed dependencies
+  #     - '**/Cargo.toml'
+  #     - '**/Cargo.lock'
+  #     # Run if the configuration file changes
+  #     - '**/audit.toml'
+  # # Rerun periodicly to pick up new advisories
+  # schedule:
+  #   - cron: '0 0 * * *'
+
+permissions: read-all
+
 jobs:
-  security_audit:
-    name: Audit
+  audit:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Code checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Dependencies audit
-        uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions-rust-lang/audit@v1
+        name: Audit Rust Dependencies
