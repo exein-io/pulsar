@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Run link check
         uses: gaurav-nelson/github-action-markdown-link-check@v1
@@ -26,22 +26,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust:
-          - stable
-
         platform:
           - target: x86_64-unknown-linux-gnu
 
     steps:
       - name: Code checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (${{ matrix.rust }})
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
           target: ${{ matrix.platform.target }}
-          override: true
           components: rustfmt
 
       - name: Formatting (rustfmt)
@@ -53,9 +48,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust:
-          - stable
-
         platform:
           - target: x86_64-unknown-linux-gnu
             args: "--features full"
@@ -77,22 +69,19 @@ jobs:
 
     steps:
       - name: Code checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (${{ matrix.rust }})
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
           target: ${{ matrix.platform.target }}
-          override: true
           components: clippy
 
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
       - name: Clippy (all crates)
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: clippy
-          args: --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} -- -D warnings
+        run: cross clippy --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} -- -D warnings
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"
