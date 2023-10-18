@@ -44,7 +44,7 @@ jobs:
           target: ${{ matrix.platform.target }}
 
       - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        uses: ./.github/actions/install-cross
 
       - name: Build Debug
         if: ${{ matrix.profile == 'debug' }} 

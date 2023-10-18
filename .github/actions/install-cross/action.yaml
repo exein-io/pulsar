@@ -1,0 +1,18 @@
+name: 'Install cross'
+description: 'Install cross-rs from its latest release'
+
+runs:
+  using: composite
+  steps:
+    - name: Install cross
+      shell: bash
+      run: |
+        cross_release_archive=cross-x86_64-unknown-linux-musl.tar.gz
+        wget https://github.com/cross-rs/cross/releases/latest/download/${cross_release_archive}
+        tar -xf ${cross_release_archive}
+        rm ${cross_release_archive}
+        mkdir -p /home/runner/.local/bin
+        mv cross* /home/runner/.local/bin
+
+    - run: cross --version --verbose
+      shell: bash
