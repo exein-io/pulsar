@@ -77,11 +77,8 @@ jobs:
           target: ${{ matrix.platform.target }}
           components: clippy
 
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
       - name: Clippy (all crates)
-        run: cross clippy --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} -- -D warnings
+        run: cargo clippy --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} -- -D warnings
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"
