@@ -1,71 +1,25 @@
-name: Pulsar Release
-on: [create]
+name: Release
+on: 
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'New tag name'
+        required: true
+  push:
+    tags:
+      - '*'
 
 jobs:
-  release:
-    if: github.event_name == 'create' && github.event.ref_type == 'tag'
-    name: Release
+  vendored_archive:
+    name: Vendored archive
     runs-on: ubuntu-latest
     steps:
       - name: Code checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      # Compile x86_64 gnu
-      - name: Install Rust toolchain (x86_64-unknown-linux-gnu)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: "stable"
-          target: x86_64-unknown-linux-gnu
-      - name: Build (x86_64-unknown-linux-gnu)
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --bin pulsar-exec --release --target=x86_64-unknown-linux-gnu
-
-      # Compile x86_64 musl
-      - name: Install Rust toolchain (x86_64-unknown-linux-musl)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: "stable"
-          target: x86_64-unknown-linux-musl
-      - name: Build (x86_64-unknown-linux-musl)
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --bin pulsar-exec --release --target=x86_64-unknown-linux-musl --features openssl-vendored"
-
-      # Compile aarch64 musl
-      - name: Install Rust toolchain (aarch64-unknown-linux-musl)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: "stable"
-          target: aarch64-unknown-linux-musl
-          override: true
-      - name: Build (aarch64-unknown-linux-musl)
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --bin pulsar-exec --release --target=aarch64-unknown-linux-musl --features openssl-vendored"
-
-      # Create Release
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          draft: true
-          prerelease: false
-          body: Check out the [changelog](https://github.com/Exein-io/pulsar/blob/main/CHANGELOG.md) for details on all the changes and fixes.
-
-      # Create and upload vendored source
       - name: Create release directory
         run: rsync -rv --exclude=.git . ../pulsar-${{ github.event.ref }}
+
       - name: Cargo vendor
         working-directory: ../pulsar-${{ github.event.ref }}
         run: |
@@ -73,48 +27,78 @@ jobs:
           export CARGO_HOME=$(realpath ../vendor-cargo-home)
           mkdir -p .cargo
           cargo vendor >> .cargo/config.toml
+
       - name: Create vendored source archive
         working-directory: ../
         run: tar cJf pulsar-${{ github.event.ref }}.tar.xz pulsar-${{ github.event.ref }}
-      - name: Upload pulsar vendored source archive
-        id: upload-release-pulsar-vendored-sources
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ../pulsar-${{ github.event.ref }}.tar.xz
-          asset_name: pulsar-${{ github.event.ref }}.tar.xz
-          asset_content_type: application/x-xz
 
-      # Upload binaries
-      - name: Upload pulsar x86_64
-        id: upload-release-pulsar-x86_64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/x86_64-unknown-linux-gnu/release/pulsar-exec
-          asset_name: pulsar-exec-x86_64
-          asset_content_type: application/octet-stream
-      - name: Upload static pulsar x86_64
-        id: upload-release-static-pulsar-x86_64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
+          files: ../pulsar-${{ github.event.ref }}.tar.xz
+          body: |
+            <hr>
+
+            Check out the [changelog](https://github.com/Exein-io/pulsar/blob/main/CHANGELOG.md) for details on all the changes and fixes.
+
+  binary:
+    name: Binary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - target: x86_64-unknown-linux-gnu
+            args: "--features full"
+
+          # For `musl` builds openssl must be vendored
+          - target: x86_64-unknown-linux-musl
+            args: "--features full --features openssl-vendored"
+
+          - target: aarch64-unknown-linux-gnu
+            args: "--features full"
+
+          # For `musl` builds openssl must be vendored
+          - target: aarch64-unknown-linux-musl
+            args: "--features full --features openssl-vendored"
+
+          # Dependencies of `xtask` might fail to build on riscv64.
+          - target: riscv64gc-unknown-linux-gnu
+            args: "--features full"
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/x86_64-unknown-linux-musl/release/pulsar-exec
-          asset_name: pulsar-exec-x86_64-static
-          asset_content_type: application/octet-stream
-      - name: Upload static pulsar aarch64
-        id: upload-release-static-aarch64-pulsar
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          target: ${{ matrix.platform.target }}
+
+      - name: Install cross
+        uses: ./.github/actions/install-cross
+
+      - name: Build Release
+        run: cross build --locked --target=${{ matrix.platform.target }} --bin pulsar-exec ${{ matrix.platform.args }} --release
+
+      - name: Rename binary
+        shell: bash
+        id: rename_binary
+        run: |
+          IFS='-' read -a arch <<< ${{ matrix.platform.target }}
+          suffix=""
+          if [[ "${{ matrix.platform.target }}" == *"musl"* ]]; then suffix="-static"; fi
+          binary_name=./target/${{ matrix.platform.target }}/release/pulsar-exec-${arch}${suffix}
+          mv ./target/${{ matrix.platform.target }}/release/pulsar-exec ${binary_name}
+          echo "binary_name=${binary_name}" >> $GITHUB_OUTPUT
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/aarch64-unknown-linux-musl/release/pulsar-exec
-          asset_name: pulsar-exec-aarch64-static
-          asset_content_type: application/octet-stream
+          draft: true
+          files: ${{ steps.rename_binary.outputs.binary_name }}
+          body: |
+            <hr>  
+
+            Check out the [changelog](https://github.com/Exein-io/pulsar/blob/main/CHANGELOG.md) for details on all the changes and fixes.
