@@ -1,5 +1,7 @@
 # Exclude everything
 **
 
-# # Include pulsar executable
+# # Include essential files
 !**/pulsar-exec
+!**/pulsar.ini
+!**/basic-rules.yaml

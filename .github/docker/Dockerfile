@@ -1,7 +1,13 @@
 FROM debian:bookworm
 
-COPY ./pulsar-exec ./pulsar-exec
+ARG ARCH
 
-ENTRYPOINT ./pulsar-exec
+COPY ./target/${ARCH}/release/pulsar-exec /usr/sbin/pulsar-exec
 
-CMD [ "pulsard" ]
+COPY .github/docker/pulsar.ini /var/lib/pulsar/pulsar.ini
+
+COPY ./rules/basic-rules.yaml /var/lib/pulsar/rules/basic-rules.yaml
+
+ENTRYPOINT [ "pulsar-exec" ]
+
+CMD [ "pulsard" ] 
