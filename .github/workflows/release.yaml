@@ -8,6 +8,7 @@ on:
   push:
     tags:
       - '*'
+  pull_request:
 
 jobs:
   vendored_archive:
@@ -51,21 +52,26 @@ jobs:
         platform:
           - target: x86_64-unknown-linux-gnu
             args: "--features full"
+            # docker-platform: linux/amd64
 
           # For `musl` builds openssl must be vendored
           - target: x86_64-unknown-linux-musl
             args: "--features full --features openssl-vendored"
+            docker-platform: linux/amd64
 
           - target: aarch64-unknown-linux-gnu
             args: "--features full"
+            # docker-platform: linux/arm64
 
           # For `musl` builds openssl must be vendored
           - target: aarch64-unknown-linux-musl
             args: "--features full --features openssl-vendored"
+            docker-platform: linux/arm64
 
           # Dependencies of `xtask` might fail to build on riscv64.
           - target: riscv64gc-unknown-linux-gnu
             args: "--features full"
+            # docker-platform: linux/riscv64
 
     steps:
       - name: Code checkout
@@ -81,6 +87,24 @@ jobs:
 
       - name: Build Release
         run: cross build --locked --target=${{ matrix.platform.target }} --bin pulsar-exec ${{ matrix.platform.args }} --release
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push Docker image
+        uses: docker/build-push-action@v5
+        if: ${{ matrix.platform.docker-platform != null }}
+        with:
+          context: ./target/${{ matrix.platform.target }}/release
+          file: .github/docker/Dockerfile
+          tags: ghcr.io/${{ github.repository }}:dev  #${{ env.tag }}
+          platforms: ${{ matrix.platform.docker-platform }}
+          push: true
+          outputs: type=image,name=target
 
       - name: Rename binary
         shell: bash
