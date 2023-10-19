@@ -1,0 +1,5 @@
+# Exclude everything
+**
+
+# # Include pulsar executable
+!**/pulsar-exec
