@@ -56,26 +56,28 @@ jobs:
       matrix:
         platform:
           - target: x86_64-unknown-linux-gnu
-            args: "--features full"
-            # docker-platform: linux/amd64
+            args: "--features full --features openssl-vendored"
+            docker:
+              base-image: debian:bookworm
+              platform: linux/amd64
 
-          # For `musl` builds openssl must be vendored
           - target: x86_64-unknown-linux-musl
             args: "--features full --features openssl-vendored"
-            docker-platform: linux/amd64
 
           - target: aarch64-unknown-linux-gnu
-            args: "--features full"
-            # docker-platform: linux/arm64
-
-          # For `musl` builds openssl must be vendored
+            args: "--features full --features openssl-vendored"
+            docker:
+              base-image: debian:bookworm
+              platform: linux/arm64
+          
           - target: aarch64-unknown-linux-musl
             args: "--features full --features openssl-vendored"
-            docker-platform: linux/arm64
 
           - target: riscv64gc-unknown-linux-gnu
-            args: "--features full"
-            # docker-platform: linux/riscv64
+            args: "--features full --features openssl-vendored"
+            docker:
+              base-image: debian:sid
+              platform: linux/riscv64
 
     steps:
       - name: Code checkout
@@ -92,12 +94,15 @@ jobs:
       - name: Build Release
         run: cross build --locked --target=${{ matrix.platform.target }} --bin pulsar-exec ${{ matrix.platform.args }} --release
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        if: ${{ matrix.platform.docker-platform != null }}
+        if: ${{ matrix.platform.docker != null }}
 
       - name: Prepare Docker image directory
-        if: ${{ matrix.platform.docker-platform != null }}
+        if: ${{ matrix.platform.docker != null }}
         run: |
           mkdir -p /tmp/images
           platform=${{ matrix.platform.target }}
@@ -106,18 +111,20 @@ jobs:
 
       - name: Create Docker image
         uses: docker/build-push-action@v5
-        if: ${{ matrix.platform.docker-platform != null }}
+        if: ${{ matrix.platform.docker != null }}
         with:
           context: "."
           file: .github/docker/Dockerfile
-          build-args: ARCH=${{ matrix.platform.target }}
-          platforms: ${{ matrix.platform.docker-platform }}
+          build-args: |
+            BASE_IMAGE=${{ matrix.platform.docker.base-image }}
+            ARCH=${{ matrix.platform.target }}
+          platforms: ${{ matrix.platform.docker.platform }}
           tags: ${{ env.TAG }}
           outputs: type=docker,dest=/tmp/images/${{ env.TARFILE }}
 
       - name: Upload Docker image
         uses: actions/upload-artifact@v3
-        if: ${{ matrix.platform.docker-platform != null }}
+        if: ${{ matrix.platform.docker != null }}
         with:
           name: images
           path: /tmp/images/${{ env.TARFILE }}
