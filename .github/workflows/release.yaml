@@ -4,7 +4,7 @@ on:
     branches:
       - main
     tags:
-      - '*'
+      - 'v*.*.*'
 
 env:
   TMP_LOCAL_IMAGE: localhost:5000/exein-io/pulsar
