@@ -160,7 +160,29 @@ jobs:
           name: binaries-${{ env.REGISTRY_TAG }}
           path: /tmp/binaries
 
+      - name: Check dev release and tag existence
+        if: github.event.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export GH_PAGER=
+          git push origin :refs/tags/dev
+
+          if gh release view dev > /dev/null 2>&1; then
+            gh release delete dev -y
+          fi
+
+      - name: Dev release
+        if: github.event.ref_type == 'branch'
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ env.REGISTRY_TAG }}
+          tag: ${{ env.REGISTRY_TAG }}
+          artifacts: "/tmp/binaries/*"
+          body: 'This is a nightly release based on main branch. Do not use for production'
+
       - name: Release
+        if: github.event.ref_type == 'tag'
         uses: ncipollo/release-action@v1
         with:
           name: ${{ env.REGISTRY_TAG }}
