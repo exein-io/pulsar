@@ -194,6 +194,7 @@ pub mod pulsar {
         PulsarModule::new(
             MODULE_NAME,
             Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            true,
             network_monitor_task,
         )
     }

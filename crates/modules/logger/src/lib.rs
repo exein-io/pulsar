@@ -9,6 +9,7 @@ pub fn module() -> PulsarModule {
     PulsarModule::new(
         MODULE_NAME,
         Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+        true,
         logger_task,
     )
 }

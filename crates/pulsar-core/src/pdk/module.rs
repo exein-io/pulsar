@@ -34,7 +34,12 @@ pub struct PulsarModule {
 
 impl PulsarModule {
     /// Constucts a new [`PulsarModule<B: Bus>`].
-    pub fn new<N, F, Fut>(name: N, version: Version, task_start_fn: F) -> Self
+    pub fn new<N, F, Fut>(
+        name: N,
+        version: Version,
+        enabled_by_default: bool,
+        task_start_fn: F,
+    ) -> Self
     where
         N: Into<ModuleName>,
         F: Fn(ModuleContext, ShutdownSignal) -> Fut,
@@ -44,7 +49,10 @@ impl PulsarModule {
     {
         Self {
             name: name.into(),
-            info: ModuleDetails { version },
+            info: ModuleDetails {
+                version,
+                enabled_by_default,
+            },
             task_start_fn: Box::new(move |ctx, shutdown| {
                 let module = task_start_fn(ctx, shutdown);
                 Box::new(module)
@@ -123,6 +131,7 @@ impl TaskLauncher for PulsarModule {
 #[derive(Debug, Clone)]
 pub struct ModuleDetails {
     pub version: Version,
+    pub enabled_by_default: bool,
     // pub author: String,
 }
 

@@ -23,15 +23,15 @@ To make sure your system is compatible, check the output of `id -u`,
 
 ```ini
 [desktop-notifier]
-enabled=true
+enabled=false
 user_id=1000
 display=:0
 notify_send_executable=notify-send
 bus_address=unix:path=/run/user/1000/bus
 ```
 
-You disable this module with:
+This module is disabled by default. You can enable it with:
 
 ```sh
-pulsar config --set desktop-notifier.enabled=false
+pulsar config --set desktop-notifier.enabled=true
 ```

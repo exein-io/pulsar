@@ -18,13 +18,13 @@ Default configuration:
 
 ```ini
 [smtp-notifier]
-enabled=true
+enabled=false
 port=465
 encryption=tls
 ```
 
-You can disable this module with:
+This module is disabled by default. You can enable it with:
 
 ```sh
-pulsar config --set smtp-notifier.enabled=false
+pulsar config --set smtp-notifier.enabled=true
 ```

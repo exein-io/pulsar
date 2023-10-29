@@ -93,6 +93,7 @@ pub mod pulsar {
         PulsarModule::new(
             MODULE_NAME,
             Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            true,
             fs_monitor_task,
         )
     }
