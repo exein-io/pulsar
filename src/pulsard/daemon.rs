@@ -93,7 +93,7 @@ impl PulsarDaemon {
             let config = config.get_watched_module_config(&module_name);
             let is_enabled = config
                 .borrow()
-                .with_default("enabled", true)
+                .with_default("enabled", module_details.enabled_by_default)
                 .unwrap_or(false);
             let module_handle = create_module_manager(
                 bus.clone(),

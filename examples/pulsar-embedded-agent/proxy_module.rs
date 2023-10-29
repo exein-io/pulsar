@@ -14,6 +14,7 @@ pub fn module(tx_ctx: oneshot::Sender<ModuleContext>) -> PulsarModule {
     PulsarModule::new(
         MODULE_NAME,
         Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+        true,
         move |ctx, mut shutdown| {
             let tx_ctx = tx_ctx.clone();
             async move {
