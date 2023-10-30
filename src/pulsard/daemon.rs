@@ -89,7 +89,6 @@ impl PulsarDaemon {
             let module_name = task_launcher.name().to_owned();
             let module_details = task_launcher.details().to_owned();
 
-            log::info!("Starting module {module_name}");
             let config = config.get_watched_module_config(&module_name);
             let is_enabled = config
                 .borrow()
@@ -104,6 +103,7 @@ impl PulsarDaemon {
                 bpf_context.clone(),
             );
             if is_enabled {
+                log::info!("Starting module {module_name}");
                 module_handle.start().await;
             }
             // TODO: remove this once we've moved filtering policy and process
@@ -114,7 +114,7 @@ impl PulsarDaemon {
                 .is_some()
             {
                 bail!(
-                    "Error starting modules: module {} already present",
+                    "Error creating modules: module {} already present",
                     module_name
                 )
             }
