@@ -9,7 +9,7 @@ on:
 env:
   TMP_LOCAL_IMAGE: localhost:5000/exein-io/pulsar
   REGISTRY_IMAGE: ghcr.io/exein-io/pulsar
-  REGISTRY_TAG: ${{ github.event.ref_type == 'tag' &&  github.ref_name || 'dev' }}
+  REGISTRY_TAG: ${{ github.ref_type == 'tag' &&  github.ref_name || 'dev' }}
 
 jobs:
   vendored_archive:
@@ -161,7 +161,7 @@ jobs:
           path: /tmp/binaries
 
       - name: Check dev release and tag existence
-        if: github.event.ref_type == 'branch'
+        if: github.ref_type == 'branch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -173,7 +173,7 @@ jobs:
           fi
 
       - name: Dev release
-        if: github.event.ref_type == 'branch'
+        if: github.ref_type == 'branch'
         uses: ncipollo/release-action@v1
         with:
           name: ${{ env.REGISTRY_TAG }}
@@ -182,7 +182,7 @@ jobs:
           body: 'This is a nightly release based on main branch. Do not use for production'
 
       - name: Release
-        if: github.event.ref_type == 'tag'
+        if: github.ref_type == 'tag'
         uses: ncipollo/release-action@v1
         with:
           name: ${{ env.REGISTRY_TAG }}
