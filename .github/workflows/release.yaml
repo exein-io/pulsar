@@ -160,6 +160,9 @@ jobs:
           name: binaries-${{ env.REGISTRY_TAG }}
           path: /tmp/binaries
 
+      - name: Code checkout
+        uses: actions/checkout@v4
+
       - name: Check dev release and tag existence
         if: github.ref_type == 'branch'
         env:
