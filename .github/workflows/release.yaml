@@ -181,6 +181,8 @@ jobs:
         with:
           name: ${{ env.REGISTRY_TAG }}
           tag: ${{ env.REGISTRY_TAG }}
+          makeLatest: false
+          prerelease: true
           artifacts: "/tmp/binaries/*"
           body: 'This is a nightly release based on main branch. Do not use for production'
 
