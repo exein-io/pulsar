@@ -212,10 +212,6 @@ pub enum Payload {
         #[validatron(skip)]
         container: Option<ContainerInfo>,
     },
-    Container {
-        info: ContainerInfo,
-        namespaces: Namespaces,
-    },
     Exit {
         exit_code: u32,
     },
@@ -303,7 +299,6 @@ impl fmt::Display for Payload {
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
             Payload::Fork { ppid, namespaces, is_new_container, container } => write!(f,"Fork {{ ppid: {ppid}, namespaces: {namespaces}, is_new_container: {is_new_container}, container: {container:?} }}"),
             Payload::Exec { filename, argc, argv, namespaces, is_new_container, container } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, namespaces: {namespaces}, is_new_container: {is_new_container}, container: {container:?} }}"),
-            Payload::Container { info, namespaces } => write!(f,"Container {{ id: {}, image: {}, image_digest: {}, namespaces: {namespaces} }}", info.id, info.image, info.image_digest),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
