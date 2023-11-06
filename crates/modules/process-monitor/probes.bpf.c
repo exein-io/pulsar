@@ -109,6 +109,31 @@ struct {
   __uint(max_entries, MAX_CONTAINER_RUNTIMES);
 } container_runtimes_map SEC(".maps");
 
+/**
+ * Checks whether the `child` task creates a new container, by:
+ *
+ * * Comparing its mount namespace with the mount namespace of the `parent`.
+ * * Checking if the `parent` is a registered container runtime.
+ *
+ * Creation of a mount namespace is not optional in any container runtime or
+ * engine, unlike many others, like PID or network namespace, so it's a reliable
+ * way of recognizing new containers.
+ */
+static __always_inline bool is_new_container(struct task_struct *parent, struct task_struct *child) {
+  unsigned int parent_mnt_ns = BPF_CORE_READ(parent, nsproxy, mnt_ns, ns.inum);
+  unsigned int child_mnt_ns = BPF_CORE_READ(child, nsproxy, mnt_ns, ns.inum);
+
+  if (parent_mnt_ns != child_mnt_ns) {
+    // Check if the parent process is a container runtime we track.
+    unsigned long parent_exe_inode = BPF_CORE_READ(parent, mm, exe_file, f_inode, i_ino);
+    if (bpf_map_lookup_elem(&container_runtimes_map, &parent_exe_inode)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // This hook intercepts new process creations, inherits interest for the child
 // from the parent and emits a fork event.
 SEC("raw_tracepoint/sched_process_fork")
@@ -126,20 +151,6 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
-  unsigned int parent_pid_ns = BPF_CORE_READ(parent, nsproxy, pid_ns_for_children, ns.inum);
-  unsigned int child_pid_ns = BPF_CORE_READ(child, nsproxy, pid_ns_for_children, ns.inum);
-
-  // If PID namespace for children differs, it most likely means the new
-  // container is created.
-  unsigned int is_new_container = 0;
-  if (parent_pid_ns != child_pid_ns) {
-    // Check if the parent process is a container runtime we track.
-    unsigned long parent_exe_inode = BPF_CORE_READ(parent, mm, exe_file, f_inode, i_ino);
-    if (bpf_map_lookup_elem(&container_runtimes_map, &parent_exe_inode)) {
-      is_new_container = 1;
-    }
-  }
-
   struct process_event *event = init_process_event(EVENT_FORK, child_tgid);
   if (!event)
     return 0;
@@ -148,11 +159,11 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.uts = BPF_CORE_READ(child, nsproxy, uts_ns, ns.inum);
   event->fork.namespaces.ipc = BPF_CORE_READ(child, nsproxy, ipc_ns, ns.inum);
   event->fork.namespaces.mnt = BPF_CORE_READ(child, nsproxy, mnt_ns, ns.inum);
-  event->fork.namespaces.pid = child_pid_ns;
+  event->fork.namespaces.pid = BPF_CORE_READ(child, nsproxy, pid_ns_for_children, ns.inum);
   event->fork.namespaces.net = BPF_CORE_READ(child, nsproxy, net_ns, ns.inum);
   event->fork.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
   event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
-  event->fork.is_new_container = is_new_container;
+  event->fork.is_new_container = is_new_container(parent, child);
 
   output_process_event(ctx, event);
   return 0;
@@ -168,28 +179,14 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
     return 0;
   event->exec.argc = BPF_CORE_READ(bprm, argc);
 
-  unsigned int parent_pid_ns = BPF_CORE_READ(p, parent, nsproxy, pid_ns_for_children, ns.inum);
-  unsigned int child_pid_ns = BPF_CORE_READ(p, nsproxy, pid_ns_for_children, ns.inum);
-
-  // If PID namespace for children differs, it most likely means the new
-  // container is created.
-  unsigned int is_new_container = 0;
-  if (parent_pid_ns != child_pid_ns) {
-    // Check if the parent process is a container runtime we track.
-    unsigned long parent_exe_inode = BPF_CORE_READ(p, parent, mm, exe_file, f_inode, i_ino);
-    if (bpf_map_lookup_elem(&container_runtimes_map, &parent_exe_inode)) {
-      is_new_container = 1;
-    }
-  }
-
   event->exec.namespaces.uts = BPF_CORE_READ(p, nsproxy, uts_ns, ns.inum);
   event->exec.namespaces.ipc = BPF_CORE_READ(p, nsproxy, ipc_ns, ns.inum);
   event->exec.namespaces.mnt = BPF_CORE_READ(p, nsproxy, mnt_ns, ns.inum);
-  event->exec.namespaces.pid = child_pid_ns;
+  event->exec.namespaces.pid = BPF_CORE_READ(p, nsproxy, pid_ns_for_children, ns.inum);;
   event->exec.namespaces.net = BPF_CORE_READ(p, nsproxy, net_ns, ns.inum);
   event->exec.namespaces.time = BPF_CORE_READ(p, nsproxy, time_ns, ns.inum);
   event->exec.namespaces.cgroup = BPF_CORE_READ(p, nsproxy, cgroup_ns, ns.inum);
-  event->exec.is_new_container = is_new_container;
+  event->exec.is_new_container = is_new_container(BPF_CORE_READ(p, parent), p);
 
   // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
   // be used as a lookup key for the target and whitelist maps and garbage
