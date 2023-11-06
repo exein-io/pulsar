@@ -297,8 +297,14 @@ impl fmt::Display for Payload {
             Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
-            Payload::Fork { ppid, namespaces, is_new_container, container } => write!(f,"Fork {{ ppid: {ppid}, namespaces: {namespaces}, is_new_container: {is_new_container}, container: {container:?} }}"),
-            Payload::Exec { filename, argc, argv, namespaces, is_new_container, container } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, namespaces: {namespaces}, is_new_container: {is_new_container}, container: {container:?} }}"),
+            Payload::Fork { ppid, container, .. } => match container {
+                Some(container) => write!(f,"Fork {{ ppid: {ppid}, container: {container} }}"),
+                None => write!(f,"Fork {{ ppid: {ppid} }}"),
+            },
+            Payload::Exec { filename, argc, argv, container, .. } => match container {
+                Some(container) => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, container: {container} }}"),
+                None => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
+            },
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
