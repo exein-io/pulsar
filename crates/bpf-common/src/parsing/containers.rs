@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     fs::File,
     io::{self, BufReader},
     process::Command,
@@ -144,5 +145,15 @@ impl ContainerInfo {
                 })
             }
         }
+    }
+}
+
+impl fmt::Display for ContainerInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{ id: {}, name: {}, image: {}, image_digest: {} }}",
+            self.id, self.name, self.image, self.image_digest
+        )
     }
 }
