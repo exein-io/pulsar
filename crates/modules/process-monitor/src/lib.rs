@@ -72,14 +72,14 @@ pub enum ProcessEvent {
     Fork {
         ppid: Pid,
         namespaces: Namespaces,
-        is_new_container: u32,
+        is_new_container: bool,
     },
     Exec {
         filename: BufferIndex<str>,
         argc: u32,
         argv: BufferIndex<str>, // 0 separated strings
         namespaces: Namespaces,
-        is_new_container: u32,
+        is_new_container: bool,
     },
     Exit {
         exit_code: u32,
@@ -153,16 +153,13 @@ pub mod pulsar {
                         ppid,
                         namespaces,
                         is_new_container,
-                    } => {
-                        let is_new_container = is_new_container == 1;
-                        TrackerUpdate::Fork {
-                            pid: event.pid,
-                            ppid,
-                            timestamp: event.timestamp,
-                            namespaces,
-                            is_new_container,
-                        }
-                    }
+                    } => TrackerUpdate::Fork {
+                        pid: event.pid,
+                        ppid,
+                        timestamp: event.timestamp,
+                        namespaces,
+                        is_new_container,
+                    },
                     ProcessEvent::Exec {
                         ref filename,
                         argc,
@@ -183,7 +180,6 @@ pub mod pulsar {
                                 event.pid
                             )
                         }
-                        let is_new_container = is_new_container == 1;
                         TrackerUpdate::Exec {
                             pid: event.pid,
                             // ignoring this error since it will be catched in IntoPayload
@@ -244,7 +240,6 @@ pub mod pulsar {
                     is_new_container,
                     ..
                 } => {
-                    let is_new_container = is_new_container == 1;
                     let container = match procfs::get_process_container_id(pid) {
                         Ok(Some(container_id)) => {
                             Some(ContainerInfo::from_container_id(container_id)?)
@@ -268,7 +263,6 @@ pub mod pulsar {
                     is_new_container,
                     ..
                 } => {
-                    let is_new_container = is_new_container == 1;
                     let container = match procfs::get_process_container_id(pid) {
                         Ok(Some(container_id)) => {
                             Some(ContainerInfo::from_container_id(container_id)?)
