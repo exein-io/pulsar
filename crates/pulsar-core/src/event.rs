@@ -73,7 +73,7 @@ pub struct Header {
     pub pid: i32,
     pub parent_pid: i32,
     #[validatron(skip)]
-    pub container_id: Option<String>,
+    pub container: Option<ContainerInfo>,
     #[validatron(skip)]
     pub threat: Option<Threat>,
     pub source: ModuleName,

@@ -245,7 +245,7 @@ impl ModuleSender {
                 image: String::new(),
                 parent_pid: 0,
                 fork_time: UNIX_EPOCH,
-                container_id: None,
+                container: None,
             };
             match process_tracker.get(process, timestamp).await {
                 Ok(ProcessInfo {
@@ -259,9 +259,7 @@ impl ModuleSender {
                     header.image = image;
                     header.parent_pid = ppid.as_raw();
                     header.fork_time = fork_time.into();
-                    if let Some(container) = container {
-                        header.container_id = Some(container.id);
-                    }
+                    header.container = container;
                 }
                 Err(e) => {
                     // warning: check if this actually happens or not
