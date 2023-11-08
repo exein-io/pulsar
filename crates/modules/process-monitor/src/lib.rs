@@ -4,7 +4,7 @@ use anyhow::Context;
 use bpf_common::{
     aya::maps::HashMap,
     ebpf_program,
-    parsing::{containers::ContainerError, procfs, BufferIndex, IndexError},
+    parsing::{containers::ContainerError, BufferIndex, IndexError},
     program::BpfContext,
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
@@ -119,7 +119,7 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{parsing::containers::ContainerInfo, program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
         process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
         Payload, PulsarModule, ShutdownSignal, Version,
@@ -228,58 +228,22 @@ pub mod pulsar {
         type Error = ProcessEventError;
         fn try_into_payload(event: BpfEvent<ProcessEvent>) -> Result<Payload, ProcessEventError> {
             let BpfEvent {
-                pid,
-                payload,
-                buffer,
-                ..
+                payload, buffer, ..
             } = event;
             Ok(match payload {
-                ProcessEvent::Fork {
-                    ppid,
-                    namespaces,
-                    is_new_container,
-                    ..
-                } => {
-                    let container = match procfs::get_process_container_id(pid) {
-                        Ok(Some(container_id)) => {
-                            Some(ContainerInfo::from_container_id(container_id)?)
-                        }
-                        Ok(None) => None,
-                        Err(_) => None,
-                    };
-
-                    Payload::Fork {
-                        ppid: ppid.as_raw(),
-                        namespaces,
-                        is_new_container,
-                        container,
-                    }
-                }
+                ProcessEvent::Fork { ppid, .. } => Payload::Fork {
+                    ppid: ppid.as_raw(),
+                },
                 ProcessEvent::Exec {
                     filename,
                     argc,
                     argv,
-                    namespaces,
-                    is_new_container,
                     ..
-                } => {
-                    let container = match procfs::get_process_container_id(pid) {
-                        Ok(Some(container_id)) => {
-                            Some(ContainerInfo::from_container_id(container_id)?)
-                        }
-                        Ok(None) => None,
-                        Err(_) => None,
-                    };
-
-                    Payload::Exec {
-                        filename: filename.string(&buffer)?,
-                        argc: argc as usize,
-                        argv: extract_parameters(argv.bytes(&buffer)?).into(),
-                        namespaces,
-                        is_new_container,
-                        container,
-                    }
-                }
+                } => Payload::Exec {
+                    filename: filename.string(&buffer)?,
+                    argc: argc as usize,
+                    argv: extract_parameters(argv.bytes(&buffer)?).into(),
+                },
                 ProcessEvent::Exit { exit_code } => Payload::Exit { exit_code },
                 ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {
                     ppid: ppid.as_raw(),

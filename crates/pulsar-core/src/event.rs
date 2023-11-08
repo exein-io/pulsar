@@ -39,6 +39,16 @@ impl fmt::Display for Event {
         let pid = &header.pid;
         let payload = self.payload();
 
+        let process_info = match header.container {
+            Some(ref container) => {
+                let container_image = &container.image;
+                let container_image_digest = &container.image_digest;
+
+                format!("{container_image} {container_image_digest} {image} ({pid})")
+            }
+            None => format!("{image} ({pid})"),
+        };
+
         if let Some(Threat {
             source,
             description,
@@ -46,11 +56,11 @@ impl fmt::Display for Event {
         }) = &self.header().threat
         {
             if f.alternate() {
-                writeln!(f, "[{time} \x1b[1;30;43mTHREAT\x1b[0m {image} ({pid})] [{source} - {description}] {payload}")
+                writeln!(f, "[{time} \x1b[1;30;43mTHREAT\x1b[0m {process_info}] [{source} - {description}] {payload}")
             } else {
                 writeln!(
                     f,
-                    "[{time} THREAT {image} ({pid})] [{source} - {description}] {payload}"
+                    "[{time} THREAT {process_info}] [{source} - {description}] {payload}"
                 )
             }
         } else {
@@ -198,19 +208,11 @@ pub enum Payload {
     },
     Fork {
         ppid: i32,
-        namespaces: Namespaces,
-        is_new_container: bool,
-        #[validatron(skip)]
-        container: Option<ContainerInfo>,
     },
     Exec {
         filename: String,
         argc: usize,
         argv: Argv,
-        namespaces: Namespaces,
-        is_new_container: bool,
-        #[validatron(skip)]
-        container: Option<ContainerInfo>,
     },
     Exit {
         exit_code: u32,
@@ -297,14 +299,8 @@ impl fmt::Display for Payload {
             Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
-            Payload::Fork { ppid, container, .. } => match container {
-                Some(container) => write!(f,"Fork {{ ppid: {ppid}, container: {container} }}"),
-                None => write!(f,"Fork {{ ppid: {ppid} }}"),
-            },
-            Payload::Exec { filename, argc, argv, container, .. } => match container {
-                Some(container) => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv}, container: {container} }}"),
-                None => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
-            },
+            Payload::Fork { ppid } => write!(f,"Fork {{ ppid: {ppid} }}"),
+            Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
