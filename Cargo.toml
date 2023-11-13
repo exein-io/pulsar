@@ -88,7 +88,7 @@ rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
 # External
 anyhow = "1"
-aya = { git = "https://github.com/aya-rs/aya", rev = "761e4ddbe3abf8b9177ebd6984465fe66696728a", features = ["async_tokio"] }
+aya = { git = "https://github.com/aya-rs/aya", rev = "33b2e45ad313f7468a7d11667f13d9c365e2a263", features = ["async_tokio"] }
 axum = { version = "0.6.20", features = ["ws"] }
 bytes = "1.3.0"
 cgroups-rs = { version = "0.3.2" }

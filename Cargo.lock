@@ -114,6 +114,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_matches"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
 name = "async-trait"
 version = "0.1.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -185,8 +191,9 @@ dependencies = [
 [[package]]
 name = "aya"
 version = "0.11.0"
-source = "git+https://github.com/aya-rs/aya?rev=761e4ddbe3abf8b9177ebd6984465fe66696728a#761e4ddbe3abf8b9177ebd6984465fe66696728a"
+source = "git+https://github.com/aya-rs/aya?rev=33b2e45ad313f7468a7d11667f13d9c365e2a263#33b2e45ad313f7468a7d11667f13d9c365e2a263"
 dependencies = [
+ "assert_matches",
  "aya-obj",
  "bitflags 2.4.0",
  "bytes",
@@ -194,7 +201,6 @@ dependencies = [
  "libc",
  "log",
  "object",
- "parking_lot",
  "thiserror",
  "tokio",
 ]
@@ -202,7 +208,7 @@ dependencies = [
 [[package]]
 name = "aya-obj"
 version = "0.1.0"
-source = "git+https://github.com/aya-rs/aya?rev=761e4ddbe3abf8b9177ebd6984465fe66696728a#761e4ddbe3abf8b9177ebd6984465fe66696728a"
+source = "git+https://github.com/aya-rs/aya?rev=33b2e45ad313f7468a7d11667f13d9c365e2a263#33b2e45ad313f7468a7d11667f13d9c365e2a263"
 dependencies = [
  "bytes",
  "core-error",
@@ -1440,9 +1446,9 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.31.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d08090140cfee2e09897d6be320b47a45b79eb68b414de87130f9532966e2f1d"
+checksum = "9cf5f9dd3933bd50a9e1f149ec995f39ae2c496d31fd772c1fd45ebc27e902b0"
 dependencies = [
  "memchr",
 ]
