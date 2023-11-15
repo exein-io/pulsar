@@ -111,3 +111,30 @@ static void buffer_append_user_memory(struct buffer *buffer,
   index->len += len;
   buffer->len += len;
 }
+
+static void buffer_append_skb_bytes(struct buffer *buffer,
+                                    struct buffer_index *index,
+                                    struct __sk_buff *skb,
+                                    __u32 offset, int len) {
+  int pos = (index->start + index->len);
+  if (pos >= HALF_BUFFER_MASK) {
+    LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
+    return;
+  }
+  if (len > HALF_BUFFER_MASK) {
+    len = HALF_BUFFER_MASK;
+  } else {
+    // include space for terminating 0
+    len = (len + 1) & HALF_BUFFER_MASK;
+  }
+
+  int r = bpf_skb_load_bytes(skb, offset, &((char*)buffer->buffer)[pos],
+                             len & HALF_BUFFER_MASK);
+  if (r < 0) {
+    LOG_ERROR("reading failure: %d", r);
+    return;
+  }
+
+  index->len += len;
+  buffer->len += len;
+}
