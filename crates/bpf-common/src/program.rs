@@ -13,7 +13,7 @@ use aya::{
         perf::{AsyncPerfEventArray, PerfBufferError},
         Array, HashMap, Map, MapData,
     },
-    programs::{KProbe, Lsm, RawTracePoint, TracePoint},
+    programs::{CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint},
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
@@ -234,6 +234,18 @@ impl ProgramBuilder {
         self
     }
 
+    pub fn cgroup_skb_egress(mut self, name: &str) -> Self {
+        self.programs
+            .push(ProgramType::CgroupSkbEgress(name.to_string()));
+        self
+    }
+
+    pub fn cgroup_skb_ingress(mut self, name: &str) -> Self {
+        self.programs
+            .push(ProgramType::CgroupSkbIngress(name.to_string()));
+        self
+    }
+
     pub async fn start(self) -> Result<Program, ProgramError> {
         // We need to notify background tasks reading from maps that we're shutting down.
         // We must use oneshot::Receiver as the main shut down machanism because it has
@@ -283,6 +295,8 @@ enum ProgramType {
     Kprobe(String),
     Kretprobe(String),
     Lsm(String),
+    CgroupSkbEgress(String),
+    CgroupSkbIngress(String),
 }
 
 impl Display for ProgramType {
@@ -295,6 +309,10 @@ impl Display for ProgramType {
             ProgramType::Kprobe(kprobe) => write!(f, "kprobe {kprobe}"),
             ProgramType::Kretprobe(kretprobe) => write!(f, "kretprobe {kretprobe}"),
             ProgramType::Lsm(lsm) => write!(f, "lsm {lsm}"),
+            ProgramType::CgroupSkbEgress(cgroup_skb) => write!(f, "cgroup_skb/egress {cgroup_skb}"),
+            ProgramType::CgroupSkbIngress(cgroup_skb) => {
+                write!(f, "cgroup_skb/ingress {cgroup_skb}")
+            }
         }
     }
 }
@@ -329,6 +347,22 @@ impl ProgramType {
                 let program: &mut Lsm = extract_program(bpf, lsm)?;
                 program.load(lsm, btf).map_err(load_err)?;
                 program.attach().map_err(attach_err)?;
+            }
+            ProgramType::CgroupSkbEgress(cgroup_skb) => {
+                let program: &mut CgroupSkb = extract_program(bpf, cgroup_skb)?;
+                let cgroup = std::fs::File::open("/sys/fs/cgroup").unwrap();
+                program.load().map_err(load_err)?;
+                program
+                    .attach(cgroup, CgroupSkbAttachType::Egress)
+                    .map_err(attach_err)?;
+            }
+            ProgramType::CgroupSkbIngress(cgroup_skb) => {
+                let program: &mut CgroupSkb = extract_program(bpf, cgroup_skb)?;
+                let cgroup = std::fs::File::open("/sys/fs/cgroup").unwrap();
+                program.load().map_err(load_err)?;
+                program
+                    .attach(cgroup, CgroupSkbAttachType::Ingress)
+                    .map_err(attach_err)?;
             }
         }
         Ok(())

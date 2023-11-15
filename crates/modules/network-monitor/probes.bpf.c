@@ -85,6 +85,22 @@ struct {
   __type(key, struct sock *);
   __type(value, pid_t);
   __uint(max_entries, 10240);
+} bind_map SEC(".maps");
+
+// Map a socket pointer to its creating process
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, struct sock *);
+  __type(value, pid_t);
+  __uint(max_entries, 10240);
+} connect_map SEC(".maps");
+
+// Map a socket pointer to its creating process
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, struct sock *);
+  __type(value, pid_t);
+  __uint(max_entries, 10240);
 } tcp_set_state_map SEC(".maps");
 
 // Maps for sharing data between various hook points
@@ -224,11 +240,17 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
+  int ret;
+  struct sock *sk = BPF_CORE_READ(sock, sk);
+  ret = bpf_map_update_elem(&bind_map, &sk, &tgid, BPF_ANY);
+  if (ret) {
+    LOG_ERROR("updating bind_map");
+  }
   struct network_event *event = init_network_event(EVENT_BIND, tgid);
   if (!event)
     return;
   copy_sockaddr(address, &event->bind.addr, false);
-  event->bind.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
+  event->bind.proto = get_sock_protocol(sk);
 
   output_network_event(ctx, event);
 }
@@ -256,13 +278,19 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
+  int ret;
+  struct sock *sk = BPF_CORE_READ(sock, sk);
+  ret = bpf_map_update_elem(&connect_map, &sk, &tgid, BPF_ANY);
+  if (ret) {
+    LOG_ERROR("updating connect_map");
+  }
   struct network_event *event = init_network_event(EVENT_CONNECT, tgid);
   if (!event)
     return;
   event->timestamp = bpf_ktime_get_ns();
 
   copy_sockaddr(address, &event->connect.destination, false);
-  event->connect.proto = get_sock_protocol(BPF_CORE_READ(sock, sk));
+  event->connect.proto = get_sock_protocol(sk);
 
   output_network_event(ctx, event);
 }
@@ -353,131 +381,21 @@ read_iovec(struct buffer *buffer, struct msg_event *output, void *iov_base) {
   LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
 }
 
-PULSAR_LSM_HOOK(socket_sendmsg, struct socket *, sock, struct msghdr *, msg,
-                int, size);
-static __always_inline void on_socket_sendmsg(void *ctx, struct socket *sock,
-                                              struct msghdr *msg, int size) {
-  if (size <= 0)
-    return;
+static __always_inline void
+read_sk_buff(struct buffer *buffer, struct msg_event *output,
+             struct __sk_buff *skb, __u32 offset) {
+  // size_t len = skb->data_end - skb->data - offset;
+  size_t len = output->data_len;
 
-  struct sock *sk = BPF_CORE_READ(sock, sk);
-  u16 proto = get_sock_protocol(sk);
-  void *iov_base = get_iov_base(&msg->msg_iter);
-
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return;
-  struct network_event *event = init_network_event(EVENT_SEND, tgid);
-  if (!event)
-    return;
-  event->send.proto = proto;
-  event->send.data_len = size;
-  // Copy data only for UDP events since we want to intercept DNS requests
-  if (proto == PROTO_UDP) {
-    read_iovec(&event->buffer, &event->send, iov_base);
-  } else {
-    event->send.data.len = 0;
+  if (len > MAX_DATA_SIZE) {
+     LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);    
   }
 
-  copy_skc_source(&sk->__sk_common, &event->send.source);
-  copy_skc_dest(&sk->__sk_common, &event->send.destination);
+  len &= (MAX_DATA_SIZE - 1);
 
-  output_network_event(ctx, event);
-}
-
-static __always_inline void save_recvmsg_addr(void *ctx,
-                                              struct sockaddr *addr) {
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return;
-  struct arguments args = {0};
-  args.data[2] = addr;
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
-}
-
-PULSAR_LSM_HOOK(socket_recvmsg, struct socket *, sock, struct msghdr *, msg,
-                int, size, int, flags);
-static __always_inline void on_socket_recvmsg(void *ctx, struct socket *sock,
-                                              struct msghdr *msg, int size,
-                                              int flags) {
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return;
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct sock *sk = (struct sock *)BPF_CORE_READ(sock, sk);
-  void *iov_base = get_iov_base(&msg->msg_iter);
-
-  struct arguments args = {0};
-  args.data[0] = sk;
-  args.data[1] = iov_base;
-
-  struct arguments *old_args = bpf_map_lookup_elem(&args_map, &pid_tgid);
-  if (old_args) {
-    args.data[2] = old_args->data[2];
-  }
-
-  int r = bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
-  if (r != 0) {
-    LOG_ERROR("insert error on args_map: %d %d", pid_tgid, r);
-  } else {
-    LOG_DEBUG("insert args_map: %d", pid_tgid);
-  }
-}
-
-static __always_inline void do_recvmsg(void *ctx, long ret) {
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return;
-
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct arguments *args = bpf_map_lookup_elem(&args_map, &pid_tgid);
-  int r = bpf_map_delete_elem(&args_map, &pid_tgid);
-  // LOG_DEBUG("delete args_map: %d %d", pid_tgid, r);
-  if (!args) {
-    return;
-  }
-  struct sock *sk = (struct sock *)args->data[0];
-  void *iov_base = (void *)args->data[1];
-
-  int len = ret;
-  if (len <= 0)
-    return;
-
-  struct network_event *event = init_network_event(EVENT_RECV, tgid);
-  if (!event)
-    return;
-
-  u16 proto = get_sock_protocol(sk);
-  event->recv.proto = proto;
-  event->recv.data_len = len;
-  // Copy data only for UDP events since we want to intercept DNS replies
-  if (proto == PROTO_UDP) {
-    read_iovec(&event->buffer, &event->recv, iov_base);
-  } else {
-    event->recv.data.len = 0;
-  }
-
-  u16 family = BPF_CORE_READ(sk, __sk_common.skc_family);
-
-  copy_skc_source(&sk->__sk_common, &event->recv.source);
-  if (proto == PROTO_UDP) {
-    // in UDP we find destination value in sockaddr
-    // NOTE: msg_name is NULL if the userspace code is not interested
-    // in knowing the source of the message. In that case we won't extract
-    // the source port and address.
-    struct sockaddr *addr = args->data[2];
-    if (!addr) {
-      LOG_DEBUG("sockaddr is null. ");
-    } else {
-      copy_sockaddr(addr, &event->recv.destination, true);
-    }
-  } else {
-    // in TCP we find destination value in sock_common
-    copy_skc_dest(&sk->__sk_common, &event->recv.destination);
-  }
-
-  output_network_event(ctx, event);
+  buffer_index_init(buffer, &output->data);
+  buffer_append_skb_bytes(buffer, &output->data, skb, offset, len);
+  LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
 }
 
 SEC("kprobe/tcp_set_state")
@@ -551,43 +469,187 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
   return 0;
 }
 
-SEC("tracepoint/sys_exit_recvmsg")
-int BPF_PROG(sys_exit_recvmsg, struct pt_regs *regs, int __syscall_nr,
-             long ret) {
-  do_recvmsg(ctx, ret);
-  return 0;
+#define CGROUP_SKB_OK 1
+#define CGROUP_SKB_SHOT 0
+
+#define ETH_P_IP 0x0800
+#define ETH_P_IPV6 0x86DD
+
+SEC("cgroup_skb/egress")
+int skb_egress(struct __sk_buff *skb) {
+  struct bpf_sock *bpf_sk = skb->sk;
+  if (!bpf_sk)
+    return CGROUP_SKB_OK;
+  bpf_sk = bpf_sk_fullsock(bpf_sk);
+  if (!bpf_sk)
+    return CGROUP_SKB_OK;
+  struct sock *sk = (struct sock *)bpf_sk;
+  pid_t *tgid = bpf_map_lookup_elem(&connect_map, &sk);
+  if (tgid == 0) {
+    LOG_ERROR("cgroup_skb/egress on unknown socket");
+    return CGROUP_SKB_OK;
+  }
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, *tgid, __func__, true,
+                              true))
+    return CGROUP_SKB_OK;
+
+  struct network_event *event = init_network_event(EVENT_SEND, *tgid);
+  if (!event)
+    return CGROUP_SKB_OK;
+  return CGROUP_SKB_OK;
+
+  void *data_end = (void *)(long)skb->data_end;
+  void *data = (void *)(long)skb->data;
+
+  if (data + sizeof(struct ethhdr) > data_end)
+    return CGROUP_SKB_OK;
+
+  struct ethhdr *eh = data;
+
+  if (eh->h_proto == bpf_htons(ETH_P_IP)) {
+    if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
+      return CGROUP_SKB_OK;
+
+    struct iphdr *ih = data + sizeof(struct ethhdr);
+    event->send.proto = ih->protocol;
+
+    if (ih->protocol == IPPROTO_UDP) {
+      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct iphdr)
+        + sizeof(struct udphdr);
+      __u32 offset = skb->data + headers_len;
+      event->send.data_len = skb->len - headers_len;
+      // read data
+      read_sk_buff(&event->buffer, &event->send, skb, offset);
+    } else {
+      event->send.data.len = 0;
+    }
+  } else if (eh->h_proto == bpf_htons(ETH_P_IPV6)) {
+    if (data + sizeof(struct ethhdr) + sizeof(struct ipv6hdr) > data_end)
+      return CGROUP_SKB_OK;
+
+    struct ipv6hdr *ih6 = data + sizeof(struct ethhdr);
+    event->send.proto = ih6->nexthdr;
+
+    if (ih6->nexthdr == IPPROTO_UDP) {
+      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr)
+        + sizeof(struct udphdr);
+      __u32 offset = skb->data + headers_len;
+      event->send.data_len = skb->len - headers_len;
+      // read data
+      read_sk_buff(&event->buffer, &event->send, skb, offset);
+    } else {
+      event->send.data.len = 0;
+    }
+  }
+
+  output_network_event(skb, event);
+
+  return CGROUP_SKB_OK;
 }
 
-SEC("tracepoint/sys_exit_recvmmsg")
-int BPF_PROG(sys_exit_recvmmsg, struct pt_regs *regs, int __syscall_nr,
-             long ret) {
-  do_recvmsg(ctx, ret);
-  return 0;
-}
+SEC("cgroup_skb/ingress")
+int skb_ingress(struct __sk_buff *skb) {
+  struct bpf_sock *bpf_sk = skb->sk;
+  if (!bpf_sk)
+    return CGROUP_SKB_OK;
+  bpf_sk = bpf_sk_fullsock(bpf_sk);
+  if (!bpf_sk)
+    return CGROUP_SKB_OK;
+  struct sock *sk = (struct sock *)bpf_sk;
+  pid_t *tgid_ptr = bpf_map_lookup_elem(&connect_map, &sk);
+  if (tgid_ptr == 0) {
+    LOG_ERROR("cgroup_skb/ingress on unknown socket");
+    return CGROUP_SKB_OK;
+  }
+  pid_t tgid = *tgid_ptr;
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
+                              true))
+    return CGROUP_SKB_OK;
 
-SEC("tracepoint/sys_enter_recvfrom")
-int BPF_PROG(sys_enter_recvfrom, struct pt_regs *regs, int __syscall_nr, int fd,
-             void *ubuf, size_t size, int flags, struct sockaddr *addr,
-             int *addr_len, long ret) {
-  save_recvmsg_addr(ctx, addr);
-  return 0;
-}
+  struct arguments *args = bpf_map_lookup_elem(&args_map, &tgid);
+  int r = bpf_map_delete_elem(&args_map, &tgid);
+  // LOG_DEBUG("delete args_map: %d %d", pid_tgid, r);
+  if (!args) {
+    return CGROUP_SKB_OK;
+  }
 
-SEC("tracepoint/sys_exit_recvfrom")
-int BPF_PROG(sys_exit_recvfrom, struct pt_regs *regs, int __syscall_nr,
-             long ret) {
-  do_recvmsg(ctx, ret);
-  return 0;
-}
+  struct network_event *event = init_network_event(EVENT_RECV, tgid);
+  if (!event)
+    return CGROUP_SKB_OK;
 
-SEC("tracepoint/sys_exit_read")
-int BPF_PROG(sys_exit_read, struct pt_regs *regs, int __syscall_nr, long ret) {
-  do_recvmsg(ctx, ret);
-  return 0;
-}
+  void *data_end = (void *)(long)skb->data_end;
+  void *data = (void *)(long)skb->data;
 
-SEC("tracepoint/sys_exit_readv")
-int BPF_PROG(sys_exit_readv, struct pt_regs *regs, int __syscall_nr, long ret) {
-  do_recvmsg(ctx, ret);
-  return 0;
+  if (data + sizeof(struct ethhdr) > data_end)
+    return CGROUP_SKB_OK;
+
+  struct ethhdr *eh = data;
+
+  if (eh->h_proto == bpf_htons(ETH_P_IP)) {
+    if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
+      return CGROUP_SKB_OK;
+
+    struct iphdr *ih = data + sizeof(struct ethhdr);
+    event->send.proto = ih->protocol;
+
+    if (ih->protocol == IPPROTO_UDP) {
+      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct iphdr)
+        + sizeof(struct udphdr);
+      __u32 offset = skb->data + headers_len;
+
+      event->send.data_len = skb->len - headers_len;
+      // read data
+      read_sk_buff(&event->buffer, &event->send, skb, offset);
+
+      // in UDP we find destination value in sockaddr
+      // NOTE: msg_name is NULL if the userspace code is not interested
+      // in knowing the source of the message. In that case we won't extract
+      // the source port and address.
+      struct sockaddr *addr = args->data[2];
+      if (!addr) {
+        LOG_DEBUG("sockaddr is null. ");
+      } else {
+        copy_sockaddr(addr, &event->recv.destination, true);
+      }
+    } else {
+      event->send.data.len = 0;
+
+      copy_skc_dest(&sk->__sk_common, &event->recv.destination);
+    }
+  } else if (eh->h_proto == bpf_htons(ETH_P_IPV6)) {
+    if (data + sizeof(struct ethhdr) + sizeof(struct ipv6hdr) > data_end)
+      return CGROUP_SKB_OK;
+
+    struct ipv6hdr *ih6 = data + sizeof(struct ethhdr);
+    event->send.proto = ih6->nexthdr;
+
+    if (ih6->nexthdr == IPPROTO_UDP) {
+      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr)
+        + sizeof(struct udphdr);
+      __u32 offset = skb->data + headers_len;
+
+      event->send.data_len = skb->len - headers_len;
+      // read data
+      read_sk_buff(&event->buffer, &event->send, skb, offset);
+
+      // in UDP we find destination value in sockaddr
+      // NOTE: msg_name is NULL if the userspace code is not interested
+      // in knowing the source of the message. In that case we won't extract
+      // the source port and address.
+      struct sockaddr *addr = args->data[2];
+      if (!addr) {
+        LOG_DEBUG("sockaddr is null. ");
+      } else {
+        copy_sockaddr(addr, &event->recv.destination, true);
+      }
+    } else {
+      event->send.data.len = 0;
+
+      copy_skc_dest(&sk->__sk_common, &event->recv.destination);
+    }
+  }
+
+  output_network_event(skb, event);
+
+  return CGROUP_SKB_OK;
 }

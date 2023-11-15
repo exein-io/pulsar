@@ -54,29 +54,22 @@ pub async fn program(
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .tracepoint("syscalls", "sys_exit_accept4")
         .tracepoint("syscalls", "sys_exit_accept")
-        .tracepoint("syscalls", "sys_exit_recvmsg")
-        .tracepoint("syscalls", "sys_exit_recvmmsg")
-        .tracepoint("syscalls", "sys_enter_recvfrom")
-        .tracepoint("syscalls", "sys_exit_recvfrom")
-        .tracepoint("syscalls", "sys_exit_read")
-        .tracepoint("syscalls", "sys_exit_readv")
-        .kprobe("tcp_set_state");
+        .kprobe("tcp_set_state")
+        .cgroup_skb_egress("skb_egress")
+        .cgroup_skb_ingress("skb_ingress");
+
     if attach_to_lsm {
         builder = builder
             .lsm("socket_bind")
             .lsm("socket_listen")
             .lsm("socket_connect")
             .lsm("socket_accept")
-            .lsm("socket_sendmsg")
-            .lsm("socket_recvmsg");
     } else {
         builder = builder
             .kprobe("security_socket_bind")
             .kprobe("security_socket_listen")
             .kprobe("security_socket_connect")
             .kprobe("security_socket_accept")
-            .kprobe("security_socket_sendmsg")
-            .kprobe("security_socket_recvmsg");
     }
     let mut program = builder.start().await?;
     program
