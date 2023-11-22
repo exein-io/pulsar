@@ -5,20 +5,17 @@ on:
       - main
 
 jobs:
-  markdown-link-check:
-    name: Broken markdown links
+  lychee-link-check:
+    name: Link check
     runs-on: ubuntu-latest
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Run link check
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
+      - name: Link Checker
+        uses: lycheeverse/lychee-action@v1.8.0
         with:
-          use-quiet-mode: "no"
-          use-verbose-mode: "yes"
-          check-modified-files-only: "no"
-          base-branch: ${{ github.head_ref }}
+          fail: true
 
   fmt:
     name: Formatting (rustfmt)
