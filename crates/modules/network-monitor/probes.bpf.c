@@ -3,6 +3,7 @@
 #include "common.bpf.h"
 #include "interest_tracking.bpf.h"
 #include "iov_iter_compat.h"
+#include "network.bpf.h"
 #include "output.bpf.h"
 
 char LICENSE[] SEC("license") = "GPL v2";
@@ -15,14 +16,6 @@ char LICENSE[] SEC("license") = "GPL v2";
 #define EVENT_SEND 4
 #define EVENT_RECV 5
 #define EVENT_CLOSE 6
-
-#define PROTO_TCP 0
-#define PROTO_UDP 1
-
-#define AF_UNIX 1   /* Unix domain sockets */
-#define AF_LOCAL 1  /* POSIX name for AF_UNIX */
-#define AF_INET 2   /* Internet IP Protocol */
-#define AF_INET6 10 /* IP version 6 */
 
 #define MAX_DATA_SIZE 4096
 
@@ -242,6 +235,7 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
     return;
   int ret;
   struct sock *sk = BPF_CORE_READ(sock, sk);
+  // LOG_ERROR("bind() saving sk %lu\n", sk);
   ret = bpf_map_update_elem(&bind_map, &sk, &tgid, BPF_ANY);
   if (ret) {
     LOG_ERROR("updating bind_map");
@@ -280,6 +274,7 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
     return;
   int ret;
   struct sock *sk = BPF_CORE_READ(sock, sk);
+  // LOG_ERROR("connect() saving sk %lu\n", sk);
   ret = bpf_map_update_elem(&connect_map, &sk, &tgid, BPF_ANY);
   if (ret) {
     LOG_ERROR("updating connect_map");
@@ -469,12 +464,6 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
   return 0;
 }
 
-#define CGROUP_SKB_OK 1
-#define CGROUP_SKB_SHOT 0
-
-#define ETH_P_IP 0x0800
-#define ETH_P_IPV6 0x86DD
-
 SEC("cgroup_skb/egress")
 int skb_egress(struct __sk_buff *skb) {
   struct bpf_sock *bpf_sk = skb->sk;
@@ -489,26 +478,27 @@ int skb_egress(struct __sk_buff *skb) {
     LOG_ERROR("cgroup_skb/egress on unknown socket");
     return CGROUP_SKB_OK;
   }
+  LOG_ERROR("cgroup_skb/egress found the socket, yay!");
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, *tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
+  LOG_ERROR("cgroup_skb/egress process is interesting");
 
   struct network_event *event = init_network_event(EVENT_SEND, *tgid);
   if (!event)
     return CGROUP_SKB_OK;
-  return CGROUP_SKB_OK;
 
   void *data_end = (void *)(long)skb->data_end;
   void *data = (void *)(long)skb->data;
 
   if (data + sizeof(struct ethhdr) > data_end)
-    return CGROUP_SKB_OK;
+     goto output;
 
   struct ethhdr *eh = data;
 
-  if (eh->h_proto == bpf_htons(ETH_P_IP)) {
+  if (eh->h_proto == bpf_htons(ETH_P_IPV4)) {
     if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
-      return CGROUP_SKB_OK;
+      goto output;
 
     struct iphdr *ih = data + sizeof(struct ethhdr);
     event->send.proto = ih->protocol;
@@ -525,7 +515,7 @@ int skb_egress(struct __sk_buff *skb) {
     }
   } else if (eh->h_proto == bpf_htons(ETH_P_IPV6)) {
     if (data + sizeof(struct ethhdr) + sizeof(struct ipv6hdr) > data_end)
-      return CGROUP_SKB_OK;
+      goto output;
 
     struct ipv6hdr *ih6 = data + sizeof(struct ethhdr);
     event->send.proto = ih6->nexthdr;
@@ -542,8 +532,8 @@ int skb_egress(struct __sk_buff *skb) {
     }
   }
 
+output:
   output_network_event(skb, event);
-
   return CGROUP_SKB_OK;
 }
 
@@ -556,7 +546,7 @@ int skb_ingress(struct __sk_buff *skb) {
   if (!bpf_sk)
     return CGROUP_SKB_OK;
   struct sock *sk = (struct sock *)bpf_sk;
-  pid_t *tgid_ptr = bpf_map_lookup_elem(&connect_map, &sk);
+  pid_t *tgid_ptr = bpf_map_lookup_elem(&bind_map, &sk);
   if (tgid_ptr == 0) {
     LOG_ERROR("cgroup_skb/ingress on unknown socket");
     return CGROUP_SKB_OK;
@@ -568,7 +558,6 @@ int skb_ingress(struct __sk_buff *skb) {
 
   struct arguments *args = bpf_map_lookup_elem(&args_map, &tgid);
   int r = bpf_map_delete_elem(&args_map, &tgid);
-  // LOG_DEBUG("delete args_map: %d %d", pid_tgid, r);
   if (!args) {
     return CGROUP_SKB_OK;
   }
@@ -581,13 +570,13 @@ int skb_ingress(struct __sk_buff *skb) {
   void *data = (void *)(long)skb->data;
 
   if (data + sizeof(struct ethhdr) > data_end)
-    return CGROUP_SKB_OK;
+    goto output;
 
   struct ethhdr *eh = data;
 
-  if (eh->h_proto == bpf_htons(ETH_P_IP)) {
+  if (eh->h_proto == bpf_htons(ETH_P_IPV4)) {
     if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
-      return CGROUP_SKB_OK;
+      goto output;
 
     struct iphdr *ih = data + sizeof(struct ethhdr);
     event->send.proto = ih->protocol;
@@ -618,7 +607,7 @@ int skb_ingress(struct __sk_buff *skb) {
     }
   } else if (eh->h_proto == bpf_htons(ETH_P_IPV6)) {
     if (data + sizeof(struct ethhdr) + sizeof(struct ipv6hdr) > data_end)
-      return CGROUP_SKB_OK;
+      goto output;
 
     struct ipv6hdr *ih6 = data + sizeof(struct ethhdr);
     event->send.proto = ih6->nexthdr;
@@ -649,7 +638,7 @@ int skb_ingress(struct __sk_buff *skb) {
     }
   }
 
+output:
   output_network_event(skb, event);
-
   return CGROUP_SKB_OK;
 }
