@@ -3,8 +3,8 @@
   <img width="300" src="assets/pulsar-logo-white.png#gh-dark-mode-only" alt="Pulsar light logo">
 
   <p>
-    <a href="https://github.com/Exein-io/pulsar/actions/workflows/test.yml">
-      <img src="https://github.com/Exein-io/pulsar/actions/workflows/test.yml/badge.svg?branch=main" alt="Lint and Tests">
+    <a href="https://github.com/Exein-io/pulsar/actions/workflows/release.yaml">
+      <img src="https://github.com/Exein-io/pulsar/actions/workflows/release.yaml/badge.svg?branch=main" alt="Release">
     </a>
     <a href="https://discord.gg/ZrySDqhBtZ"><img src="https://img.shields.io/discord/986983233256321075?color=%2331c753&logo=discord">
     <a href="https://opensource.org/licenses/Apache-2.0">
