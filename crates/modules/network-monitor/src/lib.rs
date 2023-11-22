@@ -200,6 +200,7 @@ pub mod pulsar {
         let dns_sender = ctx.get_sender();
         // intercept DNS
         let sender = BpfSenderWrapper::new(sender, move |event: &BpfEvent<NetworkEvent>| {
+            log::warn!("received event {event:?}");
             if let Some(dns_event) = collect_dns_if_any(event) {
                 dns_sender.send(event.pid, event.timestamp, dns_event);
             }
