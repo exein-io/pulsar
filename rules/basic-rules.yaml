@@ -107,3 +107,9 @@
 - name: Executable deleted itself
   type: FileDeleted
   condition: payload.filename == header.image
+
+
+# Rules preventing known vulnerabilities
+- name: CVE-2021-4034, possible envp manipulation with empty argv
+  type: Exec
+  condition: payload.argc == 0
