@@ -1,8 +1,8 @@
 mod bpf_sender;
 pub mod program;
-#[cfg(feature = "test-utils")]
+#[cfg(feature = "test-suite")]
 pub mod test_runner;
-#[cfg(feature = "test-utils")]
+#[cfg(feature = "test-suite")]
 pub mod test_utils;
 
 #[cfg(debug_assertions)]

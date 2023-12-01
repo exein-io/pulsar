@@ -36,7 +36,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-test-suite = ["bpf-common/test-utils"]
+test-suite = ["bpf-common/test-suite"]
 
 [dependencies]
 bpf-common = { path = "../../bpf-common" }

@@ -6,11 +6,14 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-bpf-common = { workspace = true }
-bpf-filtering = { workspace = true }
-file-system-monitor = { workspace = true }
-network-monitor = { workspace = true }
-process-monitor = { workspace = true }
+# Internal
+bpf-common = { workspace = true, features = ["test-suite"] }
+bpf-filtering = { workspace = true, features = ["test-suite"] }
+file-system-monitor = { workspace = true, features = ["test-suite"] }
+network-monitor = { workspace = true, features = ["test-suite"] }
+process-monitor = { workspace = true, features = ["test-suite"] }
+
+# External
 libtest-mimic =  { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }

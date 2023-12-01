@@ -61,7 +61,7 @@ use std::env;
 use anyhow::Result;
 use std::sync::OnceLock;
 
-pub use pulsar_core::pdk::TaskLauncher;
+pub use pulsar_core::pdk::{PulsarModule, TaskLauncher};
 
 use cli::PulsarExecOpts;
 
@@ -98,7 +98,7 @@ pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
         smtp_notifier::module(),
     ]
     .into_iter()
-    .map(|x| Box::new(x) as Box<dyn TaskLauncher>)
+    .map(|x: PulsarModule| Box::new(x) as Box<dyn TaskLauncher>)
     .collect()
 }
 

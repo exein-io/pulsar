@@ -7,8 +7,7 @@ repository.workspace = true
 
 [features]
 default = []
-test-suite = ["test-utils"]
-test-utils = [
+test-suite = [
   "which",
   "cgroups-rs",
   "rand"

@@ -75,7 +75,7 @@ pub enum IndexError {
     },
 }
 
-#[cfg(feature = "test-utils")]
+#[cfg(feature = "test-suite")]
 mod test_utils {
     use super::*;
     use crate::test_runner::ComparableField;
