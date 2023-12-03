@@ -1,4 +1,5 @@
 pub mod containers;
+pub mod mountinfo;
 pub mod procfs;
 
 mod buffer_index;

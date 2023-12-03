@@ -4,8 +4,8 @@
 //!
 use core::fmt;
 use std::{
-    collections::HashSet, convert::TryFrom, fmt::Display, mem::size_of, path::PathBuf, sync::Arc,
-    time::Duration,
+    collections::HashSet, convert::TryFrom, fmt::Display, fs::File, io, mem::size_of,
+    path::PathBuf, sync::Arc, time::Duration,
 };
 
 use aya::{
@@ -21,7 +21,12 @@ use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
-use crate::{feature_autodetect::kernel_version::KernelVersion, time::Timestamp, BpfSender, Pid};
+use crate::{
+    feature_autodetect::kernel_version::KernelVersion,
+    parsing::mountinfo::{get_cgroup2_mountpoint, MountinfoError},
+    time::Timestamp,
+    BpfSender, Pid,
+};
 
 const PERF_HEADER_SIZE: usize = 4;
 const PINNED_MAPS_PATH: &str = "/sys/fs/bpf/pulsar";
@@ -183,6 +188,14 @@ pub enum ProgramError {
     InodeError {
         path: PathBuf,
         io_error: Box<std::io::Error>,
+    },
+    #[error(transparent)]
+    MountinfoError(#[from] MountinfoError),
+    #[error("reading link failed {path}")]
+    ReadFile {
+        #[source]
+        source: io::Error,
+        path: String,
     },
 }
 
@@ -350,7 +363,9 @@ impl ProgramType {
             }
             ProgramType::CgroupSkbEgress(cgroup_skb) => {
                 let program: &mut CgroupSkb = extract_program(bpf, cgroup_skb)?;
-                let cgroup = std::fs::File::open("/sys/fs/cgroup").unwrap();
+                let path = get_cgroup2_mountpoint()?;
+                let cgroup = File::open(&path)
+                    .map_err(|source| MountinfoError::ReadFile { source, path })?;
                 program.load().map_err(load_err)?;
                 program
                     .attach(cgroup, CgroupSkbAttachType::Egress)
@@ -358,7 +373,9 @@ impl ProgramType {
             }
             ProgramType::CgroupSkbIngress(cgroup_skb) => {
                 let program: &mut CgroupSkb = extract_program(bpf, cgroup_skb)?;
-                let cgroup = std::fs::File::open("/sys/fs/cgroup").unwrap();
+                let path = get_cgroup2_mountpoint()?;
+                let cgroup = File::open(&path)
+                    .map_err(|source| MountinfoError::ReadFile { source, path })?;
                 program.load().map_err(load_err)?;
                 program
                     .attach(cgroup, CgroupSkbAttachType::Ingress)
