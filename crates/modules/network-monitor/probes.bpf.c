@@ -358,29 +358,9 @@ static __always_inline void
 }
 
 static __always_inline void
-read_iovec(struct buffer *buffer, struct msg_event *output, void *iov_base) {
-  size_t len = output->data_len;
-
-  unsigned int msg_iter_type = 0;
-
-  if (len > MAX_DATA_SIZE) {
-    LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);
-  }
-
-  // limit the index to avoid "min value is negative, either use unsigned or
-  // 'var &= const'"
-  len &= (MAX_DATA_SIZE - 1);
-
-  buffer_index_init(buffer, &output->data);
-  buffer_append_user_memory(buffer, &output->data, iov_base, len);
-  LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
-}
-
-static __always_inline void
 read_sk_buff(struct buffer *buffer, struct msg_event *output,
              struct __sk_buff *skb, __u32 offset) {
-  // size_t len = skb->data_end - skb->data - offset;
-  size_t len = output->data_len;
+  size_t len = output->data_len - offset;
 
   if (len > MAX_DATA_SIZE) {
      LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);    
@@ -475,14 +455,15 @@ int skb_egress(struct __sk_buff *skb) {
   struct sock *sk = (struct sock *)bpf_sk;
   pid_t *tgid = bpf_map_lookup_elem(&connect_map, &sk);
   if (tgid == 0) {
-    LOG_ERROR("cgroup_skb/egress on unknown socket");
+    LOG_DEBUG("cgroup_skb/egress on unregistered socket %p, ignoring",
+              sk);
     return CGROUP_SKB_OK;
   }
-  LOG_ERROR("cgroup_skb/egress found the socket, yay!");
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, *tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
-  LOG_ERROR("cgroup_skb/egress process is interesting");
+  LOG_DEBUG("cgroup_skb/egress tracking socket %p for thread group %d",
+            sk, tgid);
 
   struct network_event *event = init_network_event(EVENT_SEND, *tgid);
   if (!event)
@@ -491,42 +472,33 @@ int skb_egress(struct __sk_buff *skb) {
   void *data_end = (void *)(long)skb->data_end;
   void *data = (void *)(long)skb->data;
 
-  if (data + sizeof(struct ethhdr) > data_end)
-     goto output;
-
-  struct ethhdr *eh = data;
-
-  if (eh->h_proto == bpf_htons(ETH_P_IPV4)) {
-    if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
+  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
+    if (data + sizeof(struct iphdr) > data_end)
       goto output;
 
-    struct iphdr *ih = data + sizeof(struct ethhdr);
+    struct iphdr *ih = data;
     event->send.proto = ih->protocol;
 
     if (ih->protocol == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct iphdr)
-        + sizeof(struct udphdr);
-      __u32 offset = skb->data + headers_len;
+      __u32 headers_len = sizeof(struct iphdr) + sizeof(struct udphdr);
       event->send.data_len = skb->len - headers_len;
       // read data
-      read_sk_buff(&event->buffer, &event->send, skb, offset);
+      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
     } else {
       event->send.data.len = 0;
     }
-  } else if (eh->h_proto == bpf_htons(ETH_P_IPV6)) {
-    if (data + sizeof(struct ethhdr) + sizeof(struct ipv6hdr) > data_end)
+  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
+    if (data + sizeof(struct ipv6hdr) > data_end)
       goto output;
 
-    struct ipv6hdr *ih6 = data + sizeof(struct ethhdr);
+    struct ipv6hdr *ih6 = data;
     event->send.proto = ih6->nexthdr;
 
     if (ih6->nexthdr == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr)
-        + sizeof(struct udphdr);
-      __u32 offset = skb->data + headers_len;
+      __u32 headers_len = sizeof(struct ipv6hdr) + sizeof(struct udphdr);
       event->send.data_len = skb->len - headers_len;
       // read data
-      read_sk_buff(&event->buffer, &event->send, skb, offset);
+      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
     } else {
       event->send.data.len = 0;
     }
@@ -548,13 +520,16 @@ int skb_ingress(struct __sk_buff *skb) {
   struct sock *sk = (struct sock *)bpf_sk;
   pid_t *tgid_ptr = bpf_map_lookup_elem(&bind_map, &sk);
   if (tgid_ptr == 0) {
-    LOG_ERROR("cgroup_skb/ingress on unknown socket");
+    LOG_DEBUG("cgroup_skb/ingress on unregistered socket %p, ignoring",
+              sk);
     return CGROUP_SKB_OK;
   }
   pid_t tgid = *tgid_ptr;
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
+  LOG_DEBUG("cgroup_skb/ingress tracking socket %p for thread group %d",
+            sk, tgid);
 
   struct arguments *args = bpf_map_lookup_elem(&args_map, &tgid);
   int r = bpf_map_delete_elem(&args_map, &tgid);
@@ -569,26 +544,19 @@ int skb_ingress(struct __sk_buff *skb) {
   void *data_end = (void *)(long)skb->data_end;
   void *data = (void *)(long)skb->data;
 
-  if (data + sizeof(struct ethhdr) > data_end)
-    goto output;
-
-  struct ethhdr *eh = data;
-
-  if (eh->h_proto == bpf_htons(ETH_P_IPV4)) {
-    if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
+  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
+    if (data + sizeof(struct iphdr) > data_end)
       goto output;
 
-    struct iphdr *ih = data + sizeof(struct ethhdr);
+    struct iphdr *ih = data;
     event->send.proto = ih->protocol;
 
     if (ih->protocol == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct iphdr)
-        + sizeof(struct udphdr);
-      __u32 offset = skb->data + headers_len;
+      __u32 headers_len = sizeof(struct iphdr) + sizeof(struct udphdr);
 
       event->send.data_len = skb->len - headers_len;
       // read data
-      read_sk_buff(&event->buffer, &event->send, skb, offset);
+      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
 
       // in UDP we find destination value in sockaddr
       // NOTE: msg_name is NULL if the userspace code is not interested
@@ -605,21 +573,19 @@ int skb_ingress(struct __sk_buff *skb) {
 
       copy_skc_dest(&sk->__sk_common, &event->recv.destination);
     }
-  } else if (eh->h_proto == bpf_htons(ETH_P_IPV6)) {
-    if (data + sizeof(struct ethhdr) + sizeof(struct ipv6hdr) > data_end)
+  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
+    if (data + sizeof(struct ipv6hdr) > data_end)
       goto output;
 
-    struct ipv6hdr *ih6 = data + sizeof(struct ethhdr);
+    struct ipv6hdr *ih6 = data;
     event->send.proto = ih6->nexthdr;
 
     if (ih6->nexthdr == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr)
-        + sizeof(struct udphdr);
-      __u32 offset = skb->data + headers_len;
+      __u32 headers_len = sizeof(struct ipv6hdr) + sizeof(struct udphdr);
 
       event->send.data_len = skb->len - headers_len;
       // read data
-      read_sk_buff(&event->buffer, &event->send, skb, offset);
+      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
 
       // in UDP we find destination value in sockaddr
       // NOTE: msg_name is NULL if the userspace code is not interested
