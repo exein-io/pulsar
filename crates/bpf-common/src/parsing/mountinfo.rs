@@ -65,7 +65,7 @@ where
         //
         // * The 1st field of filesystem information (filesystem type).
         // * The 4th field of mount information (mount point).
-        let filesystem_type = match filesystem_parts.get(0) {
+        let filesystem_type = match filesystem_parts.first() {
             Some(filesystem_type) => *filesystem_type,
             None => continue,
         };
