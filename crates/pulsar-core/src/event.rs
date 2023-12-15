@@ -68,10 +68,10 @@ impl fmt::Display for Event {
             if f.alternate() {
                 writeln!(
                     f,
-                    "[{time} \x1b[1;30;46mEVENT\x1b[0m {image} ({pid})] [{source}] {payload}"
+                    "[{time} \x1b[1;30;46mEVENT\x1b[0m {process_info}] [{source}] {payload}"
                 )
             } else {
-                writeln!(f, "[{time} EVENT {image} ({pid})] [{source}] {payload}")
+                writeln!(f, "[{time} EVENT {process_info}] [{source}] {payload}")
             }
         }
     }
