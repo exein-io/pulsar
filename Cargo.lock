@@ -262,14 +262,14 @@ dependencies = [
 
 [[package]]
 name = "bpf-builder"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "bpf-common"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "aya",
@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-filtering"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bpf-builder",
@@ -526,7 +526,7 @@ checksum = "c2e66c9d817f1720209181c316d28635c050fa304f9c79e47a520882661b7308"
 
 [[package]]
 name = "desktop-notifier"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "engine-api"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -706,7 +706,7 @@ dependencies = [
 
 [[package]]
 name = "file-system-monitor"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "bpf-builder",
  "bpf-common",
@@ -1276,7 +1276,7 @@ dependencies = [
 
 [[package]]
 name = "logger"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "bpf-common",
  "log",
@@ -1372,7 +1372,7 @@ dependencies = [
 
 [[package]]
 name = "network-monitor"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "bpf-builder",
  "bpf-common",
@@ -1632,7 +1632,7 @@ dependencies = [
 
 [[package]]
 name = "process-monitor"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bpf-builder",
@@ -1661,7 +1661,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1875,7 +1875,7 @@ dependencies = [
 
 [[package]]
 name = "rules-engine"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "glob",
@@ -2168,7 +2168,7 @@ dependencies = [
 
 [[package]]
 name = "smtp-notifier"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2339,7 +2339,7 @@ dependencies = [
 
 [[package]]
 name = "test-suite"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "bpf-common",
  "bpf-filtering",
@@ -2692,7 +2692,7 @@ dependencies = [
 
 [[package]]
 name = "validatron"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "log",
  "serde",
@@ -2702,7 +2702,7 @@ dependencies = [
 
 [[package]]
 name = "validatron-derive"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3044,7 +3044,7 @@ checksum = "1dbabb1cbd15a1d6d12d9ed6b35cc6777d4af87ab3ba155ea37215f20beab80c"
 
 [[package]]
 name = "xtask"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "clap",

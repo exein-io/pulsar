@@ -5,7 +5,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- 
+-
+
+## [0.7.0] - 2023-12-20
+
+### Added
+- support for monitoring containers within the core functionality
+- new `description` field in the *Threat* structure, providing a human-readable description of the threat
+- new `namespaces` field for events related to *fork* and *exec* operations
+- SMTP integration within the module for logging threats to sent threats also via email
+- ability to modules to display warnings as part of their functionality
+- *syslog* capabilities to the logger module
+- new `enabled_by_default` flag for every module, allowing the definition of default behavior
+- CI: create release/dev containers on tags/main-updates
+
+### Changed
+- bpf: refactored preemption in the BPF probes
+- CI: rewritten workflows because of deprecated actions
+- move dependecnies in workspace
+- bpf: clean probes license
+
+### Fixed
+- issue introduced by changes in the kernel affecting the layout of the `struct iov_iter` in `network-monitor` probe
+- doctest in the `validation` module
+- check the payload before applying the ruleset in the `rule-engine` module to correctly handle cases of rules only on the header
+- bpf: disable stack protector on probes
 
 ## [0.6.0] - 2023-06-05
 
