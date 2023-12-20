@@ -1,4 +1,4 @@
-use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, Match, Field, Condition};
+use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, RValue, Field, Identifier, Condition};
 use lalrpop_util::ParseError;
 
 use super::{DslError};
@@ -12,28 +12,28 @@ pub Condition: Condition = {
 }
 
 SignedCondition: Condition = {
-    "NOT" <b:BaseCondition> => Condition::Not{inner: Box::new(b)},
-    BaseCondition
+    "NOT" <b:BinaryCondition> => Condition::Not{inner: Box::new(b)},
+    BinaryCondition
 }
 
-BaseCondition: Condition = {
-    <f: FieldPath> <op: Operator> <value: Value> => Condition::Base {
-        field_path: f,
+BinaryCondition: Condition = {
+    <f: FieldPath> <op: Operator> <value: Value> => Condition::Binary {
+        l: f,
         op,
-        value: Match::Value(value)
+        r: RValue::Value(value)
     },
-    <f: FieldPath> <op: Operator> <value: FieldPath> => Condition::Base {
-        field_path: f,
+    <f: FieldPath> <op: Operator> <value: FieldPath> => Condition::Binary {
+        l: f,
         op,
-        value: Match::Field(value)
+        r: RValue::Identifier(value)
     },
     <f: FieldPath> "IN" <list: ValueList> =>? {
         let mut iterator = list.into_iter();
 
-        let first = Condition::Base {
-            field_path: f.clone(),
+        let first = Condition::Binary {
+            l: f.clone(),
             op: Operator::Relational(RelationalOperator::Equals),
-            value: iterator.next().map(|x| Match::Value(x)).ok_or(ParseError::User {
+            r: iterator.next().map(|x| RValue::Value(x)).ok_or(ParseError::User {
                 error: DslError::EmptyList
             })?
         };
@@ -41,10 +41,10 @@ BaseCondition: Condition = {
         let ret_val = iterator.fold(first, |acc, x| {
             Condition::Or {
                 l: Box::new(acc),
-                r: Box::new(Condition::Base {
-                    field_path: f.clone(),
+                r: Box::new(Condition::Binary {
+                    l: f.clone(),
                     op: Operator::Relational(RelationalOperator::Equals),
-                    value: Match::Value(x)
+                    r: RValue::Value(x)
                 })
             }
         });
@@ -88,7 +88,7 @@ Operator: Operator = {
     "CONTAINS" => Operator::Multi(MultiOperator::Contains),
 }
 
-FieldPath: Vec<Field> = {
+FieldPath: Vec<Identifier> = {
     <Dot<Ident>> => {
         let mut payload_subpath = false;
         <>.into_iter().enumerate().map(|(index,value)| {
@@ -96,9 +96,9 @@ FieldPath: Vec<Field> = {
                 payload_subpath = true;
             }
             if index == 1 && payload_subpath {
-                Field::Adt{variant_name: variant.to_string(), field_name: value}
+                Identifier::Field(Field::Adt{variant_name: variant.to_string(), field_name: value})
             } else {
-               Field::Simple { field_name: value }
+                Identifier::Field(Field::Simple { field_name: value })
             }  
         }).collect()
     }

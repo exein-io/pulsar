@@ -54,14 +54,17 @@ impl Condition {
                     inner: Box::new(vc),
                 })
             }
-            Condition::Base {
-                field_path,
-                op,
-                value,
-            } => {
-                let validated_field_fn = validator::get_valid_rule::<T>(field_path, op, value)?;
+            Condition::Binary { l, op, r } => {
+                let validated_field_fn = validator::get_valid_rule::<T>(l, op, r)?;
 
-                Ok(ValidatedCondition::Base {
+                Ok(ValidatedCondition::Binary {
+                    inner: validated_field_fn.rule_fn,
+                })
+            }
+            Condition::Unary(inner) => {
+                let validated_field_fn = validator::get_valid_unary_rule(inner)?;
+
+                Ok(ValidatedCondition::Binary {
                     inner: validated_field_fn.rule_fn,
                 })
             }
@@ -71,7 +74,7 @@ impl Condition {
 
 /// Representation of a valid rule for a type `T`.
 ///
-/// Implemented as a tree of [ValidatedCondition::Base] connected with logical operators.
+/// Implemented as a tree of [ValidatedCondition::Binary] connected with logical operators.
 /// The base type contains a functions that takes a reference to `T` and returns a [bool].
 pub enum ValidatedCondition<T> {
     And {
@@ -85,7 +88,7 @@ pub enum ValidatedCondition<T> {
     Not {
         inner: Box<ValidatedCondition<T>>,
     },
-    Base {
+    Binary {
         inner: Box<dyn Fn(&T) -> bool + Send + Sync>,
     },
 }
@@ -123,6 +126,6 @@ fn generate_closures<T: 'static>(
             let c = generate_closures(*inner);
             Box::new(move |x: &T| !(c)(x))
         }
-        ValidatedCondition::Base { inner } => inner,
+        ValidatedCondition::Binary { inner } => inner,
     }
 }

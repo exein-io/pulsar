@@ -43,11 +43,13 @@ use std::marker::PhantomData;
 
 mod adt;
 mod collection;
+mod methods;
 mod primitive;
 mod structure;
 
 pub use adt::*;
 pub use collection::*;
+pub use methods::*;
 pub use primitive::*;
 pub use structure::*;
 
@@ -62,6 +64,7 @@ pub trait Validatron: Sized {
             _phantom: PhantomData,
         }
     }
+
     fn get_class() -> ValidatronClass;
 }
 
@@ -77,14 +80,12 @@ pub struct ClassBuilder<T> {
 }
 
 impl<T: Validatron + Send + Sync + 'static> ClassBuilder<T> {
-    pub fn primitive(
+    pub fn primitive_class_builder(
         self,
         parse_fn: ParseFn<T>,
         handle_op_fn: HandleOperatorFn<T>,
-    ) -> ValidatronClass {
-        ValidatronClass {
-            kind: ValidatronClassKind::Primitive(Primitive::new(parse_fn, handle_op_fn)),
-        }
+    ) -> PrimitiveClassBuilder<T> {
+        PrimitiveClassBuilder::new(parse_fn, handle_op_fn)
     }
 
     pub fn struct_class_builder(self) -> StructClassBuilder<T> {
@@ -100,19 +101,19 @@ impl<T> ClassBuilder<T>
 where
     T: Validatron + 'static,
 {
-    pub fn collection<U>(self) -> ValidatronClass
+    pub fn collection_clas_builder<U>(self) -> CollectionClassBuilder<T, U>
     where
         U: Validatron + 'static,
         for<'x> &'x T: IntoIterator<Item = &'x U>,
     {
-        CollectionClassBuilder::create_class::<T, U>()
+        CollectionClassBuilder::new()
     }
 }
 
 /// Contains all the details of the type with which it is associated.
 pub struct ValidatronClass {
     kind: ValidatronClassKind,
-    // this space is to implement method calls
+    methods: Methods,
 }
 
 impl ValidatronClass {
@@ -131,6 +132,14 @@ impl ValidatronClass {
 
     pub fn into_kind(self) -> ValidatronClassKind {
         self.kind
+    }
+
+    pub fn get_method(&self, field_name: &str) -> Option<&Method> {
+        self.methods.get_method(field_name)
+    }
+
+    pub fn get_method_owned(self, field_name: &str) -> Option<Method> {
+        self.methods.get_method_owned(field_name)
     }
 }
 

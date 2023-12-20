@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{Validatron, ValidatronClass, ValidatronClassKind, ValidatronError};
+use crate::{MethodsBuilder, Validatron, ValidatronClass, ValidatronClassKind, ValidatronError};
 
 // The only operator currently supported on collections is MultiOperator::Contains.
 //
@@ -20,15 +20,27 @@ type DynContainsFnUnchecked = Box<dyn for<'c> Fn(&'c dyn Any) -> bool + Send + S
 type DynContainsMulti = Box<dyn Fn(&dyn Any, &dyn Any) -> Option<bool> + Send + Sync>;
 type DynContainsMultiUnchecked = Box<dyn Fn(&dyn Any, &dyn Any) -> bool + Send + Sync>;
 
-pub struct CollectionClassBuilder(());
+pub struct CollectionClassBuilder<T, U> {
+    method_builder: MethodsBuilder<T>,
+    _phantom_t: PhantomData<T>,
+    _phantom_u: PhantomData<U>,
+}
 
-impl CollectionClassBuilder {
-    pub(crate) fn create_class<T, U>() -> ValidatronClass
-    where
-        T: Validatron + 'static,
-        U: Validatron + 'static,
-        for<'x> &'x T: IntoIterator<Item = &'x U>,
-    {
+impl<T, U> CollectionClassBuilder<T, U>
+where
+    T: Validatron + 'static,
+    U: Validatron + 'static,
+    for<'x> &'x T: IntoIterator<Item = &'x U>,
+{
+    pub(super) fn new() -> Self {
+        Self {
+            method_builder: MethodsBuilder::new(),
+            _phantom_t: PhantomData,
+            _phantom_u: PhantomData,
+        }
+    }
+
+    pub fn build(self) -> ValidatronClass {
         ValidatronClass {
             kind: ValidatronClassKind::Collection(Collection {
                 name: type_name::<T>(),
@@ -37,6 +49,7 @@ impl CollectionClassBuilder {
                     pha2: PhantomData,
                 }),
             }),
+            methods: self.method_builder.build(),
         }
     }
 }
