@@ -239,7 +239,7 @@ jobs:
             $(docker image ls --format '{{.Repository}}:{{.Tag}}' '${{ env.TMP_LOCAL_IMAGE }}' | tr '\n' ' ')
 
       - name: Push to latest
-        if: github.event.ref_type == 'tag'
+        if: github.ref_type == 'tag'
         run: |
           docker tag ${{ env.REGISTRY_IMAGE }}:${{ env.REGISTRY_TAG }} ${{ env.REGISTRY_IMAGE }}:latest
           docker push ${{ env.REGISTRY_IMAGE }}:latest
