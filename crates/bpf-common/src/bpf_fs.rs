@@ -53,14 +53,11 @@ fn mount_bpf_fs() -> Result<()> {
 
     log::debug!("Mount BPF file system");
 
-    Mount::new(
-        BPF,
-        BPF_FS_PATH,
-        sys_mount::FilesystemType::Manual(BPF),
-        MountFlags::empty(),
-        None,
-    )
-    .context("Failed to mount BPF file system")?;
+    Mount::builder()
+        .fstype(sys_mount::FilesystemType::Manual(BPF))
+        .flags(MountFlags::empty())
+        .mount(BPF, BPF_FS_PATH)
+        .context("Failed to mount BPF file system")?;
 
     Ok(())
 }
@@ -73,7 +70,7 @@ fn has_multiple_bpf_fs_mount() -> Result<bool> {
 
     let bpf_fs_path = Path::new(BPF_FS_PATH);
     let num_bpf_fs = mount_info
-        .iter()
+        .into_iter()
         .filter(|mount| mount.root == "/" && mount.mount_point == bpf_fs_path)
         .count();
 
