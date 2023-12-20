@@ -4,7 +4,9 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{Validatron, ValidatronClass, ValidatronClassKind};
+use crate::{MethodsBuilder, Validatron, ValidatronClass, ValidatronClassKind};
+
+use super::methods::Method0CallFn;
 
 // Extractor closure which gets an object of type F from an object of type T
 type FieldExtractorFn<T, F> = Box<dyn Fn(&T) -> &F + Send + Sync>;
@@ -21,6 +23,7 @@ type UncheckedDynFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> &dyn Any) + Send + 
 pub struct StructClassBuilder<T> {
     name: &'static str,
     fields: HashMap<&'static str, Attribute>,
+    methods_builder: MethodsBuilder<T>,
     _phantom: PhantomData<T>,
 }
 
@@ -30,6 +33,7 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
             name: type_name::<T>(),
             fields: HashMap::new(),
             _phantom: PhantomData,
+            methods_builder: MethodsBuilder::new(),
         }
     }
 
@@ -57,6 +61,16 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
         self
     }
 
+    pub fn add_method0<F: Validatron + 'static>(
+        mut self,
+        name: &'static str,
+        execute_fn: Method0CallFn<T, F>,
+    ) -> Self {
+        self.methods_builder = self.methods_builder.add_method0(name, execute_fn);
+
+        self
+    }
+
     /// Finalize the struct class.
     pub fn build(self) -> ValidatronClass {
         ValidatronClass {
@@ -64,6 +78,7 @@ impl<T: Validatron + 'static> StructClassBuilder<T> {
                 name: self.name,
                 fields: self.fields,
             }),
+            methods: self.methods_builder.build(),
         }
     }
 }

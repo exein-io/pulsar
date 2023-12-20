@@ -4,7 +4,8 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{Validatron, ValidatronClass, ValidatronClassKind};
+use super::methods::Method0CallFn;
+use crate::{MethodsBuilder, Validatron, ValidatronClass, ValidatronClassKind};
 
 // Extractor closure which gets an object of type F from an enum of type T.
 // Could return None if the enum is of the wrong variant.
@@ -24,6 +25,7 @@ type UncheckedDynEnumFieldExtractorFn = Box<dyn (Fn(&dyn Any) -> Option<&dyn Any
 pub struct EnumClassBuilder<T> {
     name: &'static str,
     variants: HashMap<&'static str, HashMap<&'static str, VariantAttribute>>,
+    methods_builder: MethodsBuilder<T>,
     _phantom: PhantomData<T>,
 }
 
@@ -33,6 +35,7 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
             name: type_name::<T>(),
             variants: HashMap::new(),
             _phantom: PhantomData,
+            methods_builder: MethodsBuilder::new(),
         }
     }
 
@@ -61,6 +64,16 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
         self
     }
 
+    pub fn add_method0<F: Validatron + 'static>(
+        mut self,
+        name: &'static str,
+        execute_fn: Method0CallFn<T, F>,
+    ) -> Self {
+        self.methods_builder = self.methods_builder.add_method0(name, execute_fn);
+
+        self
+    }
+
     /// Finalize the enum class.
     pub fn build(self) -> ValidatronClass {
         ValidatronClass {
@@ -68,6 +81,7 @@ impl<T: Validatron + 'static> EnumClassBuilder<T> {
                 name: self.name,
                 variants: self.variants,
             }),
+            methods: self.methods_builder.build(),
         }
     }
 }

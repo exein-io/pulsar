@@ -34,6 +34,7 @@
 //!     PulsarModule::new(
 //!         "my-module",
 //!         Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+//!         true,
 //!         my_module_task,
 //!     )
 //! }

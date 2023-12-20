@@ -1,6 +1,9 @@
 use std::any::{type_name, Any, TypeId};
 
-use crate::{HandleOperatorFn, Operator, Validatron, ValidatronError};
+use crate::{
+    HandleOperatorFn, MethodsBuilder, Operator, Validatron, ValidatronClass, ValidatronClassKind,
+    ValidatronError,
+};
 
 // These closure are variations over OperatorFn<T>, since they all
 // implementat a particular operator over two values.
@@ -21,6 +24,30 @@ type DynOperatorConstUnchecked = Box<dyn Fn(&dyn Any) -> bool + Send + Sync + 's
 
 /// Value parsing function: given a string, try to parse T;
 pub type ParseFn<T> = Box<dyn Fn(&str) -> Result<T, ValidatronError> + Send + Sync + 'static>;
+
+/// Primitive class builder
+pub struct PrimitiveClassBuilder<T> {
+    parse_fn: ParseFn<T>,
+    handle_op_fn: HandleOperatorFn<T>,
+    method_builder: MethodsBuilder<T>,
+}
+
+impl<T: Validatron + Sync + Send + 'static> PrimitiveClassBuilder<T> {
+    pub(super) fn new(parse_fn: ParseFn<T>, handle_op_fn: HandleOperatorFn<T>) -> Self {
+        Self {
+            parse_fn,
+            handle_op_fn,
+            method_builder: MethodsBuilder::new(),
+        }
+    }
+
+    pub fn build(self) -> ValidatronClass {
+        ValidatronClass {
+            kind: ValidatronClassKind::Primitive(Primitive::new(self.parse_fn, self.handle_op_fn)),
+            methods: self.method_builder.build(),
+        }
+    }
+}
 
 /// Primitive type representation.
 pub struct Primitive {

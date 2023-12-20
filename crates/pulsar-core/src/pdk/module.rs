@@ -92,24 +92,28 @@ impl fmt::Display for ModuleName {
 
 impl Validatron for ModuleName {
     fn get_class() -> validatron::ValidatronClass {
-        Self::class_builder().primitive(
-            Box::new(|s| Ok(ModuleName(Cow::Owned(s.to_string())))),
-            Box::new(|op| match op {
-                validatron::Operator::String(op) => match op {
-                    validatron::StringOperator::StartsWith => {
-                        Ok(Box::new(|a, b| a.0.as_ref().starts_with(b.0.as_ref())))
+        Self::class_builder()
+            .primitive_class_builder(
+                Box::new(|s| Ok(ModuleName(Cow::Owned(s.to_string())))),
+                Box::new(|op| match op {
+                    validatron::Operator::String(op) => match op {
+                        validatron::StringOperator::StartsWith => {
+                            Ok(Box::new(|a, b| a.0.as_ref().starts_with(b.0.as_ref())))
+                        }
+                        validatron::StringOperator::EndsWith => {
+                            Ok(Box::new(|a, b| a.0.as_ref().ends_with(b.0.as_ref())))
+                        }
+                    },
+                    validatron::Operator::Relational(op) => {
+                        Ok(Box::new(move |a, b| op.apply(a, b)))
                     }
-                    validatron::StringOperator::EndsWith => {
-                        Ok(Box::new(|a, b| a.0.as_ref().ends_with(b.0.as_ref())))
-                    }
-                },
-                validatron::Operator::Relational(op) => Ok(Box::new(move |a, b| op.apply(a, b))),
-                _ => Err(validatron::ValidatronError::OperatorNotAllowedOnType(
-                    op,
-                    "ModuleName".to_string(),
-                )),
-            }),
-        )
+                    _ => Err(validatron::ValidatronError::OperatorNotAllowedOnType(
+                        op,
+                        "ModuleName".to_string(),
+                    )),
+                }),
+            )
+            .build()
     }
 }
 

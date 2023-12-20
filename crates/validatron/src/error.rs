@@ -22,4 +22,12 @@ pub enum ValidatronError {
     DifferentFieldsType,
     #[error("Collection value not primitive")]
     CollectionValueNotPrimitive,
+    #[error("Method call is not the last identifier")]
+    MethodCallNotLastIdentifier,
+    #[error("Method not found: {0}")]
+    MethodNotFound(String),
+    #[error("Unary expression field not primitive: {0}")]
+    UnaryExpressionFieldNotPrimitive(String),
+    #[error("Unary expression field not bool: {0}")]
+    UnaryExpressionFieldNotBool(String),
 }
