@@ -6,7 +6,10 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-test-suite = ["bpf-common/test-utils"]
+test-suite = [
+  "bpf-common/test-suite",
+  "pulsar-core/test-suite"
+]
 
 [dependencies]
 bpf-common = { workspace = true }

@@ -10,17 +10,16 @@ pulsar-core = { workspace = true }
 
 tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
-lettre = { workspace = true, features = [
-    "smtp-transport",
-    "tokio1-native-tls",
-    "tokio1",
-    "builder",
-] }
-openssl = { workspace = true }
+lettre = { workspace = true }
 leon = { workspace = true }
 gethostname = { workspace = true }
 chrono = { workspace = true }
 rand = { workspace = true }
 
 [features]
-openssl-vendored = ["openssl/vendored"]
+default = ["native-tls"]
+
+# TLS
+boring-tls = ["lettre/tokio1-boring-tls"]
+native-tls = ["lettre/tokio1-native-tls"]
+rustls-tls = ["lettre/tokio1-rustls-tls"]

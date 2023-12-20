@@ -53,25 +53,25 @@ jobs:
       matrix:
         platform:
           - target: x86_64-unknown-linux-gnu
-            args: "--features full --features openssl-vendored"
+            args: "--no-default-features --features smtp-notifier/rustls-tls"
             docker:
               base-image: debian:bookworm
               platform: linux/amd64
 
           - target: x86_64-unknown-linux-musl
-            args: "--features full --features openssl-vendored"
+            args: "--no-default-features --features smtp-notifier/rustls-tls"
 
           - target: aarch64-unknown-linux-gnu
-            args: "--features full --features openssl-vendored"
+            args: "--no-default-features --features smtp-notifier/rustls-tls"
             docker:
               base-image: debian:bookworm
               platform: linux/arm64
           
           - target: aarch64-unknown-linux-musl
-            args: "--features full --features openssl-vendored"
+            args: "--no-default-features --features smtp-notifier/rustls-tls"
 
           - target: riscv64gc-unknown-linux-gnu
-            args: "--features full --features openssl-vendored"
+            args: "--no-default-features --features smtp-notifier/rustls-tls"
             docker:
               base-image: debian:sid
               platform: linux/riscv64

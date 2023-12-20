@@ -6,21 +6,30 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+# NOTE(vadorovsky): Explicitly enable default features of our internal
+# dependencies. See the note in the main Cargo.toml for an explanation
+# why is it done.
+default = [
+  "bpf-common/default",
+  "pulsar-core/default"
+]
 test-suite = [
-  "bpf-common/test-utils",
+  "bpf-common/test-suite",
   "which",
   "cgroups-rs",
 ]
 
 [dependencies]
+# Internal
+bpf-common = { workspace = true }
+pulsar-core = { workspace = true }
+
+# External
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 anyhow = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
-bpf-common = { workspace = true }
-pulsar-core = { workspace = true }
 regex = { workspace = true }
 which = { workspace = true, optional = true }
 cgroups-rs = { workspace = true, optional = true }

@@ -5,9 +5,19 @@ license.workspace = true
 edition.workspace = true
 repository.workspace = true
 
+[features]
+default = [
+  "bpf-common/default"
+]
+test-suite = [
+  "bpf-common/test-suite"
+]
+
 [dependencies]
+# Internal
 bpf-common = { path = "../bpf-common" }
 validatron = { path = "../validatron" }
+
 serde = { workspace = true, features = ["derive"] }
 toml_edit = { workspace = true, features = ["easy"] }
 tokio = { workspace = true, features = ["full"] }

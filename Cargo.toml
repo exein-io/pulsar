@@ -40,11 +40,25 @@ semver = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 
 [features]
-default = ["full"]
+default = [
+    "full",
+    # NOTE(vadorovsky): Explicitly enable default features of our internal
+    # dependencies. See the note below for an explanation why is it done.
+    "bpf-common/default",
+    "smtp-notifier/default"
+]
+test-suite = [
+    "bpf-common/test-suite",
+    "file-system-monitor/test-suite",
+    "network-monitor/test-suite",
+    "process-monitor/test-suite",
+    "pulsar-core/test-suite"
+]
+
+# Pulsar modules
 full = ["core", "extra"]
 core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
-openssl-vendored = ["smtp-notifier?/openssl-vendored"]
 
 [workspace]
 members = [
@@ -72,20 +86,35 @@ edition = "2021"
 repository = "https://github.com/Exein-io/pulsar"
 
 [workspace.dependencies]
+# NOTE(vadorovsky): We define our internal dependencies with
+# `default-features = false` in order to be able to pick features from the main
+# crate (`pulsar`).
+#
+# Without doing so, default features of internal subcrates are being pulled in
+# even when pulsar is being built with:
+#
+# ```
+# cargo build --no-default-features
+# ```
+#
+# Which takes away the freedom of disabling default features.
+
 # Crates
-bpf-builder = { path = "crates/bpf-builder" }
-bpf-common = { path = "crates/bpf-common", features = ["test-utils", "test-suite"] }
-bpf-filtering = { path = "crates/bpf-filtering", features = ["test-suite"] }
-engine-api = { path = "crates/engine-api" }
-pulsar-core = { path = "crates/pulsar-core" }
+bpf-builder = { path = "crates/bpf-builder", default-features = false }
+bpf-common = { path = "crates/bpf-common", default-features = false }
+bpf-filtering = { path = "crates/bpf-filtering", default-features = false }
+engine-api = { path = "crates/engine-api", default-features = false }
+pulsar-core = { path = "crates/pulsar-core", default-features = false }
+validatron = { path = "crates/validatron", default-features = false }
 # Modules
-desktop-notifier = { path = "crates/modules/desktop-notifier" }
-file-system-monitor = { path = "crates/modules/file-system-monitor", features = ["test-suite"] }
+desktop-notifier = { path = "crates/modules/desktop-notifier", default-features = false }
+file-system-monitor = { path = "crates/modules/file-system-monitor", default-features = false }
 logger = { path = "crates/modules/logger" }
-network-monitor = { path = "crates/modules/network-monitor", features = ["test-suite"] }
-process-monitor = { path = "crates/modules/process-monitor", features = ["test-suite"] }
-rules-engine = { path = "crates/modules/rules-engine" }
-smtp-notifier = { path = "crates/modules/smtp-notifier" }
+network-monitor = { path = "crates/modules/network-monitor", default-features = false }
+process-monitor = { path = "crates/modules/process-monitor", default-features = false }
+rules-engine = { path = "crates/modules/rules-engine", default-features = false }
+smtp-notifier = { path = "crates/modules/smtp-notifier", default-features = false }
+
 # External
 anyhow = "1"
 aya = { git = "https://github.com/aya-rs/aya", rev = "33b2e45ad313f7468a7d11667f13d9c365e2a263", features = ["async_tokio"] }
@@ -108,13 +137,12 @@ lalrpop = "0.19.9"
 lalrpop-util = { version="0.19.9", features=["lexer"] }
 lazy_static = "1.4"
 leon = "2.0.1"
-lettre = { version = "0.10.4", default-features = false, features = ["smtp-transport", "tokio1-native-tls", "tokio1", "builder"] }
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder"] }
 libc = "0.2"
 libtest-mimic =  "0.6.0"
 log = "0.4"
 nix = { version = "0.26.2", features = ["fs"] }
 num_cpus = "1.16"
-openssl = { version = "0.10.57" }
 proc-macro2 = "1.0"
 procfs = { version = "0.14.2", default-features = false }
 quote = "1.0"
@@ -136,7 +164,6 @@ tokio = { version = "1", features = ["full"] }
 tokio-fd = "0.3.0"
 tokio-tungstenite = "0.20.1"
 uuid = { version = "1.4", features = ["v4"] }
-validatron = { path = "crates/validatron" }
 validatron-derive = { path = "crates/validatron/derive" }
 which = { version = "4.2.5" }
 xshell = "0.2.2"
