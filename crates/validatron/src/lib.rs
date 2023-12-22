@@ -3,7 +3,7 @@
 //! It check if fields specified in a rules are valid for a given type. Example:
 //!
 //! ```
-//! use validatron::{validator::get_valid_rule, Validatron, Field, Identifier, RValue, RelationalOperator, Operator};
+//! use validatron::{validator::get_valid_rule, Validatron, Field, Identifier, RValue, RelationalOperator, Operator, SimpleField};
 //!
 //! #[derive(Validatron)]
 //! struct MyStruct {
@@ -11,9 +11,9 @@
 //! }
 //!
 //! let rule = get_valid_rule::<MyStruct>(
-//!     vec![Identifier::Field(Field::Simple {
-//!         field_name: "my_value".to_string(),
-//!     })],
+//!     vec![Identifier::Field(Field::Simple(SimpleField(
+//!         "my_value".to_string(),
+//!     )))],
 //!     Operator::Relational(RelationalOperator::Equals),
 //!     RValue::Value("42".to_string()),
 //! )
@@ -30,7 +30,7 @@
 //! On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
 //!
 //! ```
-//! use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Identifier, RValue, Field};
+//! use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Identifier, RValue, Field, SimpleField};
 //!
 //! #[derive(Validatron)]
 //! struct MyStruct {
@@ -42,16 +42,16 @@
 //!         name: "my_value equal to 3 or 5".to_string(),
 //!         condition: Condition::Or {
 //!             l: Box::new(Condition::Binary {
-//!                 l: vec![Identifier::Field(Field::Simple {
-//!                     field_name: "my_value".to_string(),
-//!                 })],
+//!                 l: vec![Identifier::Field(Field::Simple(SimpleField(
+//!                     "my_value".to_string()
+//!                 )))],
 //!                 op: Operator::Relational(RelationalOperator::Equals),
 //!                 r: RValue::Value("3".to_string()),
 //!             }),
 //!             r: Box::new(Condition::Binary {
-//!                 l: vec![Identifier::Field(Field::Simple {
-//!                     field_name: "my_value".to_string(),
-//!                 })],
+//!                 l: vec![Identifier::Field(Field::Simple(SimpleField(
+//!                     "my_value".to_string()
+//!                 )))],
 //!                 op: Operator::Relational(RelationalOperator::Equals),
 //!                 r: RValue::Value("5".to_string()),
 //!             }),
@@ -60,9 +60,9 @@
 //!     Rule {
 //!         name: "my_value greater than 100".to_string(),
 //!         condition: Condition::Binary {
-//!             l: vec![Identifier::Field(Field::Simple {
-//!                 field_name: "my_value".to_string(),
-//!             })],
+//!             l: vec![Identifier::Field(Field::Simple(SimpleField(
+//!                 "my_value".to_string()
+//!             )))],
 //!             op: Operator::Relational(RelationalOperator::Greater),
 //!             r: RValue::Value("100".to_string()),
 //!         },
@@ -158,18 +158,26 @@ pub enum Identifier {
 #[serde(tag = "type", content = "content")]
 pub enum Field {
     /// struct field
-    Simple { field_name: String },
+    Simple(SimpleField),
     /// enum field
-    Adt {
-        variant_name: String,
-        field_name: String,
-    },
+    Adt(AdtField),
 }
 
-/// Respresents a method call on an identifier
+/// Represents a simple field
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SimpleField(pub String);
+
+/// Represents an adt field
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AdtField {
+    pub variant_name: String,
+    pub field_name: String,
+}
+
+/// Respresents a method call
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MethodCall {
-    name: String,
+    pub name: String,
 }
 
 /// Argument of the operator. It can be a simple [String] or it can be another field represented as

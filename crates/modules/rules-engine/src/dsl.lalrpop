@@ -1,7 +1,7 @@
-use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, RValue, Field, Identifier, Condition};
+use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, RValue, Field, Identifier, Condition, AdtField, SimpleField, MethodCall};
 use lalrpop_util::ParseError;
 
-use super::{DslError};
+use super::{DslError, IndentValue};
 
 grammar(variant: &str);
 
@@ -51,6 +51,7 @@ BinaryCondition: Condition = {
     
         Ok(ret_val)
     },
+    <f: FieldPath> => Condition::Unary(f),
     "(" <Condition> ")",
 }
 
@@ -89,33 +90,63 @@ Operator: Operator = {
 }
 
 FieldPath: Vec<Identifier> = {
-    <Dot<Ident>> => {
+    <Dot<Ident>> =>? {
         let mut payload_subpath = false;
-        <>.into_iter().enumerate().map(|(index,value)| {
-            if index == 0 && value == "payload" {
-                payload_subpath = true;
+
+        let mut v = Vec::new();
+        v.reserve(<>.len());
+
+        let mut dotted_idents = <>.into_iter().enumerate();
+
+        while let Some((index, value)) = dotted_idents.next() {
+            match value {
+                IndentValue::MethodCall(mc) => {
+                    if index == 0 {
+                        return Err(ParseError::User {
+                            error: DslError::FunctionCall
+                        })
+                    }
+
+                    if dotted_idents.len() == 0 {
+                        v.push(Identifier::MethodCall(mc));
+                    } else {
+                        return Err(ParseError::User {
+                            error: DslError::MethodCallNotFinal
+                        })
+                    }
+                }
+                IndentValue::SimpleField(SimpleField(value)) => {
+                    if index == 0 && value == "payload" {
+                        payload_subpath = true;
+                    }
+
+                    let identifier = if index == 1 && payload_subpath {
+                        Identifier::Field(Field::Adt(AdtField { variant_name: variant.to_string(), field_name: value } ))
+                    } else {
+                        Identifier::Field(Field::Simple(SimpleField(value)))
+                    }; 
+
+                    v.push(identifier);
+                }
             }
-            if index == 1 && payload_subpath {
-                Identifier::Field(Field::Adt{variant_name: variant.to_string(), field_name: value})
-            } else {
-                Identifier::Field(Field::Simple { field_name: value })
-            }  
-        }).collect()
+        }
+
+        Ok(v)
     }
 }
 
 Dot<T>: Vec<T> = {
-    <mut v:(<T> ".")*> <e:T?> => match e {
-        None => v,
-        Some(e) => {
-            v.push(e);
-            v
-        }
+    <v:T> <mut e:("." <T>)*> => if e.is_empty() {
+        vec![v]
+    } else {
+        e.insert(0, v);
+        e
     }
 }
 
-Ident: String = {
-    <s: r"[a-zA-Z]+\w*"> => <>.to_string()
+Ident: IndentValue = {
+    <s: r"[a-zA-Z]+\w*"> => IndentValue::SimpleField(SimpleField(<>.to_string())),
+    <s: r"[a-zA-Z]+\w*">"()" => IndentValue::MethodCall(MethodCall{ name: <>.to_string() })
 }
 
 extern {

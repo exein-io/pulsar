@@ -1,10 +1,21 @@
 use lalrpop_util::lalrpop_mod;
 use thiserror::Error;
+use validatron::{MethodCall, SimpleField};
 
 #[derive(Error, Debug)]
 pub enum DslError {
     #[error("Empty list is not allowed")]
     EmptyList,
+    #[error("Methods are allowed only as final type")]
+    MethodCallNotFinal,
+    #[error("Function calls are not supported, only methods are allowed")]
+    FunctionCall,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum IndentValue {
+    SimpleField(SimpleField),
+    MethodCall(MethodCall),
 }
 
 lalrpop_mod!(#[allow(clippy::all)] pub dsl); // syntesized by LALRPOP
@@ -12,7 +23,8 @@ lalrpop_mod!(#[allow(clippy::all)] pub dsl); // syntesized by LALRPOP
 #[cfg(test)]
 mod tests {
     use validatron::{
-        Condition, Field, Identifier, Operator, RValue, RelationalOperator, StringOperator,
+        AdtField, Condition, Field, Identifier, MethodCall, Operator, RValue, RelationalOperator,
+        SimpleField, StringOperator,
     };
 
     use super::*;
@@ -23,9 +35,9 @@ mod tests {
             .parse("Exec", r#"a == 3"#)
             .unwrap();
         let expected = Condition::Binary {
-            l: vec![Identifier::Field(Field::Simple {
-                field_name: "a".to_string(),
-            })],
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "a".to_string(),
+            )))],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("3".to_string()),
         };
@@ -39,12 +51,8 @@ mod tests {
             .unwrap();
         let expected = Condition::Binary {
             l: vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "header".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "pid".to_string(),
-                }),
+                Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
             ],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("3".to_string()),
@@ -65,12 +73,8 @@ mod tests {
             .unwrap();
         let expected = Condition::Binary {
             l: vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "header".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "pid".to_string(),
-                }),
+                Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
             ],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("3".to_string()),
@@ -84,9 +88,9 @@ mod tests {
             .parse("Exec", r#"header == 3"#)
             .unwrap();
         let expected = Condition::Binary {
-            l: vec![Identifier::Field(Field::Simple {
-                field_name: "header".to_string(),
-            })],
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "header".to_string(),
+            )))],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("3".to_string()),
         };
@@ -99,9 +103,9 @@ mod tests {
             .parse("Exec", r#"filename == "/etc/passwd""#)
             .unwrap();
         let expected = Condition::Binary {
-            l: vec![Identifier::Field(Field::Simple {
-                field_name: "filename".to_string(),
-            })],
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "filename".to_string(),
+            )))],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("/etc/passwd".to_string()),
         };
@@ -114,9 +118,9 @@ mod tests {
             .parse("Exec", r#"image == "systemd""#)
             .unwrap();
         let expected = Condition::Binary {
-            l: vec![Identifier::Field(Field::Simple {
-                field_name: "image".to_string(),
-            })],
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "image".to_string(),
+            )))],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("systemd".to_string()),
         };
@@ -129,9 +133,9 @@ mod tests {
             .parse("Exec", r#"image STARTS_WITH "systemd""#)
             .unwrap();
         let expected = Condition::Binary {
-            l: vec![Identifier::Field(Field::Simple {
-                field_name: "image".to_string(),
-            })],
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "image".to_string(),
+            )))],
             op: Operator::String(StringOperator::StartsWith),
             r: RValue::Value("systemd".to_string()),
         };
@@ -145,15 +149,9 @@ mod tests {
             .unwrap();
         let expected = Condition::Binary {
             l: vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "struct".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "field".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "nested".to_string(),
-                }),
+                Identifier::Field(Field::Simple(SimpleField("struct".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("field".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("nested".to_string()))),
             ],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("3".to_string()),
@@ -169,12 +167,8 @@ mod tests {
         let expected = Condition::Not {
             inner: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "image".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::NotEquals),
                 r: RValue::Value("/usr/bin/sshd".to_string()),
@@ -191,12 +185,8 @@ mod tests {
         let expected = Condition::Not {
             inner: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "image".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::NotEquals),
                 r: RValue::Value("/usr/bin/sshd".to_string()),
@@ -216,25 +206,19 @@ mod tests {
         let expected = Condition::And {
             l: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "image".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::NotEquals),
                 r: RValue::Value("/usr/bin/sshd".to_string()),
             }),
             r: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "payload".to_string(),
-                    }),
-                    Identifier::Field(Field::Adt {
+                    Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
+                    Identifier::Field(Field::Adt(AdtField {
                         variant_name: "Exec".to_string(),
                         field_name: "filename".to_string(),
-                    }),
+                    })),
                 ],
                 op: Operator::Relational(RelationalOperator::Equals),
                 r: RValue::Value("/etc/shadow".to_string()),
@@ -254,25 +238,19 @@ mod tests {
         let expected = Condition::Or {
             l: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "image".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::NotEquals),
                 r: RValue::Value("/usr/bin/sshd".to_string()),
             }),
             r: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "payload".to_string(),
-                    }),
-                    Identifier::Field(Field::Adt {
+                    Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
+                    Identifier::Field(Field::Adt(AdtField {
                         variant_name: "FileOpen".to_string(),
                         field_name: "filename".to_string(),
-                    }),
+                    })),
                 ],
                 op: Operator::Relational(RelationalOperator::Equals),
                 r: RValue::Value("/etc/shadow".to_string()),
@@ -289,12 +267,8 @@ mod tests {
         let expected = Condition::Or {
             l: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "image".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::Equals),
                 r: RValue::Value("/usr/bin/sshd".to_string()),
@@ -303,25 +277,19 @@ mod tests {
                 inner: Box::new(Condition::And {
                     l: Box::new(Condition::Binary {
                         l: vec![
-                            Identifier::Field(Field::Simple {
-                                field_name: "header".to_string(),
-                            }),
-                            Identifier::Field(Field::Simple {
-                                field_name: "image".to_string(),
-                            }),
+                            Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                            Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
                         ],
                         op: Operator::Relational(RelationalOperator::Equals),
                         r: RValue::Value("/usr/bin/cat".to_string()),
                     }),
                     r: Box::new(Condition::Binary {
                         l: vec![
-                            Identifier::Field(Field::Simple {
-                                field_name: "payload".to_string(),
-                            }),
-                            Identifier::Field(Field::Adt {
+                            Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
+                            Identifier::Field(Field::Adt(AdtField {
                                 variant_name: "Exec".to_string(),
                                 field_name: "filename".to_string(),
-                            }),
+                            })),
                         ],
                         op: Operator::Relational(RelationalOperator::Equals),
                         r: RValue::Value("/etc/passwd".to_string()),
@@ -339,12 +307,8 @@ mod tests {
             .unwrap();
         let expected = Condition::Binary {
             l: vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "header".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "image".to_string(),
-                }),
+                Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
             ],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Value("/usr/bin/cat".to_string()),
@@ -360,24 +324,16 @@ mod tests {
         let expected = Condition::Or {
             l: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "pid".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::Equals),
                 r: RValue::Value("4".to_string()),
             }),
             r: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "pid".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::Equals),
                 r: RValue::Value("2".to_string()),
@@ -395,24 +351,16 @@ mod tests {
             l: Box::new(Condition::Or {
                 l: Box::new(Condition::Binary {
                     l: vec![
-                        Identifier::Field(Field::Simple {
-                            field_name: "header".to_string(),
-                        }),
-                        Identifier::Field(Field::Simple {
-                            field_name: "pid".to_string(),
-                        }),
+                        Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                        Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
                     ],
                     op: Operator::Relational(RelationalOperator::Equals),
                     r: RValue::Value("6".to_string()),
                 }),
                 r: Box::new(Condition::Binary {
                     l: vec![
-                        Identifier::Field(Field::Simple {
-                            field_name: "header".to_string(),
-                        }),
-                        Identifier::Field(Field::Simple {
-                            field_name: "pid".to_string(),
-                        }),
+                        Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                        Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
                     ],
                     op: Operator::Relational(RelationalOperator::Equals),
                     r: RValue::Value("6".to_string()),
@@ -420,12 +368,8 @@ mod tests {
             }),
             r: Box::new(Condition::Binary {
                 l: vec![
-                    Identifier::Field(Field::Simple {
-                        field_name: "header".to_string(),
-                    }),
-                    Identifier::Field(Field::Simple {
-                        field_name: "pid".to_string(),
-                    }),
+                    Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                    Identifier::Field(Field::Simple(SimpleField("pid".to_string()))),
                 ],
                 op: Operator::Relational(RelationalOperator::Equals),
                 r: RValue::Value("6".to_string()),
@@ -447,22 +391,16 @@ mod tests {
             .unwrap();
         let expected = Condition::Binary {
             l: vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "header".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "image".to_string(),
-                }),
+                Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("image".to_string()))),
             ],
             op: Operator::Relational(RelationalOperator::Equals),
             r: RValue::Identifier(vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "payload".to_string(),
-                }),
-                Identifier::Field(Field::Adt {
+                Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
+                Identifier::Field(Field::Adt(AdtField {
                     variant_name: "FileDelete".to_string(),
                     field_name: "filename".to_string(),
-                }),
+                })),
             ]),
         };
         assert_eq!(parsed, expected);
@@ -473,13 +411,28 @@ mod tests {
         let parsed = dsl::ConditionParser::new()
             .parse("Exec", r#"a == "3""#)
             .unwrap();
-        let expected = Condition::Base {
-            field_path: vec![Field::Simple {
-                field_name: "a".to_string(),
-            }],
+        let expected = Condition::Binary {
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "a".to_string(),
+            )))],
             op: Operator::Relational(RelationalOperator::Equals),
-            value: Match::Value("3".to_string()),
+            r: RValue::Value("3".to_string()),
         };
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn single_method_call() {
+        let parsed = dsl::ConditionParser::new()
+            .parse("FileExec", r#"header.container.is_some()"#)
+            .unwrap();
+        let expected = Condition::Unary(vec![
+            Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+            Identifier::Field(Field::Simple(SimpleField("container".to_string()))),
+            Identifier::MethodCall(MethodCall {
+                name: "is_some".to_string(),
+            }),
+        ]);
         assert_eq!(parsed, expected);
     }
 }
