@@ -82,7 +82,6 @@ pub struct Header {
     pub image: String,
     pub pid: i32,
     pub parent_pid: i32,
-    #[validatron(skip)]
     pub container: Option<ContainerInfo>,
     #[validatron(skip)]
     pub threat: Option<Threat>,

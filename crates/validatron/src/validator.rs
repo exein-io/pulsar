@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    Field, Identifier, MultiOperator, Operator, RValue, Validatron, ValidatronClass,
-    ValidatronClassKind, ValidatronError,
+    AdtField, Field, Identifier, MultiOperator, Operator, RValue, SimpleField, Validatron,
+    ValidatronClass, ValidatronClassKind, ValidatronError,
 };
 
 /// Represents a valid rule for a type `T`.
@@ -46,8 +46,8 @@ struct ValidField<T: Validatron> {
 }
 
 // Generic extractor function: given a T, extracts something
-type ExtractorFn<T> = Box<dyn Fn(&T) -> Option<Leaf> + Send + Sync>;
-type AnyExtractorFn = Box<dyn Fn(&dyn Any) -> Option<Leaf> + Send + Sync>;
+type ExtractorFn<T> = Box<dyn for<'a> Fn(&'a T) -> Option<Leaf<'a>> + Send + Sync>;
+type AnyExtractorFn = Box<dyn for<'a> Fn(&'a dyn Any) -> Option<Leaf<'a>> + Send + Sync>;
 
 /// Represents the chain of access functions starting from the top of a type `T`.
 enum ExtractorFrom<T: Validatron> {
@@ -75,9 +75,9 @@ impl<T: Validatron + 'static> ExtractorFrom<T> {
                             let next = next(&o)?;
 
                             match next {
-                            Leaf::Ref(_) => unreachable!("this shold not happen because the method is the last extractor"),
-                            Leaf::Owned(o) => Some(Leaf::Owned(o)),
-                        }
+                                Leaf::Ref(_) => unreachable!("this shold not happen because the method is the last extractor"),
+                                Leaf::Owned(o) => Some(Leaf::Owned(o)),
+                            }
                         }
                     }
                 }))
@@ -255,7 +255,7 @@ fn get_valid_field_from_class<T: Validatron + 'static>(
                     Err(ValidatronError::NoMoreFieldsError("collection".to_string()))
                 }
                 ValidatronClassKind::Struct(ztruct) => {
-                    if let Field::Simple { field_name } = current_field {
+                    if let Field::Simple(SimpleField(field_name)) = current_field {
                         if let Some(attribute) = ztruct.get_field_owned(&field_name) {
                             let attribute_class = attribute.get_class();
 
@@ -279,10 +279,10 @@ fn get_valid_field_from_class<T: Validatron + 'static>(
                     }
                 }
                 ValidatronClassKind::Enum(enumz) => {
-                    if let Field::Adt {
+                    if let Field::Adt(AdtField {
                         variant_name,
                         field_name,
-                    } = current_field
+                    }) = current_field
                     {
                         if let Some(variant) =
                             enumz.get_variant_field_owned(&variant_name, &field_name)
@@ -375,8 +375,8 @@ pub fn get_valid_unary_rule<T: Validatron + 'static>(
 mod test {
     use crate::{
         validator::{get_valid_rule, get_valid_unary_rule},
-        Field, Identifier, MethodCall, MultiOperator, Operator, RValue, RelationalOperator,
-        Validatron, ValidatronClass,
+        AdtField, Field, Identifier, MethodCall, MultiOperator, Operator, RValue,
+        RelationalOperator, SimpleField, Validatron, ValidatronClass,
     };
 
     #[test]
@@ -409,9 +409,9 @@ mod test {
         }
 
         let rule = get_valid_rule::<Wrapper>(
-            vec![Identifier::Field(Field::Simple {
-                field_name: "i".to_string(),
-            })],
+            vec![Identifier::Field(Field::Simple(SimpleField(
+                "i".to_string(),
+            )))],
             Operator::Relational(RelationalOperator::Greater),
             RValue::Value("42".to_string()),
         )
@@ -440,13 +440,13 @@ mod test {
         }
 
         let rule = get_valid_rule::<Wrapper>(
-            vec![Identifier::Field(Field::Simple {
-                field_name: "i".to_string(),
-            })],
+            vec![Identifier::Field(Field::Simple(SimpleField(
+                "i".to_string(),
+            )))],
             Operator::Relational(RelationalOperator::Greater),
-            RValue::Identifier(vec![Identifier::Field(Field::Simple {
-                field_name: "second".to_string(),
-            })]),
+            RValue::Identifier(vec![Identifier::Field(Field::Simple(SimpleField(
+                "second".to_string(),
+            )))]),
         )
         .unwrap();
 
@@ -485,9 +485,9 @@ mod test {
         }
 
         let rule = get_valid_rule::<Wrapper>(
-            vec![Identifier::Field(Field::Simple {
-                field_name: "v".to_string(),
-            })],
+            vec![Identifier::Field(Field::Simple(SimpleField(
+                "v".to_string(),
+            )))],
             Operator::Multi(MultiOperator::Contains),
             RValue::Value("666".to_string()),
         )
@@ -518,13 +518,13 @@ mod test {
         }
 
         let rule = get_valid_rule::<Wrapper>(
-            vec![Identifier::Field(Field::Simple {
-                field_name: "v".to_string(),
-            })],
+            vec![Identifier::Field(Field::Simple(SimpleField(
+                "v".to_string(),
+            )))],
             Operator::Multi(MultiOperator::Contains),
-            RValue::Identifier(vec![Identifier::Field(Field::Simple {
-                field_name: "i".to_string(),
-            })]),
+            RValue::Identifier(vec![Identifier::Field(Field::Simple(SimpleField(
+                "i".to_string(),
+            )))]),
         )
         .unwrap();
 
@@ -568,12 +568,8 @@ mod test {
 
         let rule = get_valid_rule::<Outer>(
             vec![
-                Identifier::Field(Field::Simple {
-                    field_name: "inner_struct".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "inner_field".to_string(),
-                }),
+                Identifier::Field(Field::Simple(SimpleField("inner_struct".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("inner_field".to_string()))),
             ],
             Operator::Relational(RelationalOperator::Less),
             RValue::Value("666".to_string()),
@@ -613,10 +609,10 @@ mod test {
         }
 
         let rule = get_valid_rule::<MyEnum>(
-            vec![Identifier::Field(Field::Adt {
+            vec![Identifier::Field(Field::Adt(AdtField {
                 variant_name: "Unnamed".to_string(),
                 field_name: "0".to_string(),
-            })],
+            }))],
             Operator::Relational(RelationalOperator::Less),
             RValue::Value("666".to_string()),
         )
@@ -670,23 +666,19 @@ mod test {
 
         let rule = get_valid_rule::<MyEnum>(
             vec![
-                Identifier::Field(Field::Adt {
+                Identifier::Field(Field::Adt(AdtField {
                     variant_name: "Named".to_string(),
                     field_name: "inner".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "small".to_string(),
-                }),
+                })),
+                Identifier::Field(Field::Simple(SimpleField("small".to_string()))),
             ],
             Operator::Relational(RelationalOperator::Less),
             RValue::Identifier(vec![
-                Identifier::Field(Field::Adt {
+                Identifier::Field(Field::Adt(AdtField {
                     variant_name: "Named".to_string(),
                     field_name: "inner".to_string(),
-                }),
-                Identifier::Field(Field::Simple {
-                    field_name: "big".to_string(),
-                }),
+                })),
+                Identifier::Field(Field::Simple(SimpleField("big".to_string()))),
             ]),
         )
         .unwrap();
