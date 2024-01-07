@@ -43,6 +43,15 @@ pub enum ContainerId {
     Libpod(String),
 }
 
+impl fmt::Display for ContainerId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ContainerId::Docker(id) => write!(f, "{id}"),
+            ContainerId::Libpod(id) => write!(f, "{id}"),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct DockerConfig {
     #[serde(rename = "Config")]
