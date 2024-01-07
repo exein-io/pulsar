@@ -263,13 +263,23 @@ impl ProcessTracker {
         }
     }
 
-    fn handle_container(&mut self, pid: Pid, namespaces: Namespaces) -> Result<(), ContainerError> {
+    fn handle_container_info(
+        &mut self,
+        pid: Pid,
+        namespaces: Namespaces,
+        is_new_container: bool,
+    ) -> Result<(), ContainerError> {
         let container_id = procfs::get_process_container_id(pid)?;
         if let Some(id) = container_id {
-            let container_info = ContainerInfo::from_container_id(id)?;
-            self.containers.insert(namespaces, container_info);
-        } else {
-            log::warn!("could not determine a continer ID of a new containerized process {pid}");
+            let container_info = ContainerInfo::from_container_id(id.clone())?;
+            self.containers.entry(namespaces).or_insert_with(|| {
+                if is_new_container {
+                    log::debug!("Detected a new container {id}");
+                } else {
+                    log::debug!("Detected an already existing container {id}");
+                }
+                container_info
+            });
         }
         Ok(())
     }
@@ -283,10 +293,8 @@ impl ProcessTracker {
                 namespaces,
                 is_new_container,
             } => {
-                if is_new_container {
-                    self.handle_container(pid, namespaces)
-                        .unwrap_or_else(|err| log::error!("{err}"));
-                }
+                self.handle_container_info(pid, namespaces, is_new_container)
+                    .unwrap_or_else(|err| log::error!("{err}"));
                 self.processes.insert(
                     pid,
                     ProcessData {
@@ -317,10 +325,8 @@ impl ProcessTracker {
                 namespaces,
                 is_new_container,
             } => {
-                if is_new_container {
-                    self.handle_container(pid, namespaces)
-                        .unwrap_or_else(|err| log::error!("{err}"));
-                }
+                self.handle_container_info(pid, namespaces, is_new_container)
+                    .unwrap_or_else(|err| log::error!("{err}"));
                 if let Some(p) = self.processes.get_mut(&pid) {
                     p.exec_changes.insert(timestamp, std::mem::take(image));
                     p.argv = std::mem::take(argv)
