@@ -1,4 +1,5 @@
 mod bpf_sender;
+pub mod containers;
 pub mod program;
 #[cfg(feature = "test-utils")]
 pub mod test_runner;

@@ -3,8 +3,9 @@ use std::{fs, os::unix::fs::MetadataExt};
 use anyhow::Context;
 use bpf_common::{
     aya::maps::HashMap,
+    containers::ContainerError,
     ebpf_program,
-    parsing::{containers::ContainerError, BufferIndex, IndexError},
+    parsing::{BufferIndex, IndexError},
     program::BpfContext,
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
