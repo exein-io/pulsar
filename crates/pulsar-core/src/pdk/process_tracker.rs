@@ -1,10 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bpf_common::{
-    parsing::{
-        containers::{self, ContainerInfo},
-        procfs::{self, ProcfsError},
-    },
+    containers::{self, ContainerInfo},
+    parsing::procfs::{self, ProcfsError},
     time::Timestamp,
     Pid,
 };

@@ -109,6 +109,7 @@ chrono = { version = "0.4.31" }
 clap = { version = "4.4.11", features = ["derive"] }
 comfy-table = "7.1.0"
 dns-parser = "0.8.0"
+diesel = { version = "2.1", features = ["sqlite"] }
 env_logger = "0.10.1"
 futures = "0.3.29"
 futures-util = "0.3.29"

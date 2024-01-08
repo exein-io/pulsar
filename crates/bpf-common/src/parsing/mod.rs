@@ -1,4 +1,3 @@
-pub mod containers;
 pub mod mountinfo;
 pub mod procfs;
 
