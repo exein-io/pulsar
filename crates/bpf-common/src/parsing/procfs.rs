@@ -11,7 +11,7 @@ use std::{
 };
 use thiserror::Error;
 
-use super::containers::ContainerId;
+use crate::containers::ContainerId;
 
 // Special value used to indicate openat should use the current working directory.
 const AT_FDCWD: i32 = -100;
