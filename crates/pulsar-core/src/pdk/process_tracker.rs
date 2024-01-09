@@ -1,8 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bpf_common::{
-    containers::{self, ContainerInfo},
-    parsing::procfs::{self, ProcfsError},
+    containers::{ContainerError, ContainerInfo},
     time::Timestamp,
     Pid,
 };
@@ -79,14 +78,6 @@ pub enum TrackerError {
     ProcessNotStartedYet,
     #[error("process exited")]
     ProcessExited,
-}
-
-#[derive(Debug, Error)]
-pub enum ContainerError {
-    #[error(transparent)]
-    Procfs(#[from] ProcfsError),
-    #[error(transparent)]
-    Container(#[from] containers::ContainerError),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -265,14 +256,15 @@ impl ProcessTracker {
         pid: Pid,
         is_new_container: bool,
     ) -> Result<Option<ContainerInfo>, ContainerError> {
-        let container_id = procfs::get_process_container_id(pid)?;
-        match container_id {
-            Some(id) => {
-                let container_info = ContainerInfo::from_container_id(id.clone())?;
+        match ContainerInfo::from_pid(pid)? {
+            Some(container_info) => {
                 if is_new_container {
-                    log::debug!("Detected a new container {id}");
+                    log::debug!("Detected a new container {}", container_info.id);
                 } else {
-                    log::debug!("Detected an already existing container {id}");
+                    log::debug!(
+                        "Detected an already existing container {}",
+                        container_info.id
+                    );
                 }
                 Ok(Some(container_info))
             }

@@ -140,6 +140,7 @@ nix = { version = "0.27.1", features = [
     "net",
 ] }
 num_cpus = "1.16"
+nut = "0.1.1"
 openssl = "0.10.61"
 proc-macro2 = "1.0.70"
 procfs = { version = "0.16.0", default-features = false }
