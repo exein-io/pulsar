@@ -178,6 +178,10 @@ fn get_container_id_from_cgroup(cgroup_info: &str) -> Option<ContainerId> {
 }
 
 pub fn get_process_container_id(pid: Pid) -> Result<Option<ContainerId>, ProcfsError> {
+    if pid.as_raw() == 0 {
+        return Ok(None);
+    }
+
     let path = format!("/proc/{pid}/cgroup");
     let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
