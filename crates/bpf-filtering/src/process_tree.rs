@@ -66,12 +66,14 @@ fn get_process_namespace(pid: Pid, ns_type: &str) -> Result<u32, Error> {
 fn get_process_namespace_or_log(pid: Pid, namespace_type: &str) -> u32 {
     get_process_namespace(pid, namespace_type).map_or_else(
         |e| {
-            log::warn!(
-                "Failed to determine {} namespace for process {:?}: {}",
-                namespace_type,
-                pid,
-                e
-            );
+            if pid.as_raw() != 0 {
+                log::warn!(
+                    "Failed to determine {} namespace for process {:?}: {}",
+                    namespace_type,
+                    pid,
+                    e
+                );
+            }
             u32::default()
         },
         |v| v,
