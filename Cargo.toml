@@ -130,6 +130,7 @@ lettre = { version = "0.11.2", default-features = false, features = [
 ] }
 libc = "0.2.151"
 libtest-mimic = "0.6.1"
+libsqlite-sys = { version = "0.27", features = ["bundled"] }
 log = "0.4.20"
 nix = { version = "0.27.1", features = [
     "fs",
