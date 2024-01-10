@@ -20,7 +20,7 @@ lazy_static! {
     /// Pattern for matching cgroups created by Docker.
     static ref RE_CGROUP_DOCKER: Regex = Regex::new(r"docker.(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
     /// Pattern for matching cgroups created by libpod/podman.
-    static ref RE_CGROUP_LIBPOD: Regex = Regex::new(r"libpod.(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
+    static ref RE_CGROUP_LIBPOD: Regex = Regex::new(r"libpod(?:-conmon)?-(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
 }
 
 #[derive(Error, Debug)]
@@ -207,7 +207,7 @@ mod test {
         let container_id = get_container_id_from_cgroup("0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-gnome-Alacritty-3266.scope");
         assert_eq!(container_id, None);
 
-        let container_id = get_container_id_from_cgroup("0::/system.slice/docker-14467e1a5a6da17b660a130932f1ab568f35586bac8bc5147987d9bba4da08de.scop");
+        let container_id = get_container_id_from_cgroup("0::/system.slice/docker-14467e1a5a6da17b660a130932f1ab568f35586bac8bc5147987d9bba4da08de.scope");
         assert_eq!(
             container_id,
             Some(ContainerId::Docker(
@@ -215,6 +215,9 @@ mod test {
             ))
         );
 
+        // The standard cgroup pattern observed with podman on:
+        // * Gentoo
+        // * openSUSE
         let container_id = get_container_id_from_cgroup("0::/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362.scope/container");
         assert_eq!(
             container_id,
@@ -222,5 +225,13 @@ mod test {
                 "3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362".to_owned()
             ))
         );
+        // The cgroup pattern observed with podman on Fedora.
+        let container_id = get_container_id_from_cgroup("0::/machine.slice/libpod-conmon-551ccf517b3394d9b953efeb8296b93451e45c2a8288518e4391d7b1db3cc9ee.scope");
+        assert_eq!(
+            container_id,
+            Some(ContainerId::Libpod(
+                "551ccf517b3394d9b953efeb8296b93451e45c2a8288518e4391d7b1db3cc9ee".to_owned()
+            ))
+        )
     }
 }
