@@ -211,7 +211,7 @@ impl ContainerInfo {
 
         let user_home = Path::new(&user_home);
 
-        let libpod_database_backend = LibpodDatabaseBackend::of_user(uid, &user_home)?;
+        let libpod_database_backend = LibpodDatabaseBackend::of_user(uid, user_home)?;
 
         let config = match libpod_database_backend {
             LibpodDatabaseBackend::Auto => {
@@ -357,7 +357,7 @@ impl LibpodDatabaseBackend {
 
 unsafe fn get_user_home_dir(uid: Uid) -> Option<OsString> {
     let amt = match libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) {
-        n if n < 0 => 512 as usize,
+        n if n < 0 => 512_usize,
         n => n as usize,
     };
     let mut buf = Vec::with_capacity(amt);
