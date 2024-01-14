@@ -92,6 +92,12 @@ static __always_inline void on_file_open(void *ctx, struct file *file) {
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
+  unsigned int flags = BPF_CORE_READ(file, f_flags);
+  // This bit is present in file flags during the second, duplicate trigger of
+  // the `file_open` hook when running inside container. When the bit is
+  // present, just stop the program.
+  if (flags & 01000000)
+    return;
   struct fs_event *event = init_fs_event(FILE_OPENED, tgid);
   if (!event)
     return;
