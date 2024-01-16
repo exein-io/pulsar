@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bpf_common::{
-    containers::{ContainerError, ContainerInfo},
+    containers::{ContainerId, ContainerInfo},
     time::Timestamp,
     Pid,
 };
+use nix::unistd::Uid;
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -25,6 +26,7 @@ pub struct ProcessTrackerHandle {
     tx: mpsc::UnboundedSender<TrackerRequest>,
 }
 
+#[derive(Debug)]
 enum TrackerRequest {
     GetProcessInfo(InfoRequest),
     UpdateProcess(TrackerUpdate),
@@ -35,18 +37,20 @@ enum TrackerRequest {
 pub enum TrackerUpdate {
     Fork {
         pid: Pid,
+        uid: Uid,
         timestamp: Timestamp,
         ppid: Pid,
         namespaces: Namespaces,
-        is_new_container: bool,
+        container_id: Option<ContainerId>,
     },
     Exec {
         pid: Pid,
+        uid: Uid,
         timestamp: Timestamp,
         image: String,
         argv: Vec<String>,
         namespaces: Namespaces,
-        is_new_container: bool,
+        container_id: Option<ContainerId>,
     },
     SetNewParent {
         pid: Pid,
@@ -58,12 +62,14 @@ pub enum TrackerUpdate {
     },
 }
 
+#[derive(Debug)]
 struct InfoRequest {
     pid: Pid,
     ts: Timestamp,
     tx_reply: oneshot::Sender<Result<ProcessInfo, TrackerError>>,
 }
 
+#[derive(Debug)]
 struct DescendantRequest {
     pid: Pid,
     image: String,
@@ -251,43 +257,27 @@ impl ProcessTracker {
         }
     }
 
-    fn get_container_info(
-        &mut self,
-        pid: Pid,
-        is_new_container: bool,
-    ) -> Result<Option<ContainerInfo>, ContainerError> {
-        match ContainerInfo::from_pid(pid)? {
-            Some(container_info) => {
-                if is_new_container {
-                    log::debug!("Detected a new container {}", container_info.id);
-                } else {
-                    log::debug!(
-                        "Detected an already existing container {}",
-                        container_info.id
-                    );
-                }
-                Ok(Some(container_info))
-            }
-            None => Ok(None),
-        }
-    }
-
     fn handle_update(&mut self, mut update: TrackerUpdate) {
         match update {
             TrackerUpdate::Fork {
                 pid,
+                uid,
                 timestamp,
                 ppid,
                 namespaces,
-                is_new_container,
+                container_id,
             } => {
-                let container = match self.get_container_info(pid, is_new_container) {
-                    Ok(container) => container,
-                    Err(err) => {
-                        log::error!("{err}");
-                        None
-                    }
-                };
+                let container =
+                    container_id.and_then(|c_id| {
+                        match ContainerInfo::from_container_id(c_id, uid) {
+                            Ok(container) => container,
+                            Err(err) => {
+                                log::error!("{err}");
+                                None
+                            }
+                        }
+                    });
+
                 self.processes.insert(
                     pid,
                     ProcessData {
@@ -313,19 +303,23 @@ impl ProcessTracker {
             }
             TrackerUpdate::Exec {
                 pid,
+                uid,
                 timestamp,
                 ref mut image,
                 ref mut argv,
                 namespaces,
-                is_new_container,
+                ref container_id,
             } => {
-                let container = match self.get_container_info(pid, is_new_container) {
-                    Ok(container) => container,
-                    Err(err) => {
-                        log::error!("{err}");
-                        None
+                let container = container_id.clone().and_then(|c_id| {
+                    match ContainerInfo::from_container_id(c_id, uid) {
+                        Ok(container) => container,
+                        Err(err) => {
+                            log::error!("{err}");
+                            None
+                        }
                     }
-                };
+                });
+
                 if let Some(p) = self.processes.get_mut(&pid) {
                     p.exec_changes.insert(timestamp, std::mem::take(image));
                     p.argv = std::mem::take(argv);
@@ -489,6 +483,7 @@ mod tests {
 
     const PID_1: Pid = Pid::from_raw(42);
     const PID_2: Pid = Pid::from_raw(43);
+    const UID_USER: Uid = Uid::from_raw(1000);
 
     const NAMESPACES_1: Namespaces = Namespaces {
         uts: 4026531835,
@@ -519,17 +514,19 @@ mod tests {
         process_tracker.update(TrackerUpdate::Fork {
             ppid: PID_1,
             pid: PID_2,
+            uid: UID_USER,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
-            is_new_container: false,
+            container_id: None,
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: PID_2,
+            uid: UID_USER,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
             argv: Vec::new(),
             namespaces: NAMESPACES_1,
-            is_new_container: false,
+            container_id: None,
         });
         process_tracker.update(TrackerUpdate::Exit {
             pid: PID_2,
@@ -580,18 +577,20 @@ mod tests {
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: PID_2,
+            uid: UID_USER,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
             argv: Vec::new(),
             namespaces: NAMESPACES_1,
-            is_new_container: false,
+            container_id: None,
         });
         process_tracker.update(TrackerUpdate::Fork {
             ppid: PID_1,
             pid: PID_2,
+            uid: UID_USER,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
-            is_new_container: false,
+            container_id: None,
         });
         assert_eq!(
             process_tracker.get(PID_2, 9.into()).await,

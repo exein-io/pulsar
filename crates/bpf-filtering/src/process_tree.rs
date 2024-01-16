@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use bpf_common::{
+    containers::ContainerId,
     parsing::procfs::{self, ProcfsError},
-    Pid,
+    Pid, Uid,
 };
 use lazy_static::lazy_static;
 use pulsar_core::event::Namespaces;
@@ -21,9 +22,11 @@ pub(crate) struct ProcessTree {
 #[derive(Debug)]
 pub(crate) struct ProcessData {
     pub(crate) pid: Pid,
+    pub(crate) uid: Uid,
     pub(crate) image: String,
     pub(crate) parent: Pid,
     pub(crate) namespaces: Namespaces,
+    pub(crate) container_id: Option<ContainerId>,
 }
 
 #[derive(Debug, Error)]
@@ -39,6 +42,7 @@ pub(crate) enum Error {
 }
 
 pub(crate) const PID_0: Pid = Pid::from_raw(0);
+pub(crate) const UID_0: Uid = Uid::from_raw(0);
 
 fn get_process_namespace(pid: Pid, ns_type: &str) -> Result<u32, Error> {
     let path = Path::new("/proc")
@@ -104,6 +108,8 @@ impl ProcessTree {
 
         // Get process list
         for pid in procfs::get_running_processes()? {
+            let uid = procfs::get_process_user_id(pid)?;
+
             let image = procfs::get_process_image(pid)
                 .map(|path| path.to_string_lossy().to_string())
                 .unwrap_or_else(|err| {
@@ -115,13 +121,18 @@ impl ProcessTree {
                 Pid::from_raw(1)
             });
             let namespaces = get_process_namespaces(pid);
+
+            let container_id = procfs::get_process_container_id(pid)?;
+
             processes.insert(
                 pid,
                 ProcessData {
                     pid,
+                    uid,
                     image,
                     parent,
                     namespaces,
+                    container_id,
                 },
             );
             children.entry(parent).or_default().push(pid);
@@ -134,9 +145,11 @@ impl ProcessTree {
             PID_0,
             ProcessData {
                 pid: PID_0,
+                uid: UID_0,
                 image: String::from("kernel"),
                 parent: PID_0,
                 namespaces,
+                container_id: None,
             },
         );
 
@@ -167,17 +180,26 @@ impl ProcessTree {
     /// Add a new entry and return its process info.
     /// This is needed during initialization to go from raw fork/exec events to
     /// the full PorcessData needed by the policy filtering setup.
-    pub(crate) fn fork(&mut self, pid: Pid, ppid: Pid) -> Result<&ProcessData, Error> {
+    pub(crate) fn fork(
+        &mut self,
+        pid: Pid,
+        ppid: Pid,
+        uid: Uid,
+        namespaces: Namespaces,
+        container_id: Option<ContainerId>,
+    ) -> Result<&ProcessData, Error> {
         let parent = self.processes.iter().find(|p| p.pid == ppid);
         match parent {
             Some(parent) => {
                 let image = parent.image.to_string();
-                let namespaces = get_process_namespaces(pid);
+
                 self.processes.push(ProcessData {
                     pid,
+                    uid,
                     image,
                     parent: ppid,
                     namespaces,
+                    container_id,
                 });
                 Ok(self.processes.last().unwrap())
             }

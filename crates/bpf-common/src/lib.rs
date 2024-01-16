@@ -32,6 +32,7 @@ pub fn log_error<E: std::error::Error + Send + Sync + 'static>(msg: &str, err: E
 }
 
 pub use nix::unistd::Pid;
+pub use nix::unistd::Uid;
 
 #[cfg(all(target_os = "linux", target_arch = "x86"))]
 #[path = "platform/linux-x86/mod.rs"]

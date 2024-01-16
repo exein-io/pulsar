@@ -73,17 +73,19 @@ pub async fn setup_events_filter(
         process_tracker.update(TrackerUpdate::Fork {
             ppid: process.parent,
             pid: process.pid,
+            uid: process.uid,
             timestamp: Timestamp::from(0),
             namespaces: process.namespaces,
-            is_new_container: false,
+            container_id: process.container_id.clone(),
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: process.pid,
+            uid: process.uid,
             image: process.image.to_string(),
             timestamp: Timestamp::from(0),
             argv: Vec::new(),
             namespaces: process.namespaces,
-            is_new_container: false,
+            container_id: process.container_id.clone(),
         });
     }
 
@@ -91,9 +93,20 @@ pub async fn setup_events_filter(
     let mut apply_new_events = || -> Result<()> {
         while let Ok(update) = rx_processes.try_recv() {
             match &update {
-                TrackerUpdate::Fork { pid, ppid, .. } => {
-                    initializer.update(process_tree.fork(*pid, *ppid)?)?
-                }
+                TrackerUpdate::Fork {
+                    pid,
+                    ppid,
+                    uid,
+                    namespaces,
+                    container_id,
+                    ..
+                } => initializer.update(process_tree.fork(
+                    *pid,
+                    *ppid,
+                    *uid,
+                    *namespaces,
+                    container_id.clone(),
+                )?)?,
                 TrackerUpdate::Exec { pid, image, .. } => {
                     initializer.update(process_tree.exec(*pid, image)?)?
                 }

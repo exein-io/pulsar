@@ -11,12 +11,12 @@ use std::{
 
 use diesel::prelude::*;
 use ini::Ini;
-use nix::unistd::{Pid, Uid};
+use nix::unistd::Uid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use validatron::Validatron;
 
-use crate::parsing::procfs::{self, ProcfsError};
+use crate::parsing::procfs::ProcfsError;
 
 pub mod schema;
 
@@ -158,14 +158,13 @@ impl fmt::Display for ContainerInfo {
 }
 
 impl ContainerInfo {
-    pub fn from_pid(pid: Pid) -> Result<Option<Self>, ContainerError> {
-        let Some(container_id) = procfs::get_process_container_id(pid)? else {
-            return Ok(None);
-        };
-
+    pub fn from_container_id(
+        container_id: ContainerId,
+        uid: Uid,
+    ) -> Result<Option<Self>, ContainerError> {
         let info = match container_id {
             ContainerId::Docker(id) => Self::from_docker_id(id),
-            ContainerId::Libpod(id) => Self::from_libpod_id(id, pid),
+            ContainerId::Libpod(id) => Self::from_libpod_id(id, uid),
         };
 
         info.map(Some)
@@ -203,9 +202,7 @@ impl ContainerInfo {
         })
     }
 
-    fn from_libpod_id(id: String, pid: Pid) -> Result<Self, ContainerError> {
-        let uid = procfs::get_process_user_id(pid)?;
-
+    fn from_libpod_id(id: String, uid: Uid) -> Result<Self, ContainerError> {
         let user_home =
             unsafe { get_user_home_dir(uid) }.ok_or(ContainerError::HomeDirNotFound { uid })?;
 

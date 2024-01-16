@@ -9,6 +9,7 @@ use bpf_common::{
     program::BpfContext,
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
+use nix::unistd::Uid;
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
 use which::which;
@@ -64,6 +65,20 @@ pub enum ProcessEventError {
     ContainerNotFound(Pid),
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub enum COption<T> {
+    None,
+    Some(T),
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct CContainerId {
+    container_engine: i32,
+    cgroup_id: BufferIndex<str>,
+}
+
 // The events sent from eBPF to userspace must be byte by byte
 // re-interpretable as Rust types. So pointers to the heap are
 // not allowed.
@@ -71,16 +86,18 @@ pub enum ProcessEventError {
 #[repr(C)]
 pub enum ProcessEvent {
     Fork {
+        uid: Uid,
         ppid: Pid,
         namespaces: Namespaces,
-        is_new_container: bool,
+        c_container_id: COption<CContainerId>,
     },
     Exec {
+        uid: Uid,
         filename: BufferIndex<str>,
         argc: u32,
         argv: BufferIndex<str>, // 0 separated strings
         namespaces: Namespaces,
-        is_new_container: bool,
+        c_container_id: COption<CContainerId>,
     },
     Exit {
         exit_code: u32,
@@ -120,7 +137,7 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
         process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
         Payload, PulsarModule, ShutdownSignal, Version,
@@ -151,22 +168,40 @@ pub mod pulsar {
             BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
                 let _ = tx_processes.send(match event.payload {
                     ProcessEvent::Fork {
+                        uid,
                         ppid,
                         namespaces,
-                        is_new_container,
-                    } => TrackerUpdate::Fork {
-                        pid: event.pid,
-                        ppid,
-                        timestamp: event.timestamp,
-                        namespaces,
-                        is_new_container,
-                    },
+                        ref c_container_id,
+                    } => {
+                        let container_id = match c_container_id {
+                            COption::Some(ccid) => {
+                                let id = ccid.cgroup_id.string(&event.buffer).unwrap();
+                                let container_id = match ccid.container_engine {
+                                    0 => ContainerId::Docker(id),
+                                    1 => ContainerId::Libpod(id),
+                                    _ => panic!("unknown container id identifier"),
+                                };
+                                Some(container_id)
+                            }
+                            COption::None => None,
+                        };
+
+                        TrackerUpdate::Fork {
+                            pid: event.pid,
+                            uid,
+                            ppid,
+                            timestamp: event.timestamp,
+                            namespaces,
+                            container_id,
+                        }
+                    }
                     ProcessEvent::Exec {
+                        uid,
                         ref filename,
                         argc,
                         ref argv,
                         namespaces,
-                        is_new_container,
+                        ref c_container_id,
                     } => {
                         let argv =
                             extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
@@ -181,14 +216,29 @@ pub mod pulsar {
                                 event.pid
                             )
                         }
+
+                        let container_id = match c_container_id {
+                            COption::Some(ccid) => {
+                                let id = ccid.cgroup_id.string(&event.buffer).unwrap();
+                                let container_id = match ccid.container_engine {
+                                    0 => ContainerId::Docker(id),
+                                    1 => ContainerId::Libpod(id),
+                                    _ => panic!("unknown container id identifier"),
+                                };
+                                Some(container_id)
+                            }
+                            COption::None => None,
+                        };
+
                         TrackerUpdate::Exec {
                             pid: event.pid,
+                            uid,
                             // ignoring this error since it will be catched in IntoPayload
                             image: filename.string(&event.buffer).unwrap_or_default(),
                             timestamp: event.timestamp,
                             argv,
                             namespaces,
-                            is_new_container,
+                            container_id,
                         }
                     }
                     ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
