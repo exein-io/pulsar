@@ -18,9 +18,9 @@ const AT_FDCWD: i32 = -100;
 
 lazy_static! {
     /// Pattern for matching cgroups created by Docker.
-    static ref RE_CGROUP_DOCKER: Regex = Regex::new(r"docker.(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
+    static ref RE_CGROUP_DOCKER: Regex = Regex::new(r"docker-(?P<id>[0-9a-f]{64})").unwrap();
     /// Pattern for matching cgroups created by libpod/podman.
-    static ref RE_CGROUP_LIBPOD: Regex = Regex::new(r"libpod(?:-conmon)?-(?P<id>[0-9a-f]+)(?:[^0-9a-f])").unwrap();
+    static ref RE_CGROUP_LIBPOD: Regex = Regex::new(r"libpod-(?P<id>[0-9a-f]{64})").unwrap();
 }
 
 #[derive(Error, Debug)]
@@ -136,25 +136,6 @@ pub fn get_process_user_id(pid: Pid) -> Result<Uid, ProcfsError> {
     Err(ProcfsError::UserNotFound(pid))
 }
 
-/// Returns the cpuset cgroup id of a given process.
-pub fn get_process_cgroup_id(pid: Pid) -> Option<String> {
-    let cgroup_path = format!("/proc/{pid}/cgroup");
-    let file = match File::open(cgroup_path) {
-        Ok(f) => f,
-        Err(_) => return None,
-    };
-
-    let reader = BufReader::new(file);
-    for line in reader.lines().flatten() {
-        if !line.is_empty() && line.contains(":cpuset:") {
-            let mut s = line.splitn(3, ':');
-            return s.nth(2).map(|s| s.to_string());
-        }
-    }
-
-    None
-}
-
 pub fn get_running_processes() -> Result<Vec<Pid>, ProcfsError> {
     glob("/proc/[0-9]*")?
         .map(|entry| {
@@ -225,13 +206,15 @@ mod test {
                 "3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362".to_owned()
             ))
         );
-        // The cgroup pattern observed with podman on Fedora.
-        let container_id = get_container_id_from_cgroup("0::/machine.slice/libpod-conmon-551ccf517b3394d9b953efeb8296b93451e45c2a8288518e4391d7b1db3cc9ee.scope");
+        // Simple case
+        let container_id = get_container_id_from_cgroup(
+            "libpod-66e02eba51752490a89c808be0e01bd94514e20554a99b3ce7d62ac2361982e4",
+        );
         assert_eq!(
             container_id,
             Some(ContainerId::Libpod(
-                "551ccf517b3394d9b953efeb8296b93451e45c2a8288518e4391d7b1db3cc9ee".to_owned()
+                "66e02eba51752490a89c808be0e01bd94514e20554a99b3ce7d62ac2361982e4".to_owned()
             ))
-        )
+        );
     }
 }
