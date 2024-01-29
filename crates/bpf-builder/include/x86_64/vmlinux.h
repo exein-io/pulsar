@@ -1,1 +1,1 @@
-vmlinux_6_5_2.h
+vmlinux_6_7_2.h
