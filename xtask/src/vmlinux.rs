@@ -195,6 +195,26 @@ fn generate_vmlinux_for_arch(
     make(options, arch, cross_compile, builddir, "defconfig")?;
     make(options, arch, cross_compile, builddir, "scripts")?;
 
+    // Disable GDB scripts, we don't need them and they might mangle the debug
+    // info configuration.
+    disable_config(builddir, "CONFIG_GDB_SCRIPTS")?;
+
+    // Enable all cgroup types.
+    enable_config(builddir, "CONFIG_CPUSETS")?;
+    enable_config(builddir, "CONFIG_CGROUP_SCHED")?;
+    enable_config(builddir, "CONFIG_CGROUP_CPUACCT")?;
+    enable_config(builddir, "CONFIG_BLK_CGROUP")?;
+    enable_config(builddir, "CONFIG_MEMCG")?;
+    enable_config(builddir, "CONFIG_CGROUP_DEVICE")?;
+    enable_config(builddir, "CONFIG_CGROUP_FREEZER")?;
+    enable_config(builddir, "CONFIG_CGROUP_NET_CLASSID")?;
+    enable_config(builddir, "CONFIG_CGROUP_PERF")?;
+    enable_config(builddir, "CONFIG_CGROUP_NET_PRIO")?;
+    enable_config(builddir, "CONFIG_CGROUP_HUGETLB")?;
+    enable_config(builddir, "CONFIG_CGROUP_PIDS")?;
+    enable_config(builddir, "CONFIG_CGROUP_RDMA")?;
+    enable_config(builddir, "CONFIG_CGROUP_MISC")?;
+
     // Enable BTF and all BPF features. Even though some of these might not
     // seem directly related from name, they are (DWARF is needed for BTF,
     // page pool stats are related to XDP sockets).
@@ -248,7 +268,6 @@ fn generate_vmlinux_for_arch(
     disable_config(builddir, "CONFIG_DEBUG_INFO_COMPRESSED_ZLIB")?;
     disable_config(builddir, "CONFIG_DEBUG_INFO_SPLIT")?;
     disable_config(builddir, "CONFIG_MODULE_ALLOW_BTF_MISMATCH")?;
-    disable_config(builddir, "CONFIG_GDB_SCRIPTS")?;
     enable_config(builddir, "CONFIG_PROBE_EVENTS_BTF_ARGS")?;
     enable_config(builddir, "CONFIG_BPF_LSM")?;
     enable_config(builddir, "CONFIG_DEBUG_INFO_BTF")?;
