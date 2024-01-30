@@ -134,14 +134,6 @@ struct
   __uint(max_entries, MAX_PENDING_DEAD_PARENTS);
 } orphans_map SEC(".maps");
 
-struct
-{
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, u64);
-  __type(value, u8);
-  __uint(max_entries, MAX_CONTAINER_RUNTIMES);
-} container_runtimes_map SEC(".maps");
-
 /*
 Identifies the container engine and reads the cgroup id of a process
 from its `task_struct` into an given array of character.
