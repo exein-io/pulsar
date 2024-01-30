@@ -1,8 +1,5 @@
-use std::{fs, os::unix::fs::MetadataExt};
-
 use anyhow::Context;
 use bpf_common::{
-    aya::maps::HashMap,
     containers::ContainerError,
     ebpf_program,
     parsing::{BufferIndex, IndexError},
@@ -12,7 +9,6 @@ use bpf_common::{
 use nix::unistd::Uid;
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
-use which::which;
 
 const MODULE_NAME: &str = "process-monitor";
 
@@ -31,23 +27,6 @@ pub async fn program(
         .raw_tracepoint("cgroup_attach_task")
         .start()
         .await?;
-
-    let mut container_runtimes_map: HashMap<_, u64, u8> = program
-        .bpf()
-        .map_mut("container_runtimes_map")
-        .unwrap()
-        .try_into()?;
-    for container_runtime in ["crun", "containerd-shim-runc-v2", "runc", "youki"] {
-        if let Ok(runtime_path) = which(container_runtime) {
-            let ino = fs::metadata(&runtime_path)
-                .map_err(|e| ProgramError::InodeError {
-                    path: runtime_path,
-                    io_error: Box::new(e),
-                })?
-                .ino();
-            container_runtimes_map.insert(ino, 0, 0)?;
-        }
-    }
 
     program
         .read_events("map_output_process_event", sender)
