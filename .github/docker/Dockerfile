@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 
 ARG ARCH
 
-RUN apt update && apt upgrade -y && apt install -y ca-certificates
+RUN apt update && apt upgrade -y && apt install -y ca-certificates libsqlite3-0
 
 COPY ./target/${ARCH}/release/pulsar-exec /usr/sbin/pulsar-exec
 
