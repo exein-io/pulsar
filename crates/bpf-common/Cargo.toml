@@ -9,6 +9,7 @@ repository.workspace = true
 default = []
 test-suite = ["test-utils"]
 test-utils = ["which", "cgroups-rs", "rand"]
+sqlite3-vendored = ["libsqlite3-sys/bundled"]
 
 [dependencies]
 aya = { workspace = true, features = ["async_tokio"] }
@@ -31,6 +32,7 @@ regex = { workspace = true }
 diesel = { workspace = true }
 rust-ini = { workspace = true }
 nut = { workspace = true }
+libsqlite3-sys = { workspace = true }
 
 # Test deps
 which = { workspace = true, optional = true }
