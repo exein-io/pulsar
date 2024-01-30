@@ -44,7 +44,9 @@ default = ["full"]
 full = ["core", "extra"]
 core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
+all-vendored = ["openssl-vendored", "sqlite3-vendored"]
 openssl-vendored = ["smtp-notifier?/openssl-vendored"]
+sqlite3-vendored = ["bpf-common/sqlite3-vendored"]
 
 [workspace]
 members = [
@@ -130,7 +132,7 @@ lettre = { version = "0.11.2", default-features = false, features = [
 ] }
 libc = "0.2.151"
 libtest-mimic = "0.6.1"
-libsqlite-sys = { version = "0.27", features = ["bundled"] }
+libsqlite3-sys = { version = "0.27" }
 log = "0.4.20"
 nix = { version = "0.27.1", features = [
     "fs",
