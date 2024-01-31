@@ -9,7 +9,7 @@ use std::{
     ptr,
 };
 
-use diesel::prelude::*;
+use diesel::{connection::SimpleConnection, prelude::*};
 use ini::Ini;
 use nix::unistd::Uid;
 use serde::{Deserialize, Serialize};
@@ -417,6 +417,19 @@ fn sqlite_find_libpod_container_config<P: AsRef<Path>>(
         }
     })?;
 
+    // Enable busy timeout to before querying the database because
+    // of possible ongoing transactions
+    if let Err(err) = conn
+        .batch_execute("PRAGMA busy_timeout = 200;")
+        .map_err(ConnectionError::CouldntSetupConfiguration)
+    {
+        log::error!("failed to setup busy timeout in sqlite: {err}");
+
+        return Err(ContainerError::ContainerNotFound {
+            id: container_id.to_owned(),
+        });
+    };
+
     match libpod_db_container_config
         .filter(id.eq(&container_id))
         .limit(1)
@@ -433,9 +446,12 @@ fn sqlite_find_libpod_container_config<P: AsRef<Path>>(
 
             Ok(config)
         }
-        Err(_) => Err(ContainerError::ContainerNotFound {
-            id: container_id.to_owned(),
-        }),
+        Err(e) => {
+            log::error!("error querying podman sqlite database {e}");
+            Err(ContainerError::ContainerNotFound {
+                id: container_id.to_owned(),
+            })
+        }
     }
 }
 
