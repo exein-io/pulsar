@@ -54,8 +54,15 @@ pub enum COption<T> {
 #[derive(Debug)]
 #[repr(C)]
 pub struct CContainerId {
-    container_engine: i32,
+    container_engine: ContainerEngineKind,
     cgroup_id: BufferIndex<str>,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub enum ContainerEngineKind {
+    Docker,
+    Podman,
 }
 
 // The events sent from eBPF to userspace must be byte by byte
@@ -156,9 +163,8 @@ pub mod pulsar {
                             COption::Some(ccid) => {
                                 let id = ccid.cgroup_id.string(&event.buffer).unwrap();
                                 let container_id = match ccid.container_engine {
-                                    0 => ContainerId::Docker(id),
-                                    1 => ContainerId::Libpod(id),
-                                    _ => panic!("unknown container id identifier"),
+                                    ContainerEngineKind::Docker => ContainerId::Docker(id),
+                                    ContainerEngineKind::Podman => ContainerId::Libpod(id),
                                 };
                                 Some(container_id)
                             }
@@ -200,9 +206,8 @@ pub mod pulsar {
                             COption::Some(ccid) => {
                                 let id = ccid.cgroup_id.string(&event.buffer).unwrap();
                                 let container_id = match ccid.container_engine {
-                                    0 => ContainerId::Docker(id),
-                                    1 => ContainerId::Libpod(id),
-                                    _ => panic!("unknown container id identifier"),
+                                    ContainerEngineKind::Docker => ContainerId::Docker(id),
+                                    ContainerEngineKind::Podman => ContainerId::Libpod(id),
                                 };
                                 Some(container_id)
                             }

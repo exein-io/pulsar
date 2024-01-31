@@ -61,7 +61,7 @@ struct fork_event
     u32 discriminant;
     struct
     {
-      int container_engine;
+      u32 container_engine;
       struct buffer_index cgroup_id;
     } container_id;
   } option_index;
