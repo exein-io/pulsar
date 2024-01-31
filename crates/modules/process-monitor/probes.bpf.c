@@ -29,6 +29,14 @@ char LICENSE[] SEC("license") = "GPL v2";
 
 #define CONTAINER_ID_MAX_BUF 72
 
+#define DOCKER_CONTAINER_ENGINE 0
+#define PODMAN_CONTAINER_ENGINE 1
+#define UNKNOWN_CONTAINER_ENGINE -1
+#define FAILED_READ_MEMORY_CGROUP_ID -2
+#define FAILED_READ_CGROUP_NAME -3
+#define FAILED_READ_PARENT_CGROUP_NAME -4
+#define FAILED_PARSE_LIBPOD_CGROUP_NAME -5
+
 struct namespaces
 {
   unsigned int uts;
@@ -171,20 +179,20 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
     cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
   else
-    return -2;
+    return FAILED_READ_MEMORY_CGROUP_ID;
 
   const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
   if (bpf_probe_read_kernel_str(buf, sz, name) < 0)
   {
     LOG_ERROR("failed to get kernfs node name: %s\n", buf);
-    return -3;
+    return FAILED_READ_CGROUP_NAME;
   }
 
   // Docker case
   if (bpf_strncmp(buf, 7, "docker-") == 0)
   {
     *offset = 7;
-    return 0;
+    return DOCKER_CONTAINER_ENGINE;
   }
 
   // Podman case
@@ -199,23 +207,23 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
     if (bpf_probe_read_kernel_str(buf, sz, parent_name) < 0)
     {
       LOG_ERROR("failed to get parent kernfs node name: %s\n", buf);
-      return -4;
+      return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
     if (bpf_strncmp(buf, 7, "libpod-") == 0)
     {
       *offset = 7;
-      return 1;
+      return PODMAN_CONTAINER_ENGINE;
     }
 
     // Error podman step 2
     LOG_ERROR("failed parsing libpod id: %s\n", buf);
-    return -5;
+    return FAILED_PARSE_LIBPOD_CGROUP_NAME;
   }
 
   // No container or unknown container engine
   LOG_DEBUG("no container or unknown container engine. id: %s\n", buf);
-  return -1;
+  return UNKNOWN_CONTAINER_ENGINE;
 }
 
 // This hook intercepts new process creations, inherits interest for the child
