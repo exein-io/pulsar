@@ -465,4 +465,19 @@ mod tests {
         };
         assert_eq!(parsed, expected);
     }
+
+    #[test]
+    fn one_character_value_start() {
+        let parsed = dsl::ConditionParser::new()
+            .parse("Exec", r#"a == "3""#)
+            .unwrap();
+        let expected = Condition::Base {
+            field_path: vec![Field::Simple {
+                field_name: "a".to_string(),
+            }],
+            op: Operator::Relational(RelationalOperator::Equals),
+            value: Match::Value("3".to_string()),
+        };
+        assert_eq!(parsed, expected);
+    }
 }
