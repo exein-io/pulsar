@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 -
 
+## [0.7.1] - 2024-02-01
+
+### Added
+- boltdb support for `podman` container configuration
+
+### Changed
+- read cgroup name in BPF
+
+### Fixed
+- one character string value in rule engine DSL
+- handle containers which were running before Pulsar
+
 ## [0.7.0] - 2023-12-20
 
 ### Added
