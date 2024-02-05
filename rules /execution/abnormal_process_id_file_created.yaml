@@ -1,0 +1,23 @@
+# Title: Abnormal Process Id File Created
+
+# Creation date: 2022/05/11
+
+# Category: Execution
+
+# Severity: Medium
+
+# Description: Identifies the creation of a Process ID (PID), lock or reboot file created in temporary file storage paradigm (tmpfs)
+# directory /var/run. On Linux, the PID files typically hold the process ID to track previous copies running and manage
+# other tasks. Certain Linux malware use the /var/run directory for holding data, executables and other tasks, disguising
+# itself or these files as legitimate PID files.
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Technique: T1106 - Native API - https://attack.mitre.org/techniques/T1106/
+
+- name: File creation by suspicious processes
+  type: FileCreated
+  condition: header.image ENDS_WITH "/bash" OR header.image ENDS_WITH "/dash" OR header.image ENDS_WITH "/sh" OR header.image ENDS_WITH "/tcsh" OR header.image ENDS_WITH "/csh" OR header.image ENDS_WITH "/zsh" OR header.image ENDS_WITH "/ksh" OR header.image ENDS_WITH "/fish" OR header.image ENDS_WITH "/ash" OR header.image ENDS_WITH "/touch" OR header.image ENDS_WITH "/nano" OR header.image ENDS_WITH "/vim" OR header.image ENDS_WITH "/vi" OR header.image ENDS_WITH "/editor" OR header.image ENDS_WITH "/mv" OR header.image ENDS_WITH "/cp"
+    AND payload.filename ENDS_WITH ".pid" OR payload.filename ENDS_WITH ".lock" OR payload.filename ENDS_WITH ".reboot"
+    AND payload.filename STARTS_WITH "/var/run/" OR payload.filename STARTS_WITH "/run/"
+    AND NOT header.image ENDS_WITH "/go" AND NOT header.image ENDS_WITH "/git" AND NOT header.image ENDS_WITH "/containerd" AND NOT header.image ENDS_WITH "/snap-confine" AND NOT header.image ENDS_WITH "/cron" AND NOT header.image ENDS_WITH "/crond" AND NOT header.image ENDS_WITH "/sshd" AND NOT header.image ENDS_WITH "/unattended-upgrade" AND NOT header.image ENDS_WITH "/vzctl" AND NOT header.image ENDS_WITH "/ifup" AND NOT header.image ENDS_WITH "/rpcbind"

@@ -1,0 +1,33 @@
+# Title: Curl Cve 2023 38545 Heap Overflow
+
+# Creation date: 2023/10/11
+
+# Category: Execution
+
+# Severity: Medium
+
+# Description: Detects potential exploitation of curl CVE-2023-38545 by monitoring for vulnerable command line arguments in conjunction 
+# with an unusual command line length. A flaw in curl version <= 8.3 makes curl vulnerable to a heap based buffer overflow
+# during the SOCKS5 proxy handshake. Upgrade to curl version >= 8.4 to patch this vulnerability. This exploit can be executed 
+# with and without the use of environment variables. For increased visibility, enable the collection of http_proxy, 
+# HTTPS_PROXY and ALL_PROXY environment variables based on the instructions provided in the setup guide of this rule.
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Technique: T1203 - Exploitation for Client Execution - https://attack.mitre.org/techniques/T1203/
+
+- name: Curl execution with proxy arguments
+  type: Exec
+  condition: payload.filename == "/usr/bin/curl" AND (payload.argv CONTAINS "--socks5-hostname" OR payload.argv CONTAINS "--proxy" OR payload.argv CONTAINS "--preproxy" OR payload.argv CONTAINS "socks5*")
+
+- name: Curl execution with proxy environment variables
+  type: Exec
+  condition: payload.filename == "/usr/bin/curl" AND (payload.argv CONTAINS "http_proxy=socks5h://" OR payload.argv CONTAINS "HTTPS_PROXY=socks5h://" OR payload.argv CONTAINS "ALL_PROXY=socks5h://")
+
+- name: Curl execution with long command line
+  type: Exec
+  condition: payload.filename == "/usr/bin/curl" AND payload.argc > 255
+
+- name: Curl execution not by specific parents
+  type: Exec
+  condition: payload.filename == "/usr/bin/curl" AND NOT header.image ENDS_WITH "/cf-agent" AND NOT header.image ENDS_WITH "/agent-run" AND NOT header.image ENDS_WITH "/rudder" AND NOT header.image ENDS_WITH "/agent-inventory" AND NOT header.image ENDS_WITH "/cf-execd"

@@ -1,0 +1,54 @@
+# Title: Collection Sensitive Files
+
+# Creation date: 2020/12/22
+
+# Category: Credential access
+
+# Severity: Medium
+
+# Description: Identifies the use of a compression utility to collect known files containing sensitive information, such as credentials
+# and system configurations.
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1552 - Unsecured Credentials - https://attack.mitre.org/techniques/T1552/
+
+- name: Compressing sensitive files
+  type: Exec
+  condition: (
+    payload.filename ENDS_WITH "zip" OR
+    payload.filename ENDS_WITH "tar" OR
+    payload.filename ENDS_WITH "gzip" OR
+    payload.filename ENDS_WITH "hdiutil" OR
+    payload.filename ENDS_WITH "7z"
+    )
+    AND (
+      payload.argv CONTAINS "/root/.ssh/id_rsa" OR
+      payload.argv CONTAINS "/root/.ssh/id_rsa.pub" OR
+      payload.argv CONTAINS "/root/.ssh/id_ed25519" OR
+      payload.argv CONTAINS "/root/.ssh/id_ed25519.pub" OR
+      payload.argv CONTAINS "/root/.ssh/authorized_keys" OR
+      payload.argv CONTAINS "/root/.ssh/authorized_keys2" OR
+      payload.argv CONTAINS "/root/.ssh/known_hosts" OR
+      payload.argv CONTAINS "/root/.bash_history" OR
+      payload.argv CONTAINS "/etc/hosts" OR
+      payload.argv CONTAINS "/home/*/.ssh/id_rsa" OR
+      payload.argv CONTAINS "/home/*/.ssh/id_rsa.pub" OR
+      payload.argv CONTAINS "/home/*/.ssh/id_ed25519" OR
+      payload.argv CONTAINS "/home/*/.ssh/id_ed25519.pub" OR
+      payload.argv CONTAINS "/home/*/.ssh/authorized_keys" OR
+      payload.argv CONTAINS "/home/*/.ssh/authorized_keys2" OR
+      payload.argv CONTAINS "/home/*/.ssh/known_hosts" OR
+      payload.argv CONTAINS "/home/*/.bash_history" OR
+      payload.argv CONTAINS "/root/.aws/credentials" OR
+      payload.argv CONTAINS "/root/.aws/config" OR
+      payload.argv CONTAINS "/home/*/.aws/credentials" OR
+      payload.argv CONTAINS "/home/*/.aws/config" OR
+      payload.argv CONTAINS "/root/.docker/config.json" OR
+      payload.argv CONTAINS "/home/*/.docker/config.json" OR
+      payload.argv CONTAINS "/etc/group" OR
+      payload.argv CONTAINS "/etc/passwd" OR
+      payload.argv CONTAINS "/etc/shadow" OR
+      payload.argv CONTAINS "/etc/gshadow"
+    )
+  

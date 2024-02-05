@@ -1,0 +1,47 @@
+# Title: Data Encrypted Via Openssl
+
+# Creation date: 2023/06/26
+
+# Category: Impact
+
+# Severity: Medium
+
+# Description: Identifies when the openssl command-line utility is used to encrypt multiple files on a host within a short time window.
+# Adversaries may encrypt data on a single or multiple systems in order to disrupt the availability of their target's data
+# and may attempt to hold the organization's data to ransom for the purposes of extortion.
+
+# MITRE ATT&CK Tactic: TA0040 - Impact - https://attack.mitre.org/tactics/TA0040/
+
+# MITRE ATT&CK Technique: T1486 - Data Encrypted for Impact - https://attack.mitre.org/techniques/T1486/
+
+- name: OpenSSL execution by shell
+  type: Exec
+  condition: payload.filename ENDS_WITH "/openssl" 
+    AND 
+    header.image ENDS_WITH "/bash" OR header.image ENDS_WITH "/dash" OR header.image ENDS_WITH "/ash" OR header.image ENDS_WITH "/sh" OR header.image ENDS_WITH "/tcsh" OR header.image ENDS_WITH "/csh" OR header.image ENDS_WITH "/zsh" OR header.image ENDS_WITH "/ksh" OR header.image ENDS_WITH "/fish" OR header.image ENDS_WITH "/perl" OR header.image ENDS_WITH "/perl5" OR header.image ENDS_WITH "/php" OR header.image ENDS_WITH "/php5" OR header.image ENDS_WITH "/php7" OR header.image ENDS_WITH "/python" OR header.image ENDS_WITH "/python2" OR header.image ENDS_WITH "/python3" OR header.image ENDS_WITH "/xargs"
+    AND
+     payload.argv CONTAINS "-in" 
+    AND 
+    payload.argv CONTAINS "-out"
+    AND 
+    (
+      payload.argv CONTAINS "-k" 
+      OR 
+      payload.argv CONTAINS "-K" 
+      OR 
+      payload.argv CONTAINS "-kfile" 
+      OR 
+      payload.argv CONTAINS "-pass" 
+      OR 
+      payload.argv CONTAINS "-iv" 
+      OR 
+      payload.argv CONTAINS "-md"
+    )
+    AND NOT payload.argv CONTAINS "-d" 
+    AND NOT payload.argv CONTAINS "-a" 
+    AND NOT payload.argv CONTAINS "-A" 
+    AND NOT payload.argv CONTAINS "-base64" 
+    AND NOT payload.argv CONTAINS "-none" 
+    AND NOT payload.argv CONTAINS "-nosalt"
+
+
