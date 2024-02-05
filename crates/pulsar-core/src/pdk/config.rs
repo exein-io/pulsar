@@ -25,6 +25,8 @@ pub enum ConfigError {
         value: String,
         err: String,
     },
+    #[error("unknown container engine {engine}")]
+    ContainerEngine { engine: String },
 }
 
 impl ModuleConfig {

@@ -16,6 +16,8 @@ pub const DEFAULT_INTEREST: &str = "m_interest";
 /// Default name for rules map
 pub const DEFAULT_RULES: &str = "m_rules";
 pub const DEFAULT_CGROUP_RULES: &str = "m_cgroup_rules";
+/// Default name for container rules map
+pub const DEFAULT_CONTAINER_RULES: &str = "m_container_rules";
 
 impl InterestMap {
     /// Try to load the map from eBPF

@@ -49,6 +49,15 @@ struct bpf_map_def_aya {
     __uint(max_entries, 100);                                                  \
   } map_cgroup_rules SEC(".maps");
 
+// Map of containers to target
+#define MAP_CONTAINER_RULES(map_container_rules)                               \
+  struct {                                                                     \
+    __uint(type, BPF_MAP_TYPE_HASH);                                           \
+    __type(key, int);                                                          \
+    __type(value, u8);                                                         \
+    __uint(max_entries, 100);                                                  \
+  } map_container_rules SEC(".maps");
+
 // Define a map containing the interest for each process on the system.
 // > map_interest[<process pid>] = <INTEREST BITMAP>
 // TRACK_CHILDREN TRACK_SELF Description
@@ -158,6 +167,18 @@ tracker_check_cgroup_rules(struct bpf_map_def_aya *tracker, void *rules,
   __builtin_memset(path, 0, MAX_CGROUP_LEN);
   bpf_core_read_str(path, MAX_CGROUP_LEN, cgroup_path);
   if (bpf_map_lookup_elem(rules, path)) {
+    pid_t tgid = BPF_CORE_READ(p, tgid);
+    u8 policy = INTEREST_TRACK_SELF | INTEREST_TRACK_CHILDREN;
+    long res = bpf_map_update_elem(tracker, &tgid, &policy, BPF_ANY);
+  }
+}
+
+static __always_inline void
+tracker_check_container_rules(struct bpf_map_def_aya *tracker, void *rules,
+                              struct task_struct *p, int container_engine) {
+  int all_containers = 0;
+  if (bpf_map_lookup_elem(rules, &all_containers) ||
+      bpf_map_lookup_elem(rules, &container_engine)) {
     pid_t tgid = BPF_CORE_READ(p, tgid);
     u8 policy = INTEREST_TRACK_SELF | INTEREST_TRACK_CHILDREN;
     long res = bpf_map_update_elem(tracker, &tgid, &policy, BPF_ANY);

@@ -29,13 +29,13 @@ char LICENSE[] SEC("license") = "GPL v2";
 
 #define CONTAINER_ID_MAX_BUF 72
 
-#define DOCKER_CONTAINER_ENGINE 0
-#define PODMAN_CONTAINER_ENGINE 1
-#define UNKNOWN_CONTAINER_ENGINE -1
-#define FAILED_READ_MEMORY_CGROUP_ID -2
-#define FAILED_READ_CGROUP_NAME -3
-#define FAILED_READ_PARENT_CGROUP_NAME -4
-#define FAILED_PARSE_LIBPOD_CGROUP_NAME -5
+#define DOCKER_CONTAINER_ENGINE 1
+#define PODMAN_CONTAINER_ENGINE 2
+#define UNKNOWN_CONTAINER_ENGINE 0
+#define FAILED_READ_MEMORY_CGROUP_ID -1
+#define FAILED_READ_CGROUP_NAME -2
+#define FAILED_READ_PARENT_CGROUP_NAME -3
+#define FAILED_PARSE_LIBPOD_CGROUP_NAME -4
 
 struct namespaces
 {
@@ -111,6 +111,7 @@ struct cgroup_attach_event
 GLOBAL_INTEREST_MAP_DECLARATION;
 MAP_RULES(m_rules);
 MAP_CGROUP_RULES(m_cgroup_rules);
+MAP_CONTAINER_RULES(m_container_rules);
 
 OUTPUT_MAP(process_event, {
   struct fork_event fork;
@@ -156,20 +157,20 @@ The array size MUST be greater than 72.
 
 ### Success:
     the return value is:
-      - `0`: it's a docker container id
-      - `1`: it's a podman container id
+      - `1`: it's a docker container id
+      - `2`: it's a podman container id
     and the characters array `buf` contains the id of the container
     at the position specified in the value pointed by `offset`.
 
 ### Error:
-    if return value is less than `0`, in particular:
-      - `-1`: no container or unknown container engine
-      - `-2`: failed to read the id of the memory cgroup for the
+    if return value is less or equal to `0`, in particular:
+      - `0`: no container or unknown container engine
+      - `-1`: failed to read the id of the memory cgroup for the
               current kernel
-      - `-3`: failed to read the cgroup name from the kernel memory
-      - `-4`: failed to read the cgroup name of the the parent of
+      - `-2`: failed to read the cgroup name from the kernel memory
+      - `-3`: failed to read the cgroup name of the the parent of
               the given process in the case of podman container
-      - `-5`: failed to parse a `libpod-` cgroup name of the parent
+      - `-4`: failed to parse a `libpod-` cgroup name of the parent
               of the process after a successful parse of a `container`
               cgroup name for the given process
 */
@@ -243,8 +244,13 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   {
     return 0;
   }
+
+  int id_offset;
+  int container_engine = get_container_info(child, buf, CONTAINER_ID_MAX_BUF, &id_offset);
+
   // Propagate whitelist to child
   tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
+  tracker_check_container_rules(&GLOBAL_INTEREST_MAP, &m_container_rules, parent, container_engine);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
   struct process_event *event = init_process_event(EVENT_FORK, child_tgid);
@@ -263,9 +269,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
   event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
-  int id_offset;
-  int container_engine = get_container_info(child, buf, CONTAINER_ID_MAX_BUF, &id_offset);
-  if (container_engine < 0)
+  if (container_engine <= 0)
   {
     // TODO: print error ??
     event->fork.option_index.discriminant = OPTION_NONE;
@@ -369,6 +373,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   // Check target and whitelist
   tracker_check_rules(&GLOBAL_INTEREST_MAP, &m_rules, p, image);
+  tracker_check_container_rules(&GLOBAL_INTEREST_MAP, &m_container_rules, p, container_engine);
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);

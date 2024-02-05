@@ -1,9 +1,78 @@
+use std::{collections::HashSet, str::FromStr};
+
 use bpf_common::Pid;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
-use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
+use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_CONTAINER_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
 
 use super::maps::Image;
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[repr(i32)]
+pub enum ContainerEngine {
+    Docker = 1,
+    Podman = 2,
+}
+
+impl From<&ContainerEngine> for i32 {
+    fn from(value: &ContainerEngine) -> Self {
+        match value {
+            ContainerEngine::Docker => 1,
+            ContainerEngine::Podman => 2,
+        }
+    }
+}
+
+impl FromStr for ContainerEngine {
+    type Err = ConfigError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "docker" => Ok(Self::Docker),
+            "podman" => Ok(Self::Podman),
+            _ => Err(ConfigError::ContainerEngine {
+                engine: s.to_owned(),
+            }),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum ContainerTargets {
+    All,
+    Engine(HashSet<ContainerEngine>),
+}
+
+impl Default for ContainerTargets {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
+impl FromStr for ContainerTargets {
+    type Err = ConfigError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Self::All),
+            _ => {
+                let engines: Result<HashSet<_>, _> = s
+                    .split(',')
+                    .filter_map(|item| {
+                        let trimmed = item.trim();
+                        if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(trimmed)
+                        }
+                    })
+                    .map(ContainerEngine::from_str)
+                    .collect();
+                engines.map(Self::Engine)
+            }
+        }
+    }
+}
 
 /// [`Config`] is the user configuration of a list of rules
 /// for determining what constitutes an interesting eBPF event.
@@ -13,6 +82,10 @@ pub struct Config {
     pub pid_targets: Vec<PidRule>,
     /// List of image-based rules
     pub rules: Vec<Rule>,
+    /// List of containers to target.
+    /// Processes belonging to these containers are considered of interest,
+    /// despite what `pid_targets` ans `rules` say.
+    pub container_targets: Option<ContainerTargets>,
     /// List of cgroup paths to target.
     /// Processes belonging to these cgroups are considered of interest,
     /// despite what `pid_targets` and `rules` say.
@@ -22,6 +95,8 @@ pub struct Config {
     /// Map name of the rules map
     pub rule_map_name: String,
     pub cgroup_rule_map_name: String,
+    /// Map name of the container rule map
+    pub container_rule_map_name: String,
     /// Sets the default tracking status for Pid 1 and when finding missing entries.
     pub track_by_default: bool,
     /// Whitelist the current process
@@ -82,13 +157,19 @@ impl TryFrom<&ModuleConfig> for Config {
             }));
         }
 
+        let container_targets = config
+            .get_raw("container_targets")
+            .and_then(|s| ContainerTargets::from_str(s).ok());
+
         Ok(Config {
             pid_targets,
             rules,
+            container_targets,
             cgroup_targets: config.get_list("cgroup_targets")?,
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
             cgroup_rule_map_name: DEFAULT_CGROUP_RULES.to_string(),
+            container_rule_map_name: DEFAULT_CONTAINER_RULES.to_string(),
             track_by_default: config.with_default("track_by_default", true)?,
             ignore_self: config.with_default("ignore_self", true)?,
         })
