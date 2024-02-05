@@ -1,0 +1,19 @@
+# Title: File Mod Writable Dir
+
+# Creation date: 2020/04/21
+
+# Category: Defense evasion
+
+# Severity: Low
+
+# Description: Identifies file permission modifications in common writable directories by a non-root user. Adversaries often drop files
+# or payloads into a writable directory and change permissions prior to execution.
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1222 - File and Directory Permissions Modification - https://attack.mitre.org/techniques/T1222/
+
+- name: Suspicious file attribute modification binary execution
+  type: Exec
+  condition: header.image IN ["/usr/bin/chattr", "/usr/bin/chgrp", "/usr/bin/chmod", "/usr/bin/chown"]
+    AND (payload.argv CONTAINS "/dev/shm" OR payload.argv CONTAINS "/tmp" OR payload.argv CONTAINS "/var/tmp")

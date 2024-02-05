@@ -1,0 +1,23 @@
+# Title: Hidden File Dir Tmp
+
+# Creation date: 2020/04/29
+
+# Category: Defense evasion
+
+# Severity: Medium
+
+# Description: Users can mark specific files as hidden simply by putting a "." as the first character in the file or folder name.
+# Adversaries can use this to their advantage to hide files and folders on the system for persistence and defense evasion.
+# This rule looks for hidden files or folders in common writable directories.
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1564 - Hide Artifacts - https://attack.mitre.org/techniques/T1564/
+
+- name: Rename with suspicious pattern
+  type: FileRename
+  condition: NOT header.image IN ["/usr/bin/ls", "/usr/bin/find", "/usr/bin/grep", "/usr/bin/git", "/usr/bin/jq", "/usr/bin/basename"] 
+    AND 
+    (payload.source STARTS_WITH "/tmp" OR payload.source STARTS_WITH "/var/tmp" OR payload.source STARTS_WITH "/dev/shm")
+    AND 
+    (payload.destination STARTS_WITH "/tmp/." OR payload.destination STARTS_WITH "/var/tmp/." OR payload.destination STARTS_WITH "/dev/shm/.")

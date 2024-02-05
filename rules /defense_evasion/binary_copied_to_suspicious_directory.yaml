@@ -1,0 +1,27 @@
+# Title: Binary Copied To Suspicious Directory
+
+# Creation date: 2023/08/29
+
+# Category: Defense evasion
+
+# Severity: Low
+
+# Description: This rule monitors for the copying or moving of a system binary to a suspicious directory. Adversaries may copy/move 
+# and rename system binaries to evade detection. Copying a system binary to a different location should not occur often,
+# so if it does, the activity should be investigated.
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1564 - Hide Artifacts - https://attack.mitre.org/techniques/T1564/
+
+- name: Suspicious file operation by binary
+  type: Exec
+  condition: payload.filename IN ["/usr/bin/cp", "/usr/bin/mv"] 
+    AND 
+    (payload.argv CONTAINS "/bin/*sh" OR payload.argv CONTAINS "/usr/bin/*sh" OR payload.argv CONTAINS "/bin/python*" OR payload.argv CONTAINS "/usr/bin/python*" OR payload.argv CONTAINS "/bin/php*" OR payload.argv CONTAINS "/usr/bin/php*" OR payload.argv CONTAINS "/bin/ruby*" OR payload.argv CONTAINS "/usr/bin/ruby*" OR payload.argv CONTAINS "/bin/perl*" OR payload.argv CONTAINS "/usr/bin/perl*" OR payload.argv CONTAINS "/bin/lua*" OR payload.argv CONTAINS "/usr/bin/lua*" OR payload.argv CONTAINS "/bin/java*" OR payload.argv CONTAINS "/usr/bin/java*" OR payload.argv CONTAINS "/bin/gcc*" OR payload.argv CONTAINS "/usr/bin/gcc*" OR payload.argv CONTAINS "/bin/g++*" OR payload.argv CONTAINS "/usr/bin/g++*" OR payload.argv CONTAINS "/bin/cc" OR payload.argv CONTAINS "/usr/bin/cc" OR payload.argv CONTAINS "/bin/nc" OR payload.argv CONTAINS "/usr/bin/nc" OR payload.argv CONTAINS "/bin/ncat" OR payload.argv CONTAINS "/usr/bin/ncat" OR payload.argv CONTAINS "/bin/netcat" OR payload.argv CONTAINS "/usr/bin/netcat" OR payload.argv CONTAINS "/bin/nc.openbsd" OR payload.argv CONTAINS "/usr/bin/nc.openbsd" OR payload.argv CONTAINS "/bin/*awk" OR payload.argv CONTAINS "/usr/bin/*awk" OR payload.argv CONTAINS "/bin/socat" OR payload.argv CONTAINS "/usr/bin/socat" OR payload.argv CONTAINS "/bin/openssl" OR payload.argv CONTAINS "/usr/bin/openssl" OR payload.argv CONTAINS "/bin/telnet" OR payload.argv CONTAINS "/usr/bin/telnet" OR payload.argv CONTAINS "/bin/mkfifo" OR payload.argv CONTAINS "/usr/bin/mkfifo" OR payload.argv CONTAINS "/bin/mknod" OR payload.argv CONTAINS "/usr/bin/mknod" OR payload.argv CONTAINS "/bin/ping*" OR payload.argv CONTAINS "/usr/bin/ping*" OR payload.argv CONTAINS "/bin/nmap" OR payload.argv CONTAINS "/usr/bin/nmap" OR payload.argv CONTAINS "/bin/ls" OR payload.argv CONTAINS "/usr/bin/ls" OR payload.argv CONTAINS "/bin/cat" OR payload.argv CONTAINS "/usr/bin/cat" OR payload.argv CONTAINS "/bin/sudo" OR payload.argv CONTAINS "/usr/bin/sudo" OR payload.argv CONTAINS "/bin/curl" OR payload.argv CONTAINS "/usr/bin/curl" OR payload.argv CONTAINS "/bin/wget" OR payload.argv CONTAINS "/usr/bin/wget" OR payload.argv CONTAINS "/bin/tmux" OR payload.argv CONTAINS "/usr/bin/tmux" OR payload.argv CONTAINS "/bin/screen" OR payload.argv CONTAINS "/usr/bin/screen" OR payload.argv CONTAINS "/bin/ssh" OR payload.argv CONTAINS "/usr/bin/ssh" OR payload.argv CONTAINS "/bin/ftp" OR payload.argv CONTAINS "/usr/bin/ftp")
+    AND NOT header.image IN ["/usr/bin/dracut-install", "/usr/bin/apticron", "/usr/bin/generate-from-dir", "/usr/bin/platform-python"]
+
+- name: Suspicious file creation
+  type: FileCreated
+  condition: (payload.filename STARTS_WITH "/dev/shm/" OR payload.filename STARTS_WITH "/run/shm/" OR payload.filename STARTS_WITH "/tmp/" OR payload.filename STARTS_WITH "/var/tmp/" OR payload.filename STARTS_WITH "/run/" OR payload.filename STARTS_WITH "/var/run/" OR payload.filename STARTS_WITH "/var/www/" OR payload.filename STARTS_WITH "/proc/" AND payload.filename ENDS_WITH "/fd/")
+    AND NOT (payload.filename STARTS_WITH "/tmp/rear" OR payload.filename STARTS_WITH "/var/tmp/dracut")

@@ -1,0 +1,22 @@
+# Title: Gdb Init Memory Dump
+
+# Creation date: 2023/08/30
+
+# Category: Credential access
+
+# Severity: Medium
+
+# Description: This rule monitors for the potential memory dump of the init process (PID 1) through gdb. Attackers may leverage memory 
+# dumping techniques to attempt secret extraction from privileged processes. Tools that display this behavior include
+# "truffleproc" and "bash-memory-dump". This behavior should not happen by default, and should be investigated thoroughly.
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1003 - OS Credential Dumping - https://attack.mitre.org/techniques/T1003/
+
+- name: GDB process execution with specific arguments
+  type: Exec
+  condition: payload.filename ENDS_WITH "/gdb" 
+    AND (payload.argv CONTAINS "--pid" 
+    OR payload.argv CONTAINS "-p") 
+    AND payload.argv CONTAINS "1"

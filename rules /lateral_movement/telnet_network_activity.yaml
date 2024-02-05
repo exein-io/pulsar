@@ -1,0 +1,26 @@
+# Title: Telnet Network Activity External
+
+# Creation date: 2020/04/23
+
+# Category: Lateral movement
+
+# Severity: Medium
+
+# Description: Telnet provides a command line interface for communication with a remote device or server. This rule identifies Telnet
+# network connections to routable IP addresses.
+
+# MITRE ATT&CK Tactic: TA0008 - Lateral Movement - https://attack.mitre.org/tactics/TA0008/
+
+# MITRE ATT&CK Technique: T1021 - Remote Services - https://attack.mitre.org/techniques/T1021/
+
+- name: Telnet execution
+  type: Exec
+  condition: payload.filename == "/usr/bin/telnet"
+
+- name: Telnet network activity - Accept
+  type: Accept
+  condition: header.image == "/usr/bin/telnet" 
+
+- name: Telnet network activity - Connect
+  type: Connect
+  condition: header.image == "/usr/bin/telnet"

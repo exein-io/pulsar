@@ -1,0 +1,23 @@
+# Title: Interpreter Tty Upgrade
+
+# Creation date: 2023/09/20
+
+# Category: Execution
+
+# Severity: Medium
+
+# Description: Identifies when a non-interactive terminal (tty) is being upgraded to a fully interactive shell. Attackers may upgrade 
+# a simple reverse shell to a fully interactive tty after obtaining initial access to a host, in order to obtain a more 
+# stable connection.
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Technique: T1059 - Command and Scripting Interpreter - https://attack.mitre.org/techniques/T1059/
+
+- name: Stty raw no echo execution
+  type: Exec
+  condition: payload.filename == "/usr/bin/stty" AND payload.argv CONTAINS "raw" AND payload.argv CONTAINS "-echo" AND payload.argc >= 3
+
+- name: Script execution with no output
+  type: Exec
+  condition: payload.filename == "/usr/bin/script" AND (payload.argv CONTAINS "-qc" OR payload.argv CONTAINS "-c") AND payload.argv CONTAINS "/dev/null" AND payload.argc == 4

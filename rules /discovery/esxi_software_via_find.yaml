@@ -1,0 +1,21 @@
+# Title: Esxi Software Via Find
+
+# Creation date: 2023/04/11
+
+# Category: Discovery
+
+# Severity: Medium
+
+# Description: Identifies instances where the 'find' command is started on a Linux system with arguments targeting
+# specific VM-related paths, such as "/etc/vmware/", "/usr/lib/vmware/", or "/vmfs/*".
+# These paths are associated with VMware virtualization software, and their presence in the find command arguments
+# may indicate that a threat actor is attempting to search for, analyze, or manipulate VM-related files
+# and configurations on the system.
+
+# MITRE ATT&CK Tactic: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK Technique: T1518 - Software Discovery - https://attack.mitre.org/techniques/T1518/
+
+- name: Find command execution in specific directories
+  type: Exec
+  condition: payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "/etc/vmware/" OR payload.argv CONTAINS "/usr/lib/vmware/" OR payload.argv CONTAINS "/vmfs/")

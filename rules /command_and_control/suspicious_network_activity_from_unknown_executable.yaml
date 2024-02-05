@@ -1,0 +1,25 @@
+# Title: Suspicious Network Activity From Unknown Executable
+
+# Creation date: 2023/06/14
+
+# Category: Command and control
+
+# Severity: Low
+
+# Description: This rule monitors for network connectivity to the internet from a previously unknown executable located in a suspicious
+# directory to a previously unknown destination ip. An alert from this rule can indicate the presence of potentially
+# malicious activity, such as the execution of unauthorized or suspicious processes attempting to establish connections to
+# unknown or suspicious destinations such as a command and control server. Detecting and investigating such behavior can
+# help identify and mitigate potential security threats, protecting the system and its data from potential compromise.
+
+# MITRE ATT&CK Tactic: TA0011 - Command and Control - https://attack.mitre.org/tactics/TA0011/
+
+# MITRE ATT&CK Technique: T1071 - Application Layer Protocol - https://attack.mitre.org/techniques/T1071/
+
+
+- name: Executable file connection attempt
+  type: Exec
+  condition: 
+    NOT header.image ENDS_WITH "/apt" OR NOT header.image ENDS_WITH "/chrome" OR NOT header.image ENDS_WITH "/curl" OR NOT header.image ENDS_WITH "/dnf" OR NOT header.image ENDS_WITH "/dockerd" OR NOT header.image ENDS_WITH "/dpkg" OR NOT header.image ENDS_WITH "/firefox-bin" OR NOT header.image ENDS_WITH "/java" OR NOT header.image ENDS_WITH "/kite-update" OR NOT header.image ENDS_WITH "/kited" OR NOT header.image ENDS_WITH "/node" OR NOT header.image ENDS_WITH "/rpm" OR NOT header.image ENDS_WITH "/saml2aws" OR NOT header.image ENDS_WITH "/wget" OR NOT header.image ENDS_WITH "/yum" OR NOT header.image ENDS_WITH "/ansible" OR NOT header.image ENDS_WITH "/aws" OR NOT header.image ENDS_WITH "/php" OR NOT header.image ENDS_WITH "/pip" OR NOT header.image ENDS_WITH "/python" OR NOT header.image ENDS_WITH "/steam" OR NOT header.image ENDS_WITH "/terraform"
+    AND (payload.filename STARTS_WITH "/etc/crontab" OR payload.filename STARTS_WITH "/etc/rc.local" OR payload.filename STARTS_WITH "/boot/" OR payload.filename STARTS_WITH "/dev/shm/" OR payload.filename STARTS_WITH "/etc/cron." OR payload.filename STARTS_WITH "/etc/init.d/" OR payload.filename STARTS_WITH "/etc/rc" OR payload.filename STARTS_WITH "/etc/update-motd.d/" OR payload.filename STARTS_WITH "/home/" OR payload.filename STARTS_WITH "/run/" OR payload.filename STARTS_WITH "/srv/" OR payload.filename STARTS_WITH "/tmp/" OR payload.filename STARTS_WITH "/usr/lib/update-notifier/" OR payload.filename STARTS_WITH "/var/tmp/")
+    AND NOT (payload.filename STARTS_WITH "/tmp/newroot/" OR payload.filename STARTS_WITH "/tmp/snap.rootfs/")

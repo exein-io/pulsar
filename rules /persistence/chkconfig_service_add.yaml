@@ -1,0 +1,22 @@
+# Title: Chkconfig Service Add
+
+# Creation date: 2022/07/22
+
+# Category: Persistence
+
+# Severity: Medium
+
+# Description: Detects the use of the chkconfig binary to manually add a service for management by chkconfig. Threat actors may utilize
+# this technique to maintain persistence on a system. When a new service is added, chkconfig ensures that the service has
+# either a start or a kill entry in every runlevel and when the system is rebooted the service file added will run 
+# providing long-term persistence.
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1037 - Boot or Logon Initialization Scripts - https://attack.mitre.org/techniques/T1037/
+
+- name: Chkconfig with add argument
+  type: Exec
+  condition: (payload.filename ENDS_WITH "/chkconfig" AND payload.argv CONTAINS "--add") OR (payload.argv CONTAINS "*chkconfig" AND payload.argv CONTAINS "--add")
+    AND NOT header.image ENDS_WITH "/rpm" AND NOT header.image ENDS_WITH "qualys-scan-util" AND NOT header.image ENDS_WITH "qualys-cloud-agent" AND NOT header.image ENDS_WITH "update-alternatives"
+    AND NOT (header.image STARTS_WITH "/var/tmp/rpm" OR header.image STARTS_WITH "/var/lib/waagent")

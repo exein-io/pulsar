@@ -1,0 +1,22 @@
+# Title: Chattr Immutable File
+
+# Creation date: 2022/07/22
+
+# Category: Defense evasion
+
+# Severity: Medium
+
+# Description: Detects a file being made immutable using the chattr binary. Making a file immutable means it cannot be deleted or
+# renamed, no link can be created to this file, most of the file's metadata can not be modified, and the file can not be
+# opened in write mode. Threat actors will commonly utilize this to prevent tampering or modification of their malicious
+# files or any system files they have modified for purposes of persistence (e.g .ssh, /etc/passwd, etc.).
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1222 - File and Directory Permissions Modification - https://attack.mitre.org/techniques/T1222/
+
+- name: Root user executing chattr
+  type: Exec
+  condition: header.image ENDS_WITH "/chattr" AND (payload.argv CONTAINS "-*i*" OR payload.argv CONTAINS "+*i*") AND payload.argc > 0
+    AND NOT header.image STARTS_WITH "/lib/systemd/systemd" AND NOT header.image STARTS_WITH "/usr/local/uems_agent/bin/" AND NOT header.image STARTS_WITH "/usr/lib/systemd/systemd"
+    AND NOT header.image IN ["/usr/bin/systemd", "/usr/bin/cf-agent", "/usr/bin/ntpdate", "/usr/bin/xargs", "/usr/bin/px", "/usr/bin/preinst", "/usr/bin/auth"]
