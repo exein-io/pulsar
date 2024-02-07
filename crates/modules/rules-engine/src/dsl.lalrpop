@@ -1,7 +1,7 @@
 use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, RValue, Field, Identifier, Condition, AdtField, SimpleField, MethodCall};
 use lalrpop_util::ParseError;
 
-use super::{DslError, IndentValue};
+use super::{DslError, OptCheck};
 
 grammar(variant: &str);
 
@@ -12,11 +12,11 @@ pub Condition: Condition = {
 }
 
 SignedCondition: Condition = {
-    "NOT" <b:BinaryCondition> => Condition::Not{inner: Box::new(b)},
-    BinaryCondition
+    "NOT" <b:SimpleCondition> => Condition::Not{inner: Box::new(b)},
+    SimpleCondition
 }
 
-BinaryCondition: Condition = {
+SimpleCondition: Condition = {
     <f: FieldPath> <op: Operator> <value: Value> => Condition::Binary {
         l: f,
         op,
@@ -90,7 +90,7 @@ Operator: Operator = {
 }
 
 FieldPath: Vec<Identifier> = {
-    <Dot<Ident>> =>? {
+    <IdentSeq> =>? {
         let mut payload_subpath = false;
 
         let mut v = Vec::new();
@@ -100,7 +100,7 @@ FieldPath: Vec<Identifier> = {
 
         while let Some((index, value)) = dotted_idents.next() {
             match value {
-                IndentValue::MethodCall(mc) => {
+                Identifier::MethodCall(mc) => {
                     if index == 0 {
                         return Err(ParseError::User {
                             error: DslError::FunctionCall
@@ -115,7 +115,7 @@ FieldPath: Vec<Identifier> = {
                         })
                     }
                 }
-                IndentValue::SimpleField(SimpleField(value)) => {
+                Identifier::Field(Field::Simple(SimpleField(value))) => {
                     if index == 0 && value == "payload" {
                         payload_subpath = true;
                     }
@@ -128,6 +128,15 @@ FieldPath: Vec<Identifier> = {
 
                     v.push(identifier);
                 }
+                Identifier::Field(Field::Adt(field)) => {
+                    if index == 0 {
+                        return Err(ParseError::User {
+                            error: DslError::AdtFirstField
+                        })
+                    }                    
+
+                    v.push(Identifier::Field(Field::Adt(field)));
+                }
             }
         }
 
@@ -135,18 +144,34 @@ FieldPath: Vec<Identifier> = {
     }
 }
 
-Dot<T>: Vec<T> = {
-    <v:T> <mut e:("." <T>)*> => if e.is_empty() {
-        vec![v]
-    } else {
-        e.insert(0, v);
-        e
+IdentSeq: Vec<Identifier> = {
+    <v:(<Ident> <OptCheck?> ".")*> <e:Ident> => {
+        let mut res = Vec::new();
+
+        for (ident, opt_check) in v.into_iter() {
+            res.push(ident);
+
+            if opt_check.is_some() {
+                 res.push(Identifier::Field(Field::Adt(AdtField {
+                    variant_name: "Some".to_string(),
+                    field_name: "0".to_string()
+              })));
+            }
+        }
+
+        res.push(e);
+
+        res
     }
 }
 
-Ident: IndentValue = {
-    <s: r"[a-zA-Z]+\w*"> => IndentValue::SimpleField(SimpleField(<>.to_string())),
-    <s: r"[a-zA-Z]+\w*">"()" => IndentValue::MethodCall(MethodCall{ name: <>.to_string() })
+OptCheck: OptCheck = {
+    "?" => OptCheck
+}
+
+Ident: Identifier = {
+    r"[a-zA-Z]+\w*" => Identifier::Field(Field::Simple(SimpleField(<>.to_string()))),
+    <r"[a-zA-Z]+\w*">"()" => Identifier::MethodCall(MethodCall{ name: <>.to_string() })
 }
 
 extern {

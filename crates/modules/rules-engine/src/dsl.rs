@@ -1,6 +1,5 @@
 use lalrpop_util::lalrpop_mod;
 use thiserror::Error;
-use validatron::{MethodCall, SimpleField};
 
 #[derive(Error, Debug)]
 pub enum DslError {
@@ -10,13 +9,11 @@ pub enum DslError {
     MethodCallNotFinal,
     #[error("Function calls are not supported, only methods are allowed")]
     FunctionCall,
+    #[error("Adt fields are not allowed as first field")]
+    AdtFirstField,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum IndentValue {
-    SimpleField(SimpleField),
-    MethodCall(MethodCall),
-}
+struct OptCheck;
 
 lalrpop_mod!(#[allow(clippy::all)] pub dsl); // syntesized by LALRPOP
 
@@ -433,6 +430,54 @@ mod tests {
                 name: "is_some".to_string(),
             }),
         ]);
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn option_field() {
+        let parsed = dsl::ConditionParser::new()
+            .parse("FileExec", r#"header.container?.name == "ubuntu""#)
+            .unwrap();
+        let expected = Condition::Binary {
+            l: vec![
+                Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("container".to_string()))),
+                Identifier::Field(Field::Adt(AdtField {
+                    variant_name: "Some".to_string(),
+                    field_name: "0".to_string(),
+                })),
+                Identifier::Field(Field::Simple(SimpleField("name".to_string()))),
+            ],
+            op: Operator::Relational(RelationalOperator::Equals),
+            r: RValue::Value("ubuntu".to_string()),
+        };
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn option_nested_field() {
+        let parsed = dsl::ConditionParser::new()
+            .parse("FileExec", r#"header.prop1?.prop2.prop3?.prop4 == "good""#)
+            .unwrap();
+        let expected = Condition::Binary {
+            l: vec![
+                Identifier::Field(Field::Simple(SimpleField("header".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("prop1".to_string()))),
+                Identifier::Field(Field::Adt(AdtField {
+                    variant_name: "Some".to_string(),
+                    field_name: "0".to_string(),
+                })),
+                Identifier::Field(Field::Simple(SimpleField("prop2".to_string()))),
+                Identifier::Field(Field::Simple(SimpleField("prop3".to_string()))),
+                Identifier::Field(Field::Adt(AdtField {
+                    variant_name: "Some".to_string(),
+                    field_name: "0".to_string(),
+                })),
+                Identifier::Field(Field::Simple(SimpleField("prop4".to_string()))),
+            ],
+            op: Operator::Relational(RelationalOperator::Equals),
+            r: RValue::Value("good".to_string()),
+        };
         assert_eq!(parsed, expected);
     }
 }
