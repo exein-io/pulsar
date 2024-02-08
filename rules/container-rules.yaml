@@ -1,0 +1,20 @@
+- name: Netcat Remote Code Execution in Container
+  type: Exec
+  condition: |
+    header.container.is_some() AND
+    (
+      (
+        payload.filename ENDS_WITH "/nc" AND (
+          payload.argv CONTAINS "-e" OR
+          payload.argv CONTAINS "-c"
+        )
+      ) OR (
+        payload.filename ENDS_WITH "/ncat" AND (
+          payload.argv CONTAINS "--sh-exec" OR
+          payload.argv CONTAINS "--exec" OR
+          payload.argv CONTAINS "-e" OR
+          payload.argv CONTAINS "-c" OR
+          payload.argv CONTAINS "--lua-exec"
+        )
+      )
+    )
