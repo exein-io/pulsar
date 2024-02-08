@@ -156,15 +156,14 @@ pub mod pulsar {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
                                 let id = ccid.cgroup_id.string(&event.buffer).unwrap();
-                                let container_id = match ccid.container_engine {
+                                match ccid.container_engine {
                                     ContainerEngineKind::All => {
                                         warn!("Invalid `container_engine` value - process-monitor probe shouldn't return `ContainerEngineKind::All` as a part of process' information");
                                         None
                                     }
                                     ContainerEngineKind::Docker => Some(ContainerId::Docker(id)),
                                     ContainerEngineKind::Podman => Some(ContainerId::Libpod(id)),
-                                };
-                                container_id
+                                }
                             }
                             COption::None => None,
                         };
@@ -203,15 +202,14 @@ pub mod pulsar {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
                                 let id = ccid.cgroup_id.string(&event.buffer).unwrap();
-                                let container_id = match ccid.container_engine {
+                                match ccid.container_engine {
                                     ContainerEngineKind::All => {
                                         warn!("Invalid `container_engine` value - process-monitor probe shouldn't return `ContainerEngineKind::All` as a part of process' information");
                                         None
                                     }
                                     ContainerEngineKind::Docker => Some(ContainerId::Docker(id)),
                                     ContainerEngineKind::Podman => Some(ContainerId::Libpod(id)),
-                                };
-                                container_id
+                                }
                             }
                             COption::None => None,
                         };
