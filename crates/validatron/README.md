@@ -102,4 +102,4 @@ Validatron uses a [conventional Cargo build process](https://doc.rust-lang.org/c
 Validatron uses a [Cargo Workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html), so for some cargo commands, such as `cargo test`, the `--all` is needed to tell cargo to visit all of the crates.
 
 
-[^1]: Marc Feeley, Guy Lapalme, [Using closures for code generation](https://www.sciencedirect.com/science/article/abs/pii/0096055187900129)
+[^1]: Marc Feeley, Guy Lapalme, [Using closures for code generation](https://doi.org/10.1016/0096-0551(87)90012-9)
