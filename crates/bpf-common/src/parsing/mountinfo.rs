@@ -41,7 +41,7 @@ fn parse_cgroup2_mountpoint<R>(reader: BufReader<R>) -> Result<String, Mountinfo
 where
     R: Read,
 {
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         // Mountinfo is separated by `-` into two parts:
         //
         // * Information about the mount which consist of at least 6 fields,
