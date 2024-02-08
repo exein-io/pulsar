@@ -248,9 +248,11 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   int id_offset;
   int container_engine = get_container_info(child, buf, CONTAINER_ID_MAX_BUF, &id_offset);
 
+  // Check target and rules
+  tracker_check_container_rules(&GLOBAL_INTEREST_MAP, &m_container_rules, parent, container_engine);
+
   // Propagate whitelist to child
   tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
-  tracker_check_container_rules(&GLOBAL_INTEREST_MAP, &m_container_rules, parent, container_engine);
   LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
 
   struct process_event *event = init_process_event(EVENT_FORK, child_tgid);
