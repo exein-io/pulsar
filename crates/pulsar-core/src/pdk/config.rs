@@ -1,9 +1,10 @@
 use std::{
     collections::{
         hash_map::{IntoIter, Iter},
-        HashMap,
+        HashMap, HashSet,
     },
     fmt::{Debug, Display},
+    hash::Hash,
     str::FromStr,
 };
 
@@ -96,6 +97,21 @@ impl ModuleConfig {
         } else {
             Ok(default)
         }
+    }
+
+    /// Return a comma separated hash set of values. Return empty vector if field is missing.
+    pub fn get_hash_set<T>(&self, config_name: &str) -> Result<HashSet<T>, ConfigError>
+    where
+        T: FromStr + Eq + Hash,
+        <T as FromStr>::Err: Display,
+    {
+        self.inner
+            .get(config_name)
+            .iter()
+            .flat_map(|config| config.split(','))
+            .filter(|item| !item.is_empty())
+            .map(|item| parse(item.trim(), config_name))
+            .collect()
     }
 
     /// Return an Iter to the underlying HashMap

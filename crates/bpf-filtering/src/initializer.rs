@@ -8,10 +8,7 @@ use pulsar_core::{
 };
 use tokio::sync::mpsc;
 
-use crate::{
-    config::ContainerTargets,
-    maps::{Cgroup, Map},
-};
+use crate::maps::{Cgroup, Map};
 
 use super::{
     config::{Config, Rule},
@@ -67,22 +64,12 @@ pub async fn setup_events_filter(
     // setup container rule map
     let mut container_map = Map::<i32, u8>::load(bpf, &config.container_rule_map_name)?;
     container_map.clear()?;
-    if let Some(ref container_targets) = config.container_targets {
-        match container_targets {
-            ContainerTargets::All => container_map
-                .map
-                .insert(0, 0, 0)
-                .context("Error inserting in container rule map")?,
-            ContainerTargets::Engine(engines) => {
-                for engine in engines {
-                    let engine: i32 = engine.into();
-                    container_map
-                        .map
-                        .insert(engine, 0, 0)
-                        .context("Error inserting in container rule map")?;
-                }
-            }
-        }
+    for container_target in config.container_targets.iter() {
+        let container_target: i32 = container_target.into();
+        container_map
+            .map
+            .insert(container_target, 0, 0)
+            .context("Error inserting in container rule map")?;
     }
 
     // load process list from procfs

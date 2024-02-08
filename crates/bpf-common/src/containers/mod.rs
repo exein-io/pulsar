@@ -7,6 +7,7 @@ use std::{
     os::unix::ffi::OsStringExt,
     path::{Path, PathBuf},
     ptr,
+    str::FromStr,
 };
 
 use diesel::{connection::SimpleConnection, prelude::*};
@@ -78,6 +79,8 @@ pub enum ContainerError {
     BoltBucketNotFound(String),
     #[error("bolt key `{0}` not found")]
     BoltKeyNotFound(String),
+    #[error("Unknown container engine kind")]
+    UnknownContainerEngine,
 }
 
 /// A container ID.
@@ -92,6 +95,43 @@ impl fmt::Display for ContainerId {
         match self {
             ContainerId::Docker(id) => write!(f, "{id}"),
             ContainerId::Libpod(id) => write!(f, "{id}"),
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum ContainerEngineKindError {
+    #[error("Unknown container engine kind")]
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(i32)]
+pub enum ContainerEngineKind {
+    All,
+    Docker,
+    Podman,
+}
+
+impl From<&ContainerEngineKind> for i32 {
+    fn from(value: &ContainerEngineKind) -> Self {
+        match value {
+            ContainerEngineKind::All => 0,
+            ContainerEngineKind::Docker => 1,
+            ContainerEngineKind::Podman => 2,
+        }
+    }
+}
+
+impl FromStr for ContainerEngineKind {
+    type Err = ContainerError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(ContainerEngineKind::All),
+            "docker" => Ok(ContainerEngineKind::Docker),
+            "podman" => Ok(ContainerEngineKind::Podman),
+            _ => Err(ContainerError::UnknownContainerEngine),
         }
     }
 }

@@ -269,7 +269,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
   event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
-  if (container_engine <= 0)
+  if (container_engine < 1)
   {
     // TODO: print error ??
     event->fork.option_index.discriminant = OPTION_NONE;
@@ -318,7 +318,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   int id_offset;
   int container_engine = get_container_info(p, buf, CONTAINER_ID_MAX_BUF, &id_offset);
-  if (container_engine < 0)
+  if (container_engine < 1)
   {
     event->exec.option_index.discriminant = OPTION_NONE;
     event->exec.option_index.container_id.cgroup_id.start = 0;

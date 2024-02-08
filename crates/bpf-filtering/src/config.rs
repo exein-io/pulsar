@@ -1,78 +1,12 @@
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
 
-use bpf_common::Pid;
+use bpf_common::{containers::ContainerEngineKind, Pid};
+use log::warn;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
 use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_CONTAINER_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
 
 use super::maps::Image;
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[repr(i32)]
-pub enum ContainerEngine {
-    Docker = 1,
-    Podman = 2,
-}
-
-impl From<&ContainerEngine> for i32 {
-    fn from(value: &ContainerEngine) -> Self {
-        match value {
-            ContainerEngine::Docker => 1,
-            ContainerEngine::Podman => 2,
-        }
-    }
-}
-
-impl FromStr for ContainerEngine {
-    type Err = ConfigError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "docker" => Ok(Self::Docker),
-            "podman" => Ok(Self::Podman),
-            _ => Err(ConfigError::ContainerEngine {
-                engine: s.to_owned(),
-            }),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum ContainerTargets {
-    All,
-    Engine(HashSet<ContainerEngine>),
-}
-
-impl Default for ContainerTargets {
-    fn default() -> Self {
-        Self::All
-    }
-}
-
-impl FromStr for ContainerTargets {
-    type Err = ConfigError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "all" => Ok(Self::All),
-            _ => {
-                let engines: Result<HashSet<_>, _> = s
-                    .split(',')
-                    .filter_map(|item| {
-                        let trimmed = item.trim();
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            Some(trimmed)
-                        }
-                    })
-                    .map(ContainerEngine::from_str)
-                    .collect();
-                engines.map(Self::Engine)
-            }
-        }
-    }
-}
 
 /// [`Config`] is the user configuration of a list of rules
 /// for determining what constitutes an interesting eBPF event.
@@ -85,7 +19,7 @@ pub struct Config {
     /// List of containers to target.
     /// Processes belonging to these containers are considered of interest,
     /// despite what `pid_targets` ans `rules` say.
-    pub container_targets: Option<ContainerTargets>,
+    pub container_targets: HashSet<ContainerEngineKind>,
     /// List of cgroup paths to target.
     /// Processes belonging to these cgroups are considered of interest,
     /// despite what `pid_targets` and `rules` say.
@@ -157,9 +91,20 @@ impl TryFrom<&ModuleConfig> for Config {
             }));
         }
 
-        let container_targets = config
-            .get_raw("container_targets")
-            .and_then(|s| ContainerTargets::from_str(s).ok());
+        let mut container_targets = config.get_hash_set("container_targets")?;
+        // If `all` was specified with other values, these values are redundant
+        // - log a warning and remove them.
+        if container_targets.contains(&ContainerEngineKind::All) && container_targets.len() > 1 {
+            for container_target in container_targets.iter() {
+                if *container_target != ContainerEngineKind::All {
+                    warn!("Skipping `container_targets` value `{container_target:?}`, all targets were already enabled with `all`.");
+                }
+            }
+
+            // Clear the set and add `ContainerEngineKind::All` back.
+            container_targets.clear();
+            container_targets.insert(ContainerEngineKind::All);
+        }
 
         Ok(Config {
             pid_targets,
