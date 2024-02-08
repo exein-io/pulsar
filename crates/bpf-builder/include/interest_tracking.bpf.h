@@ -173,12 +173,21 @@ tracker_check_cgroup_rules(struct bpf_map_def_aya *tracker, void *rules,
   }
 }
 
+/*
+ * If the process is containerized, check whether the container_engine is
+ * contained in the rules hashmap. If it is, insert the given process inside
+ * the interest tracker
+ */
 static __always_inline void
 tracker_check_container_rules(struct bpf_map_def_aya *tracker, void *rules,
                               struct task_struct *p, int container_engine) {
   int all_containers = 0;
-  if (bpf_map_lookup_elem(rules, &all_containers) ||
-      bpf_map_lookup_elem(rules, &container_engine)) {
+  // If the process is containerized.
+  if (container_engine > 0 &&
+      // Look for a wildcard mark in container interest map.
+      (bpf_map_lookup_elem(rules, &all_containers) ||
+       // Or for the specific container engine.
+       bpf_map_lookup_elem(rules, &container_engine))) {
     pid_t tgid = BPF_CORE_READ(p, tgid);
     u8 policy = INTEREST_TRACK_SELF | INTEREST_TRACK_CHILDREN;
     long res = bpf_map_update_elem(tracker, &tgid, &policy, BPF_ANY);
