@@ -1,0 +1,19 @@
+# Title: Hidden Shared Object
+
+# Creation date: 2022/07/20
+
+# Category: Defense evasion
+
+# Severity: Medium
+
+# Description: Identifies the creation of a hidden shared object (.so) file. Users can mark specific files as hidden simply by putting
+# a "." as the first character in the file or folder name. Adversaries can use this to their advantage to hide files and
+# folders on the system for persistence and defense evasion.
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1564 - Hide Artifacts - https://attack.mitre.org/techniques/T1564/
+
+- name: Creation of shared object files
+  type: FileCreated
+  condition: payload.filename ENDS_WITH ".so" AND payload.filename STARTS_WITH "."

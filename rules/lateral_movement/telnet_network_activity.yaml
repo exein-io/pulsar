@@ -1,0 +1,28 @@
+# Title: Telnet Network Activity External
+
+# Creation date: 2020/04/23
+
+# Category: Lateral movement
+
+# Severity: Medium
+
+# Description: Telnet provides a command line interface for communication with a remote device or server. This rule identifies Telnet network connections to routable IP addresses.
+
+# False Positives: Telnet can be used for both benign or malicious purposes. Telnet is included by default in some Linux distributions, so its presence is not inherently suspicious. The use of Telnet to manage devices remotely has declined in recent years in favor of more secure protocols such as SSH. Telnet usage by non-automated tools or frameworks may be suspicious.
+
+
+# MITRE ATT&CK Tactic: TA0008 - Lateral Movement - https://attack.mitre.org/tactics/TA0008/
+
+# MITRE ATT&CK Technique: T1021 - Remote Services - https://attack.mitre.org/techniques/T1021/
+
+- name: Telnet execution
+  type: Exec
+  condition: header.image == "/usr/bin/telnet"
+
+- name: Telnet network activity - Accept
+  type: Accept
+  condition: header.image == "/usr/bin/telnet" 
+
+- name: Telnet network activity - Connect
+  type: Connect
+  condition: header.image == "/usr/bin/telnet"
