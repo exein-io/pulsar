@@ -34,6 +34,7 @@ impl fmt::Display for Operator {
 
 /// Operators intended to be used on strings.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", content = "content")]
 pub enum StringOperator {
     StartsWith,
     EndsWith,
@@ -51,6 +52,7 @@ impl StringOperator {
 
 /// Relational operators.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", content = "content")]
 pub enum RelationalOperator {
     Equals,
     NotEquals,
@@ -81,6 +83,7 @@ impl fmt::Display for RelationalOperator {
 
 /// Operators intended to be used on for collections.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", content = "content")]
 pub enum MultiOperator {
     Contains,
 }

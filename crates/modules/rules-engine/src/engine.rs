@@ -188,7 +188,10 @@ impl RuleFile {
 #[cfg(test)]
 mod tests {
     use pulsar_core::event::PayloadDiscriminant;
-    use validatron::{Condition, Field, Match, Operator, RelationalOperator, Rule};
+    use validatron::{
+        AdtField, Condition, Field, Identifier, Operator, RValue, RelationalOperator, Rule,
+        SimpleField,
+    };
 
     use crate::{
         dsl,
@@ -211,18 +214,16 @@ mod tests {
             PayloadDiscriminant::Exec,
             Rule {
                 name: "Open netcat".to_string(),
-                condition: Condition::Base {
-                    field_path: vec![
-                        Field::Simple {
-                            field_name: "payload".to_string(),
-                        },
-                        Field::Adt {
+                condition: Condition::Binary {
+                    l: vec![
+                        Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
+                        Identifier::Field(Field::Adt(AdtField {
                             variant_name: "Exec".to_string(),
                             field_name: "filename".to_string(),
-                        },
+                        })),
                     ],
                     op: Operator::Relational(RelationalOperator::Equals),
-                    value: Match::Value("/usr/bin/nc".to_string()),
+                    r: RValue::Value("/usr/bin/nc".to_string()),
                 },
             },
         );

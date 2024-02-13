@@ -1,7 +1,8 @@
 use std::error::Error;
 
 use validatron::{
-    validator::get_valid_rule, Field, Match, Operator, RelationalOperator, Validatron,
+    validator::get_valid_rule, Field, Identifier, Operator, RValue, RelationalOperator,
+    SimpleField, Validatron,
 };
 
 #[derive(Debug, Clone, Validatron)]
@@ -14,11 +15,11 @@ pub struct MyStruct {
 /// Match the field "a" against the fixed value "111" using the "Equals" operator
 fn fixed_match(test: &MyStruct) -> Result<bool, Box<dyn Error>> {
     let rule = get_valid_rule::<MyStruct>(
-        vec![Field::Simple {
-            field_name: "a".to_string(),
-        }],
+        vec![Identifier::Field(Field::Simple(SimpleField(
+            "a".to_string(),
+        )))],
         Operator::Relational(RelationalOperator::Equals),
-        Match::Value("111".to_string()),
+        RValue::Value("111".to_string()),
     )?;
 
     Ok(rule.is_match(test))
@@ -27,13 +28,13 @@ fn fixed_match(test: &MyStruct) -> Result<bool, Box<dyn Error>> {
 /// Match the field "a" against the field "b" using the "Greater" operator
 fn dynamic_match(test: &MyStruct) -> Result<bool, Box<dyn Error>> {
     let rule = get_valid_rule::<MyStruct>(
-        vec![Field::Simple {
-            field_name: "a".to_string(),
-        }],
+        vec![Identifier::Field(Field::Simple(SimpleField(
+            "a".to_string(),
+        )))],
         Operator::Relational(RelationalOperator::Greater),
-        Match::Field(vec![Field::Simple {
-            field_name: "b".to_string(),
-        }]),
+        RValue::Identifier(vec![Identifier::Field(Field::Simple(SimpleField(
+            "b".to_string(),
+        )))]),
     )?;
 
     Ok(rule.is_match(test))

@@ -106,7 +106,7 @@ pub fn get_process_parent_pid(pid: Pid) -> Result<Pid, ProcfsError> {
     let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
     let reader = BufReader::new(file);
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         if !line.is_empty() && line.starts_with("PPid:") {
             let mut s = line.split(':');
             let _ = s.next().unwrap();
@@ -124,7 +124,7 @@ pub fn get_process_user_id(pid: Pid) -> Result<Uid, ProcfsError> {
     let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
     let reader = BufReader::new(file);
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         if !line.is_empty() && line.starts_with("Uid:") {
             let mut s = line.split(':');
             let _ = s.next().unwrap();
@@ -167,7 +167,7 @@ pub fn get_process_container_id(pid: Pid) -> Result<Option<ContainerId>, ProcfsE
     let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
 
     let reader = BufReader::new(file);
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         if let Some(container_id) = get_container_id_from_cgroup(&line) {
             return Ok(Some(container_id));
         }

@@ -28,7 +28,7 @@ pub enum MountinfoError {
 /// [the kernel documentation](https://www.kernel.org/doc/Documentation/filesystems/proc.txt).
 /// To sum it up, each line contains the following fields:
 ///
-/// ```ignore
+/// ```text
 /// 36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
 /// (1)(2)(3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
 /// ```
@@ -41,7 +41,7 @@ fn parse_cgroup2_mountpoint<R>(reader: BufReader<R>) -> Result<String, Mountinfo
 where
     R: Read,
 {
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         // Mountinfo is separated by `-` into two parts:
         //
         // * Information about the mount which consist of at least 6 fields,

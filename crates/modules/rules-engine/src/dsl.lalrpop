@@ -1,7 +1,7 @@
-use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, Match, Field, Condition};
+use validatron::{Operator, RelationalOperator, StringOperator, MultiOperator, RValue, Field, Identifier, Condition, AdtField, SimpleField, MethodCall};
 use lalrpop_util::ParseError;
 
-use super::{DslError};
+use super::{DslError, OptCheck};
 
 grammar(variant: &str);
 
@@ -12,28 +12,28 @@ pub Condition: Condition = {
 }
 
 SignedCondition: Condition = {
-    "NOT" <b:BaseCondition> => Condition::Not{inner: Box::new(b)},
-    BaseCondition
+    "NOT" <b:SimpleCondition> => Condition::Not{inner: Box::new(b)},
+    SimpleCondition
 }
 
-BaseCondition: Condition = {
-    <f: FieldPath> <op: Operator> <value: Value> => Condition::Base {
-        field_path: f,
+SimpleCondition: Condition = {
+    <f: FieldPath> <op: Operator> <value: Value> => Condition::Binary {
+        l: f,
         op,
-        value: Match::Value(value)
+        r: RValue::Value(value)
     },
-    <f: FieldPath> <op: Operator> <value: FieldPath> => Condition::Base {
-        field_path: f,
+    <f: FieldPath> <op: Operator> <value: FieldPath> => Condition::Binary {
+        l: f,
         op,
-        value: Match::Field(value)
+        r: RValue::Identifier(value)
     },
     <f: FieldPath> "IN" <list: ValueList> =>? {
         let mut iterator = list.into_iter();
 
-        let first = Condition::Base {
-            field_path: f.clone(),
+        let first = Condition::Binary {
+            l: f.clone(),
             op: Operator::Relational(RelationalOperator::Equals),
-            value: iterator.next().map(|x| Match::Value(x)).ok_or(ParseError::User {
+            r: iterator.next().map(|x| RValue::Value(x)).ok_or(ParseError::User {
                 error: DslError::EmptyList
             })?
         };
@@ -41,16 +41,17 @@ BaseCondition: Condition = {
         let ret_val = iterator.fold(first, |acc, x| {
             Condition::Or {
                 l: Box::new(acc),
-                r: Box::new(Condition::Base {
-                    field_path: f.clone(),
+                r: Box::new(Condition::Binary {
+                    l: f.clone(),
                     op: Operator::Relational(RelationalOperator::Equals),
-                    value: Match::Value(x)
+                    r: RValue::Value(x)
                 })
             }
         });
     
         Ok(ret_val)
     },
+    <f: FieldPath> => Condition::Unary(f),
     "(" <Condition> ")",
 }
 
@@ -88,34 +89,89 @@ Operator: Operator = {
     "CONTAINS" => Operator::Multi(MultiOperator::Contains),
 }
 
-FieldPath: Vec<Field> = {
-    <Dot<Ident>> => {
+FieldPath: Vec<Identifier> = {
+    <IdentSeq> =>? {
         let mut payload_subpath = false;
-        <>.into_iter().enumerate().map(|(index,value)| {
-            if index == 0 && value == "payload" {
-                payload_subpath = true;
+
+        let mut v = Vec::new();
+        v.reserve(<>.len());
+
+        let mut dotted_idents = <>.into_iter().enumerate();
+
+        while let Some((index, value)) = dotted_idents.next() {
+            match value {
+                Identifier::MethodCall(mc) => {
+                    if index == 0 {
+                        return Err(ParseError::User {
+                            error: DslError::FunctionCall
+                        })
+                    }
+
+                    if dotted_idents.len() == 0 {
+                        v.push(Identifier::MethodCall(mc));
+                    } else {
+                        return Err(ParseError::User {
+                            error: DslError::MethodCallNotFinal
+                        })
+                    }
+                }
+                Identifier::Field(Field::Simple(SimpleField(value))) => {
+                    if index == 0 && value == "payload" {
+                        payload_subpath = true;
+                    }
+
+                    let identifier = if index == 1 && payload_subpath {
+                        Identifier::Field(Field::Adt(AdtField { variant_name: variant.to_string(), field_name: value } ))
+                    } else {
+                        Identifier::Field(Field::Simple(SimpleField(value)))
+                    }; 
+
+                    v.push(identifier);
+                }
+                Identifier::Field(Field::Adt(field)) => {
+                    if index == 0 {
+                        return Err(ParseError::User {
+                            error: DslError::AdtFirstField
+                        })
+                    }                    
+
+                    v.push(Identifier::Field(Field::Adt(field)));
+                }
             }
-            if index == 1 && payload_subpath {
-                Field::Adt{variant_name: variant.to_string(), field_name: value}
-            } else {
-               Field::Simple { field_name: value }
-            }  
-        }).collect()
-    }
-}
-
-Dot<T>: Vec<T> = {
-    <mut v:(<T> ".")*> <e:T?> => match e {
-        None => v,
-        Some(e) => {
-            v.push(e);
-            v
         }
+
+        Ok(v)
     }
 }
 
-Ident: String = {
-    <s: r"[a-zA-Z]+\w*"> => <>.to_string()
+IdentSeq: Vec<Identifier> = {
+    <v:(<Ident> <OptCheck?> ".")*> <e:Ident> => {
+        let mut res = Vec::new();
+
+        for (ident, opt_check) in v.into_iter() {
+            res.push(ident);
+
+            if opt_check.is_some() {
+                 res.push(Identifier::Field(Field::Adt(AdtField {
+                    variant_name: "Some".to_string(),
+                    field_name: "0".to_string()
+              })));
+            }
+        }
+
+        res.push(e);
+
+        res
+    }
+}
+
+OptCheck: OptCheck = {
+    "?" => OptCheck
+}
+
+Ident: Identifier = {
+    r"[a-zA-Z]+\w*" => Identifier::Field(Field::Simple(SimpleField(<>.to_string()))),
+    <r"[a-zA-Z]+\w*">"()" => Identifier::MethodCall(MethodCall{ name: <>.to_string() })
 }
 
 extern {

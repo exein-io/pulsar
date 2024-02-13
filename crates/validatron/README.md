@@ -7,17 +7,17 @@ Basically it's a way for check the correctness of rules over types and subsequen
 It check if fields specified in a rules are valid for a given type. Example:
 
 ```rust
-use validatron::validator::get_valid_rule;
+use validatron::validator::{get_valid_rule, Operator, RelationalOperator, Identifier, Field, RValue, SimpleField};
 #[derive(Validatron)]
 struct MyStruct {
     my_value: i32
 }
 let rule = get_valid_rule::<MyStruct>(
-    vec![Field::Simple {
-        field_name: "my_value".to_string(),
-    }],
+    vec![Identifier::Field(Field::Simple(SimpleField(
+        "my_value".to_string()
+    )))],
     Operator::Relational(RelationalOperator::Equals),
-    Match::Value("42".to_string()),
+    RValue::Value("42".to_string()),
 )
 .unwrap();
 let test = MyStruct { my_value: 42 };
@@ -30,7 +30,7 @@ specific field type (`i32`).
 On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
 
 ```rust
-use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Match};
+use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Identifier, Field, RValue, SimpleField};
 #[derive(Validatron)]
 struct MyStruct {
     my_value: i32,
@@ -39,30 +39,30 @@ let ruleset: Ruleset<MyStruct> = Ruleset::from_rules(vec![
     Rule {
         name: "my_value equal to 3 or 5".to_string(),
         condition: Condition::Or {
-            l: Box::new(Condition::Base {
-                field_path: vec![Field::Simple {
-                    field_name: "my_value".to_string(),
-                }],
+            l: Box::new(Condition::Binary {
+                l: vec![Identifier::Field(Field::Simple(SimpleField(
+                    "my_value".to_string()
+                )))],
                 op: Operator::Relational(RelationalOperator::Equals),
-                value: Match::Value("3".to_string()),
+                r: RValue::Value("3".to_string()),
             }),
-            r: Box::new(Condition::Base {
-                field_path: vec![Field::Simple {
-                    field_name: "my_value".to_string(),
-                }],
+            r: Box::new(Condition::Binary {
+                l: vec![Identifier::Field(Field::Simple(SimpleField(
+                    "my_value".to_string()
+                )))],
                 op: Operator::Relational(RelationalOperator::Equals),
-                value: Match::Value("5".to_string()),
+                r: RValue::Value("5".to_string()),
             }),
         },
     },
     Rule {
         name: "my_value greater than 100".to_string(),
-        condition: Condition::Base {
-            field_path: vec![Field::Simple {
-                field_name: "my_value".to_string(),
-            }],
+        condition: Condition::Binary {
+            l: vec![Identifier::Field(Field::Simple(SimpleField(
+                "my_value".to_string()
+            )))],
             op: Operator::Relational(RelationalOperator::Greater),
-            value: Match::Value("100".to_string()),
+            r: RValue::Value("100".to_string()),
         },
     },
 ])
@@ -102,4 +102,4 @@ Validatron uses a [conventional Cargo build process](https://doc.rust-lang.org/c
 Validatron uses a [Cargo Workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html), so for some cargo commands, such as `cargo test`, the `--all` is needed to tell cargo to visit all of the crates.
 
 
-[^1]: Marc Feeley, Guy Lapalme, [Using closures for code generation](https://www.sciencedirect.com/science/article/abs/pii/0096055187900129)
+[^1]: Marc Feeley, Guy Lapalme, [Using closures for code generation](https://doi.org/10.1016/0096-0551(87)90012-9)

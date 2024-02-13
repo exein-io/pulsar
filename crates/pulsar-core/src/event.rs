@@ -82,7 +82,6 @@ pub struct Header {
     pub image: String,
     pub pid: i32,
     pub parent_pid: i32,
-    #[validatron(skip)]
     pub container: Option<ContainerInfo>,
     #[validatron(skip)]
     pub threat: Option<Threat>,
@@ -419,35 +418,37 @@ impl FileFlags {
 
 impl Validatron for FileFlags {
     fn get_class() -> validatron::ValidatronClass {
-        Self::class_builder().primitive(
-            Box::new(|s| {
-                FileFlags::ACC_MODE_FLAGS
-                    .iter()
-                    .chain(FileFlags::OTHER_FLAGS.iter())
-                    .find(|(name, _)| *name == s)
-                    .map(|(_, flag)| Self(*flag))
-                    .ok_or_else(|| ValidatronError::FieldValueParseError(s.to_string()))
-            }),
-            Box::new(|op| match op {
-                Operator::Multi(op) => match op {
-                    validatron::MultiOperator::Contains => Ok(Box::new(|a, b| {
-                        if FileFlags::ACC_MODE_FLAGS
-                            .iter()
-                            .any(|(_, acc_mode_flag)| acc_mode_flag == &b.0)
-                        {
-                            let mode = a.0 & kernel::file::flags::O_ACCMODE;
-                            mode == b.0
-                        } else {
-                            (a.0 & b.0) > 0
-                        }
-                    })),
-                },
-                _ => Err(ValidatronError::OperatorNotAllowedOnType(
-                    op,
-                    "FileFlags".to_string(),
-                )),
-            }),
-        )
+        Self::class_builder()
+            .primitive_class_builder(
+                Box::new(|s| {
+                    FileFlags::ACC_MODE_FLAGS
+                        .iter()
+                        .chain(FileFlags::OTHER_FLAGS.iter())
+                        .find(|(name, _)| *name == s)
+                        .map(|(_, flag)| Self(*flag))
+                        .ok_or_else(|| ValidatronError::FieldValueParseError(s.to_string()))
+                }),
+                Box::new(|op| match op {
+                    Operator::Multi(op) => match op {
+                        validatron::MultiOperator::Contains => Ok(Box::new(|a, b| {
+                            if FileFlags::ACC_MODE_FLAGS
+                                .iter()
+                                .any(|(_, acc_mode_flag)| acc_mode_flag == &b.0)
+                            {
+                                let mode = a.0 & kernel::file::flags::O_ACCMODE;
+                                mode == b.0
+                            } else {
+                                (a.0 & b.0) > 0
+                            }
+                        })),
+                    },
+                    _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                        op,
+                        "FileFlags".to_string(),
+                    )),
+                }),
+            )
+            .build()
     }
 }
 
@@ -499,20 +500,22 @@ impl From<Vec<String>> for Argv {
 
 impl Validatron for Argv {
     fn get_class() -> validatron::ValidatronClass {
-        Self::class_builder().primitive(
-            Box::new(|s| Ok(Argv(vec![s.to_string()]))),
-            Box::new(|op| match op {
-                Operator::Multi(op) => match op {
-                    validatron::MultiOperator::Contains => {
-                        Ok(Box::new(|a, b| b.0.iter().all(|item| a.0.contains(item))))
-                    }
-                },
-                _ => Err(ValidatronError::OperatorNotAllowedOnType(
-                    op,
-                    "Argv".to_string(),
-                )),
-            }),
-        )
+        Self::class_builder()
+            .primitive_class_builder(
+                Box::new(|s| Ok(Argv(vec![s.to_string()]))),
+                Box::new(|op| match op {
+                    Operator::Multi(op) => match op {
+                        validatron::MultiOperator::Contains => {
+                            Ok(Box::new(|a, b| b.0.iter().all(|item| a.0.contains(item))))
+                        }
+                    },
+                    _ => Err(ValidatronError::OperatorNotAllowedOnType(
+                        op,
+                        "Argv".to_string(),
+                    )),
+                }),
+            )
+            .build()
     }
 }
 
