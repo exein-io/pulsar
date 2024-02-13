@@ -18,8 +18,9 @@
   type: FileOpened
   condition: (header.image IN ["/usr/sbin/sshd", "/usr/bin/ssh"]) 
     AND (
-    ((payload.filename STARTS_WITH "~" OR payload.filename STARTS_WITH "." OR payload.filename ENDS_WITH "~") 
-    AND NOT payload.filename IN [".cache", ".viminfo", ".bash_history", ".google_authenticator", ".jelenv", ".csvignore", ".rtreport"]
+    (payload.filename STARTS_WITH "~" OR payload.filename STARTS_WITH "." OR payload.filename ENDS_WITH "~") 
+    AND NOT (
+      payload.filename IN [".cache", ".viminfo", ".bash_history", ".google_authenticator", ".jelenv", ".csvignore", ".rtreport"]
     )
     OR payload.filename ENDS_WITH ".in" OR payload.filename ENDS_WITH ".out" OR payload.filename ENDS_WITH ".ini" OR payload.filename ENDS_WITH ".h" OR payload.filename ENDS_WITH ".gz" OR payload.filename ENDS_WITH ".so" OR payload.filename ENDS_WITH ".sock" OR payload.filename ENDS_WITH ".sync" OR payload.filename ENDS_WITH ".0" OR payload.filename ENDS_WITH ".1" OR payload.filename ENDS_WITH ".2" OR payload.filename ENDS_WITH ".3" OR payload.filename ENDS_WITH ".4" OR payload.filename ENDS_WITH ".5" OR payload.filename ENDS_WITH ".6" OR payload.filename ENDS_WITH ".7" OR payload.filename ENDS_WITH ".8" OR payload.filename ENDS_WITH ".9" 
     OR payload.filename STARTS_WITH "/private/etc/" OR payload.filename STARTS_WITH "/usr/share/"
@@ -27,6 +28,7 @@
     OR payload.filename STARTS_WITH "/private/tmp/" OR payload.filename STARTS_WITH "/private/var/tmp/"
     OR payload.filename STARTS_WITH "/usr/tmp/" OR payload.filename STARTS_WITH "/usr/share/man/"
     OR payload.filename STARTS_WITH "/usr/local/share/" 
+    # OR payload.filename STARTS_WITH " "/usr/lib/*.so.*"  
     OR payload.filename IN ["/private/etc/ssh/.sshd_auth", "/usr/bin/ssd", "/private/var/opt/power", "/private/etc/ssh/ssh_known_hosts", "/private/var/html/lol", "/private/var/log/utmp", "/private/var/lib", "/var/run/sshd/sshd.pid", "/var/run/nscd/ns.pid", "/var/run/udev/ud.pid", "/var/run/udevd.pid"
     ]
    )
