@@ -98,14 +98,6 @@ main() {
     # Download pulsar-exec
     ensure downloader "https://github.com/Exein-io/pulsar/releases/latest/download/pulsar-exec${_arch}" "${_dir}/pulsar-exec"
 
-    # Download scripts
-    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/scripts/pulsar" "${_dir}/pulsar"
-    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/scripts/pulsard" "${_dir}/pulsard"
-
-    # Download rules
-    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/basic-rules.yaml" "${_dir}/basic-rules.yaml"
-    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/container-rules.yaml" "${_dir}/container-rules.yaml"
-
     # Download release archive
     local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/latest | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
     local _tmp_pulsar_archive="${_dir}/pulsar.tar.gz"
@@ -131,9 +123,9 @@ main() {
     # Install pulsar-exec
     ensure $_install -m 755 "${_dir}/pulsar-exec" ${_bindir}
 
-    # Insalll scripts
-    ensure $_install -m 755 "${_dir}/pulsar" ${_bindir}
-    ensure $_install -m 755 "${_dir}/pulsard" ${_bindir}
+    # Install scripts
+    ensure $_install -m 755 "${_tmp_pulsar_src}/scripts/pulsar" ${_bindir}
+    ensure $_install -m 755 "${_tmp_pulsar_src}/scripts/pulsard" ${_bindir}
 
     printf '%s\n' 'info: generating configuration' 1>&2
 
