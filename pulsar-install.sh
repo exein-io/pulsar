@@ -104,6 +104,13 @@ main() {
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/basic-rules.yaml" "${_dir}/basic-rules.yaml"
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/container-rules.yaml" "${_dir}/container-rules.yaml"
 
+    # Download rules using MANIFEST
+    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/MANIFEST" "${_dir}/MANIFEST"
+    while read -r line; do
+        ensure mkdir -p "${_dir}/${line%/*}"
+        ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/${line}" "${_dir}/${line}"
+    done < "${_dir}/MANIFEST"
+
     printf '%s\n' 'info: installing files' 1>&2
 
     local _bindir="/usr/bin"
@@ -141,6 +148,11 @@ main() {
     # Install rules
     ensure $_install -m 644 "${_dir}/basic-rules.yaml" ${_pulsar_rules_dir}
     ensure $_install -m 644 "${_dir}/container-rules.yaml" ${_pulsar_rules_dir}
+
+    while read -r line; do
+        ensure mkdir -p "${_pulsar_rules_dir}/${line%/*}"
+        ensure $_install -m 644 "${_dir}/${line}" "${_pulsar_rules_dir}/${line}"
+    done < "${_dir}/MANIFEST"
 
     printf '%s\n' 'info: cleaning' 1>&2
     ignore rm -rf "$_dir"
