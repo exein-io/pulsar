@@ -1,0 +1,19 @@
+# Title: Tunneling Via Earthworm
+
+# Creation date: 2021/04/12
+
+# Category: Command and control
+
+# Severity: Medium
+
+# Description: Identifies the execution of the EarthWorm tunneler. Adversaries may tunnel network communications to and from a victim
+# system within a separate protocol to avoid detection and network filtering, or to enable access to otherwise unreachable
+# systems.
+
+# MITRE ATT&CK Tactic: TA0011 - Command and Control - https://attack.mitre.org/tactics/TA0011/
+
+# MITRE ATT&CK Technique: T1572 - Protocol Tunneling - https://attack.mitre.org/techniques/T1572/
+
+- name: Process with specific arguments
+  type: Exec
+  condition: payload.argv CONTAINS "-s" AND payload.argv CONTAINS "-d" AND payload.argv CONTAINS "rssocks"
