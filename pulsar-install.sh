@@ -107,8 +107,7 @@ main() {
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/container-rules.yaml" "${_dir}/container-rules.yaml"
 
     # Download release archive
-    # local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/latest | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
-    local _release_url="https://github.com/exein-io/pulsar/archive/refs/heads/245-new-rules-for-rule-engine-module.tar.gz"
+    local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/latest | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
     local _tmp_pulsar_archive="${_dir}/pulsar.tar.gz"
     ensure downloader $_release_url $_tmp_pulsar_archive
 
