@@ -4,8 +4,8 @@ command_and_control/tunneling_via_earthworm.yaml
 credential_access/credential_dumping.yaml
 credential_access/gdb_init_memory_dump.yaml  
 credential_access/ssh_backdoor_log.yaml
-defense_evasion/attempts_to_disable_iptables_or_firewall.yaml
-defense_evasion/attempts_to_disable_syslog_service.yaml
+defense_evasion/attempt_to_disable_iptables_or_firewall.yaml
+defense_evasion/attempt_to_disable_syslog_service.yaml
 defense_evasion/base16_or_base32_encoding_or_decoding_activity.yaml
 defense_evasion/clear_kernel_ring_buffer.yaml
 defense_evasion/disable_apparmor_attempt.yaml
@@ -17,6 +17,6 @@ defense_evasion/potential_proot_exploits.yaml
 discovery/kernel_module_enumeration.yaml
 execution/interpreter_tty_upgrade.yaml
 lateral_movement/ssh_it_worm_download.yaml
-lateral_movement/ telnet_network_activity.yaml
+lateral_movement/telnet_network_activity.yaml
 persistence/credential_access_modify_ssh_binaries.yaml
 privilege_escalation/ld_preload_shared_object_modif.yaml
