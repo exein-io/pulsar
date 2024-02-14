@@ -4,5 +4,4 @@
 # # Include essential files
 !**/pulsar-exec
 !**/pulsar.ini
-!**/basic-rules.yaml
-!**/container-rules.yaml
+!**/rules/**
