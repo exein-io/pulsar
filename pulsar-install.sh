@@ -39,6 +39,8 @@ main() {
     need_cmd cat
     need_cmd touch
     need_cmd install
+    need_cmd tar
+    need_cmd gzip
 
     # Parse command line
     for arg in "$@"; do
@@ -104,12 +106,16 @@ main() {
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/basic-rules.yaml" "${_dir}/basic-rules.yaml"
     ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/container-rules.yaml" "${_dir}/container-rules.yaml"
 
-    # Download rules using MANIFEST
-    ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/MANIFEST" "${_dir}/MANIFEST"
-    while read -r line; do
-        ensure mkdir -p "${_dir}/${line%/*}"
-        ensure downloader "https://raw.githubusercontent.com/Exein-io/pulsar/main/rules/${line}" "${_dir}/${line}"
-    done < "${_dir}/MANIFEST"
+    # Download release archive
+    # local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/latest | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
+    local _release_url="https://github.com/exein-io/pulsar/archive/refs/heads/245-new-rules-for-rule-engine-module.tar.gz"
+    local _tmp_pulsar_archive="${_dir}/pulsar.tar.gz"
+    ensure downloader $_release_url $_tmp_pulsar_archive
+
+    # Extract release archive
+    local _tmp_pulsar_src="${_dir}/pulsar-latest"
+    mkdir -p $_tmp_pulsar_src
+    ensure tar -xzf $_tmp_pulsar_archive -C $_tmp_pulsar_src --strip-components=1
 
     printf '%s\n' 'info: installing files' 1>&2
 
@@ -143,16 +149,10 @@ main() {
     ensure generate_basic_config "${_temp_config_file}"
     ensure $_install -m 644 ${_temp_config_file} "${_pulsar_config_dir}/pulsar.ini"
 
-    printf '%s\n' 'info: basic rules' 1>&2
+    # Install rules from release archive 
+    printf '%s\n' 'info: installing rules' 1>&2
+    (cd $_tmp_pulsar_src/rules && find . -type f -exec $_install -Dm 644 "{}" "${_pulsar_rules_dir}/{}" \;)
 
-    # Install rules
-    ensure $_install -m 644 "${_dir}/basic-rules.yaml" ${_pulsar_rules_dir}
-    ensure $_install -m 644 "${_dir}/container-rules.yaml" ${_pulsar_rules_dir}
-
-    while read -r line; do
-        ensure mkdir -p "${_pulsar_rules_dir}/${line%/*}"
-        ensure $_install -m 644 "${_dir}/${line}" "${_pulsar_rules_dir}/${line}"
-    done < "${_dir}/MANIFEST"
 
     printf '%s\n' 'info: cleaning' 1>&2
     ignore rm -rf "$_dir"
