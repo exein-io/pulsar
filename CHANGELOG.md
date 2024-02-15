@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 -
 
+## [0.8.0] - 2024-02-15
+
+### Added
+- MITRE compatible ruleset
+- rule dsl: type methods
+- rule dsl: unary conditions
+- rule dsl: option field support
+
 ## [0.7.1] - 2024-02-01
 
 ### Added
