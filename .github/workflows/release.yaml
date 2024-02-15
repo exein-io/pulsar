@@ -241,8 +241,8 @@ jobs:
       - name: Push to latest
         if: github.ref_type == 'tag'
         run: |
-          docker tag ${{ env.REGISTRY_IMAGE }}:${{ env.REGISTRY_TAG }} ${{ env.REGISTRY_IMAGE }}:latest
-          docker push ${{ env.REGISTRY_IMAGE }}:latest
+          docker buildx imagetools create -t ${{ env.REGISTRY_IMAGE }}:latest \
+            $(docker image ls --format '{{.Repository}}:{{.Tag}}' '${{ env.TMP_LOCAL_IMAGE }}' | tr '\n' ' ')
 
       - name: Inspect image
         run: |
