@@ -2,6 +2,6 @@
 **
 
 # # Include essential files
-!**/pulsar-exec
-!**/pulsar.ini
-!**/rules/**
+!target/*/release/pulsar-exec
+!.github/docker/pulsar.ini
+!rules
