@@ -16,4 +16,5 @@
 - name: Execution of curl or wget with specific arguments
   type: Exec
   condition: (payload.filename ENDS_WITH "/curl" OR payload.filename ENDS_WITH "/wget")
-   AND (payload.argv CONTAINS "https://thc.org/ssh-it/x" OR payload.argv CONTAINS "http://nossl.segfault.net/ssh-it-deploy.sh" OR payload.argv CONTAINS "https://gsocket.io/x" OR payload.argv CONTAINS "https://thc.org/ssh-it/bs" OR payload.argv CONTAINS "http://nossl.segfault.net/bs")
+   AND (payload.argv CONTAINS "https://thc.org/ssh-it/x" OR payload.argv CONTAINS "http://nossl.segfault.net/ssh-it-deploy.sh" 
+   OR payload.argv CONTAINS "https://gsocket.io/x" OR payload.argv CONTAINS "https://thc.org/ssh-it/bs" OR payload.argv CONTAINS "http://nossl.segfault.net/bs")

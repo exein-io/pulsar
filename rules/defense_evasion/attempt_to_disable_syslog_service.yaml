@@ -15,20 +15,25 @@
 
 - name: Service command to stop syslog-related services
   type: Exec
-  condition: payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "stop" AND (payload.argv CONTAINS "syslog" OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
+  condition: payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "stop" AND (payload.argv CONTAINS "syslog" 
+    OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
 
 - name: Chkconfig command to turn off syslog-related services
   type: Exec
-  condition: payload.filename ENDS_WITH "chkconfig" AND payload.argv CONTAINS "off" AND (payload.argv CONTAINS "syslog" OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
+  condition: payload.filename ENDS_WITH "chkconfig" AND payload.argv CONTAINS "off" AND (payload.argv CONTAINS "syslog" 
+    OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
 
 - name: Systemctl command to disable syslog-related services
   type: Exec
-  condition: payload.filename ENDS_WITH "systemctl" AND payload.argv CONTAINS "disable" AND (payload.argv CONTAINS "syslog" OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
+  condition: payload.filename ENDS_WITH "systemctl" AND payload.argv CONTAINS "disable" AND (payload.argv CONTAINS "syslog" 
+    OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
 
 - name: Systemctl command to stop syslog-related services
   type: Exec
-  condition: payload.filename ENDS_WITH "systemctl" AND payload.argv CONTAINS "stop" AND (payload.argv CONTAINS "syslog" OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
+  condition: payload.filename ENDS_WITH "systemctl" AND payload.argv CONTAINS "stop" AND (payload.argv CONTAINS "syslog" 
+    OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
 
 - name: Systemctl command to kill syslog-related services
   type: Exec
-  condition: payload.filename ENDS_WITH "systemctl" AND payload.argv CONTAINS "kill" AND (payload.argv CONTAINS "syslog" OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")
+  condition: payload.filename ENDS_WITH "systemctl" AND payload.argv CONTAINS "kill" AND (payload.argv CONTAINS "syslog" 
+    OR payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng")

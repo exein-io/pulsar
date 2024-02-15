@@ -15,13 +15,16 @@
 
 - name: Base16 execution
   type: Exec
-  condition: payload.filename IN ["/usr/bin/base16", "/sbin/base16", "/usr/bin/base16-encode", "/usr/bin/base16-decode", "/usr/bin/base16enc", "/usr/bin/base16dec", "/usr/bin/base16plain", "/usr/bin/base16hex"]
+  condition: payload.filename IN ["/usr/bin/base16", "/sbin/base16", "/usr/bin/base16-encode", "/usr/bin/base16-decode", 
+    "/usr/bin/base16enc", "/usr/bin/base16dec", "/usr/bin/base16plain", "/usr/bin/base16hex"]
 
 - name: Base32 execution
   type: Exec
-  condition: payload.filename IN ["/usr/bin/base32", "/sbin/base32", "/usr/bin/base32-encode", "/usr/bin/base32-decode", "/usr/bin/base32enc", "/usr/bin/base32dec", "/usr/bin/base32plain", "/usr/bin/base32hex"]
+  condition: payload.filename IN ["/usr/bin/base32", "/sbin/base32", "/usr/bin/base32-encode", "/usr/bin/base32-decode", 
+    "/usr/bin/base32enc", "/usr/bin/base32dec", "/usr/bin/base32plain", "/usr/bin/base32hex"]
 
 - name: Base64 execution
   type: Exec
-  condition: payload.filename IN ["/usr/bin/base64", "/sbin/base64", "/usr/bin/base64-encode", "/usr/bin/base64-decode", "/usr/bin/base64enc", "/usr/bin/base64dec", "/usr/bin/base64plain", "/usr/bin/base64hex"]
+  condition: payload.filename IN ["/usr/bin/base64", "/sbin/base64", "/usr/bin/base64-encode", "/usr/bin/base64-decode", 
+    "/usr/bin/base64enc", "/usr/bin/base64dec", "/usr/bin/base64plain", "/usr/bin/base64hex"]
 

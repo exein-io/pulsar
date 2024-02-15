@@ -15,5 +15,6 @@
 
 - name: Delete sensitive log files
   type: FileDeleted
-  condition: payload.filename IN ["/var/run/utmp", "/var/log/wtmp", "/var/log/btmp", "/var/log/lastlog", "/var/log/faillog", "/var/log/syslog", "/var/log/messages", "/var/log/secure", "/var/log/auth.log", "/var/log/boot.log", "/var/log/kern.log"]
+  condition: payload.filename IN ["/var/run/utmp", "/var/log/wtmp", "/var/log/btmp", "/var/log/lastlog", "/var/log/faillog", 
+    "/var/log/syslog", "/var/log/messages", "/var/log/secure", "/var/log/auth.log", "/var/log/boot.log", "/var/log/kern.log"]
     AND NOT header.image IN ["/usr/bin/gzip", "/usr/bin/executor", "/usr/bin/dockerd"]
