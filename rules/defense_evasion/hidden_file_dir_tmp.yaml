@@ -21,3 +21,4 @@
     (payload.source STARTS_WITH "/tmp" OR payload.source STARTS_WITH "/var/tmp" OR payload.source STARTS_WITH "/dev/shm")
     AND 
     (payload.destination STARTS_WITH "/tmp/." OR payload.destination STARTS_WITH "/var/tmp/." OR payload.destination STARTS_WITH "/dev/shm/.")
+    

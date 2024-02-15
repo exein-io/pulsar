@@ -18,4 +18,6 @@
   type: Exec
   condition: payload.filename IN ["/usr/bin/lsmod", "/usr/sbin/lsmod", "/usr/bin/modinfo", "/usr/sbin/modinfo", "/usr/bin/kmod", "/usr/bin/depmod", "/usr/sbin/depmod"]
     AND (NOT payload.argv CONTAINS "--all" OR NOT payload.argv CONTAINS "-a" OR payload.argv CONTAINS "list")
-    AND NOT header.image ENDS_WITH "/mkinitramfs" AND NOT header.image ENDS_WITH "/cryptroot" AND NOT header.image ENDS_WITH "/framebuffer" AND NOT header.image ENDS_WITH "/dracut" AND NOT header.image ENDS_WITH "/jem" AND NOT header.image ENDS_WITH "/thin-provisioning-tools" AND NOT header.image ENDS_WITH "/readykernel" AND NOT header.image ENDS_WITH "/lvm2" AND NOT header.image ENDS_WITH "/vz-start" AND NOT header.image ENDS_WITH "/iscsi" AND NOT header.image ENDS_WITH "/mdadm"
+    AND NOT header.image ENDS_WITH "/mkinitramfs" AND NOT header.image ENDS_WITH "/cryptroot" AND NOT header.image ENDS_WITH "/framebuffer" AND NOT header.image ENDS_WITH "/dracut" 
+    AND NOT header.image ENDS_WITH "/jem" AND NOT header.image ENDS_WITH "/thin-provisioning-tools" AND NOT header.image ENDS_WITH "/readykernel" AND NOT header.image ENDS_WITH "/lvm2" 
+    AND NOT header.image ENDS_WITH "/vz-start" AND NOT header.image ENDS_WITH "/iscsi" AND NOT header.image ENDS_WITH "/mdadm"

@@ -19,30 +19,41 @@
   condition: payload.filename ENDS_WITH "gost"
     AND (payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-C" OR payload.argv CONTAINS "-R")
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
     )
 
 - name: Pivotnacci without parent process
   type: Exec
   condition: payload.filename ENDS_WITH "pivotnacci"
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
     )
 
 - name: SSH with suspicious arguments
   type: Exec
   condition:
-    (payload.filename ENDS_WITH "/ssh" OR payload.filename ENDS_WITH  "/usr/sbin/sshd")  AND (payload.argv CONTAINS "-R" OR payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-D" OR payload.argv CONTAINS "-w") AND payload.argc >= 4 AND NOT payload.argv CONTAINS "chmod"
+    (payload.filename ENDS_WITH "/ssh" OR payload.filename ENDS_WITH  "/usr/sbin/sshd")  AND (payload.argv CONTAINS "-R" 
+    OR payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-D" OR payload.argv CONTAINS "-w") AND payload.argc >= 4 
+    AND NOT payload.argv CONTAINS "chmod"
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh"
+    OR header.image ENDS_WITH "fish"
    )
 
 - name: Sshuttle with suspicious arguments
   type: Exec
   condition:
-    payload.filename ENDS_WITH "sshuttle" AND (payload.argv CONTAINS "-r" OR payload.argv CONTAINS "--remote" OR payload.argv CONTAINS "-l" OR payload.argv CONTAINS "--listen") AND payload.argc >= 4
+    payload.filename ENDS_WITH "sshuttle" AND (payload.argv CONTAINS "-r" OR payload.argv CONTAINS "--remote" OR payload.argv CONTAINS "-l" 
+    OR payload.argv CONTAINS "--listen") AND payload.argc >= 4
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
     )
 
 - name: Socat with suspicious arguments
@@ -50,7 +61,9 @@
   condition:
     payload.filename ENDS_WITH "socat" AND (payload.argv CONTAINS "TCP4-LISTEN:" OR payload.argv CONTAINS "SOCKS") AND payload.argc >= 3
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
     )
 
 - name: Chisel client OR server mode
@@ -58,14 +71,20 @@
   condition:
     payload.filename ENDS_WITH "chisel" AND (payload.argv CONTAINS "client" OR payload.argv CONTAINS "server")
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
     )
 
 - name: Tunneling tools execution
   type: Exec
   condition:
-    payload.filename ENDS_WITH "iodine" OR payload.filename ENDS_WITH "iodined" OR payload.filename ENDS_WITH "dnscat" OR payload.filename ENDS_WITH "hans" OR payload.filename ENDS_WITH "hans-ubuntu" OR payload.filename ENDS_WITH "ptunnel-ng" OR payload.filename ENDS_WITH "ssf" OR payload.filename ENDS_WITH "3proxy" OR payload.filename ENDS_WITH "ngrok"
+    payload.filename ENDS_WITH "iodine" OR payload.filename ENDS_WITH "iodined" OR payload.filename ENDS_WITH "dnscat" 
+    OR payload.filename ENDS_WITH "hans" OR payload.filename ENDS_WITH "hans-ubuntu" OR payload.filename ENDS_WITH "ptunnel-ng" 
+    OR payload.filename ENDS_WITH "ssf" OR payload.filename ENDS_WITH "3proxy" OR payload.filename ENDS_WITH "ngrok"
     AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" OR header.image ENDS_WITH "fish"
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
     )
 

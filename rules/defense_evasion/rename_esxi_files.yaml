@@ -16,4 +16,6 @@
 
 - name: Rename virtual machine files
   type: FileRename
-  condition: (payload.source ENDS_WITH ".vmdk" OR payload.source ENDS_WITH ".vmx" OR payload.source ENDS_WITH ".vmxf" OR payload.source ENDS_WITH ".vmsd" OR payload.source ENDS_WITH ".vmsn" OR payload.source ENDS_WITH ".vswp" OR payload.source ENDS_WITH ".vmss" OR payload.source ENDS_WITH ".nvram" OR payload.source ENDS_WITH ".vmem")
+  condition: (payload.source ENDS_WITH ".vmdk" OR payload.source ENDS_WITH ".vmx" OR payload.source ENDS_WITH ".vmxf" 
+    OR payload.source ENDS_WITH ".vmsd" OR payload.source ENDS_WITH ".vmsn" OR payload.source ENDS_WITH ".vswp" OR payload.source ENDS_WITH ".vmss" 
+    OR payload.source ENDS_WITH ".nvram" OR payload.source ENDS_WITH ".vmem")
