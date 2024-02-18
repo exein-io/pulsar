@@ -18,10 +18,9 @@ Pulsar is a security tool for monitoring the activity of Linux devices at runtim
 
 The Pulsar core modules use eBPF probes to collect events from the kernel in a safe and efficient way. Pulsar events can be categorized in the four main following areas:
 
+- **Processes**: processes information, including file execution and file opening.
 - **File I/O**: I/O operations on disk and memory.
 - **Network**: data from the network stack.
-- **Processes**: processes information, including file execution and file opening.
-- **System Activity**: device activity, including system calls.
 
 Pulsar is built with a modular design that makes it easy to adapt the core architecture to new use cases, create new modules or write custom rules.
 
@@ -33,7 +32,7 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 To download and install Pulsar, run the following in your terminal:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/Exein-io/pulsar/main/pulsar-install.sh | sh
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/exein-io/pulsar/main/pulsar-install.sh | sh
 ```
 
 Launch the pulsar daemon in a terminal **with administrator privileges**:
