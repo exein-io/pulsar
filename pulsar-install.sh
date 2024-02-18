@@ -253,8 +253,8 @@ get_release_variant() {
             ;;
 
         riscv64)
-            # TODO: _cputype=riscv64gc
-            err "installer unsupported CPU type: $_cputype. You have to manually build youself for $_cputype"
+            #_cputype=riscv64gc
+            _arch=riscv64gc
             ;;
 
         *)
