@@ -18,3 +18,21 @@
         )
       )
     )
+
+- name: Chroot in container
+  type: Exec
+  condition: |
+    header.container.is_some() AND payload.filename ENDS_WITH "/chroot"
+
+- name: Linux kernel module injection in container
+  type: Exec
+  condition: |
+    header.container.is_some() AND
+    payload.filename ENDS_WITH "/modprobe" AND NOT
+    payload.argv CONTAINS "-r"
+
+- name: Reading kernel logs in container
+  type: Exec
+  condition: |
+    header.container.is_some() AND
+    payload.filename ENDS_WITH "/dmesg"
