@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 #include "bpf/bpf_core_read.h"
 #include "common.bpf.h"
-
+#include "strncmp.bpf.h"
 #include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
 #include "get_path.bpf.h"
@@ -189,7 +189,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
   }
 
   // Docker case
-  if (bpf_strncmp(buf, 7, "docker-") == 0)
+  if (STRNCMP(buf, 7, "docker-") == 0)
   {
     *offset = 7;
     return DOCKER_CONTAINER_ENGINE;
@@ -199,7 +199,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
   //
   // the check for NULL character is needed to avoid collisions with
   // `containerd-` prefixed cgroup name
-  if (bpf_strncmp(buf, 9, "container") == 0 && buf[9] == '\0')
+  if (STRNCMP(buf, 9, "container") == 0 && buf[9] == '\0')
   {
 
     const char *parent_name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, parent, name);
@@ -210,7 +210,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
-    if (bpf_strncmp(buf, 7, "libpod-") == 0)
+    if (STRNCMP(buf, 7, "libpod-") == 0)
     {
       *offset = 7;
       return PODMAN_CONTAINER_ENGINE;
