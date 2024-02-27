@@ -179,7 +179,10 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
     cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
   else
+  {
+    LOG_ERROR("failed to read memory cgroup id. make sure `CONFIG_MEMCG` is enabled in the kernel configuration\n");
     return FAILED_READ_MEMORY_CGROUP_ID;
+  }
 
   const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
   if (bpf_probe_read_kernel_str(buf, sz, name) < 0)
