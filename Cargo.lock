@@ -301,14 +301,14 @@ dependencies = [
 
 [[package]]
 name = "bpf-builder"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "bpf-common"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "aya",
@@ -340,7 +340,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-filtering"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bpf-builder",
@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-notifier"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "engine-api"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -796,7 +796,7 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 
 [[package]]
 name = "file-system-monitor"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bpf-builder",
  "bpf-common",
@@ -1395,7 +1395,7 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "logger"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bpf-common",
  "log",
@@ -1508,7 +1508,7 @@ dependencies = [
 
 [[package]]
 name = "network-monitor"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bpf-builder",
  "bpf-common",
@@ -1816,7 +1816,7 @@ dependencies = [
 
 [[package]]
 name = "process-monitor"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bpf-builder",
@@ -1864,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -1891,7 +1891,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar-core"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -2079,7 +2079,7 @@ dependencies = [
 
 [[package]]
 name = "rules-engine"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "glob",
@@ -2352,7 +2352,7 @@ dependencies = [
 
 [[package]]
 name = "smtp-notifier"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2532,7 +2532,7 @@ dependencies = [
 
 [[package]]
 name = "test-suite"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bpf-common",
  "bpf-filtering",
@@ -2938,7 +2938,7 @@ dependencies = [
 
 [[package]]
 name = "validatron"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "log",
  "serde",
@@ -2948,7 +2948,7 @@ dependencies = [
 
 [[package]]
 name = "validatron-derive"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3334,7 +3334,7 @@ checksum = "7e2c411759b501fb9501aac2b1b2d287a6e93e5bdcf13c25306b23e1b716dd0e"
 
 [[package]]
 name = "xtask"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "clap",
