@@ -6,8 +6,8 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-bpf-common = { workspace = true }
-bpf-filtering = { workspace = true }
+ebpf-common = { workspace = true }
+ebpf-filtering = { workspace = true }
 file-system-monitor = { workspace = true }
 network-monitor = { workspace = true }
 process-monitor = { workspace = true }

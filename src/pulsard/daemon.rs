@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::{bail, Result};
-use bpf_common::{
+use ebpf_common::{
     feature_autodetect::lsm::lsm_supported,
-    program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT},
+    program::{EbpfContext, EbpfLogLevel, Pinning, PERF_PAGES_DEFAULT},
 };
 
 use pulsar_core::{
@@ -33,7 +33,7 @@ pub struct PulsarDaemon {
     rx_modules_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     #[cfg(debug_assertions)]
     #[allow(unused)]
-    trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
+    trace_pipe_handle: ebpf_common::trace_pipe::StopHandle,
 }
 
 impl PulsarDaemon {
@@ -60,12 +60,12 @@ impl PulsarDaemon {
         let perf_pages = general_config.with_default("perf_pages", PERF_PAGES_DEFAULT)?;
         let bpf_log_level = if cfg!(debug_assertions) {
             if log::max_level() >= log::Level::Debug {
-                BpfLogLevel::Debug
+                EbpfLogLevel::Debug
             } else {
-                BpfLogLevel::Error
+                EbpfLogLevel::Error
             }
         } else {
-            BpfLogLevel::Disabled
+            EbpfLogLevel::Disabled
         };
         let lsm_supported = match general_config
             .with_default("lsm_support", "autodetect".to_string())?
@@ -81,9 +81,9 @@ impl PulsarDaemon {
             ),
         };
         let bpf_context =
-            BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level, lsm_supported)?;
+            EbpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level, lsm_supported)?;
         #[cfg(debug_assertions)]
-        let trace_pipe_handle = bpf_common::trace_pipe::start().await;
+        let trace_pipe_handle = ebpf_common::trace_pipe::start().await;
 
         for task_launcher in modules {
             let module_name = task_launcher.name().to_owned();

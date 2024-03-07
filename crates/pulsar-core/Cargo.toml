@@ -6,8 +6,8 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
-bpf-common = { path = "../bpf-common" }
-validatron = { path = "../validatron" }
+ebpf-common = { workspace = true }
+validatron = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 toml_edit = { workspace = true, features = ["easy"] }
 tokio = { workspace = true, features = ["full"] }

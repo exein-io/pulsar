@@ -5,7 +5,7 @@
 //! #[cfg(feature = "test-suite")]
 //! pub mod test_suite {
 //!     use super::*;
-//!     use bpf_common::{
+//!     use ebpf_common::{
 //!         event_check,
 //!         test_runner::{TestCase, TestRunner, TestSuite},
 //!     };
@@ -42,9 +42,9 @@ use tokio::sync::mpsc;
 
 use crate::feature_autodetect::lsm::lsm_supported;
 use crate::{
-    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
+    program::{EbpfContext, EbpfEvent, EbpfLogLevel, Pinning},
     time::Timestamp,
-    BpfSender, Pid, Program, ProgramError,
+    EbpfSender, Pid, Program, ProgramError,
 };
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);
@@ -90,24 +90,24 @@ impl TestCase {
 /// produced by the given trigger program.
 pub struct TestRunner<T: Debug> {
     ebpf: Pin<Box<dyn Future<Output = Result<Program, ProgramError>> + Send>>,
-    rx: mpsc::UnboundedReceiver<BpfEvent<T>>,
+    rx: mpsc::UnboundedReceiver<EbpfEvent<T>>,
 }
 
 impl<T: Debug> TestRunner<T> {
     /// Set the eBPF program
     pub fn with_ebpf<P, Fut>(ebpf_fn: P) -> Self
     where
-        P: Fn(BpfContext, TestSender<T>) -> Fut,
+        P: Fn(EbpfContext, TestSender<T>) -> Fut,
         Fut: Future<Output = Result<Program, ProgramError>> + 'static + Send,
     {
         // We use a channel to collect events
         let (tx, rx) = mpsc::unbounded_channel();
         let sender = TestSender { tx };
 
-        static BPF_CONTEXT: OnceLock<BpfContext> = OnceLock::new();
+        static BPF_CONTEXT: OnceLock<EbpfContext> = OnceLock::new();
 
         let ctx = BPF_CONTEXT.get_or_init(|| {
-            BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug, lsm_supported()).unwrap()
+            EbpfContext::new(Pinning::Disabled, 512, EbpfLogLevel::Debug, lsm_supported()).unwrap()
         });
 
         Self {
@@ -139,9 +139,9 @@ impl<T: Debug> TestRunner<T> {
     }
 }
 
-/// Simple BpfSender used to collect `bpf_common::program::Program` events.
+/// Simple EbpfSender used to collect `ebpf_common::program::Program` events.
 pub struct TestSender<T> {
-    tx: mpsc::UnboundedSender<BpfEvent<T>>,
+    tx: mpsc::UnboundedSender<EbpfEvent<T>>,
 }
 
 impl<T> Clone for TestSender<T> {
@@ -152,8 +152,8 @@ impl<T> Clone for TestSender<T> {
     }
 }
 
-impl<T: Send + 'static> BpfSender<T> for TestSender<T> {
-    fn send(&mut self, data: Result<BpfEvent<T>, ProgramError>) {
+impl<T: Send + 'static> EbpfSender<T> for TestSender<T> {
+    fn send(&mut self, data: Result<EbpfEvent<T>, ProgramError>) {
         let data = data.map_err(anyhow::Error::from).unwrap();
         assert!(self.tx.send(data).is_ok());
     }
@@ -166,7 +166,7 @@ pub struct TestResult<T: Debug> {
     /// When collection ended
     pub end_time: Timestamp,
     /// Collected events
-    pub events: Vec<BpfEvent<T>>,
+    pub events: Vec<EbpfEvent<T>>,
 
     /// Expectations for this test. These are checked by the `report`
     /// function and used to produce a TestReport.
@@ -188,13 +188,13 @@ enum Expectation<T> {
     },
 }
 
-/// A `Predicate<T>` is a function which takes a `BpfEvent<T>` and returns if
+/// A `Predicate<T>` is a function which takes an `EbpfEvent<T>` and returns if
 /// an expectation is satisfied.
-type Predicate<T> = Box<dyn Fn(&BpfEvent<T>) -> bool + Send>;
+type Predicate<T> = Box<dyn Fn(&EbpfEvent<T>) -> bool + Send>;
 
 impl<T: Debug> TestResult<T> {
     /// Assert the provided predicate matches at least one event
-    pub fn expect(mut self, predicate: impl Fn(&BpfEvent<T>) -> bool + 'static + Send) -> Self {
+    pub fn expect(mut self, predicate: impl Fn(&EbpfEvent<T>) -> bool + 'static + Send) -> Self {
         self.expectations
             .push(Expectation::Predicate(Box::new(predicate)));
         self
@@ -281,12 +281,12 @@ impl<T: Debug> TestResult<T> {
 
 /// Make sure the eBPF program produced at least one event maching all checks.
 pub fn run_checks<T: std::fmt::Debug>(
-    events: &[BpfEvent<T>],
+    events: &[EbpfEvent<T>],
     checks: Vec<Check<T>>,
     lines: &mut Vec<String>,
 ) -> bool {
     // for each event, run all checks
-    let results: Vec<(&BpfEvent<T>, usize, Vec<CheckResult>)> = events
+    let results: Vec<(&EbpfEvent<T>, usize, Vec<CheckResult>)> = events
         .iter()
         .map(|event| {
             let results: Vec<CheckResult> = checks.iter().map(|c| (c.check_fn)(event)).collect();
@@ -334,7 +334,7 @@ pub fn run_checks<T: std::fmt::Debug>(
     }
 }
 
-/// A Check is an expectation about a BpfEvent which should be emitted.
+/// A Check is an expectation about an EbpfEvent which should be emitted.
 /// This allows to split test expectations in different lines, making it easier to spot the error.
 /// Build this is using the `event_check!` macro.
 pub struct Check<T> {
@@ -342,14 +342,14 @@ pub struct Check<T> {
     pub check_fn: CheckFunction<T>,
 }
 
-/// A `CheckFunction<T>` is a function which takes a `BpfEvent<T>` and returns the description
+/// A `CheckFunction<T>` is a function which takes an `EbpfEvent<T>` and returns the description
 /// of the test-result
-type CheckFunction<T> = Box<dyn Fn(&BpfEvent<T>) -> CheckResult>;
+type CheckFunction<T> = Box<dyn Fn(&EbpfEvent<T>) -> CheckResult>;
 
 impl<T> Check<T> {
     pub fn new(
         description: &'static str,
-        check_fn: impl Fn(&BpfEvent<T>) -> CheckResult + 'static,
+        check_fn: impl Fn(&EbpfEvent<T>) -> CheckResult + 'static,
     ) -> Self {
         Self {
             description,
@@ -360,7 +360,7 @@ impl<T> Check<T> {
 
 /// Make sure the pid of an event matches the provided one
 fn pid_check<T>(pid: Pid) -> Check<T> {
-    Check::new("pid", move |event: &BpfEvent<_>| CheckResult {
+    Check::new("pid", move |event: &EbpfEvent<_>| CheckResult {
         success: event.pid == pid,
         found: format!("{}", event.pid),
         expected: format!("{pid}"),
@@ -369,7 +369,7 @@ fn pid_check<T>(pid: Pid) -> Check<T> {
 
 /// Make sure the timestamp of an event matches the data collection period
 fn timestamp_check<T>(start_time: Timestamp, end_time: Timestamp) -> Check<T> {
-    Check::new("timestamp", move |event: &BpfEvent<_>| CheckResult {
+    Check::new("timestamp", move |event: &EbpfEvent<_>| CheckResult {
         success: start_time <= event.timestamp && event.timestamp <= end_time,
         found: format!("{}", event.timestamp),
         expected: format!("{start_time} - {end_time}"),
@@ -400,10 +400,10 @@ pub struct CheckResult {
 macro_rules! event_check {
     ($event:tt :: $subtype:tt, $(($left:ident, $right:expr, $description:literal)),*) => {
         {
-            use bpf_common::program::BpfEvent;
-            use bpf_common::test_runner::{Check, CheckResult, ComparableField};
+            use ebpf_common::program::EbpfEvent;
+            use ebpf_common::test_runner::{Check, CheckResult, ComparableField};
             let mut checks = Vec::new();
-            checks.push(Check::new("event type", move |event: &BpfEvent<_>| {
+            checks.push(Check::new("event type", move |event: &EbpfEvent<_>| {
                 CheckResult {
                     success: matches!(event.payload, $event::$subtype {..}),
                     found: String::new(),
@@ -414,7 +414,7 @@ macro_rules! event_check {
                 let expected_value = $right;
                 checks.push(Check::new(
                     $description,
-                    move |event: &BpfEvent<_>| match event.payload {
+                    move |event: &EbpfEvent<_>| match event.payload {
                         $event::$subtype { ref $left, .. } => CheckResult {
                             success: {
                                 ComparableField::equals($left, &expected_value, &event.buffer)

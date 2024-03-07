@@ -215,7 +215,7 @@ fn generate_vmlinux_for_arch(
     enable_config(builddir, "CONFIG_CGROUP_RDMA")?;
     enable_config(builddir, "CONFIG_CGROUP_MISC")?;
 
-    // Enable BTF and all BPF features. Even though some of these might not
+    // Enable BTF and all eBPF features. Even though some of these might not
     // seem directly related from name, they are (DWARF is needed for BTF,
     // page pool stats are related to XDP sockets).
     enable_config(builddir, "CONFIG_FTRACE")?;

@@ -48,7 +48,7 @@
 //!         tokio::select! {
 //!             r = shutdown.recv() => return r,
 //!             _ = sleep(Duration::from_secs(1)) => {
-//!                 let pid = bpf_common::Pid::from_raw(1999);
+//!                 let pid = ebpf_common::Pid::from_raw(1999);
 //!                 let timestamp = 1312987.into();
 //!                     bus_sender.send(pid, timestamp, Payload::Exit { exit_code: 0 });
 //!             }

@@ -7,7 +7,7 @@ repository.workspace = true
 
 [dependencies]
 pulsar-core = { workspace = true }
-bpf-common = { workspace = true }
+ebpf-common = { workspace = true }
 
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }

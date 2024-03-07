@@ -1,12 +1,12 @@
 use crate::config::Rule;
 use crate::maps::{Cgroup, InterestMap, Map, PolicyDecision, RuleMap};
-use bpf_common::aya::programs::RawTracePoint;
-use bpf_common::aya::{self, include_bytes_aligned, Bpf, BpfLoader};
-use bpf_common::program::BpfContext;
-use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
-use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;
-use bpf_common::test_utils::random_name_with_prefix;
-use bpf_common::{ebpf_program, Pid, ProgramError};
+use ebpf_common::aya::programs::RawTracePoint;
+use ebpf_common::aya::{self, include_bytes_aligned, Ebpf, EbpfLoader};
+use ebpf_common::program::EbpfContext;
+use ebpf_common::test_runner::{TestCase, TestReport, TestSuite};
+use ebpf_common::test_utils::cgroup::fork_in_temp_cgroup;
+use ebpf_common::test_utils::random_name_with_prefix;
+use ebpf_common::{ebpf_program, Pid, ProgramError};
 use nix::unistd::execv;
 use nix::unistd::{fork, ForkResult};
 use std::ffi::CString;
@@ -278,7 +278,7 @@ fn cgroups_tracked() -> TestCase {
 }
 
 // attach a single tracepoint for test purposes
-fn attach_raw_tracepoint(bpf: &mut Bpf, tp: &str) {
+fn attach_raw_tracepoint(bpf: &mut Ebpf, tp: &str) {
     let tracepoint: &mut RawTracePoint = bpf
         .program_mut(tp)
         .ok_or_else(|| ProgramError::ProgramNotFound(tp.to_string()))
@@ -357,17 +357,17 @@ fn exit_cleans_up_resources() -> TestCase {
     })
 }
 
-fn load_ebpf() -> Bpf {
-    let ctx = BpfContext::new(
-        bpf_common::program::Pinning::Disabled,
-        bpf_common::program::PERF_PAGES_DEFAULT,
-        bpf_common::program::BpfLogLevel::Debug,
+fn load_ebpf() -> Ebpf {
+    let ctx = EbpfContext::new(
+        ebpf_common::program::Pinning::Disabled,
+        ebpf_common::program::PERF_PAGES_DEFAULT,
+        ebpf_common::program::EbpfLogLevel::Debug,
         false,
     )
     .unwrap();
     const PIN_PATH: &str = "/sys/fs/bpf/anomaly-detection-test";
     let _ = std::fs::create_dir(PIN_PATH);
-    let bpf = BpfLoader::new()
+    let bpf = EbpfLoader::new()
         .map_pin_path(PIN_PATH)
         .load(ebpf_program!(&ctx, "filtering_example"))
         .unwrap();

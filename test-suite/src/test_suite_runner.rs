@@ -1,6 +1,6 @@
 use std::panic::AssertUnwindSafe;
 
-use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
+use ebpf_common::test_runner::{TestCase, TestReport, TestSuite};
 use futures::FutureExt;
 use libtest_mimic::{Arguments, Failed, Trial};
 use tokio::sync::{mpsc, oneshot};
@@ -23,13 +23,13 @@ impl TestSuiteRunner {
         let (tx_log, mut rx_log) = mpsc::unbounded_channel();
         replace_logger(tx_log.clone());
         replace_panic_hook(tx_log);
-        bpf_common::bump_memlock_rlimit().unwrap();
+        ebpf_common::bump_memlock_rlimit().unwrap();
         // Spawn the actual runner, which receives tests over a channel.
         let (tx_test, mut rx_test) = mpsc::channel::<TestRequest>(1);
         tokio::spawn(async move {
             // Start the trace_pipe eBPF program log interceptor
             #[cfg(debug_assertions)]
-            let _stop_handle = tokio::spawn(bpf_common::trace_pipe::start());
+            let _stop_handle = tokio::spawn(ebpf_common::trace_pipe::start());
 
             while let Some(test_request) = rx_test.recv().await {
                 // Run actual test and treat eventual panics as errors.

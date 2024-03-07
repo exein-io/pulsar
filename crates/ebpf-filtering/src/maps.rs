@@ -1,7 +1,7 @@
 use std::{fmt, str::FromStr};
 
 use anyhow::{Context, Result};
-use bpf_common::{aya, Pid};
+use ebpf_common::{aya, Pid};
 
 use super::config::{Rule, MAX_CGROUP_LEN, MAX_IMAGE_LEN};
 
@@ -19,7 +19,7 @@ pub const DEFAULT_CGROUP_RULES: &str = "m_cgroup_rules";
 
 impl InterestMap {
     /// Try to load the map from eBPF
-    pub fn load(bpf: &mut aya::Bpf, name: &str) -> Result<Self> {
+    pub fn load(bpf: &mut aya::Ebpf, name: &str) -> Result<Self> {
         Map::load(bpf, name).map(Self)
     }
 
@@ -62,7 +62,7 @@ pub struct RuleMap(Map<Image, u8>);
 
 impl RuleMap {
     /// Try to load the rule map
-    pub fn load(bpf: &mut aya::Bpf, name: &str) -> Result<Self> {
+    pub fn load(bpf: &mut aya::Ebpf, name: &str) -> Result<Self> {
         Map::load(bpf, name).map(Self)
     }
 
@@ -96,7 +96,7 @@ pub(crate) struct Map<K, V> {
 
 impl<K: aya::Pod, V: aya::Pod> Map<K, V> {
     /// Try to load the eBPF hash map with the given name
-    pub(crate) fn load(bpf: &mut aya::Bpf, name: &str) -> Result<Self> {
+    pub(crate) fn load(bpf: &mut aya::Ebpf, name: &str) -> Result<Self> {
         let map = aya::maps::HashMap::try_from(
             bpf.take_map(name)
                 .with_context(|| format!("Error finding eBPF map {name}"))?,
@@ -126,7 +126,7 @@ pub type Cgroup = CharArray<MAX_CGROUP_LEN>;
 #[derive(Clone, Copy)]
 pub struct CharArray<const N: usize>(pub [u8; N]);
 // We must explicitly mark Image as a plain old data which can be safely memcopied by aya.
-unsafe impl<const N: usize> bpf_common::aya::Pod for CharArray<N> {}
+unsafe impl<const N: usize> ebpf_common::aya::Pod for CharArray<N> {}
 
 #[derive(thiserror::Error, Debug)]
 pub enum MapKeyError {

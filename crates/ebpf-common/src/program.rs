@@ -1,4 +1,4 @@
-//! [`Program`] is a wrapper around [`aya::Bpf`] which:
+//! [`Program`] is a wrapper around [`aya::Ebpf`] which:
 //! - runs background thread which sets up the probe and waits for a shutdown signal
 //! - allows to read events events.
 //!
@@ -15,7 +15,7 @@ use aya::{
     },
     programs::{CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint},
     util::online_cpus,
-    Bpf, BpfLoader, Btf, BtfError, Pod,
+    Btf, BtfError, Ebpf, EbpfLoader, Pod,
 };
 use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
@@ -25,7 +25,7 @@ use crate::{
     feature_autodetect::kernel_version::KernelVersion,
     parsing::mountinfo::{get_cgroup2_mountpoint, MountinfoError},
     time::Timestamp,
-    BpfSender, Pid,
+    EbpfSender, Pid,
 };
 
 const PERF_HEADER_SIZE: usize = 4;
@@ -36,9 +36,9 @@ pub const PERF_PAGES_DEFAULT: usize = 4096;
 /// Max buffer size in bytes
 const BUFFER_MAX: usize = 16384;
 
-/// BpfContext contains extra settings which could be provided on program load
+/// EbpfContext contains extra settings which could be provided on program load
 #[derive(Clone)]
-pub struct BpfContext {
+pub struct EbpfContext {
     /// Enable pinning to file-system for shared maps.
     /// This should be set only for the final executable, not for tests and
     /// examples where process tracking is not running.
@@ -51,7 +51,7 @@ pub struct BpfContext {
     /// (number of modules) * (number of cores) * (perf_pages) * 4Kb
     perf_pages: usize,
     /// Log level for eBPF print statements
-    log_level: BpfLogLevel,
+    log_level: EbpfLogLevel,
     /// Kernel version
     kernel_version: KernelVersion,
     /// LSM support
@@ -65,17 +65,17 @@ pub enum Pinning {
 }
 
 #[derive(Clone, Copy)]
-pub enum BpfLogLevel {
+pub enum EbpfLogLevel {
     Disabled = 0,
     Error = 1,
     Debug = 2,
 }
 
-impl BpfContext {
+impl EbpfContext {
     pub fn new(
         pinning: Pinning,
         mut perf_pages: usize,
-        log_level: BpfLogLevel,
+        log_level: EbpfLogLevel,
         lsm_supported: bool,
     ) -> Result<Self, ProgramError> {
         let btf = Btf::from_sys_fs()?;
@@ -130,8 +130,8 @@ impl BpfContext {
 #[macro_export]
 macro_rules! ebpf_program {
     ( $ctx: expr , $probe: expr) => {{
-        use bpf_common::aya::include_bytes_aligned;
-        use bpf_common::feature_autodetect::kernel_version::KernelVersion;
+        use ebpf_common::aya::include_bytes_aligned;
+        use ebpf_common::feature_autodetect::kernel_version::KernelVersion;
 
         let version_5_13 =
             include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".5_13.bpf.o")).into();
@@ -155,7 +155,7 @@ macro_rules! ebpf_program {
 #[derive(Error, Debug)]
 pub enum ProgramError {
     #[error("loading probe")]
-    LoadingProbe(#[from] aya::BpfError),
+    LoadingProbe(#[from] aya::EbpfError),
     #[error("program not found {0}")]
     ProgramNotFound(String),
     #[error("incorrect program type {0}")]
@@ -203,13 +203,13 @@ pub struct ProgramBuilder {
     /// probe name, used for logging purposes
     name: &'static str,
     /// Probe configuration
-    ctx: BpfContext,
+    ctx: EbpfContext,
     probe: Vec<u8>,
     programs: Vec<ProgramType>,
 }
 
 impl ProgramBuilder {
-    pub fn new(ctx: BpfContext, name: &'static str, probe: Vec<u8>) -> Self {
+    pub fn new(ctx: EbpfContext, name: &'static str, probe: Vec<u8>) -> Self {
         Self {
             ctx,
             name,
@@ -264,7 +264,7 @@ impl ProgramBuilder {
         // We must use oneshot::Receiver as the main shut down machanism because it has
         // blocking_recv. Background tasks need an async notification tought, and we can't
         // clone oneshots, so we're forced to make an extra channel.
-        // It would have been perfect if dropping aya::Bpf would have caused an error on
+        // It would have been perfect if dropping aya::Ebpf would have caused an error on
         // background maps, but that's not the case: the map file descriptor is dropped
         // when all Map usage is dropped.
         let (tx_exit, _) = watch::channel(());
@@ -274,7 +274,7 @@ impl ProgramBuilder {
 
         let bpf = tokio::task::spawn_blocking(move || {
             let _ = std::fs::create_dir(&self.ctx.pinning_path);
-            let mut bpf = BpfLoader::new()
+            let mut bpf = EbpfLoader::new()
                 .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
                 .set_global("log_level", &(self.ctx.log_level as i32), true)
@@ -287,7 +287,7 @@ impl ProgramBuilder {
             for program in self.programs {
                 program.attach(&mut bpf, &btf)?;
             }
-            Result::<Bpf, ProgramError>::Ok(bpf)
+            Result::<Ebpf, ProgramError>::Ok(bpf)
         })
         .await
         .expect("join error")?;
@@ -331,7 +331,7 @@ impl Display for ProgramType {
 }
 
 impl ProgramType {
-    fn attach(&self, bpf: &mut Bpf, btf: &Btf) -> Result<(), ProgramError> {
+    fn attach(&self, bpf: &mut Ebpf, btf: &Btf) -> Result<(), ProgramError> {
         let load_err = |program_error| ProgramError::ProgramLoadError {
             program: self.to_string(),
             program_error: Box::new(program_error),
@@ -386,7 +386,7 @@ impl ProgramType {
     }
 }
 
-fn extract_program<'a, T>(bpf: &'a mut Bpf, program: &str) -> Result<&'a mut T, ProgramError>
+fn extract_program<'a, T>(bpf: &'a mut Ebpf, program: &str) -> Result<&'a mut T, ProgramError>
 where
     T: 'a,
     &'a mut T: TryFrom<&'a mut aya::programs::Program>,
@@ -401,9 +401,9 @@ pub struct Program {
     /// Signal from the background thread to the background async tasks that
     /// we're exiting.
     tx_exit: watch::Sender<()>,
-    ctx: BpfContext,
+    ctx: EbpfContext,
     name: String,
-    bpf: Bpf,
+    bpf: Ebpf,
     used_maps: HashSet<String>,
 }
 
@@ -416,7 +416,7 @@ impl Drop for Program {
 }
 
 impl Program {
-    pub fn bpf(&mut self) -> &mut Bpf {
+    pub fn bpf(&mut self) -> &mut Ebpf {
         &mut self.bpf
     }
     /// Poll a BPF_MAP_TYPE_HASH with a certain interval
@@ -453,7 +453,7 @@ impl Program {
     pub async fn read_events<T: Send>(
         &mut self,
         map_name: &str,
-        sender: impl BpfSender<T>,
+        sender: impl EbpfSender<T>,
     ) -> Result<(), ProgramError> {
         let map_resource = self.take_map(map_name)?;
 
@@ -473,7 +473,7 @@ impl Program {
             let name = self.name.clone();
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
-            let event_size: usize = size_of::<RawBpfEvent<T>>();
+            let event_size: usize = size_of::<RawEbpfEvent<T>>();
             let buffer_size: usize = event_size + PERF_HEADER_SIZE + BUFFER_MAX;
             tokio::spawn(async move {
                 let mut buffers = (0..10)
@@ -498,14 +498,14 @@ impl Program {
                                 if buffer.len() < event_size {
                                     log::error!("sizeof T: {}", size_of::<T>());
                                     log::error!(
-                                        "sizeof RawBpfEvent<T>: {}",
-                                        size_of::<RawBpfEvent<T>>()
+                                        "sizeof RawEbpfEvent<T>: {}",
+                                        size_of::<RawEbpfEvent<T>>()
                                     );
                                     panic!("Buffer too short. buffer.len() = {}", buffer.len(),);
                                 }
                                 let mut buffer =
                                     std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
-                                let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
+                                let ptr = buffer.as_ptr() as *const RawEbpfEvent<T>;
                                 let raw = unsafe { ptr.read_unaligned() };
                                 buffer.advance(event_size);
                                 // NOTE: read buffer will be padded. Eg. if the eBPF program
@@ -514,7 +514,7 @@ impl Program {
                                 // received buffer alone.
                                 buffer.truncate(raw.buffer.buffer_len as usize);
                                 let buffer = buffer.freeze();
-                                sender.send(Ok(BpfEvent {
+                                sender.send(Ok(EbpfEvent {
                                     timestamp: raw.timestamp,
                                     pid: raw.pid,
                                     payload: raw.payload,
@@ -555,7 +555,7 @@ impl Program {
 }
 
 #[derive(Debug)]
-pub struct BpfEvent<P> {
+pub struct EbpfEvent<P> {
     pub timestamp: Timestamp,
     pub pid: Pid,
     pub payload: P,
@@ -563,7 +563,7 @@ pub struct BpfEvent<P> {
 }
 
 #[repr(C)]
-pub struct RawBpfEvent<P> {
+pub struct RawEbpfEvent<P> {
     timestamp: Timestamp,
     pid: Pid,
     payload: P,
@@ -575,7 +575,7 @@ struct Buffer {
     pub buffer_len: u32,
 }
 
-impl<P: fmt::Display> fmt::Display for BpfEvent<P> {
+impl<P: fmt::Display> fmt::Display for EbpfEvent<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.timestamp, self.pid, self.payload)
     }

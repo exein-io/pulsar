@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use bpf_common::{
+use ebpf_common::{
     containers::{ContainerId, ContainerInfo},
     time::Timestamp,
     Pid,

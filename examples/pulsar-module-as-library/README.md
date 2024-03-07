@@ -33,7 +33,7 @@ pulsar agent for process filtering), use a 512 pages PerfArray size and disable
 This configuration is good for this use-case, no need to change it unless you
 have specific reasons.
 ```rust
-    let ctx = BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Disabled).unwrap();
+    let ctx = EbpfContext::new(Pinning::Disabled, 512, EbpfLogLevel::Disabled).unwrap();
 ```
 
 Then we'll create a `tokio::sync::mpsc` channel and pass the sender side to our

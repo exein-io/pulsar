@@ -1,13 +1,13 @@
-use bpf_common::{
-    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Program, ProgramBuilder,
+use ebpf_common::{
+    ebpf_program, parsing::BufferIndex, program::EbpfContext, EbpfSender, Program, ProgramBuilder,
     ProgramError,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";
 
 pub async fn program(
-    ctx: BpfContext,
-    sender: impl BpfSender<FsEvent>,
+    ctx: EbpfContext,
+    sender: impl EbpfSender<FsEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
     let binary = ebpf_program!(&ctx, "probes");
@@ -79,7 +79,7 @@ pub mod pulsar {
     };
 
     use super::*;
-    use bpf_common::{parsing::IndexError, program::BpfEvent};
+    use ebpf_common::{parsing::IndexError, program::EbpfEvent};
     use pulsar_core::{
         event::FileFlags,
         pdk::{
@@ -131,8 +131,8 @@ pub mod pulsar {
     impl IntoPayload for FsEvent {
         type Error = IndexError;
 
-        fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error> {
-            let BpfEvent {
+        fn try_into_payload(data: EbpfEvent<Self>) -> Result<Payload, Self::Error> {
+            let EbpfEvent {
                 payload, buffer, ..
             } = data;
             Ok(match payload {
@@ -258,7 +258,7 @@ pub mod test_suite {
     use std::{env::temp_dir, fs::OpenOptions};
 
     use super::*;
-    use bpf_common::{
+    use ebpf_common::{
         event_check,
         test_runner::{TestCase, TestRunner, TestSuite},
     };

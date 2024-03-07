@@ -3,8 +3,8 @@ use std::{
     net::{Ipv4Addr, SocketAddr},
 };
 
-use bpf_common::{
-    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
+use ebpf_common::{
+    ebpf_program, parsing::BufferIndex, program::EbpfContext, EbpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
@@ -46,8 +46,8 @@ const MODULE_NAME: &str = "network-monitor";
 // # Close
 // We use the `tcp_set_state` kprobe to discover when a TCP connection is closed.
 pub async fn program(
-    ctx: BpfContext,
-    sender: impl BpfSender<NetworkEvent>,
+    ctx: EbpfContext,
+    sender: impl EbpfSender<NetworkEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
     let binary = ebpf_program!(&ctx, "probes");
@@ -174,7 +174,7 @@ impl fmt::Display for NetworkEvent {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
+    use ebpf_common::{parsing::IndexError, program::EbpfEvent, EbpfSenderWrapper};
     use pulsar_core::{
         event::{DnsAnswer, DnsQuestion, Host},
         pdk::{
@@ -199,7 +199,7 @@ pub mod pulsar {
         let sender = ctx.get_sender();
         let dns_sender = ctx.get_sender();
         // intercept DNS
-        let sender = BpfSenderWrapper::new(sender, move |event: &BpfEvent<NetworkEvent>| {
+        let sender = EbpfSenderWrapper::new(sender, move |event: &EbpfEvent<NetworkEvent>| {
             if let Some(dns_event) = collect_dns_if_any(event) {
                 dns_sender.send(event.pid, event.timestamp, dns_event);
             }
@@ -237,7 +237,7 @@ pub mod pulsar {
     impl IntoPayload for NetworkEvent {
         type Error = IndexError;
 
-        fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error> {
+        fn try_into_payload(data: EbpfEvent<Self>) -> Result<Payload, Self::Error> {
             Ok(match data.payload {
                 NetworkEvent::Bind { addr, proto } => Payload::Bind {
                     address: addr.into(),
@@ -290,7 +290,7 @@ pub mod pulsar {
         }
     }
 
-    fn collect_dns_if_any(event: &BpfEvent<NetworkEvent>) -> Option<Payload> {
+    fn collect_dns_if_any(event: &EbpfEvent<NetworkEvent>) -> Option<Payload> {
         let data = match &event.payload {
             NetworkEvent::Send { data, .. } => data,
             NetworkEvent::Receive { data, .. } => data,
@@ -349,7 +349,7 @@ pub mod test_suite {
         time::Duration,
     };
 
-    use bpf_common::{
+    use ebpf_common::{
         event_check,
         test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };

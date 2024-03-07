@@ -6,10 +6,10 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-test-suite = ["bpf-common/test-utils"]
+test-suite = ["ebpf-common/test-utils"]
 
 [dependencies]
-bpf-common = { workspace = true }
+ebpf-common = { workspace = true }
 pulsar-core = { workspace = true }
 
 nix = { workspace = true }
@@ -17,4 +17,4 @@ tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 
 [build-dependencies]
-bpf-builder = { workspace = true }
+ebpf-builder = { workspace = true }

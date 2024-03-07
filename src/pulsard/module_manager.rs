@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use bpf_common::program::BpfContext;
+use ebpf_common::program::EbpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
@@ -39,7 +39,7 @@ pub struct ModuleManager {
     config: watch::Receiver<ModuleConfig>,
     status: ModuleStatus,
     running_task: Option<(ShutdownSender, JoinHandle<()>)>,
-    bpf_context: BpfContext,
+    bpf_context: EbpfContext,
 }
 
 impl ModuleManager {
@@ -51,7 +51,7 @@ impl ModuleManager {
         config: watch::Receiver<ModuleConfig>,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
-        bpf_context: BpfContext,
+        bpf_context: EbpfContext,
     ) -> Self {
         let (tx_sig, rx_sig) = mpsc::channel(8);
         Self {
@@ -279,7 +279,7 @@ pub fn create_module_manager(
     process_tracker: ProcessTrackerHandle,
     task_launcher: Box<dyn TaskLauncher>,
     config: watch::Receiver<ModuleConfig>,
-    bpf_context: BpfContext,
+    bpf_context: EbpfContext,
 ) -> ModuleManagerHandle {
     // Create command channel used in the ModuleManagerHandle to send commands to the running ModuleManager actor
     let (tx_cmd, rx_cmd) = mpsc::channel(8);

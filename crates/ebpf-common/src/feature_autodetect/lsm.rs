@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use aya::{include_bytes_aligned, programs::Lsm, BpfLoader, Btf};
+use aya::{include_bytes_aligned, programs::Lsm, Btf, EbpfLoader};
 
 /// Check if the system supports eBPF LSM programs.
 /// The kernel must be build with CONFIG_BPF_LSM=y, which is available
@@ -40,7 +40,7 @@ fn try_load() -> Result<()> {
         .ok_or_else(|| anyhow!("eBPF LSM programs disabled"))?;
 
     // Check if we can load a program
-    let mut bpf = BpfLoader::new()
+    let mut bpf = EbpfLoader::new()
         .load(TEST_LSM_PROBE)
         .context("LSM enabled, but initial loading failed")?;
     let program: &mut Lsm = bpf

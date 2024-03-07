@@ -2,7 +2,7 @@ use std::future::Future;
 
 use bpf_common::{
     feature_autodetect::lsm::lsm_supported,
-    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
+    program::{EbpfContext, EbpfEvent, EbpfLogLevel, Pinning},
     Program, ProgramError,
 };
 use clap::{Parser, Subcommand};
@@ -53,7 +53,7 @@ async fn main() {
 
 async fn run<F, T, Fut>(args: Args, program: F)
 where
-    F: Fn(BpfContext, mpsc::Sender<Result<BpfEvent<T>, ProgramError>>) -> Fut,
+    F: Fn(EbpfContext, mpsc::Sender<Result<EbpfEvent<T>, ProgramError>>) -> Fut,
     Fut: Future<Output = Result<Program, ProgramError>>,
     T: IntoPayload,
 {
@@ -65,12 +65,12 @@ where
     let _stop_handle = bpf_common::trace_pipe::start().await;
     let (tx, mut rx) = mpsc::channel(100);
     let log_level = if args.verbose {
-        BpfLogLevel::Debug
+        EbpfLogLevel::Debug
     } else {
-        BpfLogLevel::Error
+        EbpfLogLevel::Error
     };
     let lsm_supported = tokio::task::spawn_blocking(lsm_supported).await.unwrap();
-    let ctx = BpfContext::new(Pinning::Disabled, 512, log_level, lsm_supported).unwrap();
+    let ctx = EbpfContext::new(Pinning::Disabled, 512, log_level, lsm_supported).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");
     loop {
         tokio::select!(

@@ -1,10 +1,10 @@
 use anyhow::Context;
-use bpf_common::{
+use ebpf_common::{
     containers::ContainerError,
     ebpf_program,
     parsing::{BufferIndex, IndexError},
-    program::BpfContext,
-    BpfSender, Pid, Program, ProgramBuilder, ProgramError,
+    program::EbpfContext,
+    EbpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::unistd::Uid;
 use pulsar_core::event::Namespaces;
@@ -13,8 +13,8 @@ use thiserror::Error;
 const MODULE_NAME: &str = "process-monitor";
 
 pub async fn program(
-    ctx: BpfContext,
-    sender: impl BpfSender<ProcessEvent>,
+    ctx: EbpfContext,
+    sender: impl EbpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
     let binary = ebpf_program!(&ctx, "probes");
     let mut program = ProgramBuilder::new(ctx, MODULE_NAME, binary)
@@ -123,7 +123,7 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
+    use ebpf_common::{containers::ContainerId, program::EbpfEvent, EbpfSenderWrapper};
     use pulsar_core::pdk::{
         process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
         Payload, PulsarModule, ShutdownSignal, Version,
@@ -144,14 +144,14 @@ pub mod pulsar {
         mut shutdown: ShutdownSignal,
     ) -> Result<CleanExit, ModuleError> {
         let rx_config = ctx.get_config();
-        let filtering_config: bpf_filtering::config::Config = rx_config.read()?;
+        let filtering_config: ebpf_filtering::config::Config = rx_config.read()?;
         let process_tracker = ctx.get_process_tracker();
         let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
         let mut program = program(
             ctx.get_bpf_context(),
             // When generating events we must update process_tracker.
             // We do this by wrapping the pulsar sender and calling this closure on every event.
-            BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
+            EbpfSenderWrapper::new(ctx.get_sender(), move |event: &EbpfEvent<ProcessEvent>| {
                 let _ = tx_processes.send(match event.payload {
                     ProcessEvent::Fork {
                         uid,
@@ -239,7 +239,7 @@ pub mod pulsar {
         )
         .await?;
 
-        bpf_filtering::initializer::setup_events_filter(
+        ebpf_filtering::initializer::setup_events_filter(
             program.bpf(),
             filtering_config,
             &process_tracker,
@@ -261,8 +261,8 @@ pub mod pulsar {
 
     impl IntoPayload for ProcessEvent {
         type Error = ProcessEventError;
-        fn try_into_payload(event: BpfEvent<ProcessEvent>) -> Result<Payload, ProcessEventError> {
-            let BpfEvent {
+        fn try_into_payload(event: EbpfEvent<ProcessEvent>) -> Result<Payload, ProcessEventError> {
+            let EbpfEvent {
                 payload, buffer, ..
             } = event;
             Ok(match payload {
@@ -303,10 +303,10 @@ pub mod pulsar {
 
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
-    use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
-    use bpf_common::test_utils::cgroup::{fork_in_temp_cgroup, temp_cgroup};
-    use bpf_common::test_utils::{find_executable, random_name_with_prefix};
-    use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
+    use ebpf_common::test_runner::{TestCase, TestReport, TestSuite};
+    use ebpf_common::test_utils::cgroup::{fork_in_temp_cgroup, temp_cgroup};
+    use ebpf_common::test_utils::{find_executable, random_name_with_prefix};
+    use ebpf_common::{event_check, program::EbpfEvent, test_runner::TestRunner};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
     use nix::unistd::{fork, ForkResult};
     use std::fs;
@@ -432,7 +432,7 @@ pub mod test_suite {
             let found = result
                 .events
                 .iter()
-                .any(|e: &BpfEvent<ProcessEvent>| match e.payload {
+                .any(|e: &EbpfEvent<ProcessEvent>| match e.payload {
                     ProcessEvent::Exit { .. } => e.pid.as_raw() as u32 == std::process::id(),
                     _ => false,
                 });

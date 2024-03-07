@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, path::Path};
 
-use bpf_common::{
+use ebpf_common::{
     containers::ContainerId,
     parsing::procfs::{self, ProcfsError},
     Pid, Uid,

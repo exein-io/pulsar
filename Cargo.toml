@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Crates
-bpf-common = { workspace = true }
+ebpf-common = { workspace = true }
 engine-api = { workspace = true }
 pulsar-core = { workspace = true }
 # Modules
@@ -46,7 +46,7 @@ core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
 all-vendored = ["openssl-vendored", "sqlite3-vendored"]
 openssl-vendored = ["smtp-notifier?/openssl-vendored"]
-sqlite3-vendored = ["bpf-common/sqlite3-vendored"]
+sqlite3-vendored = ["ebpf-common/sqlite3-vendored"]
 
 [workspace]
 members = [
@@ -58,29 +58,29 @@ members = [
     "crates/modules/desktop-notifier",
     "crates/modules/smtp-notifier",
     "crates/pulsar-core",
-    "crates/bpf-common",
-    "crates/bpf-builder",
+    "crates/ebpf-common",
+    "crates/ebpf-builder",
+    "crates/ebpf-filtering",
     "crates/engine-api",
     "crates/validatron",
-    "crates/bpf-filtering",
     "xtask",
     "test-suite",
 ]
 
 [workspace.package]
 version = "0.8.1"
-license = "Apache-2.0 WITH BPF probes exception under GPL-2.0"
+license = "Apache-2.0 WITH eBPF probes exception under GPL-2.0"
 edition = "2021"
 repository = "https://github.com/Exein-io/pulsar"
 
 [workspace.dependencies]
 # Crates
-bpf-builder = { path = "crates/bpf-builder" }
-bpf-common = { path = "crates/bpf-common", features = [
+ebpf-builder = { path = "crates/ebpf-builder" }
+ebpf-common = { path = "crates/ebpf-common", features = [
     "test-utils",
     "test-suite",
 ] }
-bpf-filtering = { path = "crates/bpf-filtering", features = ["test-suite"] }
+ebpf-filtering = { path = "crates/ebpf-filtering", features = ["test-suite"] }
 engine-api = { path = "crates/engine-api" }
 pulsar-core = { path = "crates/pulsar-core" }
 validatron = { path = "crates/validatron" }
@@ -101,7 +101,7 @@ rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
 # External
 anyhow = "1.0.75"
-aya = { git = "https://github.com/aya-rs/aya", rev = "0f6a7343926b23190483bed49855fdc9bb10988d", features = [
+aya = { git = "https://github.com/dave-tucker/aya", branch = "rename-all-the-things", features = [
     "async_tokio",
 ] }
 axum = { version = "0.6.20", features = ["ws"] }

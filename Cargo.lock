@@ -214,8 +214,8 @@ dependencies = [
 
 [[package]]
 name = "aya"
-version = "0.11.0"
-source = "git+https://github.com/aya-rs/aya?rev=0f6a7343926b23190483bed49855fdc9bb10988d#0f6a7343926b23190483bed49855fdc9bb10988d"
+version = "0.12.0"
+source = "git+https://github.com/dave-tucker/aya?branch=rename-all-the-things#5c6736b78177d7bfd83177334d285e2be18a8489"
 dependencies = [
  "assert_matches",
  "aya-obj",
@@ -232,7 +232,7 @@ dependencies = [
 [[package]]
 name = "aya-obj"
 version = "0.1.0"
-source = "git+https://github.com/aya-rs/aya?rev=0f6a7343926b23190483bed49855fdc9bb10988d#0f6a7343926b23190483bed49855fdc9bb10988d"
+source = "git+https://github.com/dave-tucker/aya?branch=rename-all-the-things#5c6736b78177d7bfd83177334d285e2be18a8489"
 dependencies = [
  "bytes",
  "core-error",
@@ -297,63 +297,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69cce20737498f97b993470a6e536b8523f0af7892a4f928cceb1ac5e52ebe7e"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "bpf-builder"
-version = "0.8.1"
-dependencies = [
- "anyhow",
-]
-
-[[package]]
-name = "bpf-common"
-version = "0.8.1"
-dependencies = [
- "anyhow",
- "aya",
- "bpf-builder",
- "bytes",
- "cgroups-rs",
- "diesel",
- "glob",
- "hex",
- "lazy_static",
- "libc",
- "libsqlite3-sys",
- "log",
- "nix 0.27.1",
- "nut",
- "procfs",
- "rand",
- "regex",
- "rust-ini",
- "serde",
- "serde_json",
- "sys-mount",
- "thiserror",
- "tokio",
- "tokio-fd",
- "validatron",
- "which",
-]
-
-[[package]]
-name = "bpf-filtering"
-version = "0.8.1"
-dependencies = [
- "anyhow",
- "bpf-builder",
- "bpf-common",
- "cgroups-rs",
- "lazy_static",
- "log",
- "nix 0.27.1",
- "pulsar-core",
- "regex",
- "thiserror",
- "tokio",
- "which",
 ]
 
 [[package]]
@@ -606,7 +549,7 @@ name = "desktop-notifier"
 version = "0.8.1"
 dependencies = [
  "anyhow",
- "bpf-common",
+ "ebpf-common",
  "log",
  "pulsar-core",
  "tokio",
@@ -698,6 +641,63 @@ checksum = "c4d33be9473d06f75f58220f71f7a9317aca647dc061dbd3c361b0bef505fbea"
 dependencies = [
  "byteorder",
  "quick-error",
+]
+
+[[package]]
+name = "ebpf-builder"
+version = "0.8.1"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "ebpf-common"
+version = "0.8.1"
+dependencies = [
+ "anyhow",
+ "aya",
+ "bytes",
+ "cgroups-rs",
+ "diesel",
+ "ebpf-builder",
+ "glob",
+ "hex",
+ "lazy_static",
+ "libc",
+ "libsqlite3-sys",
+ "log",
+ "nix 0.27.1",
+ "nut",
+ "procfs",
+ "rand",
+ "regex",
+ "rust-ini",
+ "serde",
+ "serde_json",
+ "sys-mount",
+ "thiserror",
+ "tokio",
+ "tokio-fd",
+ "validatron",
+ "which",
+]
+
+[[package]]
+name = "ebpf-filtering"
+version = "0.8.1"
+dependencies = [
+ "anyhow",
+ "cgroups-rs",
+ "ebpf-builder",
+ "ebpf-common",
+ "lazy_static",
+ "log",
+ "nix 0.27.1",
+ "pulsar-core",
+ "regex",
+ "thiserror",
+ "tokio",
+ "which",
 ]
 
 [[package]]
@@ -798,8 +798,8 @@ checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 name = "file-system-monitor"
 version = "0.8.1"
 dependencies = [
- "bpf-builder",
- "bpf-common",
+ "ebpf-builder",
+ "ebpf-common",
  "log",
  "nix 0.27.1",
  "pulsar-core",
@@ -1397,7 +1397,7 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 name = "logger"
 version = "0.8.1"
 dependencies = [
- "bpf-common",
+ "ebpf-common",
  "log",
  "pulsar-core",
  "tokio",
@@ -1510,9 +1510,9 @@ dependencies = [
 name = "network-monitor"
 version = "0.8.1"
 dependencies = [
- "bpf-builder",
- "bpf-common",
  "dns-parser",
+ "ebpf-builder",
+ "ebpf-common",
  "log",
  "nix 0.27.1",
  "pulsar-core",
@@ -1819,9 +1819,9 @@ name = "process-monitor"
 version = "0.8.1"
 dependencies = [
  "anyhow",
- "bpf-builder",
- "bpf-common",
- "bpf-filtering",
+ "ebpf-builder",
+ "ebpf-common",
+ "ebpf-filtering",
  "log",
  "nix 0.27.1",
  "pulsar-core",
@@ -1867,10 +1867,10 @@ name = "pulsar"
 version = "0.8.1"
 dependencies = [
  "anyhow",
- "bpf-common",
  "clap",
  "comfy-table",
  "desktop-notifier",
+ "ebpf-common",
  "engine-api",
  "env_logger",
  "file-system-monitor",
@@ -1894,8 +1894,8 @@ name = "pulsar-core"
 version = "0.8.1"
 dependencies = [
  "anyhow",
- "bpf-common",
  "chrono",
+ "ebpf-common",
  "log",
  "nix 0.27.1",
  "semver",
@@ -2534,8 +2534,8 @@ dependencies = [
 name = "test-suite"
 version = "0.8.1"
 dependencies = [
- "bpf-common",
- "bpf-filtering",
+ "ebpf-common",
+ "ebpf-filtering",
  "file-system-monitor",
  "futures",
  "libtest-mimic",

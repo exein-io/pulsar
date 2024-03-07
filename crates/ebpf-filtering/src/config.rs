@@ -1,4 +1,4 @@
-use bpf_common::Pid;
+use ebpf_common::Pid;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
 use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_INTEREST, DEFAULT_RULES};

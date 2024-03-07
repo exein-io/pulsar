@@ -78,13 +78,13 @@ The module implementation in Rust is also relatively short.
 use std::fmt;
 
 use bpf_common::{
-    aya::program::BpfContext, BpfSender, Program,
+    aya::program::EbpfContext, EbpfSender, Program,
     ProgramBuilder, ProgramError,
 };
 
 pub async fn program(
-    ctx: BpfContext,
-    sender: impl BpfSender<EventT>,
+    ctx: EbpfContext,
+    sender: impl EbpfSender<EventT>,
 ) -> Result<Program, ProgramError> {
     let binary = ebpf_program!(&ctx, "probes");
     let program = ProgramBuilder::new(
@@ -109,13 +109,13 @@ pub enum EventT {
 ```
 
 The central part of the module is the `program` function, which:
-- takes a `BpfContext` containing general Bpf settings, like BTF information and map pinning configuration.
-  Just pass it down to `bpf_common::ProgramBuilder::new`.
-- takes a `BpfSender`—the channel where we'll send the generated events. It's a trait so that
+- takes a `EbpfContext` containing general eBPF settings, like BTF information and map pinning configuration.
+  Just pass it down to `ebpf_common::ProgramBuilder::new`.
+- takes a `EbpfSender`—the channel where we'll send the generated events. It's a trait so that
   you can use whatever data structure you want for your application: modules can be used inside Pulsar,
   but can also be used by themself. This [example](../../examples/standalone-probes/main.rs) shows how
   you can use our modules without running the full agent.
-- returns a `bpf_common::Program`. The application will keep sending `EventT` events over the `sender`
+- returns a `ebpf_common::Program`. The application will keep sending `EventT` events over the `sender`
   channel until the program handle is dropped.
 
 This implementation delegates all repetitive tasks to `bpf_common::ProgramBuilder::new()` which takes the
@@ -187,7 +187,7 @@ int security_inodei_create(struct pt_regs *ctx) {
 ```
 
 The `struct event_t` layout must match the event defined in Rust, plus a timestamp, the process id
-and the enum variant. For more details see the `BpfEvent` usage inside `Program`.
+and the enum variant. For more details see the `EbpfEvent` usage inside `Program`.
 
 ## Testing probes
 
@@ -299,10 +299,10 @@ the shutdown signal. By dropping `_program` we shut down the eBPF program and st
 All modules communicate using the agent's message bus, where [events](../pulsar-core/src/event.rs)
 are sent and received.
 Since we're writing a producer module, we'll get a sender with the `ModuleContext::get_sender()` method.
-We can use that channel as a `BpfSender` for `bpf_common::Program` because we've implemented a conversion
+We can use that channel as an `EpfSender` for `ebpf_common::Program` because we've implemented a conversion
 method for transforming the module-specific and C-compatibile `EventT` into a `Payload`, which is the enum
 with all the Pulsar events. We don't have to worry about process id and timestamp because headers will be
-automatically filled by `bpf_common::Program`.
+automatically filled by `ebpf_common::Program`.
 
 
 ## Conclusion
@@ -311,7 +311,7 @@ We've built a eBPF probe which writes events into a perf event map. These events
 module and shared on the agent's bus.
 
 Key take-aways:
-- `bpf-common` contains a collection of tools built on top of [aya](https://github.com/aya-rs/aya), they reduce boilerplate
+- `ebpf-common` contains a collection of tools built on top of [aya](https://github.com/aya-rs/aya), they reduce boilerplate
   and help writing tests. 
 - A module can be used as part of Pulsar or by itself. A generic Rust application could reuse a
   particular probe without depending on the Pulsar agent.

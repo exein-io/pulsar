@@ -1,5 +1,5 @@
 [package]
-name = "bpf-filtering"
+name = "ebpf-filtering"
 version.workspace = true
 license.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 [features]
 default = []
 test-suite = [
-  "bpf-common/test-utils",
+  "ebpf-common/test-utils",
   "which",
   "cgroups-rs",
 ]
@@ -19,7 +19,7 @@ tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 anyhow = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
-bpf-common = { workspace = true }
+ebpf-common = { workspace = true }
 pulsar-core = { workspace = true }
 regex = { workspace = true }
 which = { workspace = true, optional = true }
@@ -27,4 +27,4 @@ cgroups-rs = { workspace = true, optional = true }
 lazy_static = { workspace = true }
 
 [build-dependencies]
-bpf-builder = { workspace = true }
+ebpf-builder = { workspace = true }

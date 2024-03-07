@@ -5,7 +5,7 @@ use crate::{
     event::{Event, Header, Payload, Threat, Value},
 };
 use anyhow::Result;
-use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
+use ebpf_common::{program::EbpfEvent, time::Timestamp, Pid};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{
@@ -300,15 +300,15 @@ where
     Self: Sized,
 {
     type Error: std::error::Error + Send + Sync + 'static;
-    /// Given a `bpf_common::BpfEvent<T>`, convert it to a pulsar Payload.
-    fn try_into_payload(data: BpfEvent<Self>) -> Result<Payload, Self::Error>;
+    /// Given a `ebpf_common::EbpfEvent<T>`, convert it to a pulsar Payload.
+    fn try_into_payload(data: EbpfEvent<Self>) -> Result<Payload, Self::Error>;
 }
 
-/// This allows to treat a ModuleSender as a bpf_common::Sender<T> for any T which
+/// This allows to treat a ModuleSender as a ebpf_common::Sender<T> for any T which
 /// can be converted into a Payload. This allows probes to send Pulsar events despite
 /// not knowing anything about Pulsar.
-impl<T: IntoPayload> bpf_common::BpfSender<T> for ModuleSender {
-    fn send(&mut self, data: Result<BpfEvent<T>, bpf_common::ProgramError>) {
+impl<T: IntoPayload> ebpf_common::EbpfSender<T> for ModuleSender {
+    fn send(&mut self, data: Result<EbpfEvent<T>, ebpf_common::ProgramError>) {
         match data {
             Ok(data) => {
                 let pid = data.pid;

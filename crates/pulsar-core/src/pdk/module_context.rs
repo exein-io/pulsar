@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
-use bpf_common::program::BpfContext;
+use ebpf_common::program::EbpfContext;
 use tokio::sync::{broadcast, watch};
 
 use crate::{
@@ -20,7 +20,7 @@ pub struct ModuleContext {
     signal_sender: SignalSender,
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
-    bpf_context: BpfContext,
+    bpf_context: EbpfContext,
 }
 
 impl ModuleContext {
@@ -32,7 +32,7 @@ impl ModuleContext {
         signal_sender: SignalSender,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
-        bpf_context: BpfContext,
+        bpf_context: EbpfContext,
     ) -> Self {
         Self {
             cfg,
@@ -115,7 +115,7 @@ impl ModuleContext {
         ModuleConfigReceiver::new(self.cfg.clone())
     }
 
-    pub fn get_bpf_context(&self) -> BpfContext {
+    pub fn get_bpf_context(&self) -> EbpfContext {
         self.bpf_context.clone()
     }
 }

@@ -13,7 +13,7 @@ mod bump_memlock_rlimit;
 pub mod parsing;
 pub mod time;
 
-pub use bpf_sender::{BpfSender, BpfSenderWrapper};
+pub use bpf_sender::{EbpfSender, EbpfSenderWrapper};
 pub use bump_memlock_rlimit::bump_memlock_rlimit;
 pub use program::{Program, ProgramBuilder, ProgramError};
 

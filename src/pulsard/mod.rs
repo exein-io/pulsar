@@ -1,5 +1,5 @@
 use anyhow::{ensure, Result};
-use bpf_common::bpf_fs;
+use ebpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
 use nix::unistd::geteuid;
 use pulsar_core::{bus::Bus, pdk::TaskLauncher};
@@ -30,7 +30,7 @@ pub async fn pulsar_daemon_run(
 
     bpf_fs::check_or_mount_bpf_fs()?;
 
-    bpf_common::bump_memlock_rlimit()?;
+    ebpf_common::bump_memlock_rlimit()?;
 
     let config = if let Some(custom_file) = &options.config_file {
         PulsarConfig::with_custom_file(custom_file)?

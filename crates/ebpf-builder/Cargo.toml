@@ -1,5 +1,5 @@
 [package]
-name = "bpf-builder"
+name = "ebpf-builder"
 version.workspace = true
 license.workspace = true
 edition.workspace = true
