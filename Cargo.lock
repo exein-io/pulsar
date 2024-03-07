@@ -214,8 +214,8 @@ dependencies = [
 
 [[package]]
 name = "aya"
-version = "0.11.0"
-source = "git+https://github.com/aya-rs/aya?rev=0f6a7343926b23190483bed49855fdc9bb10988d#0f6a7343926b23190483bed49855fdc9bb10988d"
+version = "0.12.0"
+source = "git+https://github.com/vadorovsky/aya?branch=rename-all-the-things#26937a47aa863b28a4a56de248781dedcde9cac1"
 dependencies = [
  "assert_matches",
  "aya-obj",
@@ -232,7 +232,7 @@ dependencies = [
 [[package]]
 name = "aya-obj"
 version = "0.1.0"
-source = "git+https://github.com/aya-rs/aya?rev=0f6a7343926b23190483bed49855fdc9bb10988d#0f6a7343926b23190483bed49855fdc9bb10988d"
+source = "git+https://github.com/vadorovsky/aya?branch=rename-all-the-things#26937a47aa863b28a4a56de248781dedcde9cac1"
 dependencies = [
  "bytes",
  "core-error",
