@@ -90,7 +90,6 @@ mod compiler;
 mod error;
 mod operators;
 mod reflection;
-mod ruleset;
 
 pub mod validator;
 
@@ -98,7 +97,6 @@ pub use compiler::*;
 pub use error::ValidatronError;
 pub use operators::*;
 pub use reflection::*;
-pub use ruleset::*;
 
 pub use validatron_derive::*;
 

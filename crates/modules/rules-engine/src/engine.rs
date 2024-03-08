@@ -7,9 +7,9 @@ use pulsar_core::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use validatron::{Rule, Ruleset, ValidatronError};
+use validatron::{Rule, ValidatronError};
 
-use crate::dsl;
+use crate::{dsl, ruleset::Ruleset};
 
 const RULE_EXTENSION: &str = "yaml";
 
@@ -18,6 +18,11 @@ pub struct UserRule {
     name: String,
     r#type: String,
     condition: String,
+    category: Option<String>,
+    description: Option<String>,
+    severity: Option<String>,
+    mitre_tactic: Option<String>,
+    mitre_technique: Option<String>,
 }
 
 /// Describes Pulsar Engine error.
@@ -84,10 +89,10 @@ impl PulsarEngine {
 
             // Match against a discriminant ruleset if there is one
             if let Some(ruleset) = self.internal.rulesets.get(&discriminant) {
-                for rule in ruleset.matches(event) {
+                for r in ruleset.matches(event) {
                     self.internal
                         .sender
-                        .send_threat_derived(event, rule.name.clone(), None)
+                        .send_threat_derived(event, r.rule.name.clone(), None);
                 }
             }
         }
@@ -121,13 +126,13 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEn
 
 fn parse_rules(
     user_rules: Vec<UserRule>,
-) -> Result<HashMap<PayloadDiscriminant, Vec<Rule>>, PulsarEngineError> {
+) -> Result<HashMap<PayloadDiscriminant, Vec<RuleWithMetadata>>, PulsarEngineError> {
     let parser = dsl::dsl::ConditionParser::new();
 
     let rules = user_rules
         .into_iter()
         .map(|user_rule| parse_rule(&parser, user_rule))
-        .collect::<Result<Vec<(PayloadDiscriminant, Rule)>, PulsarEngineError>>()?;
+        .collect::<Result<Vec<(PayloadDiscriminant, RuleWithMetadata)>, PulsarEngineError>>()?;
 
     let mut m = HashMap::new();
     for (k, v) in rules {
@@ -140,7 +145,7 @@ fn parse_rules(
 fn parse_rule(
     parser: &dsl::dsl::ConditionParser,
     user_rule: UserRule,
-) -> Result<(PayloadDiscriminant, Rule), PulsarEngineError> {
+) -> Result<(PayloadDiscriminant, RuleWithMetadata), PulsarEngineError> {
     let payload_discriminant = PayloadDiscriminant::from_str(&user_rule.r#type)
         .map_err(|_| PulsarEngineError::PayloadTypeNotFound(user_rule.r#type.clone()))?;
 
@@ -150,9 +155,18 @@ fn parse_rule(
 
     Ok((
         payload_discriminant,
-        Rule {
-            name: user_rule.name,
-            condition,
+        RuleWithMetadata {
+            rule: Rule {
+                name: user_rule.name,
+                condition,
+            },
+            metadata: Metadata {
+                category: user_rule.category,
+                description: user_rule.description,
+                severity: user_rule.severity,
+                mitre_tactic: user_rule.mitre_tactic,
+                mitre_technique: user_rule.mitre_technique,
+            },
         },
     ))
 }
@@ -185,6 +199,21 @@ impl RuleFile {
     }
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Metadata {
+    pub category: Option<String>,
+    pub description: Option<String>,
+    pub severity: Option<String>,
+    pub mitre_tactic: Option<String>,
+    pub mitre_technique: Option<String>,
+}
+/// An enriched rule with description and other fields.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuleWithMetadata {
+    pub(crate) rule: Rule,
+    pub(crate) metadata: Metadata,
+}
+
 #[cfg(test)]
 mod tests {
     use pulsar_core::event::PayloadDiscriminant;
@@ -195,7 +224,7 @@ mod tests {
 
     use crate::{
         dsl,
-        engine::{parse_rule, UserRule},
+        engine::{parse_rule, RuleWithMetadata, UserRule},
     };
 
     #[test]
@@ -206,25 +235,33 @@ mod tests {
             name: "Open netcat".to_string(),
             r#type: "Exec".to_string(),
             condition: r#"payload.filename == "/usr/bin/nc""#.to_string(),
+            category: None,
+            description: None,
+            severity: None,
+            mitre_tactic: None,
+            mitre_technique: None,
         };
 
         let parsed = parse_rule(&parser, user_rule).unwrap();
 
         let expected = (
             PayloadDiscriminant::Exec,
-            Rule {
-                name: "Open netcat".to_string(),
-                condition: Condition::Binary {
-                    l: vec![
-                        Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
-                        Identifier::Field(Field::Adt(AdtField {
-                            variant_name: "Exec".to_string(),
-                            field_name: "filename".to_string(),
-                        })),
-                    ],
-                    op: Operator::Relational(RelationalOperator::Equals),
-                    r: RValue::Value("/usr/bin/nc".to_string()),
+            RuleWithMetadata {
+                rule: Rule {
+                    name: "Open netcat".to_string(),
+                    condition: Condition::Binary {
+                        l: vec![
+                            Identifier::Field(Field::Simple(SimpleField("payload".to_string()))),
+                            Identifier::Field(Field::Adt(AdtField {
+                                variant_name: "Exec".to_string(),
+                                field_name: "filename".to_string(),
+                            })),
+                        ],
+                        op: Operator::Relational(RelationalOperator::Equals),
+                        r: RValue::Value("/usr/bin/nc".to_string()),
+                    },
                 },
+                metadata: Default::default(),
             },
         );
 
