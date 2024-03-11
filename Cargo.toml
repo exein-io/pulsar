@@ -111,6 +111,7 @@ comfy-table = "7.1.0"
 dns-parser = "0.8.0"
 diesel = { version = "2.1", features = ["sqlite"] }
 env_logger = "0.10.1"
+flate2 = "1.0"
 futures = "0.3.29"
 futures-util = "0.3.29"
 gethostname = "0.4.3"
@@ -118,6 +119,7 @@ glob = "0.3.1"
 hex = "0.4.3"
 hyper = "0.14.28"
 hyperlocal = "0.8"
+indicatif = "0.17"
 lalrpop = "0.20.0"
 lalrpop-util = { version = "0.20.0", features = ["lexer"] }
 lazy_static = "1.4"
@@ -131,7 +133,7 @@ lettre = { version = "0.11.2", default-features = false, features = [
 libc = "0.2.151"
 libtest-mimic = "0.6.1"
 libsqlite3-sys = { version = "0.27" }
-log = "0.4.20"
+log = { version = "0.4.20", features = ["std"] }
 nix = { version = "0.27.1", features = [
     "fs",
     "process",
@@ -162,6 +164,7 @@ signal-hook = "0.3.17"
 strum = { version = "0.25", features = ["derive"] }
 syn = "2.0.41"
 sys-mount = { version = "2.1.0", default-features = false }
+tar = "0.4"
 thiserror = "1.0.51"
 toml_edit = { version = "0.15.0", features = ["easy"] }
 tokio = { version = "1.35.1", features = ["full"] }

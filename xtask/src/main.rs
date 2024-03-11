@@ -4,6 +4,7 @@ use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
 mod cross;
 mod run;
+mod tempdir;
 mod vmlinux;
 
 #[derive(Debug, Parser)]
