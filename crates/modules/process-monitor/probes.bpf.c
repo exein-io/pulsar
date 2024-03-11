@@ -27,6 +27,8 @@ char LICENSE[] SEC("license") = "GPL v2";
 
 #define MAX_CONTAINER_RUNTIMES 8
 
+#define MNT_DEVNAME_MAX_BUF 256
+
 #define CONTAINER_ID_MAX_BUF 72
 
 #define DOCKER_CONTAINER_ENGINE 0
@@ -142,6 +144,17 @@ struct
   __uint(max_entries, MAX_PENDING_DEAD_PARENTS);
 } orphans_map SEC(".maps");
 
+struct mnt_devname_buf {
+  char buf[MNT_DEVNAME_MAX_BUF];
+};
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, __u32);
+  __type(value, struct mnt_devname_buf);
+  __uint(max_entries, 1);
+} m_mnt_devname_buf SEC(".maps");
+
 /*
 Identifies the container engine and reads the cgroup id of a process
 from its `task_struct` into an given array of character.
@@ -239,6 +252,28 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
 
   char buf[CONTAINER_ID_MAX_BUF];
+
+  __u32 key = 0;
+  struct mnt_devname_buf *b_mnt_devname = bpf_map_lookup_elem(&m_mnt_devname_buf, &key);
+  if (b_mnt_devname == 0) {
+    return 0;
+  }
+
+  // const char *mnt_devname = BPF_CORE_READ(child, nsproxy, mnt_ns, root, mnt_devname);
+  // if (bpf_probe_read_kernel_str(b_mnt_devname->buf, MNT_DEVNAME_MAX_BUF, mnt_devname) < 0)
+  // {
+  //   LOG_ERROR("failed to get mnt_devname");
+  //   return 0;
+  // }
+  // LOG_ERROR("MNT_DEVNAME: %s\n", b_mnt_devname->buf);
+
+  const unsigned char *dname = BPF_CORE_READ(child, nsproxy, mnt_ns, root, mnt.mnt_root, d_name.name);
+  if (bpf_probe_read_kernel_str(b_mnt_devname->buf, MNT_DEVNAME_MAX_BUF, dname) < 0)
+  {
+    LOG_ERROR("failed to get mountname");
+    return 0;
+  }
+  LOG_ERROR("MNT_DEVNAME: %s\n", b_mnt_devname->buf);
 
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
