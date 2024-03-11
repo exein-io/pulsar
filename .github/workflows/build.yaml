@@ -4,6 +4,9 @@ on:
     branches:
       - main
 
+env:
+  LLVM_VERSION: 18
+
 jobs:
   build:
     name: Build
@@ -37,6 +40,17 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          set -euxo pipefail
+
+          wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh ${LLVM_VERSION}
+          echo /usr/lib/llvm-${LLVM_VERSION}/bin >> $GITHUB_PATH
+
+          sudo apt install -y qemu-system
+
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -58,3 +72,8 @@ jobs:
 
       - name: Unit tests
         run: cross test --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
+
+      - name: Integration tests
+        if: endsWith(matrix.platform.target, 'musl')
+        run: |
+            cargo xtask cross run --target=${{ matrix.platform.target }}
