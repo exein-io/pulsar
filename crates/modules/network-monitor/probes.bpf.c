@@ -360,7 +360,7 @@ static __always_inline void
 static __always_inline void
 read_sk_buff(struct buffer *buffer, struct msg_event *output,
              struct __sk_buff *skb, __u32 offset) {
-  size_t len = output->data_len - offset;
+  size_t len = output->data_len - 1;
 
   if (len > MAX_DATA_SIZE) {
      LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);    
@@ -534,7 +534,8 @@ int skb_ingress(struct __sk_buff *skb) {
   struct arguments *args = bpf_map_lookup_elem(&args_map, &tgid);
   int r = bpf_map_delete_elem(&args_map, &tgid);
   if (!args) {
-    return CGROUP_SKB_OK;
+    LOG_DEBUG("cgroup_skb/ingress: args is null");
+    //return CGROUP_SKB_OK;
   }
 
   struct network_event *event = init_network_event(EVENT_RECV, tgid);
@@ -562,11 +563,13 @@ int skb_ingress(struct __sk_buff *skb) {
       // NOTE: msg_name is NULL if the userspace code is not interested
       // in knowing the source of the message. In that case we won't extract
       // the source port and address.
-      struct sockaddr *addr = args->data[2];
-      if (!addr) {
-        LOG_DEBUG("sockaddr is null. ");
-      } else {
-        copy_sockaddr(addr, &event->recv.destination, true);
+      if (args){
+        struct sockaddr *addr = args->data[2];
+        if (!addr) {
+          LOG_DEBUG("sockaddr is null. ");
+        } else {
+          copy_sockaddr(addr, &event->recv.destination, true);
+        }
       }
     } else {
       event->send.data.len = 0;
@@ -591,11 +594,13 @@ int skb_ingress(struct __sk_buff *skb) {
       // NOTE: msg_name is NULL if the userspace code is not interested
       // in knowing the source of the message. In that case we won't extract
       // the source port and address.
-      struct sockaddr *addr = args->data[2];
-      if (!addr) {
-        LOG_DEBUG("sockaddr is null. ");
-      } else {
-        copy_sockaddr(addr, &event->recv.destination, true);
+      if (args){
+        struct sockaddr *addr = args->data[2];
+        if (!addr) {
+          LOG_DEBUG("sockaddr is null. ");
+        } else {
+          copy_sockaddr(addr, &event->recv.destination, true);
+        }
       }
     } else {
       event->send.data.len = 0;
