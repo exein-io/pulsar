@@ -1,17 +1,17 @@
 use std::{
-    env,
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     fs::{self, File},
     io::prelude::*,
     os::unix::fs::symlink,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
 use anyhow::Result;
 use clap::Parser;
 use serde::Deserialize;
-use uuid::Uuid;
+
+use crate::tempdir::TempDir;
 
 const REPO_URL: &str = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git";
 const KERNEL_API: &str = "https://www.kernel.org/releases.json";
@@ -52,49 +52,6 @@ struct KernelReleases {
     releases: Vec<KernelRelease>,
 }
 
-/// A build directory which is cleaned on `drop` (unless the `preserve` field
-/// is `true`.
-struct BuildDir {
-    /// Path to the build directory.
-    dir_path: PathBuf,
-    /// Whether to preserve the build directory after `drop`. If `false`, it
-    /// gets removed automatically.
-    preserve: bool,
-}
-
-impl BuildDir {
-    fn new(preserve: bool) -> Self {
-        let dir_path = env::temp_dir().join(format!("pulsar-kernel-builddir-{}", Uuid::new_v4()));
-        Self { dir_path, preserve }
-    }
-
-    // We don't want to move the whole `BuildDir` here and it's totally fine to
-    // take a reference just to clone a field.
-    #[allow(clippy::wrong_self_convention)]
-    fn into_os_string(&self) -> OsString {
-        self.dir_path.clone().into_os_string()
-    }
-
-    fn join<P: AsRef<Path>>(&self, path: P) -> PathBuf {
-        self.dir_path.join(path)
-    }
-}
-
-impl AsRef<Path> for BuildDir {
-    fn as_ref(&self) -> &Path {
-        self.dir_path.as_path()
-    }
-}
-
-impl Drop for BuildDir {
-    /// Removes the build directory if requested.
-    fn drop(&mut self) {
-        if !self.preserve && self.dir_path.exists() {
-            let _ = fs::remove_dir_all(&self.dir_path);
-        }
-    }
-}
-
 /// Searches for the latest stable kernel version on kernel.org.
 fn latest_version() -> Result<String> {
     let releases: KernelReleases = reqwest::blocking::get(KERNEL_API)?.json()?;
@@ -109,7 +66,7 @@ fn latest_version() -> Result<String> {
 }
 
 /// Clones the kernel stable git repository.
-fn clone_repo(version: &str, destination: &BuildDir) -> Result<()> {
+fn clone_repo(version: &str, destination: &TempDir) -> Result<()> {
     // NOTE(vadorovsky): Sadly, git2 crate doesn't seem to support specyfing
     // depth when cloning.
     Command::new("git")
@@ -132,7 +89,7 @@ fn make<S>(
     options: &Options,
     arch: Option<&str>,
     cross_compile: Option<&str>,
-    builddir: &BuildDir,
+    builddir: &TempDir,
     arg: S,
 ) -> Result<()>
 where
@@ -160,7 +117,7 @@ where
 }
 
 /// Sets the given kernel config variable.
-fn set_config(builddir: &BuildDir, action: &str, config: &str) -> Result<()> {
+fn set_config(builddir: &TempDir, action: &str, config: &str) -> Result<()> {
     Command::new("bash")
         .args(["scripts/config", action, config])
         .current_dir(builddir)
@@ -172,12 +129,12 @@ fn set_config(builddir: &BuildDir, action: &str, config: &str) -> Result<()> {
 }
 
 /// Disables the given kernel config variable.
-fn disable_config(builddir: &BuildDir, config: &str) -> Result<()> {
+fn disable_config(builddir: &TempDir, config: &str) -> Result<()> {
     set_config(builddir, "--disable", config)
 }
 
 /// Enables the given kernel config variable.
-fn enable_config(builddir: &BuildDir, config: &str) -> Result<()> {
+fn enable_config(builddir: &TempDir, config: &str) -> Result<()> {
     set_config(builddir, "--enable", config)
 }
 
@@ -188,7 +145,7 @@ fn generate_vmlinux_for_arch(
     version: &str,
     arch: Option<&str>,
     cross_compile: Option<&str>,
-    builddir: &BuildDir,
+    builddir: &TempDir,
     output_path: PathBuf,
     link_path: PathBuf,
 ) -> Result<()> {
@@ -326,7 +283,7 @@ fn generate_vmlinux_for_arch(
 /// architectures.
 pub(crate) fn run(options: Options) -> Result<()> {
     // Create a temporary directory
-    let builddir = BuildDir::new(options.preserve_builddir);
+    let builddir = TempDir::new("pulsar-kernel-builddir", options.preserve_builddir);
 
     let version = match options.kernel_version {
         Some(ref kernel_version) => kernel_version.to_owned(),
