@@ -365,7 +365,7 @@ fn load_ebpf() -> Bpf {
         false,
     )
     .unwrap();
-    const PIN_PATH: &str = "/sys/fs/bpf/anomaly-detection-test";
+    const PIN_PATH: &str = "/sys/fs/bpf/filtering-test";
     let _ = std::fs::create_dir(PIN_PATH);
     let bpf = BpfLoader::new()
         .map_pin_path(PIN_PATH)
