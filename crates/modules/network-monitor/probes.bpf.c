@@ -78,22 +78,6 @@ struct {
   __type(key, struct sock *);
   __type(value, pid_t);
   __uint(max_entries, 10240);
-} bind_map SEC(".maps");
-
-// Map a socket pointer to its creating process
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, struct sock *);
-  __type(value, pid_t);
-  __uint(max_entries, 10240);
-} connect_map SEC(".maps");
-
-// Map a socket pointer to its creating process
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, struct sock *);
-  __type(value, pid_t);
-  __uint(max_entries, 10240);
 } tcp_set_state_map SEC(".maps");
 
 // Maps for sharing data between various hook points
@@ -216,6 +200,85 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
+static __always_inline __u32 tcp_hdrlen(const struct tcphdr *th)
+{
+  return th->doff << 2;
+}
+
+static __always_inline void copy_iphdr_source(struct iphdr *ih,
+                                              struct address *addr) {
+  addr->ip_ver = 0;
+  ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
+  bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->saddr);
+  reset_unused_fields_v4(&addr->v4);
+}
+
+static __always_inline void copy_iphdr_dest(struct iphdr *ih,
+                                            struct address *addr) {
+  addr->ip_ver = 0;
+  ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
+  bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->daddr);
+  reset_unused_fields_v4(&addr->v4);
+}
+
+static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
+                                                struct address *addr) {
+  addr->ip_ver = 1;
+  ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
+  bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
+                &ih6->saddr.in6_u.u6_addr32);
+  reset_unused_fields_v6(&addr->v6);
+}
+
+static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
+                                              struct address *addr) {
+  addr->ip_ver = 1;
+  ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
+  bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
+                &ih6->daddr.in6_u.u6_addr32);
+  reset_unused_fields_v6(&addr->v6);
+}
+
+static __always_inline void copy_ipv4_tcphdr_source(struct tcphdr *th,
+                                                    struct address *addr) {
+  addr->v4.sin_port = th->source;
+}
+
+static __always_inline void copy_ipv4_tcphdr_dest(struct tcphdr *th,
+                                                  struct address *addr) {
+  addr->v4.sin_port = th->dest;
+}
+
+static __always_inline void copy_ipv6_tcphdr_source(struct tcphdr *th,
+                                                    struct address *addr) {
+  addr->v6.sin6_port = th->source;
+}
+
+static __always_inline void copy_ipv6_tcphdr_dest(struct tcphdr *th,
+                                                  struct address *addr) {
+  addr->v6.sin6_port = th->dest;
+}
+
+static __always_inline void copy_ipv4_udphdr_source(struct udphdr *uh,
+                                                    struct address *addr) {
+  addr->v4.sin_port = uh->source;
+}
+
+static __always_inline void copy_ipv4_udphdr_dest(struct udphdr *uh,
+                                                  struct address *addr) {
+  addr->v4.sin_port = uh->dest;
+}
+
+static __always_inline void copy_ipv6_udphdr_source(struct udphdr *uh,
+                                                    struct address *addr) {
+  addr->v6.sin6_port = uh->source;
+}
+
+static __always_inline void copy_ipv6_udphdr_dest(struct udphdr *uh,
+                                                  struct address *addr) {
+  addr->v6.sin6_port = uh->dest;
+}
+
 static __always_inline u16 get_sock_protocol(struct sock *sk) {
   u64 proto = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_protocol);
   // TODO: clean this up
@@ -235,11 +298,6 @@ void __always_inline on_socket_bind(void *ctx, struct socket *sock,
     return;
   int ret;
   struct sock *sk = BPF_CORE_READ(sock, sk);
-  // LOG_ERROR("bind() saving sk %lu\n", sk);
-  ret = bpf_map_update_elem(&bind_map, &sk, &tgid, BPF_ANY);
-  if (ret) {
-    LOG_ERROR("updating bind_map");
-  }
   struct network_event *event = init_network_event(EVENT_BIND, tgid);
   if (!event)
     return;
@@ -274,11 +332,6 @@ static __always_inline void on_socket_connect(void *ctx, struct socket *sock,
     return;
   int ret;
   struct sock *sk = BPF_CORE_READ(sock, sk);
-  // LOG_ERROR("connect() saving sk %lu\n", sk);
-  ret = bpf_map_update_elem(&connect_map, &sk, &tgid, BPF_ANY);
-  if (ret) {
-    LOG_ERROR("updating connect_map");
-  }
   struct network_event *event = init_network_event(EVENT_CONNECT, tgid);
   if (!event)
     return;
@@ -357,22 +410,6 @@ static __always_inline void
   return BPF_CORE_READ(msg_iter_compat, iov, iov_base);
 }
 
-static __always_inline void
-read_sk_buff(struct buffer *buffer, struct msg_event *output,
-             struct __sk_buff *skb, __u32 offset) {
-  size_t len = output->data_len - 1;
-
-  if (len > MAX_DATA_SIZE) {
-     LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);    
-  }
-
-  len &= (MAX_DATA_SIZE - 1);
-
-  buffer_index_init(buffer, &output->data);
-  buffer_append_skb_bytes(buffer, &output->data, skb, offset, len);
-  LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
-}
-
 SEC("kprobe/tcp_set_state")
 int tcp_set_state(struct pt_regs *regs) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
@@ -444,172 +481,201 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
   return 0;
 }
 
-SEC("cgroup_skb/egress")
-int skb_egress(struct __sk_buff *skb) {
-  struct bpf_sock *bpf_sk = skb->sk;
-  if (!bpf_sk)
-    return CGROUP_SKB_OK;
-  bpf_sk = bpf_sk_fullsock(bpf_sk);
-  if (!bpf_sk)
-    return CGROUP_SKB_OK;
-  struct sock *sk = (struct sock *)bpf_sk;
-  pid_t *tgid = bpf_map_lookup_elem(&connect_map, &sk);
-  if (tgid == 0) {
-    LOG_DEBUG("cgroup_skb/egress on unregistered socket %p, ignoring",
-              sk);
-    return CGROUP_SKB_OK;
-  }
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, *tgid, __func__, true,
+__always_inline int process_skb(struct __sk_buff *skb,
+                                __u8 direction) {
+  struct task_struct *task = bpf_get_current_task_btf();
+  pid_t tgid = task->tgid;
+
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
-  LOG_DEBUG("cgroup_skb/egress tracking socket %p for thread group %d",
-            sk, tgid);
 
-  struct network_event *event = init_network_event(EVENT_SEND, *tgid);
-  if (!event)
+  struct network_event *network_event;
+  switch (direction) {
+  case EGRESS:
+    network_event = init_network_event(EVENT_SEND, tgid);
+    break;
+  case INGRESS:
+    network_event = init_network_event(EVENT_RECV, tgid);
+    break;
+  }
+  if (!network_event)
     return CGROUP_SKB_OK;
+
+  struct msg_event *msg_event;
+  switch (direction) {
+  case EGRESS:
+    msg_event = &network_event->send;
+    break;
+  case INGRESS:
+    msg_event = &network_event->recv;
+    break;
+  }
+
+  __u32 headers_len;
+  __be16 l3_proto = bpf_htons(skb->protocol);
+  __u8 l4_proto;
 
   void *data_end = (void *)(long)skb->data_end;
   void *data = (void *)(long)skb->data;
 
-  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
-    if (data + sizeof(struct iphdr) > data_end)
-      goto output;
+  // Parse L3 header (IPv4 / IPv6).
+  switch (l3_proto) {
+  case ETH_P_IPV4: {
+    if (data + sizeof(struct iphdr) > data_end) {
+      LOG_ERROR("found an IPv4 packet too small to fit an IP header");
+      goto pass;
+    }
 
     struct iphdr *ih = data;
-    event->send.proto = ih->protocol;
+    l4_proto = ih->protocol;
 
-    if (ih->protocol == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct iphdr) + sizeof(struct udphdr);
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-    } else {
-      event->send.data.len = 0;
+    switch (direction) {
+    case EGRESS:
+      copy_iphdr_source(ih, &msg_event->source);
+      copy_iphdr_dest(ih, &msg_event->destination);
+      break;
+    case INGRESS:
+      copy_iphdr_source(ih, &msg_event->destination);
+      copy_iphdr_dest(ih, &msg_event->source);
+      break;
     }
-  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
-    if (data + sizeof(struct ipv6hdr) > data_end)
-      goto output;
+
+    msg_event->proto = l4_proto;
+    headers_len = sizeof(struct iphdr);
+
+    break;
+  }
+  case ETH_P_IPV6: {
+    if (data + sizeof(struct ipv6hdr) > data_end) {
+      LOG_ERROR("found an IPv6 packet too small to fit an IP header");
+      goto pass;
+    }
 
     struct ipv6hdr *ih6 = data;
-    event->send.proto = ih6->nexthdr;
+    l4_proto = ih6->nexthdr;
 
-    if (ih6->nexthdr == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ipv6hdr) + sizeof(struct udphdr);
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-    } else {
-      event->send.data.len = 0;
+    switch (direction) {
+    case EGRESS:
+      copy_ipv6hdr_source(ih6, &msg_event->source);
+      copy_ipv6hdr_dest(ih6, &msg_event->destination);
+      break;
+    case INGRESS:
+      copy_ipv6hdr_source(ih6, &msg_event->destination);
+      copy_ipv6hdr_dest(ih6, &msg_event->source);
+      break;
     }
+
+    msg_event->proto = l4_proto;
+    headers_len = sizeof(struct ipv6hdr);
+
+    break;
+  }
+  default:
+    LOG_DEBUG("ignored unsupported L3 protocol %d", l3_proto);
+    goto pass;
+  }
+  
+  // Parse L4 header (ICMP / TCP / UDP).
+  switch (l4_proto) {
+  case IPPROTO_ICMP:
+    headers_len += sizeof(struct icmphdr);
+    break;
+  case IPPROTO_TCP: {
+    if (data + headers_len + sizeof(struct tcphdr) > data_end) {
+      LOG_ERROR("found a TCP packet too small to fit a TCP header");
+      goto pass;
+    }
+
+    struct tcphdr *th = data + headers_len;
+    headers_len += tcp_hdrlen(th);
+
+    switch (l3_proto) {
+    case ETH_P_IPV4:
+      switch (direction) {
+      case EGRESS:
+        copy_ipv4_tcphdr_source(th, &msg_event->source);
+        copy_ipv4_tcphdr_dest(th, &msg_event->destination);
+        break;
+      case INGRESS:
+        copy_ipv4_tcphdr_source(th, &msg_event->destination);
+        copy_ipv4_tcphdr_dest(th, &msg_event->source);
+        break;
+      }
+      break;
+    case ETH_P_IPV6:
+      switch (direction) {
+      case EGRESS:
+        copy_ipv6_tcphdr_source(th, &msg_event->source);
+        copy_ipv6_tcphdr_dest(th, &msg_event->destination);
+        break;
+      case INGRESS:
+        copy_ipv6_tcphdr_source(th, &msg_event->destination);
+        copy_ipv6_tcphdr_dest(th, &msg_event->source);
+        break;
+      }
+    }
+    break;
+  }
+  case IPPROTO_UDP: {
+    if (data + headers_len + sizeof(struct udphdr) > data_end) {
+      LOG_ERROR("found a UDP packet too small to fit a UDP header");
+      goto pass;
+    }
+
+    struct udphdr *uh = data + headers_len;
+    headers_len += sizeof(struct udphdr);
+
+    switch (l3_proto) {
+    case ETH_P_IPV4:
+      switch (direction) {
+      case EGRESS:
+        copy_ipv4_udphdr_source(uh, &msg_event->source);
+        copy_ipv4_udphdr_dest(uh, &msg_event->destination);
+        break;
+      case INGRESS:
+        copy_ipv4_udphdr_source(uh, &msg_event->destination);
+        copy_ipv4_udphdr_dest(uh, &msg_event->source);
+        break;
+      }
+      break;
+    case ETH_P_IPV6:
+      switch (direction) {
+      case EGRESS:
+        copy_ipv6_udphdr_source(uh, &msg_event->source);
+        copy_ipv6_udphdr_dest(uh, &msg_event->destination);
+        break;
+      case INGRESS:
+        copy_ipv6_udphdr_source(uh, &msg_event->destination);
+        copy_ipv6_udphdr_dest(uh, &msg_event->source);
+        break;
+      }
+      break;
+    }
+
+    buffer_index_init(&network_event->buffer, &msg_event->data);
+    buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb, headers_len);
+    break;
+  }
+  default:
+    LOG_DEBUG("ignored unsupported L4 protocol %d", l4_proto);
+    goto send_event;
   }
 
-output:
-  output_network_event(skb, event);
+  msg_event->data_len = skb->len - headers_len;
+
+send_event:
+  output_network_event(skb, network_event);
+pass:
   return CGROUP_SKB_OK;
+}
+
+SEC("cgroup_skb/egress")
+int skb_egress(struct __sk_buff *skb) {
+  return process_skb(skb, EGRESS);
 }
 
 SEC("cgroup_skb/ingress")
 int skb_ingress(struct __sk_buff *skb) {
-  struct bpf_sock *bpf_sk = skb->sk;
-  if (!bpf_sk)
-    return CGROUP_SKB_OK;
-  bpf_sk = bpf_sk_fullsock(bpf_sk);
-  if (!bpf_sk)
-    return CGROUP_SKB_OK;
-  struct sock *sk = (struct sock *)bpf_sk;
-  pid_t *tgid_ptr = bpf_map_lookup_elem(&bind_map, &sk);
-  if (tgid_ptr == 0) {
-    LOG_DEBUG("cgroup_skb/ingress on unregistered socket %p, ignoring",
-              sk);
-    return CGROUP_SKB_OK;
-  }
-  pid_t tgid = *tgid_ptr;
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
-                              true))
-    return CGROUP_SKB_OK;
-  LOG_DEBUG("cgroup_skb/ingress tracking socket %p for thread group %d",
-            sk, tgid);
-
-  struct arguments *args = bpf_map_lookup_elem(&args_map, &tgid);
-  int r = bpf_map_delete_elem(&args_map, &tgid);
-  if (!args) {
-    LOG_DEBUG("cgroup_skb/ingress: args is null");
-    //return CGROUP_SKB_OK;
-  }
-
-  struct network_event *event = init_network_event(EVENT_RECV, tgid);
-  if (!event)
-    return CGROUP_SKB_OK;
-
-  void *data_end = (void *)(long)skb->data_end;
-  void *data = (void *)(long)skb->data;
-
-  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
-    if (data + sizeof(struct iphdr) > data_end)
-      goto output;
-
-    struct iphdr *ih = data;
-    event->send.proto = ih->protocol;
-
-    if (ih->protocol == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct iphdr) + sizeof(struct udphdr);
-
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-
-      // in UDP we find destination value in sockaddr
-      // NOTE: msg_name is NULL if the userspace code is not interested
-      // in knowing the source of the message. In that case we won't extract
-      // the source port and address.
-      if (args){
-        struct sockaddr *addr = args->data[2];
-        if (!addr) {
-          LOG_DEBUG("sockaddr is null. ");
-        } else {
-          copy_sockaddr(addr, &event->recv.destination, true);
-        }
-      }
-    } else {
-      event->send.data.len = 0;
-
-      copy_skc_dest(&sk->__sk_common, &event->recv.destination);
-    }
-  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
-    if (data + sizeof(struct ipv6hdr) > data_end)
-      goto output;
-
-    struct ipv6hdr *ih6 = data;
-    event->send.proto = ih6->nexthdr;
-
-    if (ih6->nexthdr == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ipv6hdr) + sizeof(struct udphdr);
-
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-
-      // in UDP we find destination value in sockaddr
-      // NOTE: msg_name is NULL if the userspace code is not interested
-      // in knowing the source of the message. In that case we won't extract
-      // the source port and address.
-      if (args){
-        struct sockaddr *addr = args->data[2];
-        if (!addr) {
-          LOG_DEBUG("sockaddr is null. ");
-        } else {
-          copy_sockaddr(addr, &event->recv.destination, true);
-        }
-      }
-    } else {
-      event->send.data.len = 0;
-
-      copy_skc_dest(&sk->__sk_common, &event->recv.destination);
-    }
-  }
-
-output:
-  output_network_event(skb, event);
-  return CGROUP_SKB_OK;
+  return process_skb(skb, INGRESS);
 }

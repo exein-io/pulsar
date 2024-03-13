@@ -34,3 +34,7 @@
 #define AF_INET 2
 // IPv6 address family.
 #define AF_INET6 10
+
+// Traffic direction.
+#define EGRESS 0
+#define INGRESS 1
