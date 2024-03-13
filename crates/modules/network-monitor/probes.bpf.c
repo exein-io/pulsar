@@ -505,6 +505,9 @@ int skb_egress(struct __sk_buff *skb) {
   }
 
 output:
+  copy_skc_source(&sk->__sk_common, &event->send.source);
+  copy_skc_dest(&sk->__sk_common, &event->send.destination);
+
   output_network_event(skb, event);
   return CGROUP_SKB_OK;
 }
