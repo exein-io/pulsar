@@ -444,6 +444,65 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
   return 0;
 }
 
+__always_inline int process_skb(struct __sk_buff *skb,
+                                struct sock *sk,
+                                struct network_event *event) {
+  __u32 headers_len = 0;
+  __u8 proto;
+
+  void *data_end = (void *)(long)skb->data_end;
+  void *data = (void *)(long)skb->data;
+
+  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
+    if (data + sizeof(struct iphdr) > data_end)
+      goto output;
+
+    struct iphdr *ih = data;
+    proto = ih->protocol;
+
+    headers_len = sizeof(struct iphdr);
+  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
+    if (data + sizeof(struct ipv6hdr) > data_end)
+      goto output;
+
+    struct ipv6hdr *ih6 = data;
+    proto = ih6->nexthdr;
+
+    headers_len = sizeof(struct ipv6hdr);
+  } else {
+    LOG_DEBUG("ignored unsupported L2 protocol %d", skb->protocol);
+    goto output;
+  }
+
+  switch (proto) {
+  case IPPROTO_ICMP:
+    headers_len += sizeof(struct icmphdr);
+    break;
+  case IPPROTO_TCP:
+    headers_len += sizeof(struct tcphdr);
+    break;
+  case IPPROTO_UDP:
+    headers_len += sizeof(struct udphdr);
+    // Specific handling for UDP can go here, e.g., read_sk_buff
+    read_sk_buff(&event->buffer, &event->send, skb, headers_len);
+    break;
+  default:
+    LOG_DEBUG("ignored unsupported L3 protocol %d", proto);
+    goto output;
+  }
+
+  event->send.data_len = skb->len - headers_len;
+
+output:
+  event->send.proto = proto;
+
+  copy_skc_source(&sk->__sk_common, &event->send.source);
+  copy_skc_dest(&sk->__sk_common, &event->send.destination);
+
+  output_network_event(skb, event);
+  return CGROUP_SKB_OK;
+}
+
 SEC("cgroup_skb/egress")
 int skb_egress(struct __sk_buff *skb) {
   struct bpf_sock *bpf_sk = skb->sk;
@@ -455,58 +514,21 @@ int skb_egress(struct __sk_buff *skb) {
   struct sock *sk = (struct sock *)bpf_sk;
   pid_t *tgid = bpf_map_lookup_elem(&connect_map, &sk);
   if (tgid == 0) {
-    LOG_DEBUG("cgroup_skb/egress on unregistered socket %p, ignoring",
+    LOG_DEBUG("unregistered socket %p, ignoring",
               sk);
     return CGROUP_SKB_OK;
   }
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, *tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
-  LOG_DEBUG("cgroup_skb/egress tracking socket %p for thread group %d",
+  LOG_DEBUG("tracking socket %p for thread group %d",
             sk, tgid);
 
   struct network_event *event = init_network_event(EVENT_SEND, *tgid);
   if (!event)
     return CGROUP_SKB_OK;
 
-  void *data_end = (void *)(long)skb->data_end;
-  void *data = (void *)(long)skb->data;
-
-  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
-    if (data + sizeof(struct iphdr) > data_end)
-      goto output;
-
-    struct iphdr *ih = data;
-    event->send.proto = ih->protocol;
-
-    if (ih->protocol == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct iphdr) + sizeof(struct udphdr);
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-    } else {
-      event->send.data.len = 0;
-    }
-  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
-    if (data + sizeof(struct ipv6hdr) > data_end)
-      goto output;
-
-    struct ipv6hdr *ih6 = data;
-    event->send.proto = ih6->nexthdr;
-
-    if (ih6->nexthdr == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ipv6hdr) + sizeof(struct udphdr);
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-    } else {
-      event->send.data.len = 0;
-    }
-  }
-
-output:
-  output_network_event(skb, event);
-  return CGROUP_SKB_OK;
+  return process_skb(skb, sk, event);
 }
 
 SEC("cgroup_skb/ingress")
@@ -520,7 +542,7 @@ int skb_ingress(struct __sk_buff *skb) {
   struct sock *sk = (struct sock *)bpf_sk;
   pid_t *tgid_ptr = bpf_map_lookup_elem(&bind_map, &sk);
   if (tgid_ptr == 0) {
-    LOG_DEBUG("cgroup_skb/ingress on unregistered socket %p, ignoring",
+    LOG_DEBUG("unregistered socket %p, ignoring",
               sk);
     return CGROUP_SKB_OK;
   }
@@ -528,83 +550,12 @@ int skb_ingress(struct __sk_buff *skb) {
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
-  LOG_DEBUG("cgroup_skb/ingress tracking socket %p for thread group %d",
+  LOG_DEBUG("tracking socket %p for thread group %d",
             sk, tgid);
-
-  struct arguments *args = bpf_map_lookup_elem(&args_map, &tgid);
-  int r = bpf_map_delete_elem(&args_map, &tgid);
-  if (!args) {
-    return CGROUP_SKB_OK;
-  }
 
   struct network_event *event = init_network_event(EVENT_RECV, tgid);
   if (!event)
     return CGROUP_SKB_OK;
 
-  void *data_end = (void *)(long)skb->data_end;
-  void *data = (void *)(long)skb->data;
-
-  if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
-    if (data + sizeof(struct iphdr) > data_end)
-      goto output;
-
-    struct iphdr *ih = data;
-    event->send.proto = ih->protocol;
-
-    if (ih->protocol == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct iphdr) + sizeof(struct udphdr);
-
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-
-      // in UDP we find destination value in sockaddr
-      // NOTE: msg_name is NULL if the userspace code is not interested
-      // in knowing the source of the message. In that case we won't extract
-      // the source port and address.
-      struct sockaddr *addr = args->data[2];
-      if (!addr) {
-        LOG_DEBUG("sockaddr is null. ");
-      } else {
-        copy_sockaddr(addr, &event->recv.destination, true);
-      }
-    } else {
-      event->send.data.len = 0;
-
-      copy_skc_dest(&sk->__sk_common, &event->recv.destination);
-    }
-  } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
-    if (data + sizeof(struct ipv6hdr) > data_end)
-      goto output;
-
-    struct ipv6hdr *ih6 = data;
-    event->send.proto = ih6->nexthdr;
-
-    if (ih6->nexthdr == IPPROTO_UDP) {
-      __u32 headers_len = sizeof(struct ipv6hdr) + sizeof(struct udphdr);
-
-      event->send.data_len = skb->len - headers_len;
-      // read data
-      read_sk_buff(&event->buffer, &event->send, skb, headers_len);
-
-      // in UDP we find destination value in sockaddr
-      // NOTE: msg_name is NULL if the userspace code is not interested
-      // in knowing the source of the message. In that case we won't extract
-      // the source port and address.
-      struct sockaddr *addr = args->data[2];
-      if (!addr) {
-        LOG_DEBUG("sockaddr is null. ");
-      } else {
-        copy_sockaddr(addr, &event->recv.destination, true);
-      }
-    } else {
-      event->send.data.len = 0;
-
-      copy_skc_dest(&sk->__sk_common, &event->recv.destination);
-    }
-  }
-
-output:
-  output_network_event(skb, event);
-  return CGROUP_SKB_OK;
+  return process_skb(skb, sk, event);
 }
