@@ -13,16 +13,14 @@ use crate::{dsl, ruleset::Ruleset};
 
 const RULE_EXTENSION: &str = "yaml";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct UserRule {
     name: String,
     r#type: String,
     condition: String,
-    category: Option<String>,
-    description: Option<String>,
-    severity: Option<String>,
-    mitre_tactic: Option<String>,
-    mitre_technique: Option<String>,
+    category: Option<Category>,
+    severity: Severity,
+    description: String,
 }
 
 /// Describes Pulsar Engine error.
@@ -151,7 +149,15 @@ fn parse_rule(
 
     let condition = parser
         .parse(&user_rule.r#type, &user_rule.condition)
-        .map_err(|err| PulsarEngineError::DslError(user_rule.condition.clone(), err.to_string()))?;
+        .map_err(
+            |err: lalrpop_util::ParseError<
+                usize,
+                lalrpop_util::lexer::Token<'_>,
+                dsl::DslError,
+            >| {
+                PulsarEngineError::DslError(user_rule.condition.clone(), err.to_string())
+            },
+        )?;
 
     Ok((
         payload_discriminant,
@@ -161,11 +167,9 @@ fn parse_rule(
                 condition,
             },
             metadata: Metadata {
-                category: user_rule.category,
+                category: user_rule.category.unwrap_or(Category::General),
                 description: user_rule.description,
                 severity: user_rule.severity,
-                mitre_tactic: user_rule.mitre_tactic,
-                mitre_technique: user_rule.mitre_technique,
             },
         },
     ))
@@ -199,19 +203,45 @@ impl RuleFile {
     }
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Metadata {
-    pub category: Option<String>,
-    pub description: Option<String>,
-    pub severity: Option<String>,
-    pub mitre_tactic: Option<String>,
-    pub mitre_technique: Option<String>,
+    pub category: Category,
+    pub description: String,
+    pub severity: Severity,
 }
 /// An enriched rule with description and other fields.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuleWithMetadata {
     pub(crate) rule: Rule,
     pub(crate) metadata: Metadata,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Category {
+    CommandAndControl,
+    CredentialAccess,
+    DefenseEvasion,
+    Discovery,
+    Execution,
+    Exfiltration,
+    General,
+    Impact,
+    InitialAccess,
+    LateralMovement,
+    Persistence,
+    PrivilegeEscalation,
+    Reconnaissance,
+    ResourceDevelopment,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Low,
+    Medium,
+    High,
+    Critical,
 }
 
 #[cfg(test)]
@@ -224,7 +254,7 @@ mod tests {
 
     use crate::{
         dsl,
-        engine::{parse_rule, RuleWithMetadata, UserRule},
+        engine::{parse_rule, Category, Metadata, RuleWithMetadata, Severity, UserRule},
     };
 
     #[test]
@@ -235,11 +265,9 @@ mod tests {
             name: "Open netcat".to_string(),
             r#type: "Exec".to_string(),
             condition: r#"payload.filename == "/usr/bin/nc""#.to_string(),
-            category: None,
-            description: None,
-            severity: None,
-            mitre_tactic: None,
-            mitre_technique: None,
+            category: Some(Category::General),
+            description: "A rule to detect the use of netcat".to_string(),
+            severity: Severity::Medium,
         };
 
         let parsed = parse_rule(&parser, user_rule).unwrap();
@@ -261,7 +289,11 @@ mod tests {
                         r: RValue::Value("/usr/bin/nc".to_string()),
                     },
                 },
-                metadata: Default::default(),
+                metadata: Metadata {
+                    category: Category::General,
+                    description: "A rule to detect the use of netcat".to_string(),
+                    severity: Severity::Medium,
+                },
             },
         );
 
