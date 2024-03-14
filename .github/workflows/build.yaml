@@ -59,3 +59,19 @@ jobs:
 
       - name: Unit tests
         run: cross test --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
+
+      - name: Install dependencies
+        if: matrix.platform.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17
+          echo /usr/lib/llvm-17/bin >> $GITHUB_PATH
+
+      - name: Integration tests (native)
+        if: matrix.platform.target == 'x86_64-unknown-linux-gnu'
+        run: cargo xtask test
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
