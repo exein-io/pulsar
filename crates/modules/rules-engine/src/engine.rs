@@ -18,7 +18,7 @@ pub struct UserRule {
     name: String,
     r#type: String,
     condition: String,
-    category: Option<Category>,
+    category: Category,
     severity: Severity,
     description: String,
 }
@@ -149,15 +149,7 @@ fn parse_rule(
 
     let condition = parser
         .parse(&user_rule.r#type, &user_rule.condition)
-        .map_err(
-            |err: lalrpop_util::ParseError<
-                usize,
-                lalrpop_util::lexer::Token<'_>,
-                dsl::DslError,
-            >| {
-                PulsarEngineError::DslError(user_rule.condition.clone(), err.to_string())
-            },
-        )?;
+        .map_err(|err| PulsarEngineError::DslError(user_rule.condition.clone(), err.to_string()))?;
 
     Ok((
         payload_discriminant,
@@ -167,7 +159,7 @@ fn parse_rule(
                 condition,
             },
             metadata: Metadata {
-                category: user_rule.category.unwrap_or(Category::General),
+                category: user_rule.category,
                 description: user_rule.description,
                 severity: user_rule.severity,
             },
@@ -225,7 +217,7 @@ pub enum Category {
     Discovery,
     Execution,
     Exfiltration,
-    General,
+    Generic,
     Impact,
     InitialAccess,
     LateralMovement,
@@ -265,7 +257,7 @@ mod tests {
             name: "Open netcat".to_string(),
             r#type: "Exec".to_string(),
             condition: r#"payload.filename == "/usr/bin/nc""#.to_string(),
-            category: Some(Category::General),
+            category: Category::Generic,
             description: "A rule to detect the use of netcat".to_string(),
             severity: Severity::Medium,
         };
@@ -290,7 +282,7 @@ mod tests {
                     },
                 },
                 metadata: Metadata {
-                    category: Category::General,
+                    category: Category::Generic,
                     description: "A rule to detect the use of netcat".to_string(),
                     severity: Severity::Medium,
                 },
