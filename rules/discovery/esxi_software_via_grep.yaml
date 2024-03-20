@@ -2,19 +2,14 @@
 
 # Creation date: 2023/04/11
 
-# Category: Discovery
-
-# Severity: Medium
-
-# Description: Identifies instances where a process named 'grep', 'egrep', or 'pgrep' is started on a Linux system with arguments
-# related to virtual machine (VM) files, such as "vmdk", "vmx", "vmxf", "vmsd", "vmsn", "vswp", "vmss", "nvram",
-# or "vmem". These file extensions are associated with VM-related file formats, and their presence in grep command
-# arguments may indicate that a threat actor is attempting to search for, analyze, or manipulate VM files on the system.
-
 # MITRE ATT&CK Tactic: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
 
 # MITRE ATT&CK Technique: T1518 - Software Discovery - https://attack.mitre.org/techniques/T1518/
 
 - name: Search for virtual machine files
   type: Exec
+  category: discovery
+  severity: medium
+  description: Detects the execution of the 'grep', 'egrep', or 'pgrep' process with arguments related to virtual machine (VM) files. 
+    Adversaries may use this technique to search for, analyze, or manipulate VM files on the system.
   condition: (payload.filename IN ["/usr/bin/grep", "/usr/bin/egrep", "/usr/bin/pgrep"]) AND (payload.argv CONTAINS "vmdk" OR payload.argv CONTAINS "vmx" OR payload.argv CONTAINS "vmxf" OR payload.argv CONTAINS "vmsd" OR payload.argv CONTAINS "vmsn" OR payload.argv CONTAINS "vswp" OR payload.argv CONTAINS "vmss" OR payload.argv CONTAINS "nvram" OR payload.argv CONTAINS "vmem")

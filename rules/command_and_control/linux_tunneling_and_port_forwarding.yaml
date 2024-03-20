@@ -2,20 +2,18 @@
 
 # Creation date: 2023/08/23
 
-# Category: Command and control
-
-# Severity: Medium
-
-# Description: This rule monitors for a set of Linux utilities that can be used for tunneling and port forwarding. Attackers can
-# leverage tunneling and port forwarding techniques to bypass network defenses, establish hidden communication channels,
-# and gain unauthorized access to internal resources, facilitating data exfiltration, lateral movement, and remote control.
-
 # MITRE ATT&CK Tactic: TA0011 - Command and Control - https://attack.mitre.org/tactics/TA0011/
 
 # MITRE ATT&CK Technique: T1572 - Protocol Tunneling - https://attack.mitre.org/techniques/T1572/
 
 - name: Gost without parent process
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Gost without a parent process. Gost is a command-line tool that
+    enables the creation of a secure tunnel between a local and remote host, facilitating the transfer of data through an encrypted
+    channel. Attackers can exploit the Gost to bypass network defenses, establish hidden communication channels, and gain 
+    unauthorized access to internal resources, facilitating data exfiltration, lateral movement, and remote control.
   condition: payload.filename ENDS_WITH "gost"
     AND (payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-C" OR payload.argv CONTAINS "-R")
     AND (
@@ -26,6 +24,12 @@
 
 - name: Pivotnacci without parent process
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Pivotnacci without a parent process. Pivotnacci is a tool that
+    allows you to create a socks server which communicates with HTTP agents. Attackers can exploit the Pivotnacci utility to establish 
+    a hidden communication channel, bypass network defenses, and exfiltrate sensitive information, potentially enabling unauthorized 
+    access to internal resources and remote control over compromised systems.
   condition: payload.filename ENDS_WITH "pivotnacci"
     AND (
     header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
@@ -35,6 +39,11 @@
 
 - name: SSH with suspicious arguments
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of the SSH utility with suspicious arguments. Attackers can exploit the SSH utility 
+    with chmod to establish a hidden communication channel, bypass network defenses, and exfiltrate sensitive information, potentially
+    enabling unauthorized access to internal resources and remote control over compromised systems.
   condition:
     (payload.filename ENDS_WITH "/ssh" OR payload.filename ENDS_WITH  "/usr/sbin/sshd")  AND (payload.argv CONTAINS "-R" 
     OR payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-D" OR payload.argv CONTAINS "-w") AND payload.argc >= 4 
@@ -47,6 +56,12 @@
 
 - name: Sshuttle with suspicious arguments
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Sshuttle with suspicious arguments. Sshuttle is a tool that enables the creation 
+    of a VPN connection between a local and remote host, facilitating the routing of network connections through intermediary proxies. 
+    Attackers can exploit the Sshuttle utility to bypass network defenses, establish hidden communication channels, and gain unauthorized 
+    access to internal resources, potentially facilitating data exfiltration, lateral movement, and remote control.
   condition:
     payload.filename ENDS_WITH "sshuttle" AND (payload.argv CONTAINS "-r" OR payload.argv CONTAINS "--remote" OR payload.argv CONTAINS "-l" 
     OR payload.argv CONTAINS "--listen") AND payload.argc >= 4
@@ -58,6 +73,13 @@
 
 - name: Socat with suspicious arguments
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Socat with suspicious arguments. Socat is a utility that allows for bidirectional 
+    data transfer between two connections using various protocols such as TCP, UDP, SSL, Unix sockets, and more. It's often used for tasks 
+    like port forwarding, proxying, and file transferring.. Attackers can exploit the Socat utility to bypass network defenses, establish 
+    hidden communication channels, and gain unauthorized access to internal resources, potentially facilitating data exfiltration, lateral 
+    movement, and remote control.
   condition:
     payload.filename ENDS_WITH "socat" AND (payload.argv CONTAINS "TCP4-LISTEN:" OR payload.argv CONTAINS "SOCKS") AND payload.argc >= 3
     AND (
@@ -68,6 +90,12 @@
 
 - name: Chisel client OR server mode
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Chisel in client or server mode. Chisel is a fast TCP/UDP tunnel over HTTP, secured 
+    via SSH. It was designed to bypass network restrictions and securely communicate between two endpoints. Attackers can exploit 
+    the Chisel utility to bypass network defenses, establish hidden communication channels, and gain unauthorized access to internal 
+    resources, potentially facilitating data exfiltration, lateral movement, and remote control.
   condition:
     payload.filename ENDS_WITH "chisel" AND (payload.argv CONTAINS "client" OR payload.argv CONTAINS "server")
     AND (
@@ -78,6 +106,11 @@
 
 - name: Tunneling tools execution
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of various tunneling tools. Attackers can exploit these utilities to bypass network 
+    defenses, establish hidden communication channels, and gain unauthorized access to internal resources, potentially facilitating data 
+    exfiltration, lateral movement, and remote control.
   condition:
     payload.filename ENDS_WITH "iodine" OR payload.filename ENDS_WITH "iodined" OR payload.filename ENDS_WITH "dnscat" 
     OR payload.filename ENDS_WITH "hans" OR payload.filename ENDS_WITH "hans-ubuntu" OR payload.filename ENDS_WITH "ptunnel-ng" 
