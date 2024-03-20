@@ -2,36 +2,50 @@
 
 # Creation date: 2023/02/22
 
-# Category: Defense evasion
-
-# Severity: Low
-
-# Description: Adversaries may attempt to disable the iptables or firewall service in an attempt to affect how a host is allowed to
-# receive or send network traffic.
-
 # MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
 - name: Disable firewall with ufw
   type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the ufw utility with the disable flag to disable the firewall. Attackers may attempt to disable 
+    the firewall to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
   condition: payload.filename ENDS_WITH "/ufw" AND payload.argv CONTAINS "disable"
 
 - name: Flush iptables rules
   type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the iptables utility with the flush flag to flush iptables rules. Attackers may attempt to flush 
+    iptables rules to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
   condition: payload.filename ENDS_WITH "/iptables" AND payload.argv CONTAINS "-F" AND payload.argc == 2
 
 - name: Stop firewall service with service command
   type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the service utility with the stop flag to stop the firewall service. Attackers may attempt to stop 
+    the firewall service to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
   condition: payload.filename ENDS_WITH "/service" AND payload.argv CONTAINS "stop" AND (payload.argv CONTAINS "firewalld" 
     OR payload.argv CONTAINS "ip6tables" OR payload.argv CONTAINS "iptables")
 
 - name: Turn off firewall service with chkconfig
   type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the chkconfig utility with the off flag to turn off the firewall service. Attackers may attempt to 
+    turn off the firewall service to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
   condition: payload.filename ENDS_WITH "/sbin/chkconfig" AND payload.argv CONTAINS "off" AND (payload.argv CONTAINS "firewalld" 
     OR payload.argv CONTAINS "ip6tables" OR payload.argv CONTAINS "iptables")
 
 - name: Disable or stop firewall service with systemctl
   type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the systemctl utility with the disable, stop, or kill flag to disable or stop the firewall service. 
+    Attackers may attempt to disable or stop the firewall service to affect how a host is allowed to receive or send network traffic and evade 
+    detection by security controls.
   condition: payload.filename ENDS_WITH "/bin/systemctl" AND (payload.argv CONTAINS "disable" OR payload.argv CONTAINS "stop" 
     OR payload.argv CONTAINS "kill") AND (payload.argv CONTAINS "firewalld" OR payload.argv CONTAINS "ip6tables" OR payload.argv CONTAINS "iptables")
