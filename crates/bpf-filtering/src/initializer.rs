@@ -61,6 +61,17 @@ pub async fn setup_events_filter(
             .context("Error inserting in cgroup rule map")?;
     }
 
+    // setup container rule map
+    let mut container_map = Map::<i32, u8>::load(bpf, &config.container_rule_map_name)?;
+    container_map.clear()?;
+    for container_target in config.container_targets.iter() {
+        let container_target: i32 = container_target.into();
+        container_map
+            .map
+            .insert(container_target, 0, 0)
+            .context("Error inserting in container rule map")?;
+    }
+
     // load process list from procfs
     let mut process_tree = ProcessTree::load_from_procfs()?;
 

@@ -1,7 +1,10 @@
-use bpf_common::Pid;
+use std::collections::HashSet;
+
+use bpf_common::{containers::ContainerEngineKind, Pid};
+use log::warn;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
-use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
+use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_CONTAINER_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
 
 use super::maps::Image;
 
@@ -13,6 +16,10 @@ pub struct Config {
     pub pid_targets: Vec<PidRule>,
     /// List of image-based rules
     pub rules: Vec<Rule>,
+    /// List of containers to target.
+    /// Processes belonging to these containers are considered of interest,
+    /// despite what `pid_targets` ans `rules` say.
+    pub container_targets: HashSet<ContainerEngineKind>,
     /// List of cgroup paths to target.
     /// Processes belonging to these cgroups are considered of interest,
     /// despite what `pid_targets` and `rules` say.
@@ -22,6 +29,8 @@ pub struct Config {
     /// Map name of the rules map
     pub rule_map_name: String,
     pub cgroup_rule_map_name: String,
+    /// Map name of the container rule map
+    pub container_rule_map_name: String,
     /// Sets the default tracking status for Pid 1 and when finding missing entries.
     pub track_by_default: bool,
     /// Whitelist the current process
@@ -82,13 +91,30 @@ impl TryFrom<&ModuleConfig> for Config {
             }));
         }
 
+        let mut container_targets = config.get_hash_set("container_targets")?;
+        // If `all` was specified with other values, these values are redundant
+        // - log a warning and remove them.
+        if container_targets.contains(&ContainerEngineKind::All) && container_targets.len() > 1 {
+            for container_target in container_targets.iter() {
+                if *container_target != ContainerEngineKind::All {
+                    warn!("Skipping `container_targets` value `{container_target:?}`, all targets were already enabled with `all`.");
+                }
+            }
+
+            // Clear the set and add `ContainerEngineKind::All` back.
+            container_targets.clear();
+            container_targets.insert(ContainerEngineKind::All);
+        }
+
         Ok(Config {
             pid_targets,
             rules,
+            container_targets,
             cgroup_targets: config.get_list("cgroup_targets")?,
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
             cgroup_rule_map_name: DEFAULT_CGROUP_RULES.to_string(),
+            container_rule_map_name: DEFAULT_CONTAINER_RULES.to_string(),
             track_by_default: config.with_default("track_by_default", true)?,
             ignore_self: config.with_default("ignore_self", true)?,
         })

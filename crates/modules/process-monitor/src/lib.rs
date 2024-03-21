@@ -1,6 +1,6 @@
 use anyhow::Context;
 use bpf_common::{
-    containers::ContainerError,
+    containers::{ContainerEngineKind, ContainerError},
     ebpf_program,
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
@@ -56,13 +56,6 @@ pub enum COption<T> {
 pub struct CContainerId {
     container_engine: ContainerEngineKind,
     cgroup_id: BufferIndex<str>,
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub enum ContainerEngineKind {
-    Docker,
-    Podman,
 }
 
 // The events sent from eBPF to userspace must be byte by byte
@@ -124,6 +117,7 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 pub mod pulsar {
     use super::*;
     use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
+    use log::warn;
     use pulsar_core::pdk::{
         process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
         Payload, PulsarModule, ShutdownSignal, Version,
@@ -162,11 +156,14 @@ pub mod pulsar {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
                                 let id = ccid.cgroup_id.string(&event.buffer).unwrap();
-                                let container_id = match ccid.container_engine {
-                                    ContainerEngineKind::Docker => ContainerId::Docker(id),
-                                    ContainerEngineKind::Podman => ContainerId::Libpod(id),
-                                };
-                                Some(container_id)
+                                match ccid.container_engine {
+                                    ContainerEngineKind::All => {
+                                        warn!("Invalid `container_engine` value - process-monitor probe shouldn't return `ContainerEngineKind::All` as a part of process' information");
+                                        None
+                                    }
+                                    ContainerEngineKind::Docker => Some(ContainerId::Docker(id)),
+                                    ContainerEngineKind::Podman => Some(ContainerId::Libpod(id)),
+                                }
                             }
                             COption::None => None,
                         };
@@ -205,11 +202,14 @@ pub mod pulsar {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
                                 let id = ccid.cgroup_id.string(&event.buffer).unwrap();
-                                let container_id = match ccid.container_engine {
-                                    ContainerEngineKind::Docker => ContainerId::Docker(id),
-                                    ContainerEngineKind::Podman => ContainerId::Libpod(id),
-                                };
-                                Some(container_id)
+                                match ccid.container_engine {
+                                    ContainerEngineKind::All => {
+                                        warn!("Invalid `container_engine` value - process-monitor probe shouldn't return `ContainerEngineKind::All` as a part of process' information");
+                                        None
+                                    }
+                                    ContainerEngineKind::Docker => Some(ContainerId::Docker(id)),
+                                    ContainerEngineKind::Podman => Some(ContainerId::Libpod(id)),
+                                }
                             }
                             COption::None => None,
                         };
