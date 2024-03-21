@@ -19,8 +19,9 @@ char LICENSE[] SEC("license") = "GPL v2";
 #define EVENT_CGROUP_MKDIR 4
 #define EVENT_CGROUP_RMDIR 5
 #define EVENT_CGROUP_ATTACH 6
+#define EVENT_CREDS_CHANGE 7
 
-#define MAX_ORPHANS 50
+#define MAX_ORPHANS 45
 #define MAX_ORPHANS_UNROLL 30
 
 #define MAX_PENDING_DEAD_PARENTS 30
@@ -54,6 +55,7 @@ struct namespaces
 struct fork_event
 {
   uid_t uid;
+  gid_t gid;
   pid_t ppid;
   struct namespaces namespaces;
   struct
@@ -108,6 +110,11 @@ struct cgroup_attach_event
   u64 id;
 };
 
+struct creds_change_event {
+  u32 uid;
+  u32 gid;
+};
+
 GLOBAL_INTEREST_MAP_DECLARATION;
 MAP_RULES(m_rules);
 MAP_CGROUP_RULES(m_cgroup_rules);
@@ -120,6 +127,7 @@ OUTPUT_MAP(process_event, {
   struct cgroup_event cgroup_mkdir;
   struct cgroup_event cgroup_rmdir;
   struct cgroup_attach_event cgroup_attach;
+  struct creds_change_event creds_change;
 });
 
 struct pending_dead_process
@@ -257,6 +265,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   u64 uid_gid = bpf_get_current_uid_gid();
 
   event->fork.uid = uid_gid;
+  event->fork.gid = uid_gid >> 32;
   event->fork.ppid = parent_tgid;
   event->fork.namespaces.uts = BPF_CORE_READ(child, nsproxy, uts_ns, ns.inum);
   event->fork.namespaces.ipc = BPF_CORE_READ(child, nsproxy, ipc_ns, ns.inum);
@@ -613,5 +622,38 @@ int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
   buffer_append_str(&event->buffer, &event->cgroup_attach.path, path,
                     BUFFER_MAX);
   output_process_event(ctx, event);
+  return 0;
+}
+
+static __always_inline void on_creds_change(void *ctx, struct cred *new) {
+  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
+  if (tgid < 0)
+    return;
+  struct process_event *event = init_process_event(EVENT_CREDS_CHANGE, tgid);
+  if (!event)
+    return;
+  event->creds_change.uid = BPF_CORE_READ(new, uid.val);
+  event->creds_change.gid = BPF_CORE_READ(new, gid.val);
+
+  output_process_event(ctx, event);
+}
+
+PULSAR_LSM_HOOK(task_fix_setuid, struct cred *, new, struct cred *, old, int,
+                flags);
+static __always_inline void on_task_fix_setuid(void *ctx, struct cred *new,
+                                               struct cred *old, int flags) {
+  on_creds_change(ctx, new);
+}
+
+PULSAR_LSM_HOOK(task_fix_setgid, struct cred *, new, struct cred *, old, int,
+                flags);
+static __always_inline void on_task_fix_setgid(void *ctx, struct cred *new,
+                                               struct cred *old, int flags) {
+  on_creds_change(ctx, new);
+}
+
+SEC("kprobe/commit_creds")
+int BPF_KPROBE(commit_creds, struct cred *new) {
+  on_creds_change(ctx, new);
   return 0;
 }

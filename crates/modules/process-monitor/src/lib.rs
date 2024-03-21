@@ -2,11 +2,12 @@ use anyhow::Context;
 use bpf_common::{
     containers::ContainerError,
     ebpf_program,
+    feature_autodetect::kernel_version::KernelVersion,
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
-use nix::unistd::Uid;
+use nix::unistd::{Gid, Uid};
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
 
@@ -17,17 +18,32 @@ pub async fn program(
     sender: impl BpfSender<ProcessEvent>,
 ) -> Result<Program, ProgramError> {
     let binary = ebpf_program!(&ctx, "probes");
-    let mut program = ProgramBuilder::new(ctx, MODULE_NAME, binary)
+    let attach_to_lsm = ctx.lsm_supported();
+    // LSM task_fix_set* calls are available since kernel commit 39030e1351aa1, in 5.10
+    let has_cred_specific_functions = ctx.kernel_version()
+        >= &KernelVersion {
+            major: 5,
+            minor: 10,
+            patch: 0,
+        };
+    let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
         .raw_tracepoint("sched_switch")
         .raw_tracepoint("cgroup_mkdir")
         .raw_tracepoint("cgroup_rmdir")
-        .raw_tracepoint("cgroup_attach_task")
-        .start()
-        .await?;
-
+        .raw_tracepoint("cgroup_attach_task");
+    if attach_to_lsm {
+        builder = builder.lsm("task_fix_setuid").lsm("task_fix_setgid");
+    } else if has_cred_specific_functions {
+        builder = builder
+            .kprobe("security_task_fix_setuid")
+            .kprobe("security_task_fix_setgid");
+    } else {
+        builder = builder.kprobe("commit_creds")
+    }
+    let mut program = builder.start().await?;
     program
         .read_events("map_output_process_event", sender)
         .await?;
@@ -73,6 +89,7 @@ pub enum ContainerEngineKind {
 pub enum ProcessEvent {
     Fork {
         uid: Uid,
+        gid: Gid,
         ppid: Pid,
         namespaces: Namespaces,
         c_container_id: COption<CContainerId>,
@@ -103,6 +120,10 @@ pub enum ProcessEvent {
         pid: Pid,
         path: BufferIndex<str>,
         id: u64,
+    },
+    CredentialsChange {
+        uid: u32,
+        gid: u32,
     },
 }
 
@@ -158,6 +179,7 @@ pub mod pulsar {
                         ppid,
                         namespaces,
                         ref c_container_id,
+                        ..
                     } => {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
@@ -266,8 +288,10 @@ pub mod pulsar {
                 payload, buffer, ..
             } = event;
             Ok(match payload {
-                ProcessEvent::Fork { ppid, .. } => Payload::Fork {
+                ProcessEvent::Fork { ppid, uid, gid, .. } => Payload::Fork {
                     ppid: ppid.as_raw(),
+                    uid: uid.as_raw(),
+                    gid: gid.as_raw(),
                 },
                 ProcessEvent::Exec {
                     filename,
@@ -296,6 +320,9 @@ pub mod pulsar {
                     cgroup_id: id,
                     attached_pid: pid.as_raw(),
                 },
+                ProcessEvent::CredentialsChange { uid, gid } => {
+                    Payload::CredentialsChange { uid, gid }
+                }
             })
         }
     }
@@ -308,7 +335,7 @@ pub mod test_suite {
     use bpf_common::test_utils::{find_executable, random_name_with_prefix};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
-    use nix::unistd::{fork, ForkResult};
+    use nix::unistd::{fork, getgid, getuid, setgid, setuid, ForkResult};
     use std::fs;
     use std::process::exit;
     use std::thread::sleep;
@@ -329,16 +356,20 @@ pub mod test_suite {
                 cgroup_mkdir(),
                 cgroup_rmdir(),
                 cgroup_attach(),
+                credentials_change_uid(),
+                credentials_change_gid(),
             ],
         }
     }
 
-    /// Check we're generating the correct parent and child pid.
+    /// Check we're generating the correct parent pid, child pid, user id, group id.
     /// Note: we must make sure to use the real process id (kernel space tgid)
     /// and not the thread id (kernel space pid)
     fn fork_event() -> TestCase {
         TestCase::new("fork_event", async {
             let mut child_pid = Pid::from_raw(0);
+            let user_id = getuid();
+            let group_id = getgid();
             test_runner()
                 .run(|| child_pid = fork_and_return(0))
                 .await
@@ -346,7 +377,9 @@ pub mod test_suite {
                     child_pid,
                     event_check!(
                         ProcessEvent::Fork,
-                        (ppid, Pid::from_raw(std::process::id() as i32), "parent pid")
+                        (ppid, Pid::from_raw(std::process::id() as i32), "parent pid"),
+                        (uid, user_id, "user id"),
+                        (gid, group_id, "group id")
                     ),
                 )
                 .report()
@@ -573,6 +606,58 @@ pub mod test_suite {
                     (pid, child_pid, "attached process"),
                     (path, cg_path, "cgroup path")
                 ))
+                .report()
+        })
+    }
+
+    fn credentials_change_uid() -> TestCase {
+        TestCase::new("credentials_change_uid", async {
+            let mut child_pid = Pid::from_raw(0);
+            let uid = 1000;
+            let gid = getgid().as_raw();
+            test_runner()
+                .run(|| {
+                    child_pid = fork_and_run(|| {
+                        // change user id
+                        setuid(uid.into()).unwrap();
+                        exit(0);
+                    })
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(
+                        ProcessEvent::CredentialsChange,
+                        (uid, uid, "user id"),
+                        (gid, gid, "group id")
+                    ),
+                )
+                .report()
+        })
+    }
+
+    fn credentials_change_gid() -> TestCase {
+        TestCase::new("credentials_change_gid", async {
+            let mut child_pid = Pid::from_raw(0);
+            let uid = getuid().as_raw();
+            let gid = 1000;
+            test_runner()
+                .run(|| {
+                    child_pid = fork_and_run(|| {
+                        // change group id
+                        setgid(gid.into()).unwrap();
+                        exit(0);
+                    })
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(
+                        ProcessEvent::CredentialsChange,
+                        (uid, uid, "user id"),
+                        (gid, gid, "group id")
+                    ),
+                )
                 .report()
         })
     }
