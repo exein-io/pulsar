@@ -357,22 +357,6 @@ static __always_inline void
   return BPF_CORE_READ(msg_iter_compat, iov, iov_base);
 }
 
-static __always_inline void
-read_sk_buff(struct buffer *buffer, struct msg_event *output,
-             struct __sk_buff *skb, __u32 offset) {
-  size_t len = output->data_len - offset;
-
-  if (len > MAX_DATA_SIZE) {
-     LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);    
-  }
-
-  len &= (MAX_DATA_SIZE - 1);
-
-  buffer_index_init(buffer, &output->data);
-  buffer_append_skb_bytes(buffer, &output->data, skb, offset, len);
-  LOG_DEBUG("get data size %d -> %d", len, len & (MAX_DATA_SIZE - 1));
-}
-
 SEC("kprobe/tcp_set_state")
 int tcp_set_state(struct pt_regs *regs) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
@@ -446,7 +430,8 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
 
 __always_inline int process_skb(struct __sk_buff *skb,
                                 struct sock *sk,
-                                struct network_event *event) {
+                                struct network_event *network_event,
+                                struct msg_event *msg_event) {
   __u32 headers_len = 0;
   __u8 proto;
 
@@ -455,7 +440,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
 
   if (skb->protocol == bpf_htons(ETH_P_IPV4)) {
     if (data + sizeof(struct iphdr) > data_end)
-      goto output;
+      goto pass;
 
     struct iphdr *ih = data;
     proto = ih->protocol;
@@ -463,7 +448,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     headers_len = sizeof(struct iphdr);
   } else if (skb->protocol == bpf_htons(ETH_P_IPV6)) {
     if (data + sizeof(struct ipv6hdr) > data_end)
-      goto output;
+      goto pass;
 
     struct ipv6hdr *ih6 = data;
     proto = ih6->nexthdr;
@@ -471,7 +456,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     headers_len = sizeof(struct ipv6hdr);
   } else {
     LOG_DEBUG("ignored unsupported L2 protocol %d", skb->protocol);
-    goto output;
+    goto pass;
   }
 
   switch (proto) {
@@ -483,23 +468,24 @@ __always_inline int process_skb(struct __sk_buff *skb,
     break;
   case IPPROTO_UDP:
     headers_len += sizeof(struct udphdr);
-    // Specific handling for UDP can go here, e.g., read_sk_buff
-    read_sk_buff(&event->buffer, &event->send, skb, headers_len);
+    buffer_index_init(&network_event->buffer, &msg_event->data);
+    buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb, headers_len);
     break;
   default:
     LOG_DEBUG("ignored unsupported L3 protocol %d", proto);
-    goto output;
+    goto event;
   }
 
-  event->send.data_len = skb->len - headers_len;
+  msg_event->data_len = skb->len - headers_len;
 
-output:
-  event->send.proto = proto;
+event:
+  msg_event->proto = proto;
 
-  copy_skc_source(&sk->__sk_common, &event->send.source);
-  copy_skc_dest(&sk->__sk_common, &event->send.destination);
+  copy_skc_source(&sk->__sk_common, &msg_event->source);
+  copy_skc_dest(&sk->__sk_common, &msg_event->destination);
 
-  output_network_event(skb, event);
+  output_network_event(skb, network_event);
+pass:
   return CGROUP_SKB_OK;
 }
 
@@ -528,7 +514,7 @@ int skb_egress(struct __sk_buff *skb) {
   if (!event)
     return CGROUP_SKB_OK;
 
-  return process_skb(skb, sk, event);
+  return process_skb(skb, sk, event, &event->send);
 }
 
 SEC("cgroup_skb/ingress")
@@ -557,5 +543,5 @@ int skb_ingress(struct __sk_buff *skb) {
   if (!event)
     return CGROUP_SKB_OK;
 
-  return process_skb(skb, sk, event);
+  return process_skb(skb, sk, event, &event->recv);
 }
