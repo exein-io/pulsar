@@ -1,5 +1,10 @@
 - name: Netcat Remote Code Execution in Container
   type: Exec
+  category: command_and_control
+  severity: medium
+  description: Detects the execution of the Netcat utility with specific arguments in a container. Attackers can exploit Netcat 
+    to establish a reverse shell or transfer files to and from a compromised system, enabling unauthorized access to internal 
+    resources and remote control over compromised systems.
   condition: |
     header.container.is_some() AND
     (
@@ -21,11 +26,19 @@
 
 - name: Chroot in container
   type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Monitors for the execution of the chroot utility in a container. Attackers may attempt to change the root directory 
+    to evade detection by security controls.
   condition: |
     header.container.is_some() AND payload.filename ENDS_WITH "/chroot"
 
 - name: Linux kernel module injection in container
   type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects the execution of the insmod utility to inject a Linux kernel module in a container. Attackers may attempt to 
+    inject a kernel module to evade detection and avoid possible restrictions on their actions and resources.
   condition: |
     header.container.is_some() AND
     payload.filename ENDS_WITH "/modprobe" AND NOT
@@ -33,6 +46,10 @@
 
 - name: Reading kernel logs in container
   type: Exec
+  category: discovery
+  severity: low
+  description: Monitors for the execution of the dmesg utility in a container. Attackers may attempt to read kernel logs to gather 
+    information about the system and its configuration.
   condition: |
     header.container.is_some() AND
     payload.filename ENDS_WITH "/dmesg"

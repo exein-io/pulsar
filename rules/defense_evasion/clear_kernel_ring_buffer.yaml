@@ -2,17 +2,14 @@
 
 # Creation date: 2023/10/24
 
-# Category: Defense evasion
-
-# Severity: Low
-
-# Description: Monitors for the deletion of the kernel ring buffer events through dmesg. Attackers may clear kernel ring buffer events
-# to evade detection after installing a Linux kernel module (LKM).
-
 # MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
 - name: Executing dmesg with clear flag
   type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the dmesg utility with the clear flag. Attackers may clear kernel ring buffer events to 
+    evade detection after installing a Linux kernel module (LKM).
   condition: header.image == "/usr/bin/dmesg" AND payload.argv CONTAINS "-c"
