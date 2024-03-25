@@ -13,6 +13,7 @@ use tokio_fd::AsyncFd;
 
 const PATH: &str = "/sys/kernel/debug/tracing/trace_pipe";
 
+#[allow(unused)]
 pub struct StopHandle(oneshot::Sender<()>);
 
 pub async fn start() -> StopHandle {
