@@ -361,12 +361,15 @@ static __always_inline void
 read_sk_buff(struct buffer *buffer, struct msg_event *output,
              struct __sk_buff *skb, __u32 offset) {
   size_t len = output->data_len - offset;
+  // size_t len = output->data_len - 1;
 
   if (len > MAX_DATA_SIZE) {
-     LOG_DEBUG("len=%d MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);    
+     LOG_DEBUG("len=%zu MAX_DATA_SIZE=%d", len, MAX_DATA_SIZE);
   }
 
   len &= (MAX_DATA_SIZE - 1);
+
+  LOG_DEBUG("OFFSET: %zu, LEN: %d", offset, len);
 
   buffer_index_init(buffer, &output->data);
   buffer_append_skb_bytes(buffer, &output->data, skb, offset, len);
@@ -483,7 +486,6 @@ __always_inline int process_skb(struct __sk_buff *skb,
     break;
   case IPPROTO_UDP:
     headers_len += sizeof(struct udphdr);
-    // Specific handling for UDP can go here, e.g., read_sk_buff
     read_sk_buff(&event->buffer, &event->send, skb, headers_len);
     break;
   default:

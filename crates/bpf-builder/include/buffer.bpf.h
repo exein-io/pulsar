@@ -117,6 +117,8 @@ static void buffer_append_skb_bytes(struct buffer *buffer,
                                     struct __sk_buff *skb,
                                     __u32 offset, int len) {
   int pos = (index->start + index->len);
+  LOG_DEBUG("pos: %d\n");
+
   if (pos >= HALF_BUFFER_MASK) {
     LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
     return;
@@ -128,10 +130,23 @@ static void buffer_append_skb_bytes(struct buffer *buffer,
     len = (len + 1) & HALF_BUFFER_MASK;
   }
 
-  int r = bpf_skb_load_bytes(skb, offset, &((char*)buffer->buffer)[pos],
-                             len & HALF_BUFFER_MASK);
-  if (r < 0) {
-    LOG_ERROR("reading failure: %d", r);
+  LOG_DEBUG("len: %d\n", len);
+  LOG_DEBUG("len & HALF_BUFFER_MASK: %d\n", len & HALF_BUFFER_MASK);
+  LOG_DEBUG("offset: %u\n", offset);
+
+  // int err = bpf_skb_pull_data(skb, len);
+  // if (err) {
+  //   LOG_ERROR("failed to pull packet data: %d", err);
+  //   return;
+  // }
+
+  // int err = bpf_skb_load_bytes(skb, offset, &((char*)buffer->buffer)[pos],
+  //                            len & HALF_BUFFER_MASK);
+
+  int err = bpf_skb_load_bytes(skb, 0, &((char*)buffer->buffer)[0], offset + 10);
+  
+  if (err < 0) {
+    LOG_ERROR("reading failure: %d", err);
     return;
   }
 
