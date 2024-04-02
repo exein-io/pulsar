@@ -1,0 +1,9 @@
+# Title: XZ libraries with a backdoor CVE-2024-3094
+
+# Severity: Critical
+
+# Reference: https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2024-3094
+
+- name: XZ libraries with a backdoor CVE-2024-3094
+  type: FileOpened
+  condition: payload.filename CONTAINS "liblzma.so.5.6.0" OR payload.filename CONTAINS "liblzma.so.5.6.1"
