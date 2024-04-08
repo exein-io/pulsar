@@ -16,7 +16,7 @@
 // function seems to cause issues.
 #ifdef FEATURE_FN_POINTERS
 #define LOOP(max_iterations, max_unroll, callback_fn, ctx)                     \
-  if (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 17, 0)) {                      \
+  if (bpf_core_enum_value_exists(enum bpf_func_id, BPF_FUNC_loop)) {           \
     bpf_loop(max_iterations, callback_fn, ctx, 0);                             \
   } else {                                                                     \
     _Pragma("unroll") for (int i = 0; i < max_unroll; i++) {                   \
