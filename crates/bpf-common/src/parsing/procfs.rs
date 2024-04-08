@@ -7,6 +7,7 @@ use regex::Regex;
 use std::{
     fs::{self, File},
     io::{self, prelude::*, BufReader},
+    os::unix::fs::MetadataExt,
     path::PathBuf,
 };
 use thiserror::Error;
@@ -144,6 +145,14 @@ pub fn get_running_processes() -> Result<Vec<Pid>, ProcfsError> {
             Ok(Pid::from_raw(pid))
         })
         .collect()
+}
+
+pub fn get_process_exe_inode(pid: Pid) -> Result<(u64, u64), ProcfsError> {
+    let path = format!("/proc/{pid}/exe");
+    let metadata =
+        fs::symlink_metadata(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
+
+    Ok((metadata.ino(), metadata.rdev()))
 }
 
 fn get_container_id_from_cgroup(cgroup_info: &str) -> Option<ContainerId> {

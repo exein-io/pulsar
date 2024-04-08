@@ -37,6 +37,12 @@ char LICENSE[] SEC("license") = "GPL v2";
 #define FAILED_READ_PARENT_CGROUP_NAME -4
 #define FAILED_PARSE_LIBPOD_CGROUP_NAME -5
 
+struct inode_info
+{
+  u64 ino;
+  u64 rdev;
+};
+
 struct namespaces
 {
   unsigned int uts;
@@ -55,6 +61,7 @@ struct fork_event
 {
   uid_t uid;
   pid_t ppid;
+  struct inode_info exe_inode;
   struct namespaces namespaces;
   struct
   {
@@ -70,6 +77,7 @@ struct fork_event
 struct exec_event
 {
   uid_t uid;
+  struct inode_info exe_inode;
   struct buffer_index filename;
   int argc;
   struct buffer_index argv;
@@ -258,6 +266,8 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
 
   event->fork.uid = uid_gid;
   event->fork.ppid = parent_tgid;
+  event->fork.exe_inode.ino = BPF_CORE_READ(child, mm, exe_file, f_inode, i_ino);
+  event->fork.exe_inode.rdev = (u64) BPF_CORE_READ(child, mm, exe_file, f_inode, i_rdev);
   event->fork.namespaces.uts = BPF_CORE_READ(child, nsproxy, uts_ns, ns.inum);
   event->fork.namespaces.ipc = BPF_CORE_READ(child, nsproxy, ipc_ns, ns.inum);
   event->fork.namespaces.mnt = BPF_CORE_READ(child, nsproxy, mnt_ns, ns.inum);
@@ -307,6 +317,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   u64 uid_gid = bpf_get_current_uid_gid();
 
   event->exec.uid = uid_gid;
+  event->exec.exe_inode.ino = BPF_CORE_READ(p, mm, exe_file, f_inode, i_ino);
+  event->exec.exe_inode.rdev = BPF_CORE_READ(p, mm, exe_file, f_inode, i_rdev);
   event->exec.namespaces.uts = BPF_CORE_READ(p, nsproxy, uts_ns, ns.inum);
   event->exec.namespaces.ipc = BPF_CORE_READ(p, nsproxy, ipc_ns, ns.inum);
   event->exec.namespaces.mnt = BPF_CORE_READ(p, nsproxy, mnt_ns, ns.inum);

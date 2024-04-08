@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt, future::Future, ops::Deref, sync::Arc, time::UNIX_EP
 
 use crate::{
     bus::{Bus, BusError},
-    event::{Event, Header, Payload, Threat, Value},
+    event::{Event, Header, Inode, Payload, Threat, Value},
 };
 use anyhow::Result;
 use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
@@ -245,6 +245,7 @@ impl ModuleSender {
                 source: module_name.clone(),
                 threat,
                 pid: process.as_raw(),
+                exe_inode: Inode::default(),
                 timestamp: timestamp.into(),
                 image: String::new(),
                 parent_pid: 0,
@@ -255,6 +256,7 @@ impl ModuleSender {
                 Ok(ProcessInfo {
                     image,
                     ppid,
+                    exe_inode,
                     fork_time,
                     argv: _,
                     namespaces: _,
@@ -262,6 +264,7 @@ impl ModuleSender {
                 }) => {
                     header.image = image;
                     header.parent_pid = ppid.as_raw();
+                    header.exe_inode = exe_inode;
                     header.fork_time = fork_time.into();
                     header.container = container;
                 }

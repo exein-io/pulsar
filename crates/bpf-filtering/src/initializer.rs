@@ -74,6 +74,7 @@ pub async fn setup_events_filter(
             ppid: process.parent,
             pid: process.pid,
             uid: process.uid,
+            exe_inode: process.exe_inode,
             timestamp: Timestamp::from(0),
             namespaces: process.namespaces,
             container_id: process.container_id.clone(),
@@ -81,6 +82,7 @@ pub async fn setup_events_filter(
         process_tracker.update(TrackerUpdate::Exec {
             pid: process.pid,
             uid: process.uid,
+            exe_inode: process.exe_inode,
             image: process.image.to_string(),
             timestamp: Timestamp::from(0),
             argv: Vec::new(),

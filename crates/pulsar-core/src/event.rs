@@ -46,7 +46,7 @@ impl fmt::Display for Event {
 
                 format!("{container_image} {container_image_digest} {image} ({pid})")
             }
-            None => format!("{image} ({pid})"),
+            None => format!("{image} {{ pid: {pid}, exe_inode: {} }}", header.exe_inode),
         };
 
         if let Some(Threat {
@@ -82,6 +82,7 @@ pub struct Header {
     pub image: String,
     pub pid: i32,
     pub parent_pid: i32,
+    pub exe_inode: Inode,
     pub container: Option<ContainerInfo>,
     #[validatron(skip)]
     pub threat: Option<Threat>,
@@ -550,6 +551,19 @@ impl fmt::Display for Namespaces {
             "{{ uts: {}, ipc: {}, mnt: {}, pid: {}, net: {}, time: {}, cgroup: {} }}",
             self.uts, self.ipc, self.mnt, self.pid, self.net, self.time, self.cgroup
         )
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Validatron)]
+pub struct Inode {
+    pub ino: u64,
+    pub rdev: u64,
+}
+
+impl fmt::Display for Inode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{ ino: {}, rdev: {} }}", self.ino, self.rdev)
     }
 }
 

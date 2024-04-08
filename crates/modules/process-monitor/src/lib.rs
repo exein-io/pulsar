@@ -7,7 +7,7 @@ use bpf_common::{
     BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::unistd::Uid;
-use pulsar_core::event::Namespaces;
+use pulsar_core::event::{Inode, Namespaces};
 use thiserror::Error;
 
 const MODULE_NAME: &str = "process-monitor";
@@ -74,11 +74,13 @@ pub enum ProcessEvent {
     Fork {
         uid: Uid,
         ppid: Pid,
+        exe_inode: Inode,
         namespaces: Namespaces,
         c_container_id: COption<CContainerId>,
     },
     Exec {
         uid: Uid,
+        exe_inode: Inode,
         filename: BufferIndex<str>,
         argc: u32,
         argv: BufferIndex<str>, // 0 separated strings
@@ -156,8 +158,10 @@ pub mod pulsar {
                     ProcessEvent::Fork {
                         uid,
                         ppid,
+                        exe_inode,
                         namespaces,
                         ref c_container_id,
+                        ..
                     } => {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
@@ -175,6 +179,7 @@ pub mod pulsar {
                             pid: event.pid,
                             uid,
                             ppid,
+                            exe_inode,
                             timestamp: event.timestamp,
                             namespaces,
                             container_id,
@@ -182,11 +187,13 @@ pub mod pulsar {
                     }
                     ProcessEvent::Exec {
                         uid,
+                        exe_inode,
                         ref filename,
                         argc,
                         ref argv,
                         namespaces,
                         ref c_container_id,
+                        ..
                     } => {
                         let argv =
                             extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
@@ -217,6 +224,7 @@ pub mod pulsar {
                         TrackerUpdate::Exec {
                             pid: event.pid,
                             uid,
+                            exe_inode,
                             // ignoring this error since it will be catched in IntoPayload
                             image: filename.string(&event.buffer).unwrap_or_default(),
                             timestamp: event.timestamp,

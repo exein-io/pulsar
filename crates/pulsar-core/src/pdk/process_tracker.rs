@@ -12,7 +12,7 @@ use tokio::{
     time,
 };
 
-use crate::event::Namespaces;
+use crate::event::{Inode, Namespaces};
 
 pub fn start_process_tracker() -> ProcessTrackerHandle {
     let (tx, rx) = mpsc::unbounded_channel();
@@ -38,6 +38,7 @@ pub enum TrackerUpdate {
     Fork {
         pid: Pid,
         uid: Uid,
+        exe_inode: Inode,
         timestamp: Timestamp,
         ppid: Pid,
         namespaces: Namespaces,
@@ -46,6 +47,7 @@ pub enum TrackerUpdate {
     Exec {
         pid: Pid,
         uid: Uid,
+        exe_inode: Inode,
         timestamp: Timestamp,
         image: String,
         argv: Vec<String>,
@@ -90,6 +92,7 @@ pub enum TrackerError {
 pub struct ProcessInfo {
     pub image: String,
     pub ppid: Pid,
+    pub exe_inode: Inode,
     pub fork_time: Timestamp,
     pub argv: Vec<String>,
     pub namespaces: Namespaces,
@@ -146,6 +149,7 @@ struct ProcessTracker {
 #[derive(Debug)]
 struct ProcessData {
     ppid: Pid,
+    exe_inode: Inode,
     fork_time: Timestamp,
     exit_time: Option<Timestamp>,
     original_image: String,
@@ -174,6 +178,7 @@ impl ProcessTracker {
             Pid::from_raw(0),
             ProcessData {
                 ppid: Pid::from_raw(0),
+                exe_inode: Inode::default(),
                 fork_time: Timestamp::from(0),
                 exit_time: None,
                 original_image: "kernel".to_string(),
@@ -262,6 +267,7 @@ impl ProcessTracker {
             TrackerUpdate::Fork {
                 pid,
                 uid,
+                exe_inode,
                 timestamp,
                 ppid,
                 namespaces,
@@ -282,6 +288,7 @@ impl ProcessTracker {
                     pid,
                     ProcessData {
                         ppid,
+                        exe_inode,
                         fork_time: timestamp,
                         exit_time: None,
                         original_image: self.get_image(ppid, timestamp),
@@ -304,6 +311,7 @@ impl ProcessTracker {
             TrackerUpdate::Exec {
                 pid,
                 uid,
+                exe_inode,
                 timestamp,
                 ref mut image,
                 ref mut argv,
@@ -321,6 +329,7 @@ impl ProcessTracker {
                 });
 
                 if let Some(p) = self.processes.get_mut(&pid) {
+                    p.exe_inode = exe_inode;
                     p.exec_changes.insert(timestamp, std::mem::take(image));
                     p.argv = std::mem::take(argv);
                     p.namespaces = namespaces;
@@ -373,6 +382,7 @@ impl ProcessTracker {
         }
         Ok(ProcessInfo {
             image: self.get_image(pid, ts),
+            exe_inode: process.exe_inode,
             ppid: process.ppid,
             fork_time: process.fork_time,
             argv: process.argv.clone(),
@@ -483,6 +493,16 @@ mod tests {
 
     const PID_1: Pid = Pid::from_raw(42);
     const PID_2: Pid = Pid::from_raw(43);
+
+    const EXE_INODE_1: Inode = Inode {
+        ino: 63621,
+        rdev: 0,
+    };
+    const EXE_INODE_2: Inode = Inode {
+        ino: 35241,
+        rdev: 1,
+    };
+
     const UID_USER: Uid = Uid::from_raw(1000);
 
     const NAMESPACES_1: Namespaces = Namespaces {
@@ -515,6 +535,7 @@ mod tests {
             ppid: PID_1,
             pid: PID_2,
             uid: UID_USER,
+            exe_inode: EXE_INODE_1,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
             container_id: None,
@@ -522,6 +543,7 @@ mod tests {
         process_tracker.update(TrackerUpdate::Exec {
             pid: PID_2,
             uid: UID_USER,
+            exe_inode: EXE_INODE_2,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
             argv: Vec::new(),
@@ -541,6 +563,7 @@ mod tests {
             process_tracker.get(PID_2, 10.into()).await.unwrap(),
             ProcessInfo {
                 image: String::new(),
+                exe_inode: EXE_INODE_2,
                 ppid: PID_1,
                 fork_time: 10.into(),
                 argv: Vec::new(),
@@ -552,6 +575,7 @@ mod tests {
             process_tracker.get(PID_2, 15.into()).await.unwrap(),
             ProcessInfo {
                 image: "/bin/after_exec".to_string(),
+                exe_inode: EXE_INODE_2,
                 ppid: PID_1,
                 fork_time: 10.into(),
                 argv: Vec::new(),
@@ -577,6 +601,7 @@ mod tests {
         });
         process_tracker.update(TrackerUpdate::Exec {
             pid: PID_2,
+            exe_inode: EXE_INODE_2,
             uid: UID_USER,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
@@ -587,6 +612,7 @@ mod tests {
         process_tracker.update(TrackerUpdate::Fork {
             ppid: PID_1,
             pid: PID_2,
+            exe_inode: EXE_INODE_2,
             uid: UID_USER,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
@@ -601,6 +627,7 @@ mod tests {
             Ok(ProcessInfo {
                 image: "".to_string(),
                 ppid: PID_1,
+                exe_inode: EXE_INODE_2,
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
@@ -612,6 +639,7 @@ mod tests {
             Ok(ProcessInfo {
                 image: "/bin/after_exec".to_string(),
                 ppid: PID_1,
+                exe_inode: EXE_INODE_2,
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,

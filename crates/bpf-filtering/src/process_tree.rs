@@ -6,7 +6,7 @@ use bpf_common::{
     Pid, Uid,
 };
 use lazy_static::lazy_static;
-use pulsar_core::event::Namespaces;
+use pulsar_core::event::{Inode, Namespaces};
 use regex::Regex;
 use thiserror::Error;
 
@@ -23,6 +23,7 @@ pub(crate) struct ProcessTree {
 pub(crate) struct ProcessData {
     pub(crate) pid: Pid,
     pub(crate) uid: Uid,
+    pub(crate) exe_inode: Inode,
     pub(crate) image: String,
     pub(crate) parent: Pid,
     pub(crate) namespaces: Namespaces,
@@ -110,6 +111,9 @@ impl ProcessTree {
         for pid in procfs::get_running_processes()? {
             let uid = procfs::get_process_user_id(pid)?;
 
+            let (ino, rdev) = procfs::get_process_exe_inode(pid)?;
+            let exe_inode = Inode { ino, rdev };
+
             let image = procfs::get_process_image(pid)
                 .map(|path| path.to_string_lossy().to_string())
                 .unwrap_or_else(|err| {
@@ -129,6 +133,7 @@ impl ProcessTree {
                 ProcessData {
                     pid,
                     uid,
+                    exe_inode,
                     image,
                     parent,
                     namespaces,
@@ -146,6 +151,7 @@ impl ProcessTree {
             ProcessData {
                 pid: PID_0,
                 uid: UID_0,
+                exe_inode: Inode::default(),
                 image: String::from("kernel"),
                 parent: PID_0,
                 namespaces,
@@ -191,11 +197,13 @@ impl ProcessTree {
         let parent = self.processes.iter().find(|p| p.pid == ppid);
         match parent {
             Some(parent) => {
+                let exe_inode = parent.exe_inode;
                 let image = parent.image.to_string();
 
                 self.processes.push(ProcessData {
                     pid,
                     uid,
+                    exe_inode,
                     image,
                     parent: ppid,
                     namespaces,
