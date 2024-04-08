@@ -7,7 +7,8 @@
 #define STRNCMP(s1, s1_sz, s2)                                    \
     ({                                                            \
         int result;                                               \
-        if (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 17, 0))     \
+        if (bpf_core_enum_value_exists(enum bpf_func_id,          \
+                                       BPF_FUNC_strncmp))         \
         {                                                         \
             result = bpf_strncmp(s1, s1_sz, s2);                  \
         }                                                         \
