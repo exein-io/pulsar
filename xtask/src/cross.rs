@@ -157,8 +157,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
             args,
             opts: _,
         } => {
-            let tempdir = TempDir::new("pulsar-architest", *preserve_builddir);
-            tempdir.create()?;
+            let tempdir = TempDir::new("pulsar-architest", *preserve_builddir)?;
             sh.change_dir(&tempdir);
 
             let (architest_tarball, qemu_cmd, qemu_args) = match target.as_str() {
