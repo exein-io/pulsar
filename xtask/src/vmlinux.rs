@@ -283,7 +283,7 @@ fn generate_vmlinux_for_arch(
 /// architectures.
 pub(crate) fn run(options: Options) -> Result<()> {
     // Create a temporary directory
-    let builddir = TempDir::new("pulsar-kernel-builddir", options.preserve_builddir);
+    let builddir = TempDir::new("pulsar-kernel-builddir", options.preserve_builddir)?;
 
     let version = match options.kernel_version {
         Some(ref kernel_version) => kernel_version.to_owned(),

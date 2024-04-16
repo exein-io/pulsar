@@ -18,13 +18,10 @@ pub struct TempDir {
 }
 
 impl TempDir {
-    pub fn new(prefix: &str, preserve: bool) -> Self {
+    pub fn new(prefix: &str, preserve: bool) -> io::Result<Self> {
         let dir_path = env::temp_dir().join(format!("{prefix}-{}", Uuid::new_v4()));
-        Self { dir_path, preserve }
-    }
-
-    pub fn create(&self) -> io::Result<()> {
-        create_dir(self.dir_path.as_path())
+        create_dir(dir_path.as_path())?;
+        Ok(Self { dir_path, preserve })
     }
 
     // We don't want to move the whole `BuildDir` here and it's totally fine to
