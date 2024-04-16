@@ -144,7 +144,6 @@ pub(crate) fn run(options: Options) -> Result<()> {
         "{}/target/cross/{target}/{build_type}/{binary}",
         std::env::current_dir()?.display()
     );
-    cmd!(sh, "llvm-strip {binary_file}").run()?;
     match &options.command {
         Command::Build {
             destination,
