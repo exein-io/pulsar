@@ -2,9 +2,9 @@ use clap::Parser;
 use run::run_with_sudo;
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 
-mod cross;
 mod run;
 mod tempdir;
+mod test;
 mod vmlinux;
 
 #[derive(Debug, Parser)]
@@ -23,9 +23,7 @@ enum Command {
     /// Run a single module with admin privileges
     Probe(run::Options),
     /// Run eBPF test suite with admin privileges
-    Test(run::Options),
-    /// Cross compile and run on the specified target
-    Cross(cross::Options),
+    Test(test::Options),
     /// Build headers with BTF type definitions.
     Vmlinux(vmlinux::Options),
 }
@@ -40,8 +38,7 @@ fn main() {
         Command::Pulsard(opts) => run_with_sudo("pulsar-exec", &["pulsard"], opts),
         Command::Pulsar(opts) => run_with_sudo("pulsar-exec", &["pulsar"], opts),
         Command::Probe(opts) => run_with_sudo("probe", &[], opts),
-        Command::Test(opts) => run_with_sudo("test-suite", &[], opts),
-        Command::Cross(opts) => cross::run(opts),
+        Command::Test(opts) => test::run(opts),
         Command::Vmlinux(opts) => vmlinux::run(opts),
     };
 
