@@ -77,7 +77,7 @@
   severity: medium
   description: This rule monitors for the execution of Socat with suspicious arguments. Socat is a utility that allows for bidirectional 
     data transfer between two connections using various protocols such as TCP, UDP, SSL, Unix sockets, and more. It's often used for tasks 
-    like port forwarding, proxying, and file transferring.. Attackers can exploit the Socat utility to bypass network defenses, establish 
+    like port forwarding, proxying, and file transferring. Attackers can exploit the Socat utility to bypass network defenses, establish 
     hidden communication channels, and gain unauthorized access to internal resources, potentially facilitating data exfiltration, lateral 
     movement, and remote control.
   condition:
