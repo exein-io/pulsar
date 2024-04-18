@@ -10,7 +10,7 @@
   type: Exec
   category: command_and_control
   severity: low
-  description: This rule monitors for the execution of suspicious linux tools through ProxyChains. ProxyChains is a command-line tool
+  description: This rule monitors for the execution of suspicious Linux tools through ProxyChains. ProxyChains is a command-line tool
     that enables the routing of network connections through intermediary proxies, enhancing anonymity and enabling access to
     restricted resources. Attackers can exploit the ProxyChains utility to hide their true source IP address, evade detection,
     and perform malicious activities through a chain of proxy servers, potentially masking their identity and intentions.
