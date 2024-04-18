@@ -70,7 +70,7 @@ Comma<T>: Vec<T> = {
 }
 
 Value: String = {
-    r#""\S+""# => <>.trim_matches('"').to_string(),
+    r#""([^"\\]|\\.)*""# => <>.trim_matches('"').to_string(),
     r"[0-9]+" => <>.to_string()
 }
 
