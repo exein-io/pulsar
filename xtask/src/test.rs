@@ -11,7 +11,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use tar::Archive;
 use xshell::{cmd, Shell};
 
-use crate::{run::build, tempdir::TempDir};
+use crate::tempdir::TempDir;
 
 const ARCHITEST_VERSION: &str = "0.4";
 
@@ -94,26 +94,12 @@ fn download_and_unpack_architest(tempdir: &TempDir, architest_tarball: &str) -> 
     Ok(())
 }
 
-fn test_cross(options: Options) -> Result<()> {
+fn test_cross(sh: Shell, options: Options, binary_file: &str) -> Result<()> {
     let Options {
         target,
         preserve_tempdir,
-        release,
+        ..
     } = options;
-    let args = if release { Some("--release") } else { None };
-
-    let sh = Shell::new()?;
-
-    cmd!(
-        sh,
-        "cross build --target {target} --target-dir target/cross --workspace --bin test-suite {args...}"
-    )
-    .run()?;
-    let build_type = if release { "release" } else { "debug" };
-    let binary_file = format!(
-        "{}/target/cross/{target}/{build_type}/test-suite",
-        std::env::current_dir()?.display()
-    );
 
     let tempdir = TempDir::new("pulsar-architest", preserve_tempdir)?;
     sh.change_dir(&tempdir);
@@ -185,23 +171,10 @@ fn test_cross(options: Options) -> Result<()> {
     std::thread::sleep(std::time::Duration::from_secs(12));
 
     cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
-    cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite {args...}").run()?;
+    cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite").run()?;
 
     qemu_process.kill()?;
     qemu_process.wait()?;
-
-    Ok(())
-}
-
-fn test_native(options: Options) -> Result<()> {
-    let Options { release, .. } = options;
-    let args = if release { Some("--release") } else { None };
-    let build_type = if release { "release" } else { "debug" };
-
-    build("test-suite", release)?;
-
-    let sh = Shell::new()?;
-    cmd!(sh, "sudo -E ./target/{build_type}/test-suite {args...}").run()?;
 
     Ok(())
 }
@@ -215,9 +188,29 @@ pub(crate) fn run(options: Options) -> Result<()> {
         anyhow::bail!("The host CPU architecture is unsupported");
     };
 
-    if options.target.starts_with(arch) {
-        test_native(options)
+    let Options {
+        target, release, ..
+    } = &options;
+    let args = if *release { Some("--release") } else { None };
+    let build_type = if *release { "release" } else { "debug" };
+    let binary_file = format!(
+        "{}/target/cross/{target}/{build_type}/test-suite",
+        std::env::current_dir()?.display()
+    );
+
+    let sh = Shell::new()?;
+
+    cmd!(
+        sh,
+        "cross build --target {target} --target-dir target/cross --workspace --bin test-suite {args...}"
+    )
+    .run()?;
+
+    if target.starts_with(arch) {
+        cmd!(sh, "sudo -E {binary_file}").run()?;
     } else {
-        test_cross(options)
+        test_cross(sh, options, &binary_file)?;
     }
+
+    Ok(())
 }
