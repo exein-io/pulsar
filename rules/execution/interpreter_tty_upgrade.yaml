@@ -22,5 +22,4 @@
   description: Monitors for the execution of the script utility with the quiet and command flags and /dev/null as an argument. Attackers 
     may use the script utility to upgrade a non-interactive terminal (tty) to a fully interactive shell after obtaining initial 
     access to a host, in order to obtain a more stable connection.
-  condition: payload.filename == "/usr/bin/script" AND (payload.argv CONTAINS "-qc" OR payload.argv CONTAINS "-c") 
-    AND payload.argv CONTAINS "/dev/null" AND payload.argc == 4
+  condition: payload.filename == "/usr/bin/script" AND (payload.argv CONTAINS "-qc" OR payload.argv CONTAINS "-c") AND payload.argv CONTAINS "/dev/null" AND payload.argc == 4

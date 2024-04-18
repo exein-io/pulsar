@@ -9,8 +9,10 @@
     payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"]
       OR payload.filename STARTS_WITH "/etc/sudoers.d/"
         OR payload.filename STARTS_WITH "/etc/pam.d/"
-         OR payload.filename STARTS_WITH "/var/lib/pulsar"
-    )
+    ) AND (payload.flags CONTAINS "O_RDONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND
+      NOT header.image IN ["/usr/sbin/cron", "/usr/sbin/crond"]
+
 - name: Truncate log files
   type: FileOpened
   category: execution
@@ -35,8 +37,7 @@
   severity: medium
   description: Detects the creation of sensitive files as a symlink. Adversaries may create symlinks to sensitive files to gain access to 
     information or to escalate privileges.
-  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] 
-    OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
+  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
 
 - name: Create sensitive files hardlink
   type: FileLink
@@ -44,8 +45,7 @@
   severity: medium
   description: Detects the creation of sensitive files as a hardlink. Adversaries may create hardlinks to sensitive files to gain access to 
     information or to escalate privileges.
-  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] 
-    OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
+  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
 
 
 - name: Create files below /dev
@@ -84,9 +84,19 @@
   severity: medium
   description: Detects the creation of files below /root. Adversaries may create files below /root to gain access to information or to escalate 
     privileges.
-  condition: payload.filename STARTS_WITH "/root" AND NOT payload.filename IN ["/root/.auth_tokens", "/root/.bash_history", "/root/.ash_history", 
-    "/root/.aws/credentials", "/root/.viminfo.tmp", "/root/.lesshst", "/root/.bzr.log", "/root/.gitconfig.lock", "/root/.babel.json", "/root/.localstack", 
-    "/root/.wget-hsts"]
+  condition: payload.filename STARTS_WITH "/root" AND NOT payload.filename IN [
+    "/root/.auth_tokens",
+    "/root/.bash_history",
+    "/root/.ash_history", 
+    "/root/.aws/credentials",
+    "/root/.viminfo.tmp",
+    "/root/.lesshst",
+    "/root/.bzr.log",
+    "/root/.gitconfig.lock",
+    "/root/.babel.json",
+    "/root/.localstack", 
+    "/root/.wget-hsts"
+    ]
 
 
 # Add allowed programs
@@ -96,8 +106,18 @@
   severity: medium
   description: Detects the read of SSH information. Adversaries may read SSH information to gather information about the system or to use in later 
     stages of an attack.
-  condition: payload.filename STARTS_WITH "/root/.ssh/" AND NOT header.image IN ["/usr/sbin/sshd", "/usr/bin/sftp-server", "/usr/bin/ssh-agent", 
-    "/usr/bin/ssh", "/usr/bin/scp", "/usr/bin/sftp", "/usr/bin/ssh-keygen", "/usr/bin/ssh-keysign", "/usr/bin/ssh-keyscan", "/usr/bin/ssh-add"]
+  condition: payload.filename STARTS_WITH "/root/.ssh/" AND NOT header.image IN [
+    "/usr/sbin/sshd",
+    "/usr/bin/sftp-server",
+    "/usr/bin/ssh-agent", 
+    "/usr/bin/ssh",
+    "/usr/bin/scp",
+    "/usr/bin/sftp",
+    "/usr/bin/ssh-keygen",
+    "/usr/bin/ssh-keysign",
+    "/usr/bin/ssh-keyscan",
+    "/usr/bin/ssh-add"
+    ]
 
 # Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
 - name: Rename any file below binary directories
@@ -106,8 +126,7 @@
   severity: medium
   description: Detects the renaming of files below binary directories. Adversaries may rename files below binary directories to gain access to 
     information or to escalate privileges.
-  condition: payload.source STARTS_WITH "/usr/bin" OR payload.source STARTS_WITH "/usr/sbin" OR payload.source STARTS_WITH "/bin" 
-    OR payload.source STARTS_WITH "/sbin"
+  condition: payload.source STARTS_WITH "/usr/bin" OR payload.source STARTS_WITH "/usr/sbin" OR payload.source STARTS_WITH "/bin" OR payload.source STARTS_WITH "/sbin"
 
 # Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
 - name: Delete any file/directory below binary directories
@@ -116,8 +135,7 @@
   severity: medium
   description: Detects the deletion of files/directories below binary directories. Adversaries may delete files/directories below binary directories 
     to gain access to information or to escalate privileges.
-  condition: payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin"
-    OR payload.filename STARTS_WITH "/sbin"
+  condition: payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin"
 
 - name: Create a directory below binary directories
   type: DirCreated
@@ -125,8 +143,7 @@
   severity: medium
   description: Detects the creation of a directory below binary directories. Adversaries may create a directory below binary directories to gain 
     access to information or to escalate privileges.
-  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" 
-    OR payload.dirname STARTS_WITH "/sbin"
+  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
 
 - name: Delete any directory below binary directories
   type: DirDeleted
@@ -134,8 +151,7 @@
   severity: medium
   description: Detects the deletion of a directory below binary directories. Adversaries may delete a directory below binary directories to gain 
     access to information or to escalate privileges.
-  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" 
-    OR payload.dirname STARTS_WITH "/sbin"
+  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
 
 # Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
 - name: Write any file below binary directories
@@ -144,8 +160,7 @@
   severity: medium
   description: Detects the write of a file below binary directories. Adversaries may write a file below binary directories to gain access to 
     information or to escalate privileges.
-  condition: (payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" 
-    OR payload.filename STARTS_WITH "/sbin") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+  condition: (payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
 
 
 - name: Schedule a Cron job
@@ -153,8 +168,7 @@
   category: execution
   severity: low
   description: Detects the scheduling of a Cron job. Adversaries may schedule a Cron job to gain access to information or to escalate privileges.
-  condition: (payload.filename STARTS_WITH "/etc/cron" OR header.image ENDS_WITH "crontab") AND (payload.flags CONTAINS "O_WRONLY" 
-    OR payload.flags CONTAINS "O_RDWR")
+  condition: (payload.filename STARTS_WITH "/etc/cron" OR header.image ENDS_WITH "crontab") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
 
 
 - name: Shell history deletion
@@ -209,4 +223,3 @@
   description: Detects the execution of a binary with an empty argv and a non-empty envp. This is a possible exploitation of CVE-2021-4034 which 
     allows an attacker to manipulate the environment variables of a process and potentially execute arbitrary code.
   condition: payload.argc == 0
-  
