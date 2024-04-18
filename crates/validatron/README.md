@@ -75,6 +75,8 @@ ruleset.run(&test, |rule| {
 })
 ```
 
+Check the [ruleset](./examples/ruleset.rs) module for more details.
+
 To better understand the underlying implementation, take a look at the [reflection](./src/reflection.rs) module.
 
 It includes [macros](./derive/README.md) to generate implementations of the required traits.
