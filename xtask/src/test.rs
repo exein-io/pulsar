@@ -15,13 +15,6 @@ use crate::tempdir::TempDir;
 
 const ARCHITEST_VERSION: &str = "0.4";
 
-// Constants used to figure out whether the requested target is different that
-// the host target.
-// const TARGET_ARCH: &str = env!("CARGO_CFG_TARGET_ARCH");
-// const TARGET_OS: &str = env!("CARGO_CFG_TARGET_OS");
-// const TARGET_FAMILY: &str = env!("CARGO_CFG_TARGET_FAMILY");
-// const TARGET_ENV: &str = env!("CARGO_CFG_TARGET_ENV");
-
 #[derive(Debug, Parser)]
 pub(crate) struct Options {
     /// Target architecture. It can be different than the host.
