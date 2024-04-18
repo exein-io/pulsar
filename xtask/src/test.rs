@@ -29,6 +29,10 @@ pub(crate) struct Options {
     /// Build and run the release target
     #[clap(long)]
     release: bool,
+
+    /// Use architest/qemu even for a native target.
+    #[clap(long)]
+    force_architest: bool,
 }
 
 fn download_tarball<P>(url: &str, tarball_path: P) -> Result<()>
@@ -87,7 +91,7 @@ fn download_and_unpack_architest(tempdir: &TempDir, architest_tarball: &str) -> 
     Ok(())
 }
 
-fn test_cross(sh: Shell, options: Options, binary_file: &str) -> Result<()> {
+fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> {
     let Options {
         target,
         preserve_tempdir,
@@ -182,7 +186,10 @@ pub(crate) fn run(options: Options) -> Result<()> {
     };
 
     let Options {
-        target, release, ..
+        target,
+        release,
+        force_architest,
+        ..
     } = &options;
     let args = if *release { Some("--release") } else { None };
     let build_type = if *release { "release" } else { "debug" };
@@ -199,10 +206,10 @@ pub(crate) fn run(options: Options) -> Result<()> {
     )
     .run()?;
 
-    if target.starts_with(arch) {
-        cmd!(sh, "sudo -E {binary_file}").run()?;
+    if *force_architest || !target.starts_with(arch) {
+        test_architest(sh, options, &binary_file)?;
     } else {
-        test_cross(sh, options, &binary_file)?;
+        cmd!(sh, "sudo -E {binary_file}").run()?;
     }
 
     Ok(())
