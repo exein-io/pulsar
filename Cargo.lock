@@ -1402,6 +1402,8 @@ dependencies = [
  "bpf-common",
  "log",
  "pulsar-core",
+ "serde_json",
+ "thiserror",
  "tokio",
 ]
 

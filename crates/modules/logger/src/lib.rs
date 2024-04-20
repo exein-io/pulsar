@@ -3,6 +3,8 @@ use pulsar_core::pdk::{
     ShutdownSignal, Version,
 };
 use std::{
+    borrow::Cow,
+    cell::OnceCell,
     env,
     fs::File,
     io,
@@ -10,7 +12,9 @@ use std::{
         fd::AsFd,
         unix::{fs::MetadataExt, net::UnixDatagram},
     },
+    str::FromStr,
 };
+use thiserror::Error;
 
 const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
 const MODULE_NAME: &str = "logger";
@@ -57,10 +61,31 @@ async fn logger_task(
             msg = receiver.recv() => {
                 let msg = msg?;
                 if let Err(e) = logger.process(&msg) {
-                    sender.raise_warning(format!("Writing to syslog failed: {e}")).await;
+                    sender.raise_warning(format!("Writing to logs failed: {e}")).await;
                     logger = Logger { syslog: None, ..logger };
                 }
             },
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum OutputFormat {
+    Plaintext,
+    Json,
+}
+
+impl FromStr for OutputFormat {
+    type Err = ConfigError;
+    fn from_str(format: &str) -> Result<Self, Self::Err> {
+        match format.to_lowercase().as_str() {
+            "plaintext" => Ok(OutputFormat::Plaintext),
+            "json" => Ok(OutputFormat::Json),
+            _ => Err(ConfigError::InvalidValue {
+                field: String::from("output_format"),
+                value: format.to_string(),
+                err: String::from("Output format must be one of [plaintext, json]"),
+            }),
         }
     }
 }
@@ -70,6 +95,7 @@ struct Config {
     console: bool,
     // file: bool, //TODO:
     syslog: bool,
+    output_format: OutputFormat,
 }
 
 impl TryFrom<&ModuleConfig> for Config {
@@ -80,6 +106,7 @@ impl TryFrom<&ModuleConfig> for Config {
             console: config.with_default("console", true)?,
             // file: config.required("file")?,
             syslog: config.with_default("syslog", true)?,
+            output_format: config.with_default("output_format", OutputFormat::Plaintext)?,
         })
     }
 }
@@ -88,11 +115,24 @@ impl TryFrom<&ModuleConfig> for Config {
 struct Logger {
     console: bool,
     syslog: Option<UnixDatagram>,
+    output_format: OutputFormat,
+}
+
+#[derive(Debug, Error)]
+enum LoggerError {
+    #[error("error serializing event: {0}")]
+    Json(String),
+    #[error("io error")]
+    IO(#[from] io::Error),
 }
 
 impl Logger {
     fn from_config(rx_config: Config) -> Result<Self, Self> {
-        let Config { console, syslog } = rx_config;
+        let Config {
+            console,
+            syslog,
+            output_format,
+        } = rx_config;
 
         let connected_to_journal = io::stderr()
             .as_fd()
@@ -119,23 +159,41 @@ impl Logger {
             Err(Self {
                 console,
                 syslog: opt_sock,
+                output_format,
             })
         } else {
             Ok(Self {
                 console,
                 syslog: opt_sock,
+                output_format,
             })
         }
     }
 
-    fn process(&mut self, event: &Event) -> io::Result<()> {
+    fn process(&mut self, event: &Event) -> Result<(), LoggerError> {
         if event.header().threat.is_some() {
+            let json_event = OnceCell::new();
+            let json_event = || -> Result<&String, LoggerError> {
+                json_event
+                    .get_or_init(|| serde_json::to_string(event))
+                    .as_ref()
+                    .map_err(|err| LoggerError::Json(err.to_string()))
+            };
+
             if self.console {
-                println!("{:#}", event);
+                let out = match self.output_format {
+                    OutputFormat::Plaintext => Cow::Owned(format!("{event:#}")),
+                    OutputFormat::Json => Cow::Borrowed(json_event()?),
+                };
+                println!("{out}");
             }
 
             if let Some(ref mut syslog) = &mut self.syslog {
-                syslog.send(format!("{}", event).as_bytes())?;
+                let out = match self.output_format {
+                    OutputFormat::Plaintext => Cow::Owned(format!("{event}")),
+                    OutputFormat::Json => Cow::Borrowed(json_event()?),
+                };
+                syslog.send(out.as_bytes())?;
             }
         }
         Ok(())
