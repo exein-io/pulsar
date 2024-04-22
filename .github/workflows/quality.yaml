@@ -62,7 +62,7 @@ jobs:
 
           # Dependencies of `xtask` might fail to build on riscv64.
           - target: riscv64gc-unknown-linux-gnu
-            args: "--features full --exclude xtask"
+            args: "--features full"
 
     steps:
       - name: Code checkout
