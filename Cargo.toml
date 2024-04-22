@@ -40,10 +40,12 @@ semver = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 
 [features]
-default = ["full"]
+default = ["full", "tls-openssl"]
 full = ["core", "extra"]
 core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
+tls-openssl = ["smtp-notifier/tls-openssl"]
+tls-rustls = ["smtp-notifier/tls-rustls"]
 all-vendored = ["openssl-vendored", "sqlite3-vendored"]
 openssl-vendored = ["smtp-notifier?/openssl-vendored"]
 sqlite3-vendored = ["bpf-common/sqlite3-vendored"]
