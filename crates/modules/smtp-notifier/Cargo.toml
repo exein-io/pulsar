@@ -16,11 +16,14 @@ lettre = { workspace = true, features = [
     "tokio1",
     "builder",
 ] }
-openssl = { workspace = true }
+openssl = { workspace = true, optional = true }
 leon = { workspace = true }
 gethostname = { workspace = true }
 chrono = { workspace = true }
 rand = { workspace = true }
 
 [features]
-openssl-vendored = ["openssl/vendored"]
+default = ["openssl"]
+tls-openssl = ["openssl", "lettre/tokio1-native-tls"]
+tls-rustls = ["lettre/tokio1-rustls-tls"]
+openssl-vendored = ["openssl?/vendored"]

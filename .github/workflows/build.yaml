@@ -19,16 +19,16 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             args: "--features full"
 
-          # For `musl` builds openssl must be vendored
+          # For `musl` builds, use the `static` feature.
           - target: x86_64-unknown-linux-musl
-            args: "--features full --features all-vendored"
+            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
 
           - target: aarch64-unknown-linux-gnu
             args: "--features full"
 
-          # For `musl` builds openssl must be vendored
+          # For `musl` builds, use the `static` feature.
           - target: aarch64-unknown-linux-musl
-            args: "--features full --features all-vendored"
+            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
 
           - target: riscv64gc-unknown-linux-gnu
             args: "--features full"
