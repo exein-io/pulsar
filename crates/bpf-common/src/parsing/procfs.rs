@@ -2,7 +2,7 @@
 
 use glob::glob;
 use lazy_static::lazy_static;
-use nix::unistd::{Pid, Uid};
+use nix::unistd::{Gid, Pid, Uid};
 use regex::Regex;
 use std::{
     fs::{self, File},
@@ -130,6 +130,24 @@ pub fn get_process_user_id(pid: Pid) -> Result<Uid, ProcfsError> {
             let _ = s.next().unwrap();
             let value = s.next().unwrap().split('\t').nth(1).unwrap().trim();
             return Ok(Uid::from_raw(value.parse().unwrap()));
+        }
+    }
+
+    Err(ProcfsError::UserNotFound(pid))
+}
+
+/// Returns the group id of a given process.
+pub fn get_process_group_id(pid: Pid) -> Result<Gid, ProcfsError> {
+    let path = format!("/proc/{pid}/status");
+    let file = File::open(&path).map_err(|source| ProcfsError::ReadFile { source, path })?;
+
+    let reader = BufReader::new(file);
+    for line in reader.lines().map_while(Result::ok) {
+        if !line.is_empty() && line.starts_with("Gid:") {
+            let mut s = line.split(':');
+            let _ = s.next().unwrap();
+            let value = s.next().unwrap().split('\t').nth(1).unwrap().trim();
+            return Ok(Gid::from_raw(value.parse().unwrap()));
         }
     }
 

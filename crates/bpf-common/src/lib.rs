@@ -31,6 +31,7 @@ pub fn log_error<E: std::error::Error + Send + Sync + 'static>(msg: &str, err: E
     log::error!("{}: {:?}", msg, anyhow::Error::from(err));
 }
 
+pub use nix::unistd::Gid;
 pub use nix::unistd::Pid;
 pub use nix::unistd::Uid;
 

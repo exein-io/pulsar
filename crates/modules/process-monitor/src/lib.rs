@@ -5,9 +5,8 @@ use bpf_common::{
     feature_autodetect::kernel_version::KernelVersion,
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
-    BpfSender, Pid, Program, ProgramBuilder, ProgramError,
+    BpfSender, Gid, Pid, Program, ProgramBuilder, ProgramError, Uid,
 };
-use nix::unistd::{Gid, Uid};
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
 
@@ -122,8 +121,8 @@ pub enum ProcessEvent {
         id: u64,
     },
     CredentialsChange {
-        uid: u32,
-        gid: u32,
+        uid: Uid,
+        gid: Gid,
     },
 }
 
@@ -176,10 +175,10 @@ pub mod pulsar {
                 let _ = tx_processes.send(match event.payload {
                     ProcessEvent::Fork {
                         uid,
+                        gid,
                         ppid,
                         namespaces,
                         ref c_container_id,
-                        ..
                     } => {
                         let container_id = match c_container_id {
                             COption::Some(ccid) => {
@@ -196,6 +195,7 @@ pub mod pulsar {
                         TrackerUpdate::Fork {
                             pid: event.pid,
                             uid,
+                            gid,
                             ppid,
                             timestamp: event.timestamp,
                             namespaces,
@@ -320,9 +320,10 @@ pub mod pulsar {
                     cgroup_id: id,
                     attached_pid: pid.as_raw(),
                 },
-                ProcessEvent::CredentialsChange { uid, gid } => {
-                    Payload::CredentialsChange { uid, gid }
-                }
+                ProcessEvent::CredentialsChange { uid, gid } => Payload::CredentialsChange {
+                    uid: uid.as_raw(),
+                    gid: gid.as_raw(),
+                },
             })
         }
     }
@@ -613,13 +614,13 @@ pub mod test_suite {
     fn credentials_change_uid() -> TestCase {
         TestCase::new("credentials_change_uid", async {
             let mut child_pid = Pid::from_raw(0);
-            let uid = 1000;
-            let gid = getgid().as_raw();
+            let uid = Uid::from_raw(666);
+            let gid = getgid();
             test_runner()
                 .run(|| {
                     child_pid = fork_and_run(|| {
                         // change user id
-                        setuid(uid.into()).unwrap();
+                        setuid(uid).unwrap();
                         exit(0);
                     })
                 })
@@ -639,13 +640,13 @@ pub mod test_suite {
     fn credentials_change_gid() -> TestCase {
         TestCase::new("credentials_change_gid", async {
             let mut child_pid = Pid::from_raw(0);
-            let uid = getuid().as_raw();
-            let gid = 1000;
+            let uid = getuid();
+            let gid = Gid::from_raw(666);
             test_runner()
                 .run(|| {
                     child_pid = fork_and_run(|| {
                         // change group id
-                        setgid(gid.into()).unwrap();
+                        setgid(gid).unwrap();
                         exit(0);
                     })
                 })
