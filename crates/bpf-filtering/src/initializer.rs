@@ -74,6 +74,7 @@ pub async fn setup_events_filter(
             ppid: process.parent,
             pid: process.pid,
             uid: process.uid,
+            gid: process.gid,
             timestamp: Timestamp::from(0),
             namespaces: process.namespaces,
             container_id: process.container_id.clone(),
@@ -97,6 +98,7 @@ pub async fn setup_events_filter(
                     pid,
                     ppid,
                     uid,
+                    gid,
                     namespaces,
                     container_id,
                     ..
@@ -104,6 +106,7 @@ pub async fn setup_events_filter(
                     *pid,
                     *ppid,
                     *uid,
+                    *gid,
                     *namespaces,
                     container_id.clone(),
                 )?)?,

@@ -247,6 +247,8 @@ impl ModuleSender {
                 pid: process.as_raw(),
                 timestamp: timestamp.into(),
                 image: String::new(),
+                uid: 0,
+                gid: 0,
                 parent_pid: 0,
                 fork_time: UNIX_EPOCH,
                 container: None,
@@ -259,11 +261,15 @@ impl ModuleSender {
                     argv: _,
                     namespaces: _,
                     container,
+                    uid,
+                    gid,
                 }) => {
                     header.image = image;
                     header.parent_pid = ppid.as_raw();
                     header.fork_time = fork_time.into();
                     header.container = container;
+                    header.uid = uid.as_raw();
+                    header.gid = gid.as_raw();
                 }
                 Err(e) => {
                     // warning: check if this actually happens or not

@@ -3,9 +3,8 @@ use std::collections::{BTreeMap, HashMap};
 use bpf_common::{
     containers::{ContainerId, ContainerInfo},
     time::Timestamp,
-    Pid,
+    Gid, Pid, Uid,
 };
-use nix::unistd::Uid;
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -38,6 +37,7 @@ pub enum TrackerUpdate {
     Fork {
         pid: Pid,
         uid: Uid,
+        gid: Gid,
         timestamp: Timestamp,
         ppid: Pid,
         namespaces: Namespaces,
@@ -90,6 +90,8 @@ pub enum TrackerError {
 pub struct ProcessInfo {
     pub image: String,
     pub ppid: Pid,
+    pub uid: Uid,
+    pub gid: Gid,
     pub fork_time: Timestamp,
     pub argv: Vec<String>,
     pub namespaces: Namespaces,
@@ -146,6 +148,8 @@ struct ProcessTracker {
 #[derive(Debug)]
 struct ProcessData {
     ppid: Pid,
+    uid: Uid,
+    gid: Gid,
     fork_time: Timestamp,
     exit_time: Option<Timestamp>,
     original_image: String,
@@ -173,6 +177,8 @@ impl ProcessTracker {
         processes.insert(
             Pid::from_raw(0),
             ProcessData {
+                uid: Uid::from_raw(0),
+                gid: Gid::from_raw(0),
                 ppid: Pid::from_raw(0),
                 fork_time: Timestamp::from(0),
                 exit_time: None,
@@ -262,6 +268,7 @@ impl ProcessTracker {
             TrackerUpdate::Fork {
                 pid,
                 uid,
+                gid,
                 timestamp,
                 ppid,
                 namespaces,
@@ -282,6 +289,8 @@ impl ProcessTracker {
                     pid,
                     ProcessData {
                         ppid,
+                        uid,
+                        gid,
                         fork_time: timestamp,
                         exit_time: None,
                         original_image: self.get_image(ppid, timestamp),
@@ -373,6 +382,8 @@ impl ProcessTracker {
         }
         Ok(ProcessInfo {
             image: self.get_image(pid, ts),
+            uid: process.uid,
+            gid: process.gid,
             ppid: process.ppid,
             fork_time: process.fork_time,
             argv: process.argv.clone(),
@@ -484,6 +495,7 @@ mod tests {
     const PID_1: Pid = Pid::from_raw(42);
     const PID_2: Pid = Pid::from_raw(43);
     const UID_USER: Uid = Uid::from_raw(1000);
+    const GID_USER: Gid = Gid::from_raw(1000);
 
     const NAMESPACES_1: Namespaces = Namespaces {
         uts: 4026531835,
@@ -515,6 +527,7 @@ mod tests {
             ppid: PID_1,
             pid: PID_2,
             uid: UID_USER,
+            gid: GID_USER,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
             container_id: None,
@@ -542,6 +555,8 @@ mod tests {
             ProcessInfo {
                 image: String::new(),
                 ppid: PID_1,
+                uid: UID_USER,
+                gid: GID_USER,
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
@@ -553,6 +568,8 @@ mod tests {
             ProcessInfo {
                 image: "/bin/after_exec".to_string(),
                 ppid: PID_1,
+                uid: UID_USER,
+                gid: GID_USER,
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
@@ -588,6 +605,7 @@ mod tests {
             ppid: PID_1,
             pid: PID_2,
             uid: UID_USER,
+            gid: GID_USER,
             timestamp: 10.into(),
             namespaces: NAMESPACES_1,
             container_id: None,
@@ -601,6 +619,8 @@ mod tests {
             Ok(ProcessInfo {
                 image: "".to_string(),
                 ppid: PID_1,
+                uid: UID_USER,
+                gid: GID_USER,
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
@@ -612,6 +632,8 @@ mod tests {
             Ok(ProcessInfo {
                 image: "/bin/after_exec".to_string(),
                 ppid: PID_1,
+                uid: UID_USER,
+                gid: GID_USER,
                 fork_time: 10.into(),
                 argv: Vec::new(),
                 namespaces: NAMESPACES_1,
