@@ -30,9 +30,13 @@ pub(crate) struct Options {
     #[clap(long)]
     release: bool,
 
-    /// Use architest/qemu even for a native target.
+    /// Use architest/QEMU even for a native target.
     #[clap(long)]
     force_architest: bool,
+
+    /// Kernel version to use in architest/QEMU.
+    #[clap(long, default_value = "6.6")]
+    kernel_version: String,
 }
 
 fn download_tarball<P>(url: &str, tarball_path: P) -> Result<()>
@@ -95,6 +99,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
     let Options {
         target,
         preserve_tempdir,
+        kernel_version,
         ..
     } = options;
 
@@ -103,7 +108,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
 
     let (architest_tarball, qemu_cmd, qemu_args) = match target.as_str() {
         "aarch64-unknown-linux-musl" => (
-            "aarch64_6.6.tar.gz",
+            format!("aarch64_{kernel_version}.tar.gz"),
             "qemu-system-aarch64",
             vec![
                 "-M",
@@ -128,7 +133,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
             ],
         ),
         "x86_64-unknown-linux-musl" => (
-            "x86_64_6.6.tar.gz",
+            format!("x86_64_{kernel_version}.tar.gz"),
             "qemu-system-x86_64",
             vec![
                 "-M",
@@ -149,7 +154,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         _ => return Err(anyhow::anyhow!("Unsupported target: {target}")),
     };
 
-    download_and_unpack_architest(&tempdir, architest_tarball)?;
+    download_and_unpack_architest(&tempdir, &architest_tarball)?;
 
     cmd!(sh, "truncate -s +200M rootfs.ext2").run()?;
     let loop_dev = cmd!(sh, "sudo losetup -fP --show rootfs.ext2").output()?;
