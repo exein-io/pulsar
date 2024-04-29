@@ -62,7 +62,13 @@ jobs:
         run: cross build --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} --release
 
       - name: Check build did not modify any files
-        run: test -z "$(git status --porcelain)"
+        run: |
+          CHANGES=$(git status --porcelain)
+          if [ -n "$CHANGES" ]; then
+            echo "Changes detected:"
+            git diff
+          fi
+          test -z "$CHANGES"
 
       - name: Unit tests
         run: cross test --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
