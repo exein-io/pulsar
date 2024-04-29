@@ -9,6 +9,8 @@ repository.workspace = true
 test-suite = ["bpf-common/test-utils"]
 
 [dependencies]
+aya-ebpf-bindings = { workspace = true }
+aya-obj = { workspace = true }
 bpf-common = { workspace = true }
 pulsar-core = { workspace = true }
 

@@ -104,6 +104,8 @@ smtp-notifier = { path = "crates/modules/smtp-notifier" }
 # External
 anyhow = "1.0.75"
 aya = { version = "0.12.0", features = ["async_tokio"] }
+aya-ebpf-bindings = "0.1.0"
+aya-obj = "0.1.0"
 axum = { version = "0.6.20", features = ["ws"] }
 bytes = "1.5.0"
 cgroups-rs = { version = "0.3.4" }

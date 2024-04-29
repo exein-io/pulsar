@@ -482,8 +482,8 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
 }
 
 __always_inline int process_skb(struct __sk_buff *skb,
+                                struct task_struct *task,
                                 __u8 direction) {
-  struct task_struct *task = bpf_get_current_task_btf();
   pid_t tgid = task->tgid;
 
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
@@ -671,11 +671,25 @@ pass:
 }
 
 SEC("cgroup_skb/egress")
-int skb_egress(struct __sk_buff *skb) {
-  return process_skb(skb, EGRESS);
+int skb_egress_btf(struct __sk_buff *skb) {
+  struct task_struct *task = bpf_get_current_task_btf();
+  return process_skb(skb, task, EGRESS);
+}
+
+SEC("cgroup_skb/egress")
+int skb_egress_no_btf(struct __sk_buff *skb) {
+  struct task_struct *task = (struct task_struct*)bpf_get_current_task();
+  return process_skb(skb, task, EGRESS);
 }
 
 SEC("cgroup_skb/ingress")
-int skb_ingress(struct __sk_buff *skb) {
-  return process_skb(skb, INGRESS);
+int skb_ingress_btf(struct __sk_buff *skb) {
+  struct task_struct *task = bpf_get_current_task_btf();
+  return process_skb(skb, task, INGRESS);
+}
+
+SEC("cgroup_skb/ingress")
+int skb_ingress_no_btf(struct __sk_buff *skb) {
+  struct task_struct *task = (struct task_struct*)bpf_get_current_task();
+  return process_skb(skb, task, INGRESS);
 }

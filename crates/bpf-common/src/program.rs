@@ -4,8 +4,18 @@
 //!
 use core::fmt;
 use std::{
-    collections::HashSet, convert::TryFrom, fmt::Display, fs::File, io, mem::size_of,
-    path::PathBuf, sync::Arc, time::Duration,
+    cmp,
+    collections::HashSet,
+    convert::TryFrom,
+    ffi::{c_char, c_uint, CString},
+    fmt::Display,
+    fs::File,
+    io,
+    mem::{self, size_of},
+    path::PathBuf,
+    slice,
+    sync::Arc,
+    time::Duration,
 };
 
 use aya::{
@@ -17,7 +27,12 @@ use aya::{
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
+use aya_obj::{
+    generated::{bpf_attr, bpf_cmd, bpf_prog_type},
+    obj::copy_instructions,
+};
 use bytes::{Buf, Bytes, BytesMut};
+use libc::SYS_bpf;
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
@@ -119,6 +134,83 @@ impl BpfContext {
 
     pub fn kernel_version(&self) -> &KernelVersion {
         &self.kernel_version
+    }
+
+    /// Creates a BPF program bytecode with a simple function call (with
+    /// `BPF_EMIT_CALL` instruction).
+    fn bpf_prog_func_id(&self, func_id: u32) -> [u8; 16] {
+        let func_id_bytes = func_id.to_ne_bytes();
+        println!("func_id_bytes: {func_id_bytes:?}");
+        let mut prog = [
+            // BPF_EMIT_CALL
+            0x85, 0x00, 0x00, 0x00, // Placeholder for the function ID.
+            0x00, 0x00, 0x00, 0x00, // BPF_EXIT_INSN()
+            0x95, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        prog[4..8].copy_from_slice(func_id_bytes.as_slice());
+        println!("prog: {prog:?}");
+        prog
+    }
+
+    /// Checks whether the provided `func_id` for the given `prog_type` is
+    /// supported by the current kernel, by loading a minimal program trying to
+    /// use it.
+    ///
+    /// Similar checks are performed by [`bpftool`].
+    ///
+    /// [`bpftool`]: https://github.com/torvalds/linux/blob/v6.8/tools/bpf/bpftool/feature.c#L534-L544
+    pub fn func_id_supported(&self, func_id: c_uint) -> bool {
+        let mut attr = unsafe { mem::zeroed::<bpf_attr>() };
+        let u = unsafe { &mut attr.__bindgen_anon_3 };
+
+        let mut name: [c_char; 16] = [0; 16];
+        let cstring = CString::new("pulsar_name_check").unwrap();
+        let name_bytes = cstring.to_bytes();
+        let len = cmp::min(name.len(), name_bytes.len());
+        name[..len].copy_from_slice(unsafe {
+            slice::from_raw_parts(name_bytes.as_ptr() as *const c_char, len)
+        });
+        u.prog_name = name;
+
+        let prog = self.bpf_prog_func_id(func_id);
+
+        let gpl = b"GPL\0";
+        u.license = gpl.as_ptr() as u64;
+
+        let insns = copy_instructions(prog.as_slice()).unwrap();
+        u.insn_cnt = insns.len() as u32;
+        u.insns = insns.as_ptr() as u64;
+        // NOTE(vadorovsky): For the current checks, program type doesn't
+        // matter - kprobes generally support all the functions we want.
+        // We might want to generalize it in the future
+        // u.prog_type = prog_type as u32;
+        u.prog_type = bpf_prog_type::BPF_PROG_TYPE_KPROBE as u32;
+
+        u.kern_version = aya::util::KernelVersion::current().unwrap().code();
+
+        let ret = unsafe {
+            libc::syscall(
+                SYS_bpf,
+                bpf_cmd::BPF_PROG_LOAD,
+                &mut attr,
+                mem::size_of::<bpf_attr>(),
+            )
+        };
+        if ret < 0 {
+            let error = nix::errno::errno();
+            println!("Error {}", error);
+            let error_str = unsafe {
+                std::ffi::CStr::from_ptr(libc::strerror(error))
+                    .to_string_lossy()
+                    .into_owned()
+            };
+            println!("Error: {}", error_str);
+            println!("Error: {}", io::Error::last_os_error());
+        }
+        println!("syscall ret: {ret}");
+        // let logs = String::from_utf8_lossy(&log_buf);
+        // println!("{logs}");
+        ret >= 0
     }
 }
 
