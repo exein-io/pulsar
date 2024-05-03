@@ -110,7 +110,8 @@ struct cgroup_attach_event
   u64 id;
 };
 
-struct creds_change_event {
+struct creds_change_event
+{
   u32 uid;
   u32 gid;
 };
@@ -625,7 +626,8 @@ int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
   return 0;
 }
 
-static __always_inline void on_creds_change(void *ctx, struct cred *new) {
+static __always_inline void on_creds_change(void *ctx, struct cred *new)
+{
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
@@ -641,19 +643,22 @@ static __always_inline void on_creds_change(void *ctx, struct cred *new) {
 PULSAR_LSM_HOOK(task_fix_setuid, struct cred *, new, struct cred *, old, int,
                 flags);
 static __always_inline void on_task_fix_setuid(void *ctx, struct cred *new,
-                                               struct cred *old, int flags) {
+                                               struct cred *old, int flags)
+{
   on_creds_change(ctx, new);
 }
 
 PULSAR_LSM_HOOK(task_fix_setgid, struct cred *, new, struct cred *, old, int,
                 flags);
 static __always_inline void on_task_fix_setgid(void *ctx, struct cred *new,
-                                               struct cred *old, int flags) {
+                                               struct cred *old, int flags)
+{
   on_creds_change(ctx, new);
 }
 
 SEC("kprobe/commit_creds")
-int BPF_KPROBE(commit_creds, struct cred *new) {
+int BPF_KPROBE(commit_creds, struct cred *new)
+{
   on_creds_change(ctx, new);
   return 0;
 }
