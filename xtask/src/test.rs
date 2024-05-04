@@ -26,9 +26,13 @@ pub(crate) struct Options {
     #[arg(long)]
     preserve_tempdir: bool,
 
-    /// Build and run the release target
+    /// Build and run the release target.
     #[clap(long)]
     release: bool,
+
+    /// Space or comma separated list of features to activate.
+    #[clap(short, long)]
+    features: Vec<String>,
 
     /// Use architest/QEMU even for a native target.
     #[clap(long)]
@@ -193,10 +197,16 @@ pub(crate) fn run(options: Options) -> Result<()> {
     let Options {
         target,
         release,
+        features,
         force_architest,
         ..
     } = &options;
-    let args = if *release { Some("--release") } else { None };
+    let mut args = Vec::new();
+    if *release { args.push("--release") }
+    for feature in features {
+        args.push("--features");
+        args.push(feature);
+    }
     let build_type = if *release { "release" } else { "debug" };
     let binary_file = format!(
         "{}/target/cross/{target}/{build_type}/test-suite",

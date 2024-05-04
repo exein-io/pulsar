@@ -77,5 +77,9 @@ jobs:
         if: endsWith(matrix.platform.target, 'musl')
         run: |
             for kernel in 5.10 5.13 5.15 6.0 6.3 6.6; do
-                cargo xtask test --force-architest --target=${{ matrix.platform.target }} --kernel-version $kernel
+                cargo xtask test \
+                  --force-architest \
+                  --target=${{ matrix.platform.target }} \
+                  --kernel-version $kernel \
+                  --features all-vendored --features tls-rustls
             done
