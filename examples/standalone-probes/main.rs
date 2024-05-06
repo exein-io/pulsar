@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use bpf_common::{
-    feature_autodetect::lsm::lsm_supported,
     program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
     Program, ProgramError,
 };
@@ -69,8 +68,7 @@ where
     } else {
         BpfLogLevel::Error
     };
-    let lsm_supported = tokio::task::spawn_blocking(lsm_supported).await.unwrap();
-    let ctx = BpfContext::new(Pinning::Disabled, 512, log_level, lsm_supported).unwrap();
+    let ctx = BpfContext::new(Pinning::Disabled, 512, log_level).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");
     loop {
         tokio::select!(

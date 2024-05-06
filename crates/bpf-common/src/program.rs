@@ -6,11 +6,11 @@ use core::fmt;
 use std::{
     collections::HashSet,
     convert::TryFrom,
-    ffi::c_uint,
     fmt::Display,
     fs::File,
+    hash::{Hash, Hasher},
     io,
-    mem::{self, size_of},
+    mem::size_of,
     path::PathBuf,
     sync::Arc,
     time::Duration,
@@ -25,20 +25,19 @@ use aya::{
     util::online_cpus,
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
-use aya_obj::{
-    generated::{bpf_attr, bpf_cmd, bpf_prog_type},
-    obj::copy_instructions,
-};
+use aya_ebpf_bindings::bindings::bpf_func_id;
 use bytes::{Buf, Bytes, BytesMut};
-use libc::SYS_bpf;
 use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
 use crate::{
-    feature_autodetect::kernel_version::KernelVersion,
+    feature_autodetect::{
+        atomic::atomics_supported, func::func_id_supported, kernel_version::KernelVersion,
+        lsm::lsm_supported,
+    },
     parsing::mountinfo::{get_cgroup2_mountpoint, MountinfoError},
     time::Timestamp,
-    BpfSender, Pid,
+    BpfProgType, BpfSender, Pid,
 };
 
 const PERF_HEADER_SIZE: usize = 4;
@@ -67,8 +66,8 @@ pub struct BpfContext {
     log_level: BpfLogLevel,
     /// Kernel version
     kernel_version: KernelVersion,
-    /// LSM support
-    lsm_supported: bool,
+    /// eBPF features support
+    features: BpfFeatures,
 }
 
 #[derive(Clone)]
@@ -84,12 +83,41 @@ pub enum BpfLogLevel {
     Debug = 2,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BpfFeatures {
+    pub atomics: bool,
+    pub cgroup_skb_task_btf: bool,
+    pub fn_pointers: bool,
+    pub lsm: bool,
+}
+
+impl Hash for BpfFeatures {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.atomics.hash(state);
+        self.cgroup_skb_task_btf.hash(state);
+        self.fn_pointers.hash(state);
+    }
+}
+
+impl BpfFeatures {
+    fn autodetect() -> Self {
+        Self {
+            atomics: atomics_supported(),
+            cgroup_skb_task_btf: func_id_supported(
+                bpf_func_id::BPF_FUNC_get_current_task_btf,
+                BpfProgType::BPF_PROG_TYPE_CGROUP_SKB,
+            ),
+            fn_pointers: true,
+            lsm: lsm_supported(),
+        }
+    }
+}
+
 impl BpfContext {
     pub fn new(
         pinning: Pinning,
         mut perf_pages: usize,
         log_level: BpfLogLevel,
-        lsm_supported: bool,
     ) -> Result<Self, ProgramError> {
         let btf = Btf::from_sys_fs()?;
         if perf_pages == 0 || (perf_pages & (perf_pages - 1) != 0) {
@@ -122,65 +150,20 @@ impl BpfContext {
             pinning_path,
             log_level,
             kernel_version,
-            lsm_supported,
+            features: BpfFeatures::autodetect(),
         })
     }
 
+    pub fn features(&self) -> &BpfFeatures {
+        &self.features
+    }
+
     pub fn lsm_supported(&self) -> bool {
-        self.lsm_supported
+        self.features.lsm
     }
 
     pub fn kernel_version(&self) -> &KernelVersion {
         &self.kernel_version
-    }
-
-    /// Creates a BPF program bytecode with a simple function call (with
-    /// `BPF_EMIT_CALL` instruction) to the function with the given ID.
-    fn bpf_prog_func_id(&self, func_id: u32) -> [u8; 24] {
-        let func_id_bytes = func_id.to_ne_bytes();
-        let mut prog = [
-            // BPF_EMIT_CALL
-            0x85, 0x00, 0x00, 0x00, // Placeholder for the function ID.
-            0x00, 0x00, 0x00, 0x00, // BPF_MOV64_IMM(BPF_REG_0, 0)
-            0xb7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BPF_EXIT_INSN()
-            0x95, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ];
-        // Insert provided `func_id` to the bytecode.
-        prog[4..8].copy_from_slice(func_id_bytes.as_slice());
-        prog
-    }
-
-    /// Checks whether the provided `func_id` for the given `prog_type` is
-    /// supported by the current kernel, by loading a minimal program trying to
-    /// use it.
-    ///
-    /// Similar checks are performed by [`bpftool`].
-    ///
-    /// [`bpftool`]: https://github.com/torvalds/linux/blob/v6.8/tools/bpf/bpftool/feature.c#L534-L544
-    pub fn func_id_supported(&self, func_id: c_uint, prog_type: bpf_prog_type) -> bool {
-        let mut attr = unsafe { mem::zeroed::<bpf_attr>() };
-        let u = unsafe { &mut attr.__bindgen_anon_3 };
-
-        let prog = self.bpf_prog_func_id(func_id);
-
-        let gpl = b"GPL\0";
-        u.license = gpl.as_ptr() as u64;
-
-        let insns = copy_instructions(prog.as_slice()).unwrap();
-        u.insn_cnt = insns.len() as u32;
-        u.insns = insns.as_ptr() as u64;
-        u.prog_type = prog_type as u32;
-
-        let ret = unsafe {
-            libc::syscall(
-                SYS_bpf,
-                bpf_cmd::BPF_PROG_LOAD,
-                &mut attr,
-                mem::size_of::<bpf_attr>(),
-            )
-        };
-
-        ret >= 0
     }
 }
 
@@ -192,25 +175,167 @@ impl BpfContext {
 #[macro_export]
 macro_rules! ebpf_program {
     ( $ctx: expr , $probe: expr) => {{
+        use std::collections::HashMap;
+
         use bpf_common::aya::include_bytes_aligned;
         use bpf_common::feature_autodetect::kernel_version::KernelVersion;
+        use bpf_common::program::BpfFeatures;
 
-        let version_5_13 =
-            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".5_13.bpf.o")).into();
-        let version_5_5 =
-            include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".5_5.bpf.o")).into();
-        if $ctx.kernel_version().as_i32()
-            >= (KernelVersion {
-                major: 5,
-                minor: 13,
-                patch: 0,
-            })
-            .as_i32()
-        {
-            version_5_13
-        } else {
-            version_5_5
-        }
+        let programs: HashMap<BpfFeatures, &[u8]> = HashMap::from([
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: false,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".none.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: false,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".a.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: false,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".ac.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: true,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".acf.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: true,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".af.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: false,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".c.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: true,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".cf.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: true,
+                    lsm: false,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".f.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: false,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".none.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: false,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".a.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: false,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".ac.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: true,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".acf.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: true,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: true,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".af.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: false,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".c.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: true,
+                    fn_pointers: true,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".cf.bpf.o")).into(),
+            ),
+            (
+                BpfFeatures {
+                    atomics: false,
+                    cgroup_skb_task_btf: false,
+                    fn_pointers: true,
+                    lsm: true,
+                },
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".f.bpf.o")).into(),
+            ),
+        ]);
+
+        programs
+            .get($ctx.features())
+            .cloned()
+            .expect(&format!(
+                "Could not find the program for the given feature set: {:?}",
+                $ctx.features()
+            ))
+            .to_vec()
     }};
 }
 

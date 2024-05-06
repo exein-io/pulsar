@@ -362,14 +362,13 @@ fn load_ebpf() -> Bpf {
         bpf_common::program::Pinning::Disabled,
         bpf_common::program::PERF_PAGES_DEFAULT,
         bpf_common::program::BpfLogLevel::Debug,
-        false,
     )
     .unwrap();
     const PIN_PATH: &str = "/sys/fs/bpf/filtering-test";
     let _ = std::fs::create_dir(PIN_PATH);
     let bpf = BpfLoader::new()
         .map_pin_path(PIN_PATH)
-        .load(ebpf_program!(&ctx, "filtering_example"))
+        .load(ebpf_program!(&ctx, "filtering_example").as_slice())
         .unwrap();
     bpf
 }

@@ -1,5 +1,6 @@
 mod bpf_sender;
 pub mod containers;
+pub mod insn;
 pub mod program;
 #[cfg(feature = "test-utils")]
 pub mod test_runner;
@@ -18,6 +19,8 @@ pub use bump_memlock_rlimit::bump_memlock_rlimit;
 pub use program::{Program, ProgramBuilder, ProgramError};
 
 pub use aya;
+
+pub use aya_obj::generated::bpf_prog_type as BpfProgType;
 
 pub mod bpf_fs;
 pub mod feature_autodetect;

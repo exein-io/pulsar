@@ -335,6 +335,7 @@ version = "0.8.1"
 dependencies = [
  "anyhow",
  "aya",
+ "aya-ebpf-bindings",
  "aya-obj",
  "bpf-builder",
  "bytes",
