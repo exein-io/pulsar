@@ -4,11 +4,12 @@ use std::{
 };
 
 use aya_ebpf_bindings::bindings::bpf_func_id;
+use aya_obj::generated::bpf_prog_type;
 use bpf_common::{
     ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
     ProgramBuilder, ProgramError,
 };
-use log::error;
+use log::{debug, error};
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 
 const MODULE_NAME: &str = "network-monitor";
@@ -52,8 +53,14 @@ pub async fn program(
     sender: impl BpfSender<NetworkEvent>,
 ) -> Result<Program, ProgramError> {
     let attach_to_lsm = ctx.lsm_supported();
-    let current_task_btf = ctx.func_id_supported(bpf_func_id::BPF_FUNC_get_current_task);
-    let current_task = ctx.func_id_supported(bpf_func_id::BPF_FUNC_get_current_task);
+    let current_task_btf = ctx.func_id_supported(
+        bpf_func_id::BPF_FUNC_get_current_task_btf,
+        bpf_prog_type::BPF_PROG_TYPE_CGROUP_SKB,
+    );
+    let current_task = ctx.func_id_supported(
+        bpf_func_id::BPF_FUNC_get_current_task,
+        bpf_prog_type::BPF_PROG_TYPE_CGROUP_SKB,
+    );
     let binary = ebpf_program!(&ctx, "probes");
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .tracepoint("syscalls", "sys_exit_accept4")
@@ -61,10 +68,12 @@ pub async fn program(
         .kprobe("tcp_set_state");
 
     if current_task_btf {
+        debug!("The current kernel supports `bpf_current_task_btf`");
         builder = builder
             .cgroup_skb_egress("skb_egress_btf")
             .cgroup_skb_ingress("skb_ingress_btf");
     } else if current_task {
+        debug!("The current kernel supports `bpf_current_task`");
         builder = builder
             .cgroup_skb_egress("skb_egress_no_btf")
             .cgroup_skb_ingress("skb_ingress_no_btf");
