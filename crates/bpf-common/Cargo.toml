@@ -13,6 +13,7 @@ sqlite3-vendored = ["libsqlite3-sys/bundled"]
 
 [dependencies]
 aya = { workspace = true, features = ["async_tokio"] }
+aya-ebpf-bindings = { workspace = true }
 aya-obj = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }

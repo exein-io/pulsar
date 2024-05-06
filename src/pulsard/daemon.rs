@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{bail, Result};
 use bpf_common::{
-    feature_autodetect::lsm::lsm_supported,
+    // feature_autodetect::lsm::lsm_supported,
     program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT},
 };
 
@@ -67,21 +67,7 @@ impl PulsarDaemon {
         } else {
             BpfLogLevel::Disabled
         };
-        let lsm_supported = match general_config
-            .with_default("lsm_support", "autodetect".to_string())?
-            .as_str()
-        {
-            "true" => true,
-            "false" => false,
-            "autodetect" => tokio::task::spawn_blocking(lsm_supported)
-                .await
-                .unwrap(),
-            x => anyhow::bail!(
-                "'lsm_support' has invalid value {x:?}. The valid values are 'true', 'false' and 'autodetect'"
-            ),
-        };
-        let bpf_context =
-            BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level, lsm_supported)?;
+        let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
         #[cfg(debug_assertions)]
         let trace_pipe_handle = bpf_common::trace_pipe::start().await;
 
