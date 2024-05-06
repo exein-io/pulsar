@@ -4,16 +4,14 @@
 //!
 use core::fmt;
 use std::{
-    cmp,
     collections::HashSet,
     convert::TryFrom,
-    ffi::{c_char, c_uint, CString},
+    ffi::c_uint,
     fmt::Display,
     fs::File,
     io,
     mem::{self, size_of},
     path::PathBuf,
-    slice,
     sync::Arc,
     time::Duration,
 };
@@ -137,18 +135,18 @@ impl BpfContext {
     }
 
     /// Creates a BPF program bytecode with a simple function call (with
-    /// `BPF_EMIT_CALL` instruction).
-    fn bpf_prog_func_id(&self, func_id: u32) -> [u8; 16] {
+    /// `BPF_EMIT_CALL` instruction) to the function with the given ID.
+    fn bpf_prog_func_id(&self, func_id: u32) -> [u8; 24] {
         let func_id_bytes = func_id.to_ne_bytes();
-        println!("func_id_bytes: {func_id_bytes:?}");
         let mut prog = [
             // BPF_EMIT_CALL
             0x85, 0x00, 0x00, 0x00, // Placeholder for the function ID.
-            0x00, 0x00, 0x00, 0x00, // BPF_EXIT_INSN()
+            0x00, 0x00, 0x00, 0x00, // BPF_MOV64_IMM(BPF_REG_0, 0)
+            0xb7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BPF_EXIT_INSN()
             0x95, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
+        // Insert provided `func_id` to the bytecode.
         prog[4..8].copy_from_slice(func_id_bytes.as_slice());
-        println!("prog: {prog:?}");
         prog
     }
 
@@ -159,18 +157,9 @@ impl BpfContext {
     /// Similar checks are performed by [`bpftool`].
     ///
     /// [`bpftool`]: https://github.com/torvalds/linux/blob/v6.8/tools/bpf/bpftool/feature.c#L534-L544
-    pub fn func_id_supported(&self, func_id: c_uint) -> bool {
+    pub fn func_id_supported(&self, func_id: c_uint, prog_type: bpf_prog_type) -> bool {
         let mut attr = unsafe { mem::zeroed::<bpf_attr>() };
         let u = unsafe { &mut attr.__bindgen_anon_3 };
-
-        let mut name: [c_char; 16] = [0; 16];
-        let cstring = CString::new("pulsar_name_check").unwrap();
-        let name_bytes = cstring.to_bytes();
-        let len = cmp::min(name.len(), name_bytes.len());
-        name[..len].copy_from_slice(unsafe {
-            slice::from_raw_parts(name_bytes.as_ptr() as *const c_char, len)
-        });
-        u.prog_name = name;
 
         let prog = self.bpf_prog_func_id(func_id);
 
@@ -180,13 +169,7 @@ impl BpfContext {
         let insns = copy_instructions(prog.as_slice()).unwrap();
         u.insn_cnt = insns.len() as u32;
         u.insns = insns.as_ptr() as u64;
-        // NOTE(vadorovsky): For the current checks, program type doesn't
-        // matter - kprobes generally support all the functions we want.
-        // We might want to generalize it in the future
-        // u.prog_type = prog_type as u32;
-        u.prog_type = bpf_prog_type::BPF_PROG_TYPE_KPROBE as u32;
-
-        u.kern_version = aya::util::KernelVersion::current().unwrap().code();
+        u.prog_type = prog_type as u32;
 
         let ret = unsafe {
             libc::syscall(
@@ -196,20 +179,7 @@ impl BpfContext {
                 mem::size_of::<bpf_attr>(),
             )
         };
-        if ret < 0 {
-            let error = nix::errno::errno();
-            println!("Error {}", error);
-            let error_str = unsafe {
-                std::ffi::CStr::from_ptr(libc::strerror(error))
-                    .to_string_lossy()
-                    .into_owned()
-            };
-            println!("Error: {}", error_str);
-            println!("Error: {}", io::Error::last_os_error());
-        }
-        println!("syscall ret: {ret}");
-        // let logs = String::from_utf8_lossy(&log_buf);
-        // println!("{logs}");
+
         ret >= 0
     }
 }
