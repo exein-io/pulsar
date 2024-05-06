@@ -484,7 +484,7 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
 __always_inline int process_skb(struct __sk_buff *skb,
                                 struct task_struct *task,
                                 __u8 direction) {
-  pid_t tgid = task->tgid;
+  pid_t tgid = BPF_CORE_READ(task, tgid);
 
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
                               true))
