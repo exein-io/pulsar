@@ -47,7 +47,8 @@ fn download_tarball<P>(url: &str, tarball_path: P) -> Result<()>
 where
     P: AsRef<Path> + std::fmt::Debug,
 {
-    let mut response = reqwest::blocking::get(url)?;
+    let response = reqwest::blocking::get(url)?;
+    let mut response = response.error_for_status()?;
     let content_length = response
         .content_length()
         .ok_or(anyhow::anyhow!("Failed to get content length of {url}"))?;
@@ -202,7 +203,9 @@ pub(crate) fn run(options: Options) -> Result<()> {
         ..
     } = &options;
     let mut args = Vec::new();
-    if *release { args.push("--release") }
+    if *release {
+        args.push("--release")
+    }
     for feature in features {
         args.push("--features");
         args.push(feature);
