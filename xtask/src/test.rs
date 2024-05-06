@@ -31,16 +31,16 @@ pub(crate) struct Options {
     release: bool,
 
     /// Space or comma separated list of features to activate.
-    #[clap(short, long)]
+    #[clap(short, long, value_delimiter = ',')]
     features: Vec<String>,
 
     /// Use architest/QEMU even for a native target.
     #[clap(long)]
     force_architest: bool,
 
-    /// Kernel version to use in architest/QEMU.
-    #[clap(long, default_value = "6.6")]
-    kernel_version: String,
+    /// Space or comma separated list of kernel versions to use in architest/QEMU.
+    #[clap(long, default_value = "6.6", value_delimiter = ',')]
+    kernel_versions: Vec<String>,
 }
 
 fn download_tarball<P>(url: &str, tarball_path: P) -> Result<()>
@@ -104,84 +104,86 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
     let Options {
         target,
         preserve_tempdir,
-        kernel_version,
+        kernel_versions,
         ..
     } = options;
 
     let tempdir = TempDir::new("pulsar-architest", preserve_tempdir)?;
     sh.change_dir(&tempdir);
 
-    let (architest_tarball, qemu_cmd, qemu_args) = match target.as_str() {
-        "aarch64-unknown-linux-musl" => (
-            format!("aarch64_{kernel_version}.tar.gz"),
-            "qemu-system-aarch64",
-            vec![
-                "-M",
-                "virt",
-                "-cpu",
-                "cortex-a53",
-                "-smp",
-                "1",
-                "-kernel",
-                "Image",
-                "-append",
-                "rootwait root=/dev/vda console=ttyAMA0",
-                "-drive",
-                "file=rootfs.ext2,if=none,format=raw,id=hd0",
-                "-device",
-                "virtio-blk-device,drive=hd0",
-                "-m",
-                "1024M",
-                "-nographic",
-                "-nic",
-                "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:3366-10.0.2.14:22",
-            ],
-        ),
-        "x86_64-unknown-linux-musl" => (
-            format!("x86_64_{kernel_version}.tar.gz"),
-            "qemu-system-x86_64",
-            vec![
-                "-M",
-                "pc",
-                "-kernel",
-                "bzImage",
-                "-drive",
-                "file=rootfs.ext2,if=virtio,format=raw",
-                "-append",
-                "rootwait root=/dev/vda console=tty1 console=ttyS0",
-                "-m",
-                "1024M",
-                "-nographic",
-                "-nic",
-                "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:3366-10.0.2.14:22",
-            ],
-        ),
-        _ => return Err(anyhow::anyhow!("Unsupported target: {target}")),
-    };
+    for kernel_version in kernel_versions {
+        let (architest_tarball, qemu_cmd, qemu_args) = match target.as_str() {
+            "aarch64-unknown-linux-musl" => (
+                format!("aarch64_{kernel_version}.tar.gz"),
+                "qemu-system-aarch64",
+                vec![
+                    "-M",
+                    "virt",
+                    "-cpu",
+                    "cortex-a53",
+                    "-smp",
+                    "1",
+                    "-kernel",
+                    "Image",
+                    "-append",
+                    "rootwait root=/dev/vda console=ttyAMA0",
+                    "-drive",
+                    "file=rootfs.ext2,if=none,format=raw,id=hd0",
+                    "-device",
+                    "virtio-blk-device,drive=hd0",
+                    "-m",
+                    "1024M",
+                    "-nographic",
+                    "-nic",
+                    "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:3366-10.0.2.14:22",
+                ],
+            ),
+            "x86_64-unknown-linux-musl" => (
+                format!("x86_64_{kernel_version}.tar.gz"),
+                "qemu-system-x86_64",
+                vec![
+                    "-M",
+                    "pc",
+                    "-kernel",
+                    "bzImage",
+                    "-drive",
+                    "file=rootfs.ext2,if=virtio,format=raw",
+                    "-append",
+                    "rootwait root=/dev/vda console=tty1 console=ttyS0",
+                    "-m",
+                    "1024M",
+                    "-nographic",
+                    "-nic",
+                    "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:3366-10.0.2.14:22",
+                ],
+            ),
+            _ => return Err(anyhow::anyhow!("Unsupported target: {target}")),
+        };
 
-    download_and_unpack_architest(&tempdir, &architest_tarball)?;
+        download_and_unpack_architest(&tempdir, &architest_tarball)?;
 
-    cmd!(sh, "truncate -s +200M rootfs.ext2").run()?;
-    let loop_dev = cmd!(sh, "sudo losetup -fP --show rootfs.ext2").output()?;
-    let loop_dev = String::from_utf8(loop_dev.stdout)?;
-    let loop_dev = loop_dev.trim_end();
-    cmd!(sh, "sudo resize2fs {loop_dev}").run()?;
-    cmd!(sh, "sudo losetup -d {loop_dev}").run()?;
+        cmd!(sh, "truncate -s +200M rootfs.ext2").run()?;
+        let loop_dev = cmd!(sh, "sudo losetup -fP --show rootfs.ext2").output()?;
+        let loop_dev = String::from_utf8(loop_dev.stdout)?;
+        let loop_dev = loop_dev.trim_end();
+        cmd!(sh, "sudo resize2fs {loop_dev}").run()?;
+        cmd!(sh, "sudo losetup -d {loop_dev}").run()?;
 
-    // Run qemu
-    let mut qemu_process = std::process::Command::new(qemu_cmd)
-        .args(qemu_args)
-        .current_dir(&tempdir)
-        .spawn()
-        .context("Failed to run QEMU")?;
-    // Give QEMU some time to start
-    std::thread::sleep(std::time::Duration::from_secs(12));
+        // Run qemu
+        let mut qemu_process = std::process::Command::new(qemu_cmd)
+            .args(qemu_args)
+            .current_dir(&tempdir)
+            .spawn()
+            .context("Failed to run QEMU")?;
+        // Give QEMU some time to start
+        std::thread::sleep(std::time::Duration::from_secs(12));
 
-    cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
-    cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite").run()?;
+        cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
+        cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite").run()?;
 
-    qemu_process.kill()?;
-    qemu_process.wait()?;
+        qemu_process.kill()?;
+        qemu_process.wait()?;
+    }
 
     Ok(())
 }

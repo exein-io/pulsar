@@ -1,0 +1,44 @@
+jobs:
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - debug
+          - release
+
+        # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
+        platform:
+          - target: x86_64-unknown-linux-musl
+            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+
+          - target: aarch64-unknown-linux-musl
+            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        if: endsWith(matrix.platform.target, 'musl')
+        run: |
+          sudo apt install -y qemu-system
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.platform.target }}
+
+      - name: Install cross
+        uses: ./.github/actions/install-cross
+
+      - name: Integration tests
+        if: endsWith(matrix.platform.target, 'musl')
+        run: |
+            cargo xtask test \
+                --force-architest \
+                --target=${{ matrix.platform.target }} \
+                --kernel-version=${{ matrix.kernel-version }} \
+                --features all-vendored --features tls-rustls
