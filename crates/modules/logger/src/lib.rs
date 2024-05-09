@@ -18,6 +18,7 @@ use thiserror::Error;
 
 const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
 const MODULE_NAME: &str = "logger";
+const PRIORITY: u8 = 25; // facility * 8 + severity. facility: daemon (3); severity: alert (1)
 
 pub fn module() -> PulsarModule {
     PulsarModule::new(
@@ -190,8 +191,8 @@ impl Logger {
 
             if let Some(ref mut syslog) = &mut self.syslog {
                 let out = match self.output_format {
-                    OutputFormat::Plaintext => Cow::Owned(format!("{event}")),
-                    OutputFormat::Json => Cow::Borrowed(json_event()?),
+                    OutputFormat::Plaintext => format!("<{PRIORITY}>{event}"),
+                    OutputFormat::Json => format!("<{PRIORITY}>{}", json_event()?),
                 };
                 syslog.send(out.as_bytes())?;
             }
