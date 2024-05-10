@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use engine::PulsarEngine;
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
-    Version,
+    CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleDetails, ModuleError, ModuleName,
+    PulsarModule, ShutdownSignal, Version,
 };
 
 mod dsl;
@@ -15,13 +15,29 @@ pub use engine::RuleEngineData;
 const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 const MODULE_NAME: &str = "rules-engine";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        true,
-        rules_engine_task,
-    )
+pub struct RuleEngineModule;
+
+impl PulsarModule for RuleEngineModule {
+    const DEFAULT_ENABLED: bool = true;
+
+    fn name(&self) -> ModuleName {
+        MODULE_NAME.into()
+    }
+
+    fn details(&self) -> ModuleDetails {
+        ModuleDetails {
+            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            enabled_by_default: Self::DEFAULT_ENABLED,
+        }
+    }
+
+    fn start(
+        &self,
+        ctx: ModuleContext,
+        shutdown: ShutdownSignal,
+    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
+        rules_engine_task(ctx, shutdown)
+    }
 }
 
 async fn rules_engine_task(

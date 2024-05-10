@@ -1,6 +1,6 @@
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-    ShutdownSignal, Version,
+    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleDetails, ModuleError,
+    ModuleName, PulsarModule, ShutdownSignal, Version,
 };
 use std::{
     borrow::Cow,
@@ -20,13 +20,29 @@ const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log
 const MODULE_NAME: &str = "logger";
 const PRIORITY: u8 = 25; // facility * 8 + severity. facility: daemon (3); severity: alert (1)
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        true,
-        logger_task,
-    )
+pub struct LoggerModule;
+
+impl PulsarModule for LoggerModule {
+    const DEFAULT_ENABLED: bool = true;
+
+    fn name(&self) -> ModuleName {
+        MODULE_NAME.into()
+    }
+
+    fn details(&self) -> ModuleDetails {
+        ModuleDetails {
+            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            enabled_by_default: Self::DEFAULT_ENABLED,
+        }
+    }
+
+    fn start(
+        &self,
+        ctx: ModuleContext,
+        shutdown: ShutdownSignal,
+    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
+        logger_task(ctx, shutdown)
+    }
 }
 
 async fn logger_task(

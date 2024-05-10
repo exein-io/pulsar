@@ -2,19 +2,35 @@
 use std::{collections::HashMap, sync::Arc};
 
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, PulsarModule,
-    ShutdownSignal, Version,
+    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleDetails, ModuleError,
+    ModuleName, Payload, PulsarModule, ShutdownSignal, Version,
 };
 
 const MODULE_NAME: &str = "my-custom-module";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        true,
-        module_task,
-    )
+pub struct MyCustomModule;
+
+impl PulsarModule for MyCustomModule {
+    const DEFAULT_ENABLED: bool = true;
+
+    fn name(&self) -> ModuleName {
+        MODULE_NAME.into()
+    }
+
+    fn details(&self) -> ModuleDetails {
+        ModuleDetails {
+            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            enabled_by_default: Self::DEFAULT_ENABLED,
+        }
+    }
+
+    fn start(
+        &self,
+        ctx: ModuleContext,
+        shutdown: ShutdownSignal,
+    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
+        module_task(ctx, shutdown)
+    }
 }
 
 async fn module_task(
