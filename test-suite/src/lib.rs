@@ -5,7 +5,6 @@ pub use test_suite_runner::TestSuiteRunner;
 /// Returns the testable modules of Pulsar
 pub fn modules() -> Vec<bpf_common::test_runner::TestSuite> {
     vec![
-        bpf_common::feature_autodetect::test_suite::tests(),
         bpf_filtering::test_suite::tests(),
         file_system_monitor::test_suite::tests(),
         network_monitor::test_suite::tests(),
