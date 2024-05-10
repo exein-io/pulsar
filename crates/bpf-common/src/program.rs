@@ -261,7 +261,7 @@ macro_rules! ebpf_program {
                     fn_pointers: false,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".none.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".l.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -270,7 +270,7 @@ macro_rules! ebpf_program {
                     fn_pointers: false,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".a.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".al.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -279,7 +279,7 @@ macro_rules! ebpf_program {
                     fn_pointers: false,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".ac.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".acl.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -288,7 +288,7 @@ macro_rules! ebpf_program {
                     fn_pointers: true,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".acf.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".acfl.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -297,7 +297,7 @@ macro_rules! ebpf_program {
                     fn_pointers: true,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".af.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".afl.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -306,7 +306,7 @@ macro_rules! ebpf_program {
                     fn_pointers: false,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".c.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".cl.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -315,7 +315,7 @@ macro_rules! ebpf_program {
                     fn_pointers: true,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".cf.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".cfl.bpf.o")).into(),
             ),
             (
                 BpfFeatures {
@@ -324,7 +324,7 @@ macro_rules! ebpf_program {
                     fn_pointers: true,
                     lsm: true,
                 },
-                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".f.bpf.o")).into(),
+                include_bytes_aligned!(concat!(env!("OUT_DIR"), "/", $probe, ".fl.bpf.o")).into(),
             ),
         ]);
 

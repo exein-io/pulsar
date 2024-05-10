@@ -68,6 +68,7 @@ const volatile int LINUX_KERNEL_VERSION;
 #define UNTYPED_ARGS(args...)                                                  \
   ___bpf_apply(UNTYPED_ARGS_, ___bpf_narg(args))(args)
 
+#ifdef FEATURE_LSM
 #define PULSAR_LSM_HOOK(hook_point, args...)                                   \
   static __always_inline void on_##hook_point(void *ctx, TYPED_ARGS(args));    \
                                                                                \
@@ -75,10 +76,14 @@ const volatile int LINUX_KERNEL_VERSION;
   int BPF_PROG(hook_point, TYPED_ARGS(args), int ret) {                        \
     on_##hook_point(ctx, UNTYPED_ARGS(args));                                  \
     return ret;                                                                \
-  }                                                                            \
+  }
+#else
+#define PULSAR_LSM_HOOK(hook_point, args...)                                   \
+  static __always_inline void on_##hook_point(void *ctx, TYPED_ARGS(args));    \
                                                                                \
   SEC("kprobe/security_" #hook_point)                                          \
   int BPF_KPROBE(security_##hook_point, TYPED_ARGS(args)) {                    \
     on_##hook_point(ctx, UNTYPED_ARGS(args));                                  \
     return 0;                                                                  \
   }
+#endif
