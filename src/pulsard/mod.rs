@@ -2,7 +2,7 @@ use anyhow::{ensure, Result};
 use bpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
 use nix::unistd::geteuid;
-use pulsar_core::{bus::Bus, pdk::TaskLauncher};
+use pulsar_core::bus::Bus;
 use tokio::signal::unix::{signal, SignalKind};
 
 use crate::cli::pulsard::PulsarDaemonOpts;
@@ -11,10 +11,8 @@ mod config;
 mod daemon;
 mod module_manager;
 
-use daemon::start_daemon;
-
 pub use config::PulsarConfig;
-pub use daemon::PulsarDaemon;
+pub use daemon::PulsarDaemonStarter;
 pub use module_manager::{ModuleManager, ModuleManagerHandle};
 
 /// General configuration section for settings shared by all modules.
@@ -22,7 +20,7 @@ const GENERAL_CONFIG: &str = "pulsar";
 
 pub async fn pulsar_daemon_run(
     options: &PulsarDaemonOpts,
-    modules: Vec<Box<dyn TaskLauncher>>,
+    customize_starter: impl FnOnce(&mut PulsarDaemonStarter) -> Result<()>,
 ) -> Result<()> {
     log::trace!("Pulsar Daemon Options: {:?}", options);
 
@@ -41,7 +39,26 @@ pub async fn pulsar_daemon_run(
     // Initialize bus
     let bus = Bus::new();
 
-    let pulsar_daemon = start_daemon(bus.clone(), modules, config.clone()).await?;
+    let mut starter = PulsarDaemonStarter::new(bus.clone(), config.clone()).await?;
+
+    #[cfg(feature = "process-monitor")]
+    starter.add_module(process_monitor::pulsar::ProcessMonitorModule)?;
+    #[cfg(feature = "file-system-monitor")]
+    starter.add_module(file_system_monitor::pulsar::FileSystemMonitorModule)?;
+    #[cfg(feature = "network-monitor")]
+    starter.add_module(network_monitor::pulsar::NetworkMonitorModule)?;
+    #[cfg(feature = "logger")]
+    starter.add_module(logger::LoggerModule)?;
+    #[cfg(feature = "rules-engine")]
+    starter.add_module(rules_engine::RuleEngineModule)?;
+    #[cfg(feature = "desktop-notifier")]
+    starter.add_module(desktop_notifier::DesktopNotifierModule)?;
+    #[cfg(feature = "smtp-notifier")]
+    starter.add_module(smtp_notifier::SmtpNotifierModule)?;
+
+    customize_starter(&mut starter)?;
+
+    let pulsar_daemon = starter.start_daemon().await?;
 
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();

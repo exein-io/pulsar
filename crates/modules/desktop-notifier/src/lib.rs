@@ -8,23 +8,39 @@ use anyhow::{Context, Result};
 use pulsar_core::{
     event::Threat,
     pdk::{
-        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-        ShutdownSignal, Version,
+        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleDetails, ModuleError,
+        ModuleName, PulsarModule, ShutdownSignal, Version,
     },
 };
 
 const MODULE_NAME: &str = "desktop-notifier";
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        false,
-        desktop_nitifier_task,
-    )
+pub struct DesktopNotifierModule;
+
+impl PulsarModule for DesktopNotifierModule {
+    const DEFAULT_ENABLED: bool = false;
+
+    fn name(&self) -> ModuleName {
+        MODULE_NAME.into()
+    }
+
+    fn details(&self) -> ModuleDetails {
+        ModuleDetails {
+            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+            enabled_by_default: Self::DEFAULT_ENABLED,
+        }
+    }
+
+    fn start(
+        &self,
+        ctx: ModuleContext,
+        shutdown: ShutdownSignal,
+    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
+        desktop_notifier_task(ctx, shutdown)
+    }
 }
 
-async fn desktop_nitifier_task(
+async fn desktop_notifier_task(
     ctx: ModuleContext,
     mut shutdown: ShutdownSignal,
 ) -> Result<CleanExit, ModuleError> {
