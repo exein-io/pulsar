@@ -83,19 +83,36 @@ pub mod pulsar {
     use pulsar_core::{
         event::FileFlags,
         pdk::{
-            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError,
-            ModuleSender, Payload, PulsarModule, ShutdownSignal, Version,
+            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleDetails,
+            ModuleError, ModuleName, ModuleSender, Payload, PulsarModule, ShutdownSignal, Version,
         },
     };
     use tokio::{fs::File, io::AsyncReadExt};
 
-    pub fn module() -> PulsarModule {
-        PulsarModule::new(
-            MODULE_NAME,
-            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            true,
-            fs_monitor_task,
-        )
+    pub struct FileSystemMonitorModule;
+
+    impl PulsarModule for FileSystemMonitorModule {
+        const DEFAULT_ENABLED: bool = true;
+
+        fn name(&self) -> ModuleName {
+            MODULE_NAME.into()
+        }
+
+        fn details(&self) -> ModuleDetails {
+            ModuleDetails {
+                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+                enabled_by_default: Self::DEFAULT_ENABLED,
+            }
+        }
+
+        fn start(
+            &self,
+            ctx: ModuleContext,
+            shutdown: ShutdownSignal,
+        ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static
+        {
+            fs_monitor_task(ctx, shutdown)
+        }
     }
 
     async fn fs_monitor_task(

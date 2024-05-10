@@ -23,42 +23,17 @@ pub type PulsarModuleTask = dyn Future<Output = Result<CleanExit, ModuleError>> 
 
 pub type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModuleTask> + Send;
 
-/// Main implementation of [`TaskLauncher`] for creating Pulsar pluggable modules.
-///
-/// Contains informations to identify a module and the receipe to start its task.
-pub struct PulsarModule {
-    pub name: ModuleName,
-    pub info: ModuleDetails,
-    pub task_start_fn: Box<ModuleStartFn>,
-}
+/// Trait to implement to create a pulsar pluggable module
+pub trait PulsarModule: Send {
+    const DEFAULT_ENABLED: bool;
 
-impl PulsarModule {
-    /// Constucts a new [`PulsarModule<B: Bus>`].
-    pub fn new<N, F, Fut>(
-        name: N,
-        version: Version,
-        enabled_by_default: bool,
-        task_start_fn: F,
-    ) -> Self
-    where
-        N: Into<ModuleName>,
-        F: Fn(ModuleContext, ShutdownSignal) -> Fut,
-        F: Send + Sync + 'static,
-        Fut: Future<Output = Result<CleanExit, ModuleError>>,
-        Fut: Send + 'static,
-    {
-        Self {
-            name: name.into(),
-            info: ModuleDetails {
-                version,
-                enabled_by_default,
-            },
-            task_start_fn: Box::new(move |ctx, shutdown| {
-                let module = task_start_fn(ctx, shutdown);
-                Box::new(module)
-            }),
-        }
-    }
+    fn name(&self) -> ModuleName;
+    fn details(&self) -> ModuleDetails;
+    fn start(
+        &self,
+        ctx: ModuleContext,
+        shutdown: ShutdownSignal,
+    ) -> impl Future<Output = Result<CleanExit, ModuleError>> + Send + 'static;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Hash)]
@@ -117,42 +92,12 @@ impl Validatron for ModuleName {
     }
 }
 
-impl TaskLauncher for PulsarModule {
-    fn run(&self, ctx: ModuleContext, shutdown: ShutdownSignal) -> Box<PulsarModuleTask> {
-        (self.task_start_fn)(ctx, shutdown)
-    }
-
-    fn name(&self) -> &ModuleName {
-        &self.name
-    }
-
-    fn details(&self) -> &ModuleDetails {
-        &self.info
-    }
-}
-
 /// Contains module informations
 #[derive(Debug, Clone)]
 pub struct ModuleDetails {
     pub version: Version,
     pub enabled_by_default: bool,
     // pub author: String,
-}
-
-/// [`TaskLauncher`] is used as an internal trait to represent Pulsar modules.
-///
-/// Check instead [`PulsarModule`] for a module implementation.
-///
-/// The [`TaskLauncher::run`] method starts the module task and returns an pointer to a dynamic [`PulsarModuleTask`] trait object.
-pub trait TaskLauncher: Send {
-    /// Starts an asyncronous task in background a return a pointer to [`PulsarModuleTask`] to use it as an handle to stop the running task.
-    fn run(&self, ctx: ModuleContext, shutdown: ShutdownSignal) -> Box<PulsarModuleTask>;
-
-    /// Get the module name.
-    fn name(&self) -> &ModuleName;
-
-    // Get the module details.
-    fn details(&self) -> &ModuleDetails;
 }
 
 /// Used to send events out from a module.

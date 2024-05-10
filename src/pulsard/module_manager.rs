@@ -5,7 +5,7 @@ use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
     ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus, PulsarDaemonHandle,
-    PulsarModuleTask, ShutdownSender, ShutdownSignal, TaskLauncher,
+    PulsarModule, PulsarModuleTask, ShutdownSender, ShutdownSignal,
 };
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
@@ -28,25 +28,25 @@ enum ModuleManagerCommand {
 /// Module is stored as pointer to dynamic [`TaskLauncher`] trait object. This is the "receipe" to start the module every time is requested by upper layer.
 ///
 /// Once started, the running module will be managed through its [`PulsarModuleTask`] implementation.
-pub struct ModuleManager {
+pub struct ModuleManager<T: PulsarModule> {
     tx_sig: mpsc::Sender<ModuleSignal>,
     rx_sig: mpsc::Receiver<ModuleSignal>,
     rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     bus: Bus,
-    task_launcher: Box<dyn TaskLauncher>,
+    module: T,
     config: watch::Receiver<ModuleConfig>,
     status: ModuleStatus,
     running_task: Option<(ShutdownSender, JoinHandle<()>)>,
     bpf_context: BpfContext,
 }
 
-impl ModuleManager {
+impl<T: PulsarModule> ModuleManager<T> {
     /// Construct a new [`ModuleManager`].
     fn new(
         rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
-        task_launcher: Box<dyn TaskLauncher>,
+        module: T,
         bus: Bus,
         config: watch::Receiver<ModuleConfig>,
         daemon_handle: PulsarDaemonHandle,
@@ -58,7 +58,7 @@ impl ModuleManager {
             tx_sig,
             rx_sig,
             rx_cmd,
-            task_launcher,
+            module,
             bus,
             config,
             status: ModuleStatus::Created,
@@ -82,7 +82,7 @@ impl ModuleManager {
                 Ok(_) => {
                     log::error!(
                         "Error in module {}. Module stopped. {err:?}",
-                        self.task_launcher.name()
+                        self.module.name()
                     );
 
                     self.status = ModuleStatus::Failed(err.to_string());
@@ -90,7 +90,7 @@ impl ModuleManager {
                 Err(join_err) => {
                     let err_msg = format!(
                         "Error in module {}: {err}. Stopping module failed: {:?}",
-                        self.task_launcher.name(),
+                        self.module.name(),
                         join_err
                     );
 
@@ -102,7 +102,7 @@ impl ModuleManager {
         } else {
             let err_msg = format!(
                 "Error in module {err}. Stopping module {} failed: Module found in status: {:?}",
-                self.task_launcher.name(),
+                self.module.name(),
                 self.status
             );
 
@@ -125,7 +125,7 @@ impl ModuleManager {
                 let ctx = ModuleContext::new(
                     self.config.clone(),
                     self.bus.clone(),
-                    self.task_launcher.name().clone(),
+                    self.module.name().clone(),
                     self.tx_sig.clone(),
                     self.daemon_handle.clone(),
                     self.process_tracker.clone(),
@@ -134,7 +134,7 @@ impl ModuleManager {
                 let (tx_shutdown, rx_shutdown) = ShutdownSignal::new();
 
                 let module: Pin<Box<PulsarModuleTask>> =
-                    self.task_launcher.run(ctx, rx_shutdown).into();
+                    Box::pin(self.module.start(ctx, rx_shutdown));
                 let tx_sig = self.tx_sig.clone();
 
                 // Check error and forward to this module manager actor
@@ -162,17 +162,15 @@ impl ModuleManager {
                         let result = task.await;
                         match result {
                             Ok(()) => {
-                                log::info!("Module {} exited", self.task_launcher.name());
+                                log::info!("Module {} exited", self.module.name());
 
                                 self.status = ModuleStatus::Stopped;
 
                                 Ok(())
                             }
                             Err(err) => {
-                                let err_msg = format!(
-                                    "Module {} exit failure: {err}",
-                                    self.task_launcher.name()
-                                );
+                                let err_msg =
+                                    format!("Module {} exit failure: {err}", self.module.name());
 
                                 log::warn!("{err_msg}");
 
@@ -185,7 +183,7 @@ impl ModuleManager {
                     ModuleStatus::Failed(_) => {
                         let err_msg = format!(
                             "Stopping module {} failed: Module found in status: {:?}",
-                            self.task_launcher.name(),
+                            self.module.name(),
                             self.status
                         );
                         Err(err_msg)
@@ -215,7 +213,7 @@ impl ModuleManager {
     }
 }
 
-impl Drop for ModuleManager {
+impl<T: PulsarModule> Drop for ModuleManager<T> {
     /// Stop the task when dropped
     fn drop(&mut self) {
         if let ModuleStatus::Running(_) = self.status {
@@ -273,11 +271,11 @@ impl ModuleManagerHandle {
 /// Create and start a [`ModuleManager`] actor to manage the specific Pulsar module.
 ///
 /// Returns the [`ModuleManagerHandle`] that can be used to interact with the [`ModuleManager`] actor.
-pub fn create_module_manager(
+pub fn create_module_manager<T: PulsarModule + 'static>(
     bus: Bus,
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
-    task_launcher: Box<dyn TaskLauncher>,
+    module: T,
     config: watch::Receiver<ModuleConfig>,
     bpf_context: BpfContext,
 ) -> ModuleManagerHandle {
@@ -287,7 +285,7 @@ pub fn create_module_manager(
     // Create the actor
     let actor = ModuleManager::new(
         rx_cmd,
-        task_launcher,
+        module,
         bus,
         config,
         daemon_handle,
@@ -302,7 +300,7 @@ pub fn create_module_manager(
 }
 
 /// Run a [`ModuleManager`] actor.
-async fn run_module_manager_actor(mut actor: ModuleManager) {
+async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) {
     loop {
         tokio::select!(
             Some(sig) = actor.rx_sig.recv() => match sig {
