@@ -12,7 +12,7 @@ use aya_obj::generated::bpf_insn;
 
 pub fn bpf_atomic_op(size: u8, op: u32, dst_reg: u8, src_reg: u8, off: i16) -> bpf_insn {
     bpf_insn {
-        code: BPF_STX as u8 | bpf_size(size) as u8 | BPF_ATOMIC as u8,
+        code: BPF_STX as u8 | bpf_size(size) | BPF_ATOMIC as u8,
         _bitfield_align_1: [],
         _bitfield_1: bpf_insn::new_bitfield_1(dst_reg, src_reg),
         off,
