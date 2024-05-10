@@ -2,13 +2,9 @@
 
 use std::mem;
 
-use aya::{Btf, BtfError};
-use aya_ebpf_bindings::bindings::bpf_attach_type::BPF_LSM_MAC;
+use aya::BtfError;
 pub use aya_obj::generated::bpf_prog_type as BpfProgType;
-use aya_obj::{
-    btf::BtfKind,
-    generated::{bpf_attr, bpf_cmd, bpf_insn},
-};
+use aya_obj::generated::{bpf_attr, bpf_cmd, bpf_insn};
 use libc::SYS_bpf;
 use thiserror::Error;
 
@@ -42,16 +38,6 @@ pub(crate) fn load_program(
     u.insn_cnt = insns.len() as u32;
     u.insns = insns.as_ptr() as u64;
     u.prog_type = prog_type as u32;
-
-    if prog_type == BpfProgType::BPF_PROG_TYPE_LSM {
-        // LSM programs need to be attached to any LSM hook. For feature probes
-        // it doesn't matter which one. `task_alloc` is the most common one.
-        let btf = Btf::from_sys_fs()?;
-        let type_name = format!("bpf_lsm_task_alloc");
-        u.attach_btf_id = btf.id_by_type_name_kind(type_name.as_str(), BtfKind::Func)?;
-
-        u.expected_attach_type = BPF_LSM_MAC;
-    }
 
     let mut log = vec![0u8; LOG_SIZE];
     u.log_level = 1;
