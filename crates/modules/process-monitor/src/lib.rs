@@ -145,18 +145,35 @@ pub mod pulsar {
     use super::*;
     use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
-        Payload, PulsarModule, ShutdownSignal, Version,
+        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleDetails,
+        ModuleError, ModuleName, Payload, PulsarModule, ShutdownSignal, Version,
     };
     use tokio::sync::mpsc;
 
-    pub fn module() -> PulsarModule {
-        PulsarModule::new(
-            MODULE_NAME,
-            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            true,
-            process_monitor_task,
-        )
+    pub struct ProcessMonitorModule;
+
+    impl PulsarModule for ProcessMonitorModule {
+        const DEFAULT_ENABLED: bool = true;
+
+        fn name(&self) -> ModuleName {
+            MODULE_NAME.into()
+        }
+
+        fn details(&self) -> ModuleDetails {
+            ModuleDetails {
+                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
+                enabled_by_default: Self::DEFAULT_ENABLED,
+            }
+        }
+
+        fn start(
+            &self,
+            ctx: ModuleContext,
+            shutdown: ShutdownSignal,
+        ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static
+        {
+            process_monitor_task(ctx, shutdown)
+        }
     }
 
     async fn process_monitor_task(
