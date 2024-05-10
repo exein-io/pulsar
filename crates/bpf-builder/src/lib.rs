@@ -28,6 +28,7 @@ pub fn build(name: &str, source: &str) -> Result<(), Box<dyn std::error::Error>>
         ("FEATURE_ATOMICS", "a"),
         ("FEATURE_CGROUP_TASK_BTF", "c"),
         ("FEATURE_FN_POINTERS", "f"),
+        ("FEATURE_LSM", "l"),
     ];
 
     let out_dir = env::var("OUT_DIR").context("OUT_DIR not set")?;
