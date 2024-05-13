@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{bail, Context};
+use bpf_features::BpfFeatures;
 
 static CLANG_DEFAULT: &str = "clang";
 static LLVM_STRIP: &str = "llvm-strip";
@@ -24,35 +25,14 @@ pub fn build(name: &str, source: &str) -> Result<(), Box<dyn std::error::Error>>
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/get_path.bpf.h");
     println!("cargo:rerun-if-changed={INCLUDE_PATH}/task.bpf.h");
 
-    let features = [
-        ("FEATURE_ATOMICS", "a"),
-        ("FEATURE_CGROUP_TASK_BTF", "c"),
-        ("FEATURE_FN_POINTERS", "f"),
-        ("FEATURE_LSM", "l"),
-    ];
-
     let out_dir = env::var("OUT_DIR").context("OUT_DIR not set")?;
     let out_path = Path::new(&out_dir).join(name);
 
-    for bits in 0..(1 << features.len()) {
-        let mut feature_args = Vec::new();
-        let mut suffix = String::new();
-
-        for (i, (feature, code)) in features.iter().enumerate() {
-            if bits & (1 << i) != 0 {
-                feature_args.push(format!("-D{}", feature));
-                suffix.push_str(code);
-            }
-        }
-
-        if suffix.is_empty() {
-            suffix.push_str("none");
-        }
-
-        let filename = format!("{}.{}.bpf.o", name, suffix);
+    for (_, (bpf_objfile_suffix, build_args)) in BpfFeatures::all_combinations() {
+        let filename = format!("{name}.{bpf_objfile_suffix}");
         let full_path = out_path.with_file_name(filename);
-        compile(source, full_path, &feature_args)
-            .context("Error compiling programs with features: {feature_args:?}")?;
+        compile(source, full_path, &build_args)
+            .context("Error compiling programs with features: {build_args:?}")?;
     }
 
     Ok(())

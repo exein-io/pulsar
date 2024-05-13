@@ -1,8 +1,8 @@
 use anyhow::Context;
 use bpf_common::{
+    bpf_feature_autodetect::kernel_version::KernelVersion,
     containers::ContainerError,
     ebpf_program,
-    feature_autodetect::kernel_version::KernelVersion,
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
     BpfSender, Gid, Pid, Program, ProgramBuilder, ProgramError, Uid,

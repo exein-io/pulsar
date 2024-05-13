@@ -1,6 +1,5 @@
 mod bpf_sender;
 pub mod containers;
-pub mod insn;
 pub mod program;
 #[cfg(feature = "test-utils")]
 pub mod test_runner;
@@ -14,16 +13,16 @@ mod bump_memlock_rlimit;
 pub mod parsing;
 pub mod time;
 
+pub use bpf_feature_autodetect;
+pub use bpf_features::BpfFeatures;
+pub use bpf_features_macros::ebpf_programs_map;
 pub use bpf_sender::{BpfSender, BpfSenderWrapper};
 pub use bump_memlock_rlimit::bump_memlock_rlimit;
 pub use program::{Program, ProgramBuilder, ProgramError};
 
 pub use aya;
 
-pub use aya_obj::generated::bpf_prog_type as BpfProgType;
-
 pub mod bpf_fs;
-pub mod feature_autodetect;
 
 /// Utility function to pretty print an error with its sources.
 ///
