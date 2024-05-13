@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs, path::Path, str::FromStr, sync::Arc};
 use glob::glob;
 use pulsar_core::{
     event::PayloadDiscriminant,
-    pdk::{Event, ModuleSender},
+    pdk::{Event, ModuleContext},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -26,7 +26,7 @@ pub struct UserRule {
 /// Describes Pulsar Engine error.
 #[allow(clippy::enum_variant_names)]
 #[derive(Error, Debug)]
-pub enum PulsarEngineError {
+pub enum RuleEngineError {
     #[error("Error listing rules: {0}")]
     RuleListing(#[from] glob::PatternError),
     #[error("Error reading rule: {name}")]
@@ -53,12 +53,12 @@ pub enum PulsarEngineError {
 }
 
 #[derive(Clone)]
-pub struct PulsarEngine {
-    internal: Arc<PulsarEngineInternal>,
+pub struct RuleEngine {
+    internal: Arc<RuleEngineInternal>,
 }
 
-impl PulsarEngine {
-    pub fn new(rules_path: &Path, sender: ModuleSender) -> Result<Self, PulsarEngineError> {
+impl RuleEngine {
+    pub fn new(rules_path: &Path, sender: ModuleContext) -> Result<Self, RuleEngineError> {
         let raw_rules = load_user_rules_from_dir(rules_path)?;
 
         let rules = parse_rules(raw_rules)?;
@@ -67,15 +67,15 @@ impl PulsarEngine {
 
         for (discriminant, rules) in rules {
             let ruleset = Ruleset::from_rules(rules)
-                .map_err(|error| PulsarEngineError::RuleCompile { error })?;
+                .map_err(|error| RuleEngineError::RuleCompile { error })?;
 
             if rulesets.insert(discriminant, ruleset).is_some() {
                 unreachable!("hashmap rules -> ruleset is a 1:1 map")
             };
         }
 
-        Ok(PulsarEngine {
-            internal: Arc::new(PulsarEngineInternal { rulesets, sender }),
+        Ok(RuleEngine {
+            internal: Arc::new(RuleEngineInternal { rulesets, sender }),
         })
     }
 
@@ -97,7 +97,7 @@ impl PulsarEngine {
     }
 }
 
-fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEngineError> {
+fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, RuleEngineError> {
     let mut rule_files = Vec::new();
 
     let expr = format!("{}/**/*.{}", rules_path.display(), RULE_EXTENSION);
@@ -111,26 +111,26 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, PulsarEn
         .into_iter()
         .map(|rule_file| {
             serde_yaml::from_str::<Vec<UserRule>>(&rule_file.body).map_err(|error| {
-                PulsarEngineError::RuleParsing {
+                RuleEngineError::RuleParsing {
                     filename: rule_file.path,
                     error,
                 }
             })
         })
-        .collect::<Result<Vec<Vec<UserRule>>, PulsarEngineError>>()?;
+        .collect::<Result<Vec<Vec<UserRule>>, RuleEngineError>>()?;
 
     Ok(rules.into_iter().flatten().collect())
 }
 
 fn parse_rules(
     user_rules: Vec<UserRule>,
-) -> Result<HashMap<PayloadDiscriminant, Vec<RuleWithMetadata>>, PulsarEngineError> {
+) -> Result<HashMap<PayloadDiscriminant, Vec<RuleWithMetadata>>, RuleEngineError> {
     let parser = dsl::dsl::ConditionParser::new();
 
     let rules = user_rules
         .into_iter()
         .map(|user_rule| parse_rule(&parser, user_rule))
-        .collect::<Result<Vec<(PayloadDiscriminant, RuleWithMetadata)>, PulsarEngineError>>()?;
+        .collect::<Result<Vec<(PayloadDiscriminant, RuleWithMetadata)>, RuleEngineError>>()?;
 
     let mut m = HashMap::new();
     for (k, v) in rules {
@@ -143,13 +143,13 @@ fn parse_rules(
 fn parse_rule(
     parser: &dsl::dsl::ConditionParser,
     user_rule: UserRule,
-) -> Result<(PayloadDiscriminant, RuleWithMetadata), PulsarEngineError> {
+) -> Result<(PayloadDiscriminant, RuleWithMetadata), RuleEngineError> {
     let payload_discriminant = PayloadDiscriminant::from_str(&user_rule.r#type)
-        .map_err(|_| PulsarEngineError::PayloadTypeNotFound(user_rule.r#type.clone()))?;
+        .map_err(|_| RuleEngineError::PayloadTypeNotFound(user_rule.r#type.clone()))?;
 
     let condition = parser
         .parse(&user_rule.r#type, &user_rule.condition)
-        .map_err(|err| PulsarEngineError::DslError(user_rule.condition.clone(), err.to_string()))?;
+        .map_err(|err| RuleEngineError::DslError(user_rule.condition.clone(), err.to_string()))?;
 
     Ok((
         payload_discriminant,
@@ -172,9 +172,9 @@ pub struct RuleEngineData {
     pub rule_name: String,
 }
 
-struct PulsarEngineInternal {
+struct RuleEngineInternal {
     rulesets: HashMap<PayloadDiscriminant, Ruleset<Event>>,
-    sender: ModuleSender,
+    sender: ModuleContext,
 }
 
 #[derive(Debug, Clone)]
@@ -184,9 +184,9 @@ struct RuleFile {
 }
 
 impl RuleFile {
-    pub fn from(path: &Path) -> Result<Self, PulsarEngineError> {
+    pub fn from(path: &Path) -> Result<Self, RuleEngineError> {
         log::debug!("loading rule {}", path.display());
-        let body = fs::read_to_string(path).map_err(|error| PulsarEngineError::RuleLoading {
+        let body = fs::read_to_string(path).map_err(|error| RuleEngineError::RuleLoading {
             name: path.display().to_string(),
             error,
         })?;

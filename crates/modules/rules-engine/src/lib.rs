@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use engine::PulsarEngine;
+use engine::RuleEngine;
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
 };
 
 mod dsl;
@@ -16,45 +16,48 @@ const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 pub struct RuleEngineModule;
 
 impl PulsarModule for RuleEngineModule {
+    type Config = Config;
+    type State = State;
+
     const MODULE_NAME: &'static str = "rules-engine";
     const DEFAULT_ENABLED: bool = true;
 
-    fn start(
+    async fn init_state(
         &self,
-        ctx: ModuleContext,
-        shutdown: ShutdownSignal,
-    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
-        rules_engine_task(ctx, shutdown)
+        config: &Self::Config,
+        ctx: &ModuleContext,
+    ) -> Result<Self::State, ModuleError> {
+        Ok(Self::State {
+            engine: RuleEngine::new(&config.rules_path, ctx.clone())?,
+        })
+    }
+
+    async fn on_config_change(
+        new_config: &Self::Config,
+        state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        state.engine = RuleEngine::new(&new_config.rules_path, ctx.clone())?;
+        Ok(())
+    }
+
+    async fn on_event(
+        event: &Event,
+        _config: &Self::Config,
+        state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        state.engine.process(event);
+        Ok(())
     }
 }
 
-async fn rules_engine_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let config: Config = rx_config.read()?;
-    let mut engine = PulsarEngine::new(&config.rules_path, ctx.get_sender())?;
-
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            _ = rx_config.changed() => {
-                let config: Config = rx_config.read()?;
-                engine = PulsarEngine::new(&config.rules_path, ctx.get_sender())?;
-            }
-            // handle pulsar message
-            event = receiver.recv() => {
-                let event = event?;
-                engine.process(&event)
-            },
-        }
-    }
+pub struct State {
+    engine: RuleEngine,
 }
 
 #[derive(Clone)]
-struct Config {
+pub struct Config {
     rules_path: PathBuf,
 }
 

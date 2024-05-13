@@ -1,13 +1,13 @@
-use std::pin::Pin;
+use std::sync::Arc;
 
 use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
-    ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus, PulsarDaemonHandle,
-    PulsarModule, PulsarModuleTask, ShutdownSender, ShutdownSignal,
+    CleanExit, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
+    PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
 };
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
@@ -122,24 +122,64 @@ impl<T: PulsarModule> ModuleManager<T> {
                     return;
                 }
 
-                let ctx = ModuleContext::new(
-                    self.config.clone(),
+                let module_config = match T::Config::try_from(&self.config.borrow()) {
+                    Ok(mc) => mc,
+                    Err(err) => {
+                        self.status = ModuleStatus::Failed(format!("Configuration error: {err}"));
+                        log::error!(
+                            "Starting module {} failed, error in configuration: {err}",
+                            T::MODULE_NAME
+                        );
+                        return;
+                    }
+                };
+
+                let (tx_stop_cfg_recv, rx_stop_cfg_recv) = mpsc::channel(1);
+                let (tx_stop_event_recv, rx_stop_event_recv) = mpsc::channel(1);
+
+                let mut ctx = ModuleContext::new(
                     self.bus.clone(),
                     T::MODULE_NAME.to_string().into(),
                     self.tx_sig.clone(),
                     self.daemon_handle.clone(),
                     self.process_tracker.clone(),
                     self.bpf_context.clone(),
+                    tx_stop_cfg_recv,
+                    tx_stop_event_recv,
                 );
+
+                let state = match self.module.init_state(&module_config, &ctx).await {
+                    Ok(s) => s,
+                    Err(err) => {
+                        self.status =
+                            ModuleStatus::Failed(format!("State initializing error: {err}"));
+                        log::error!(
+                            "Starting module {} failed, error initializing the state: {err}",
+                            T::MODULE_NAME
+                        );
+                        return;
+                    }
+                };
+
+                let rx_config = self.config.clone();
+                let rx_event = self.bus.get_receiver();
                 let (tx_shutdown, rx_shutdown) = ShutdownSignal::new();
 
-                let module: Pin<Box<PulsarModuleTask>> =
-                    Box::pin(self.module.start(ctx, rx_shutdown));
                 let tx_sig = self.tx_sig.clone();
 
                 // Check error and forward to this module manager actor
                 let join_handle = tokio::spawn(async move {
-                    if let Err(err) = module.await {
+                    let res = run_module_loop::<T>(
+                        module_config,
+                        state,
+                        rx_config,
+                        rx_event,
+                        rx_shutdown,
+                        rx_stop_cfg_recv,
+                        rx_stop_event_recv,
+                        &mut ctx,
+                    );
+                    if let Err(err) = res.await {
                         let _ = tx_sig.send(ModuleSignal::Error(err)).await;
                     }
                 });
@@ -312,5 +352,63 @@ async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) 
                 None => return
             }
         )
+    }
+}
+
+async fn run_module_loop<T: PulsarModule>(
+    mut config: T::Config,
+    mut state: T::State,
+    rx_config: watch::Receiver<ModuleConfig>,
+    rx_event: broadcast::Receiver<Arc<Event>>,
+    mut rx_shutdown: ShutdownSignal,
+    mut rx_stop_cfg_recv: mpsc::Receiver<()>,
+    mut rx_stop_event_recv: mpsc::Receiver<()>,
+    ctx: &mut ModuleContext,
+) -> Result<CleanExit, ModuleError> {
+    // Make Configuration and Event Receivers optional allowing to be dropped
+    // in case we receive the corresponding signals from the default implementation
+    // of the [`pulsar_core::pdk::PulsarModule`] trait
+    let mut rx_config = Some(rx_config);
+    let mut rx_event = Some(rx_event);
+
+    loop {
+        tokio::select! {
+            rx_config = async {
+                match &mut rx_config {
+                    Some(rx_config) => {
+                        let change = rx_config.changed().await;
+                        // This can't fail because the sender half of this channel is never dropped.
+                        // Its lifetime is bound to PulsarConfig in `pulsar::pulsard::pulsar_daemon_run`
+                        change.expect("Config sender dropped");
+                        rx_config
+                    },
+                    None => std::future::pending().await,
+                }
+            } => {
+                config = T::Config::try_from(&rx_config.borrow())?;
+                T::on_config_change(&config, &mut state, ctx).await?;
+            }
+            _ = rx_stop_cfg_recv.recv() => {
+                // Drop the Configuration Receiver and replace it with None
+                rx_config = None
+            }
+            event = async {
+                match &mut rx_event {
+                    Some(rx_event) => pulsar_core::pdk::receive_from_broadcast(rx_event, ctx.module_name()).await,
+                    None => std::future::pending().await,
+                }
+            } => {
+                let event = event.expect("no more events");
+                T::on_event(&event, &config,  &mut state, ctx).await?;
+            }
+            _ = rx_stop_event_recv.recv() => {
+                // Drop the Event Receiver and replace it with None
+                rx_event = None
+            }
+            r = rx_shutdown.recv() => {
+                T::graceful_stop(state).await?;
+                return r
+            },
+        }
     }
 }
