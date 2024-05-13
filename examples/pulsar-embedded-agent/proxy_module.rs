@@ -1,40 +1,40 @@
-use pulsar_core::pdk::{
-    CleanExit, Event, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
-};
-use std::sync::Arc;
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, NoConfig, PulsarModule};
 use tokio::sync::mpsc;
 
 pub struct ProxyModule {
-    pub tx_proxy: mpsc::Sender<Arc<Event>>,
+    pub tx_proxy: mpsc::Sender<Event>,
 }
 
 impl PulsarModule for ProxyModule {
+    type Config = NoConfig;
+    type State = ProxyModuleState;
+
     const MODULE_NAME: &'static str = "proxy-module";
     const DEFAULT_ENABLED: bool = true;
 
-    fn start(
+    fn init_state(
         &self,
-        ctx: ModuleContext,
-        shutdown: ShutdownSignal,
-    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
-        proxy_task(ctx, shutdown, self.tx_proxy.clone())
+        _config: &Self::Config,
+        _ctx: &ModuleContext,
+    ) -> impl futures_util::Future<Output = Result<Self::State, ModuleError>> + Send {
+        async {
+            Ok(Self::State {
+                tx_proxy: self.tx_proxy.clone(),
+            })
+        }
+    }
+
+    async fn on_event(
+        event: &Event,
+        _config: &Self::Config,
+        state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        state.tx_proxy.send(event.clone()).await?;
+        Ok(())
     }
 }
 
-async fn proxy_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-    proxy_tx: mpsc::Sender<Arc<Event>>,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            msg = receiver.recv() => {
-                 let event = msg?;
-                proxy_tx.send(event).await?;
-            }
-        }
-    }
+pub struct ProxyModuleState {
+    tx_proxy: mpsc::Sender<Event>,
 }
