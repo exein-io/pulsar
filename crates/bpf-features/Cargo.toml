@@ -1,0 +1,18 @@
+[package]
+name = "bpf-features"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+aya = { workspace = true, features = ["async_tokio"] }
+aya-ebpf-bindings = { workspace = true }
+aya-obj = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true, features = ["fs"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+thiserror = { workspace = true }

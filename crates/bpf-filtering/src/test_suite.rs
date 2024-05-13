@@ -1,7 +1,7 @@
 use crate::config::Rule;
 use crate::maps::{Cgroup, InterestMap, Map, PolicyDecision, RuleMap};
 use bpf_common::aya::programs::RawTracePoint;
-use bpf_common::aya::{self, include_bytes_aligned, Bpf, BpfLoader};
+use bpf_common::aya::{self, Bpf, BpfLoader};
 use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
 use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;

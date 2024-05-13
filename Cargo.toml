@@ -34,9 +34,12 @@ env_logger = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
+quote = "1.0"
+proc-macro2 = "1.0"
 rust-ini = { workspace = true }
 serde = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
+syn = { version = "1.0", features = ["full"] }
 tokio = { workspace = true, features = ["full"] }
 
 [features]
@@ -65,6 +68,9 @@ members = [
     "crates/engine-api",
     "crates/validatron",
     "crates/bpf-filtering",
+    "crates/bpf-features",
+    "crates/bpf-feature-autodetect",
+    "crates/bpf-features-macros",
     "xtask",
     "test-suite",
 ]
@@ -82,6 +88,9 @@ bpf-common = { path = "crates/bpf-common", features = [
     "test-utils",
     "test-suite",
 ] }
+bpf-features = { path = "crates/bpf-features" }
+bpf-feature-autodetect = { path = "crates/bpf-feature-autodetect" }
+bpf-features-macros = { path = "crates/bpf-features-macros" }
 bpf-filtering = { path = "crates/bpf-filtering", features = ["test-suite"] }
 engine-api = { path = "crates/engine-api" }
 pulsar-core = { path = "crates/pulsar-core" }

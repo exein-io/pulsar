@@ -3,15 +3,20 @@
 use std::mem;
 
 use aya::BtfError;
+use aya_ebpf_bindings::bindings::bpf_func_id;
 pub use aya_obj::generated::bpf_prog_type as BpfProgType;
 use aya_obj::generated::{bpf_attr, bpf_cmd, bpf_insn};
+use bpf_features::BpfFeatures;
 use libc::SYS_bpf;
 use thiserror::Error;
 
 pub mod atomic;
 pub mod func;
+pub mod insn;
 pub mod kernel_version;
 pub mod lsm;
+
+use crate::{atomic::atomics_supported, func::func_id_supported, lsm::lsm_supported};
 
 /// Size of the eBPF verifier log.
 const LOG_SIZE: usize = 4096;
@@ -22,6 +27,18 @@ pub enum FeatureProbeError {
     Load(String),
     #[error(transparent)]
     Btf(#[from] BtfError),
+}
+
+pub fn autodetect_features() -> BpfFeatures {
+    BpfFeatures {
+        atomics: atomics_supported(),
+        cgroup_skb_task_btf: func_id_supported(
+            bpf_func_id::BPF_FUNC_get_current_task_btf,
+            BpfProgType::BPF_PROG_TYPE_CGROUP_SKB,
+        ),
+        fn_pointers: true,
+        lsm: lsm_supported(),
+    }
 }
 
 /// Loads the given eBPF bytecode to the kernel.

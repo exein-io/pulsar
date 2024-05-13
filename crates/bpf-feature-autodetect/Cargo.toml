@@ -1,0 +1,20 @@
+[package]
+name = "bpf-feature-autodetect"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+aya = { workspace = true }
+aya-ebpf-bindings = { workspace = true }
+aya-obj = { workspace = true }
+bpf-features = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true }
+thiserror = { workspace = true }
+
+[build-dependencies]
+bpf-builder = { workspace = true }
