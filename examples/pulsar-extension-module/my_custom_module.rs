@@ -1,84 +1,80 @@
 //! A showcase of what a Pulsar modules can do
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, PulsarModule,
-    ShutdownSignal,
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, PulsarModule,
 };
 
 pub struct MyCustomModule;
 
 impl PulsarModule for MyCustomModule {
+    type Config = MyModuleConfig;
+    type State = MyState;
+
     const MODULE_NAME: &'static str = "my-custom-module";
     const DEFAULT_ENABLED: bool = true;
 
-    fn start(
+    fn init_state(
         &self,
-        ctx: ModuleContext,
-        shutdown: ShutdownSignal,
-    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
-        module_task(ctx, shutdown)
+        _config: &Self::Config,
+        _ctx: &ModuleContext,
+    ) -> impl futures_util::Future<Output = Result<Self::State, ModuleError>> + Send {
+        async { Ok(Self::State { dns_query_count: 0 }) }
+    }
+
+    // Handle configuration changes:
+    async fn on_config_change(
+        new_config: &Self::Config,
+        _state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        println!("Configuration changed: {new_config:?}");
+        Ok(())
+    }
+
+    async fn on_event(
+        event: &Event,
+        config: &Self::Config,
+        state: &mut Self::State,
+        // ModuleContext allows our module to access the agent features
+        ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        if config.print_events {
+            println!("{event:?}");
+        }
+
+        // Identify events as threats:
+        if let Some(forbidden_dns) = &config.forbidden_dns {
+            if let Payload::DnsQuery { questions } = event.payload() {
+                // Update the state
+                state.dns_query_count += 1;
+
+                if questions
+                    .iter()
+                    .any(|question| &question.name == forbidden_dns)
+                {
+                    let desc = "Forbidden DNS query".to_string();
+                    let mut extra = HashMap::new();
+                    extra.insert("anomaly_score".to_string(), "1.0".to_string());
+
+                    ctx.send_threat_derived(&event, desc, Some(extra.into()));
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
-async fn module_task(
-    // ModuleContext allows our module to access the agent features
-    ctx: ModuleContext,
-    // ShutdownSignal will be used by the agent to stop this module
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    // Get a receiver for all module events.
-    let mut receiver = ctx.get_receiver();
-
-    // Get the configuration of your own module
-    let mut rx_config = ctx.get_config();
-    let mut config: MyModuleConfig = rx_config.read()?;
-
-    // Get a channel for sending new events
-    let sender = ctx.get_sender();
-
-    loop {
-        tokio::select! {
-            // Handle configuration changes:
-            _ = rx_config.changed() => {
-                config = rx_config.read()?;
-                println!("Configuration changed: {config:?}");
-            }
-
-            // Receive events from other modules:
-            event = receiver.recv() => {
-                let event: Arc<Event> = event?;
-                if config.print_events {
-                    println!("{event:?}");
-                }
-                // Identify events as threats:
-                if let Some(forbidden_dns) = &config.forbidden_dns {
-                    if let Payload::DnsQuery { questions } = event.payload() {
-                        if questions.iter().any(|question| &question.name == forbidden_dns) {
-                            let desc = "Forbidden DNS query".to_string();
-                            let mut extra = HashMap::new();
-                            extra.insert("anomaly_score".to_string(), "1.0".to_string());
-
-                            sender.send_threat_derived(
-                                &event,
-                                desc,
-                                Some(extra.into())
-                            );
-                        }
-                    }
-                }
-            },
-
-            // Stop when receiving the shudown signal:
-            r = shutdown.recv() => return r,
-        }
-    }
+/// An example state. You can put a state for the module here,
+pub struct MyState {
+    dns_query_count: u64,
 }
 
 /// An exmaple configuration. You can put whatever you want here,
 /// as long as you implement `TryFrom<&ModuleConfig>`
 #[derive(Clone, Debug, Default)]
-struct MyModuleConfig {
+pub struct MyModuleConfig {
     /// Enable printing events to stdout
     print_events: bool,
     /// Generate a threat event when resolving this domain name

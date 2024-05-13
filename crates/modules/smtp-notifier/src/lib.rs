@@ -8,10 +8,7 @@ use lettre::{
 };
 use pulsar_core::{
     event::Threat,
-    pdk::{
-        CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-        ShutdownSignal,
-    },
+    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule},
 };
 
 mod template;
@@ -19,82 +16,95 @@ mod template;
 pub struct SmtpNotifierModule;
 
 impl PulsarModule for SmtpNotifierModule {
+    type Config = SmtpNotifierConfig;
+    type State = SmtpNotifierState;
+
     const MODULE_NAME: &'static str = "smtp-notifier";
     const DEFAULT_ENABLED: bool = false;
 
-    fn start(
+    async fn init_state(
         &self,
-        ctx: ModuleContext,
-        shutdown: ShutdownSignal,
-    ) -> impl std::future::Future<Output = Result<CleanExit, ModuleError>> + Send + 'static {
-        smtp_notifier_task(ctx, shutdown)
+        _config: &Self::Config,
+        _ctx: &ModuleContext,
+    ) -> Result<Self::State, ModuleError> {
+        Ok(Self::State {
+            template: template::Template::new()?,
+        })
+    }
+
+    async fn on_event(
+        event: &Event,
+        config: &Self::Config,
+        state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        handle_event(config, event, &state.template).await
     }
 }
 
-async fn smtp_notifier_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let mut config: SmtpNotifierConfig = rx_config.read()?;
+pub struct SmtpNotifierState {
+    template: template::Template,
+}
 
-    let template = template::Template::new()?;
+async fn handle_event(
+    config: &SmtpNotifierConfig,
+    event: &Event,
+    template: &template::Template,
+) -> Result<(), ModuleError> {
+    let header = event.header();
 
-    loop {
-        tokio::select! {
-            // Handle configuration changes:
-            _ = rx_config.changed() => {
-                config = rx_config.read()?;
-                continue;
-            }
-            r = shutdown.recv() => return r,
-            msg = receiver.recv() => {
-                let event = msg?;
-                let header = event.header();
+    // Check if the even is a threat and send a email if it is
+    if let Some(Threat {
+        source,
+        description,
+        extra: _,
+    }) = &header.threat
+    {
+        let payload = event.payload();
+        let subject = format!("Pulsar Threat Notification - {}", rand::random::<u64>());
+        let body = template
+            .render(
+                &header.timestamp,
+                source,
+                &header.image,
+                description,
+                payload,
+            )
+            .context("error filling the email template")?;
 
-                // Check if the even is a threat and send a email if it is
-                if let Some(Threat {
-                    source,
-                    description,
-                    extra: _,
-                }) = &header.threat
-                {
-                    let payload = event.payload();
-                    let subject = format!("Pulsar Threat Notification - {}", rand::random::<u64>());
-                    let body = template.render(&header.timestamp, source, &header.image, description, payload).context("error filling the email template")?;
+        let mut message_builder = Message::builder()
+            .subject(subject)
+            .from(config.sender.clone())
+            .header(ContentType::TEXT_HTML);
 
-                    let mut message_builder = Message::builder()
-                        .subject(subject)
-                        .from(config.sender.clone())
-                        .header(ContentType::TEXT_HTML);
-
-                    for receiver in config.receivers.iter() {
-                        message_builder = message_builder.to(receiver.clone())
-                    }
-
-                    let message = message_builder.body(body)?;
-
-                    let smtp_transport = match config.encryption {
-                        Encryption::None => {
-                            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(config.server.as_str())
-                        }
-                        Encryption::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(config.server.as_str())?,
-                        Encryption::StartTls => {
-                            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(config.server.as_str())?
-                        }
-                    };
-
-                    smtp_transport
-                        .credentials(Credentials::new(config.username.clone(), config.password.clone()))
-                        .port(config.port)
-                        .build()
-                        .send(message)
-                        .await?;
-                }
-            }
+        for receiver in config.receivers.iter() {
+            message_builder = message_builder.to(receiver.clone())
         }
+
+        let message = message_builder.body(body)?;
+
+        let smtp_transport = match config.encryption {
+            Encryption::None => {
+                AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(config.server.as_str())
+            }
+            Encryption::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(config.server.as_str())?,
+            Encryption::StartTls => {
+                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(config.server.as_str())?
+            }
+        };
+
+        smtp_transport
+            .credentials(Credentials::new(
+                config.username.clone(),
+                config.password.clone(),
+            ))
+            .port(config.port)
+            .build()
+            .send(message)
+            .await?;
     }
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -136,7 +146,7 @@ impl FromStr for Encryption {
 }
 
 #[derive(Clone, Debug)]
-struct SmtpNotifierConfig {
+pub struct SmtpNotifierConfig {
     server: String,
     username: String,
     password: String,
