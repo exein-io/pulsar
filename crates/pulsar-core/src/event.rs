@@ -53,9 +53,9 @@ impl fmt::Display for Event {
         }) = &self.header().threat
         {
             if f.alternate() {
-                writeln!(f, "[{time} \x1b[1;30;43mTHREAT\x1b[0m {process_info}] [{source} - {description}] {payload}")
+                write!(f, "[{time} \x1b[1;30;43mTHREAT\x1b[0m {process_info}] [{source} - {description}] {payload}")
             } else {
-                writeln!(
+                write!(
                     f,
                     "[{time} THREAT {process_info}] [{source} - {description}] {payload}"
                 )
@@ -63,12 +63,12 @@ impl fmt::Display for Event {
         } else {
             let source = &header.source;
             if f.alternate() {
-                writeln!(
+                write!(
                     f,
                     "[{time} \x1b[1;30;46mEVENT\x1b[0m {process_info}] [{source}] {payload}"
                 )
             } else {
-                writeln!(f, "[{time} EVENT {process_info}] [{source}] {payload}")
+                write!(f, "[{time} EVENT {process_info}] [{source}] {payload}")
             }
         }
     }
