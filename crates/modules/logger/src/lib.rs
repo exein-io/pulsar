@@ -1,6 +1,6 @@
 use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleDetails, ModuleError,
-    ModuleName, PulsarModule, ShutdownSignal, Version,
+    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
+    ShutdownSignal,
 };
 use std::{
     borrow::Cow,
@@ -17,24 +17,13 @@ use std::{
 use thiserror::Error;
 
 const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
-const MODULE_NAME: &str = "logger";
 const PRIORITY: u8 = 25; // facility * 8 + severity. facility: daemon (3); severity: alert (1)
 
 pub struct LoggerModule;
 
 impl PulsarModule for LoggerModule {
+    const MODULE_NAME: &'static str = "threat-logger";
     const DEFAULT_ENABLED: bool = true;
-
-    fn name(&self) -> ModuleName {
-        MODULE_NAME.into()
-    }
-
-    fn details(&self) -> ModuleDetails {
-        ModuleDetails {
-            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            enabled_by_default: Self::DEFAULT_ENABLED,
-        }
-    }
 
     fn start(
         &self,

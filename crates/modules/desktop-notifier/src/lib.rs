@@ -8,28 +8,16 @@ use anyhow::{Context, Result};
 use pulsar_core::{
     event::Threat,
     pdk::{
-        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleDetails, ModuleError,
-        ModuleName, PulsarModule, ShutdownSignal, Version,
+        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
+        ShutdownSignal,
     },
 };
-
-const MODULE_NAME: &str = "desktop-notifier";
 
 pub struct DesktopNotifierModule;
 
 impl PulsarModule for DesktopNotifierModule {
+    const MODULE_NAME: &'static str = "desktop-notifier";
     const DEFAULT_ENABLED: bool = false;
-
-    fn name(&self) -> ModuleName {
-        MODULE_NAME.into()
-    }
-
-    fn details(&self) -> ModuleDetails {
-        ModuleDetails {
-            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            enabled_by_default: Self::DEFAULT_ENABLED,
-        }
-    }
 
     fn start(
         &self,

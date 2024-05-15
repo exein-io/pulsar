@@ -1918,7 +1918,6 @@ dependencies = [
  "chrono",
  "log",
  "nix 0.27.1",
- "semver",
  "serde",
  "strum",
  "thiserror",
