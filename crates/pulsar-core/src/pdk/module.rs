@@ -6,7 +6,6 @@ use crate::{
 };
 use anyhow::Result;
 use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
-use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{
     broadcast::{self, error::RecvError},
@@ -25,10 +24,9 @@ pub type ModuleStartFn = dyn Fn(ModuleContext, ShutdownSignal) -> Box<PulsarModu
 
 /// Trait to implement to create a pulsar pluggable module
 pub trait PulsarModule: Send {
+    const MODULE_NAME: &'static str;
     const DEFAULT_ENABLED: bool;
 
-    fn name(&self) -> ModuleName;
-    fn details(&self) -> ModuleDetails;
     fn start(
         &self,
         ctx: ModuleContext,
@@ -90,14 +88,6 @@ impl Validatron for ModuleName {
             )
             .build()
     }
-}
-
-/// Contains module informations
-#[derive(Debug, Clone)]
-pub struct ModuleDetails {
-    pub version: Version,
-    pub enabled_by_default: bool,
-    // pub author: String,
 }
 
 /// Used to send events out from a module.

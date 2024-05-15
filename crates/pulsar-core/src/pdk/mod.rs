@@ -73,4 +73,3 @@ pub use config::*;
 pub use daemon::*;
 pub use module::*;
 pub use module_context::*;
-pub use semver::Version;
