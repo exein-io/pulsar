@@ -1,29 +1,16 @@
 use pulsar_core::pdk::{
-    CleanExit, Event, ModuleContext, ModuleDetails, ModuleError, ModuleName, PulsarModule,
-    ShutdownSignal, Version,
+    CleanExit, Event, ModuleContext, ModuleError, PulsarModule, ShutdownSignal,
 };
 use std::sync::Arc;
 use tokio::sync::mpsc;
-
-const MODULE_NAME: &str = "proxy-module";
 
 pub struct ProxyModule {
     pub tx_proxy: mpsc::Sender<Arc<Event>>,
 }
 
 impl PulsarModule for ProxyModule {
+    const MODULE_NAME: &'static str = "proxy-module";
     const DEFAULT_ENABLED: bool = true;
-
-    fn name(&self) -> ModuleName {
-        MODULE_NAME.into()
-    }
-
-    fn details(&self) -> ModuleDetails {
-        ModuleDetails {
-            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            enabled_by_default: Self::DEFAULT_ENABLED,
-        }
-    }
 
     fn start(
         &self,

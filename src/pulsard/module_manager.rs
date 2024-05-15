@@ -82,7 +82,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                 Ok(_) => {
                     log::error!(
                         "Error in module {}. Module stopped. {err:?}",
-                        self.module.name()
+                        T::MODULE_NAME
                     );
 
                     self.status = ModuleStatus::Failed(err.to_string());
@@ -90,7 +90,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                 Err(join_err) => {
                     let err_msg = format!(
                         "Error in module {}: {err}. Stopping module failed: {:?}",
-                        self.module.name(),
+                        T::MODULE_NAME,
                         join_err
                     );
 
@@ -102,7 +102,7 @@ impl<T: PulsarModule> ModuleManager<T> {
         } else {
             let err_msg = format!(
                 "Error in module {err}. Stopping module {} failed: Module found in status: {:?}",
-                self.module.name(),
+                T::MODULE_NAME,
                 self.status
             );
 
@@ -125,7 +125,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                 let ctx = ModuleContext::new(
                     self.config.clone(),
                     self.bus.clone(),
-                    self.module.name().clone(),
+                    T::MODULE_NAME.to_string().into(),
                     self.tx_sig.clone(),
                     self.daemon_handle.clone(),
                     self.process_tracker.clone(),
@@ -162,7 +162,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                         let result = task.await;
                         match result {
                             Ok(()) => {
-                                log::info!("Module {} exited", self.module.name());
+                                log::info!("Module {} exited", T::MODULE_NAME);
 
                                 self.status = ModuleStatus::Stopped;
 
@@ -170,7 +170,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                             }
                             Err(err) => {
                                 let err_msg =
-                                    format!("Module {} exit failure: {err}", self.module.name());
+                                    format!("Module {} exit failure: {err}", T::MODULE_NAME);
 
                                 log::warn!("{err_msg}");
 
@@ -183,7 +183,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     ModuleStatus::Failed(_) => {
                         let err_msg = format!(
                             "Stopping module {} failed: Module found in status: {:?}",
-                            self.module.name(),
+                            T::MODULE_NAME,
                             self.status
                         );
                         Err(err_msg)

@@ -83,8 +83,8 @@ pub mod pulsar {
     use pulsar_core::{
         event::FileFlags,
         pdk::{
-            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleDetails,
-            ModuleError, ModuleName, ModuleSender, Payload, PulsarModule, ShutdownSignal, Version,
+            CleanExit, ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError,
+            ModuleSender, Payload, PulsarModule, ShutdownSignal,
         },
     };
     use tokio::{fs::File, io::AsyncReadExt};
@@ -92,18 +92,8 @@ pub mod pulsar {
     pub struct FileSystemMonitorModule;
 
     impl PulsarModule for FileSystemMonitorModule {
+        const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;
-
-        fn name(&self) -> ModuleName {
-            MODULE_NAME.into()
-        }
-
-        fn details(&self) -> ModuleDetails {
-            ModuleDetails {
-                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-                enabled_by_default: Self::DEFAULT_ENABLED,
-            }
-        }
 
         fn start(
             &self,

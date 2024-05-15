@@ -178,26 +178,16 @@ pub mod pulsar {
     use pulsar_core::{
         event::{DnsAnswer, DnsQuestion, Host},
         pdk::{
-            CleanExit, IntoPayload, ModuleContext, ModuleDetails, ModuleError, ModuleName, Payload,
-            PulsarModule, ShutdownSignal, Version,
+            CleanExit, IntoPayload, ModuleContext, ModuleError, Payload, PulsarModule,
+            ShutdownSignal,
         },
     };
 
     pub struct NetworkMonitorModule;
 
     impl PulsarModule for NetworkMonitorModule {
+        const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;
-
-        fn name(&self) -> ModuleName {
-            MODULE_NAME.into()
-        }
-
-        fn details(&self) -> ModuleDetails {
-            ModuleDetails {
-                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-                enabled_by_default: Self::DEFAULT_ENABLED,
-            }
-        }
 
         fn start(
             &self,

@@ -9,30 +9,18 @@ use lettre::{
 use pulsar_core::{
     event::Threat,
     pdk::{
-        CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleDetails, ModuleError,
-        ModuleName, PulsarModule, ShutdownSignal, Version,
+        CleanExit, ConfigError, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
+        ShutdownSignal,
     },
 };
 
 mod template;
 
-const MODULE_NAME: &str = "smtp-notifier";
-
 pub struct SmtpNotifierModule;
 
 impl PulsarModule for SmtpNotifierModule {
+    const MODULE_NAME: &'static str = "smtp-notifier";
     const DEFAULT_ENABLED: bool = false;
-
-    fn name(&self) -> ModuleName {
-        MODULE_NAME.into()
-    }
-
-    fn details(&self) -> ModuleDetails {
-        ModuleDetails {
-            version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            enabled_by_default: Self::DEFAULT_ENABLED,
-        }
-    }
 
     fn start(
         &self,

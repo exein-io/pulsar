@@ -1,6 +1,5 @@
 use std::fmt;
 
-use semver::Version;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
@@ -209,6 +208,5 @@ pub enum PulsarDaemonCommand {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModuleOverview {
     pub name: String,
-    pub version: Version,
     pub status: ModuleStatus,
 }

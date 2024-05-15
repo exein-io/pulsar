@@ -145,26 +145,16 @@ pub mod pulsar {
     use super::*;
     use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleDetails,
-        ModuleError, ModuleName, Payload, PulsarModule, ShutdownSignal, Version,
+        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
+        Payload, PulsarModule, ShutdownSignal,
     };
     use tokio::sync::mpsc;
 
     pub struct ProcessMonitorModule;
 
     impl PulsarModule for ProcessMonitorModule {
+        const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;
-
-        fn name(&self) -> ModuleName {
-            MODULE_NAME.into()
-        }
-
-        fn details(&self) -> ModuleDetails {
-            ModuleDetails {
-                version: Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-                enabled_by_default: Self::DEFAULT_ENABLED,
-            }
-        }
 
         fn start(
             &self,
