@@ -34,12 +34,9 @@ env_logger = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
-quote = "1.0"
-proc-macro2 = "1.0"
 rust-ini = { workspace = true }
 serde = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
-syn = { version = "1.0", features = ["full"] }
 tokio = { workspace = true, features = ["full"] }
 
 [features]

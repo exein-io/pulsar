@@ -43,6 +43,3 @@ cgroups-rs = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 
 validatron = { workspace = true }
-
-[build-dependencies]
-bpf-builder = { workspace = true }
