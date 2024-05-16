@@ -54,9 +54,7 @@ pub async fn program(
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .tracepoint("syscalls", "sys_exit_accept4")
         .tracepoint("syscalls", "sys_exit_accept")
-        .kprobe("tcp_set_state");
-
-    builder = builder
+        .kprobe("tcp_set_state")
         .cgroup_skb_egress("skb_egress")
         .cgroup_skb_ingress("skb_ingress");
 
