@@ -48,5 +48,5 @@ jobs:
             cargo xtask test \
                 --force-architest \
                 --target=${{ matrix.platform.target }} \
-                --kernel-versions=${{ matrix.kernel-versions }} \
+                --kernel-versions=${{ matrix.platform.kernel-versions }} \
                 --features all-vendored --features tls-rustls
