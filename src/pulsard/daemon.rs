@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{bail, Result};
-use bpf_common::{
-    // feature_autodetect::lsm::lsm_supported,
-    program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT},
-};
+use bpf_common::program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT};
 
 use pulsar_core::{
     bus::Bus,
