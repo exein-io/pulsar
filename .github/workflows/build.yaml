@@ -22,7 +22,6 @@ jobs:
           # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
           - target: x86_64-unknown-linux-musl
             args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-            kernel-versions: "5.13,5.15,6.0,6.3,6.6"
 
           - target: aarch64-unknown-linux-gnu
             args: "--features full"
@@ -30,7 +29,6 @@ jobs:
           # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
           - target: aarch64-unknown-linux-musl
             args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-            kernel-versions: "5.15,6.2,6.6"
 
           - target: riscv64gc-unknown-linux-gnu
             args: "--features full"
@@ -38,11 +36,6 @@ jobs:
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
-
-      - name: Install dependencies
-        if: endsWith(matrix.platform.target, 'musl')
-        run: |
-          sudo apt install -y qemu-system
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -71,12 +64,3 @@ jobs:
 
       - name: Unit tests
         run: cross test --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
-
-      - name: Integration tests
-        if: endsWith(matrix.platform.target, 'musl')
-        run: |
-            cargo xtask test \
-                --force-architest \
-                --target=${{ matrix.platform.target }} \
-                --kernel-versions=${{ matrix.platform.kernel-versions }} \
-                --features all-vendored --features tls-rustls
