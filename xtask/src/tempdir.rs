@@ -10,9 +10,9 @@ use uuid::Uuid;
 /// A temporary directory which is cleaned on `drop` (unless the `preserve` field
 /// is `true`.
 pub struct TempDir {
-    /// Path to the build directory.
+    /// Path to the temp directory.
     dir_path: PathBuf,
-    /// Whether to preserve the build directory after `drop`. If `false`, it
+    /// Whether to preserve the temp  directory after `drop`. If `false`, it
     /// gets removed automatically.
     preserve: bool,
 }
@@ -24,7 +24,7 @@ impl TempDir {
         Ok(Self { dir_path, preserve })
     }
 
-    // We don't want to move the whole `BuildDir` here and it's totally fine to
+    // We don't want to move the whole `TempDir` here and it's totally fine to
     // take a reference just to clone a field.
     #[allow(clippy::wrong_self_convention)]
     pub fn into_os_string(&self) -> OsString {
@@ -49,7 +49,7 @@ impl AsRef<Path> for TempDir {
 }
 
 impl Drop for TempDir {
-    /// Removes the build directory if requested.
+    /// Removes the temp  directory if requested.
     fn drop(&mut self) {
         if !self.preserve && self.dir_path.exists() {
             let _ = fs::remove_dir_all(&self.dir_path);
