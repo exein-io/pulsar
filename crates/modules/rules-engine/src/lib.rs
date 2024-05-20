@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use engine::RuleEngine;
 use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, NoExtra, PulsarModule,
 };
 
 mod dsl;
@@ -18,6 +18,7 @@ pub struct RuleEngineModule;
 impl PulsarModule for RuleEngineModule {
     type Config = Config;
     type State = State;
+    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "rules-engine";
     const DEFAULT_ENABLED: bool = true;
