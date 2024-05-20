@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, PulsarModule,
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, NoExtra, Payload, PulsarModule,
 };
 
 pub struct MyCustomModule;
@@ -10,6 +10,7 @@ pub struct MyCustomModule;
 impl PulsarModule for MyCustomModule {
     type Config = MyModuleConfig;
     type State = MyState;
+    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "my-custom-module";
     const DEFAULT_ENABLED: bool = true;

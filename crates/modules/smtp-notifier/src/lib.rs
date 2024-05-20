@@ -8,7 +8,7 @@ use lettre::{
 };
 use pulsar_core::{
     event::Threat,
-    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule},
+    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, NoExtra, PulsarModule},
 };
 
 mod template;
@@ -18,6 +18,7 @@ pub struct SmtpNotifierModule;
 impl PulsarModule for SmtpNotifierModule {
     type Config = SmtpNotifierConfig;
     type State = SmtpNotifierState;
+    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "smtp-notifier";
     const DEFAULT_ENABLED: bool = false;

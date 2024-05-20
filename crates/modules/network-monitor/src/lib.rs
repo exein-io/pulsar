@@ -177,7 +177,7 @@ pub mod pulsar {
     use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::{
         event::{DnsAnswer, DnsQuestion, Host},
-        pdk::{IntoPayload, ModuleContext, ModuleError, Payload, PulsarModule},
+        pdk::{IntoPayload, ModuleContext, ModuleError, NoExtra, Payload, PulsarModule},
     };
 
     pub struct NetworkMonitorModule;
@@ -185,6 +185,7 @@ pub mod pulsar {
     impl PulsarModule for NetworkMonitorModule {
         type Config = pulsar_core::pdk::NoConfig;
         type State = NetworkMonitorState;
+        type Extra = NoExtra;
 
         const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;

@@ -1,4 +1,4 @@
-use pulsar_core::pdk::{Event, ModuleContext, ModuleError, NoConfig, PulsarModule};
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, NoConfig, NoExtra, PulsarModule};
 use tokio::sync::mpsc;
 
 pub struct ProxyModule {
@@ -8,6 +8,7 @@ pub struct ProxyModule {
 impl PulsarModule for ProxyModule {
     type Config = NoConfig;
     type State = ProxyModuleState;
+    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "proxy-module";
     const DEFAULT_ENABLED: bool = true;

@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use pulsar_core::{
     event::Threat,
-    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule},
+    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, NoExtra, PulsarModule},
 };
 
 pub struct DesktopNotifierModule;
@@ -14,6 +14,7 @@ pub struct DesktopNotifierModule;
 impl PulsarModule for DesktopNotifierModule {
     type Config = Config;
     type State = ();
+    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "desktop-notifier";
     const DEFAULT_ENABLED: bool = false;
