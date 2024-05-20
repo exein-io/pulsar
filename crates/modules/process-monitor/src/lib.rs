@@ -145,7 +145,7 @@ pub mod pulsar {
     use super::*;
     use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, IntoPayload, ModuleContext, ModuleError, Payload,
+        process_tracker::TrackerUpdate, IntoPayload, ModuleContext, ModuleError, NoExtra, Payload,
         PulsarModule,
     };
     use tokio::{sync::mpsc, task::JoinHandle};
@@ -155,6 +155,7 @@ pub mod pulsar {
     impl PulsarModule for ProcessMonitorModule {
         type Config = bpf_filtering::config::Config;
         type State = ProcessMonitorStatus;
+        type Extra = NoExtra;
 
         const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;

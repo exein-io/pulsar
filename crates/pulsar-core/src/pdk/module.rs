@@ -22,6 +22,7 @@ impl<'a> TryFrom<&'a ModuleConfig> for NoConfig {
 pub trait PulsarModule: Send {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
+    type Extra: Extra<Self>;
 
     const MODULE_NAME: &'static str;
     const DEFAULT_ENABLED: bool;
@@ -59,6 +60,64 @@ pub trait PulsarModule: Send {
     /// Default: normal state drop
     fn graceful_stop(state: Self::State) -> impl Future<Output = Result<(), ModuleError>> + Send {
         drop(state);
+        std::future::ready(Ok(()))
+    }
+}
+
+pub trait Extra<T: PulsarModule + ?Sized> {
+    type ExtraState: Send + 'static;
+    type TriggerOutput: Send;
+
+    fn init_extra_state(
+        module: &T,
+        config: &T::Config,
+    ) -> impl Future<Output = Result<Self::ExtraState, ModuleError>> + Send;
+
+    fn trigger(
+        extra_state: &mut Self::ExtraState,
+    ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> + Send;
+
+    fn action(
+        trigger_output: &Self::TriggerOutput,
+        config: &T::Config,
+        state: &mut T::State,
+        ctx: &ModuleContext,
+    ) -> impl Future<Output = Result<(), ModuleError>> + Send;
+}
+
+pub struct NoExtra(());
+
+impl<T: PulsarModule> Extra<T> for NoExtra {
+    type ExtraState = ();
+
+    type TriggerOutput = ();
+
+    fn init_extra_state(
+        module: &T,
+        config: &<T as PulsarModule>::Config,
+    ) -> impl Future<Output = Result<Self::ExtraState, ModuleError>> + Send {
+        let _ = module;
+        let _ = config;
+        std::future::ready(Ok(()))
+    }
+
+    fn trigger(
+        extra_state: &mut Self::ExtraState,
+    ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> {
+        let _ = extra_state;
+        std::future::pending()
+    }
+
+    fn action(
+        trigger_output: &Self::TriggerOutput,
+        config: &<T as PulsarModule>::Config,
+        state: &mut <T as PulsarModule>::State,
+        ctx: &ModuleContext,
+    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
+        let _ = trigger_output;
+        let _ = config;
+        let _ = state;
+        let _ = ctx;
         std::future::ready(Ok(()))
     }
 }

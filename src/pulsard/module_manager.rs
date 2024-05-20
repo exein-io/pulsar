@@ -4,7 +4,7 @@ use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
-    CleanExit, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
+    CleanExit, Event, Extra, ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
     PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
 };
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
@@ -161,6 +161,20 @@ impl<T: PulsarModule> ModuleManager<T> {
                     }
                 };
 
+                let extra_state =
+                    match T::Extra::init_extra_state(&self.module, &module_config).await {
+                        Ok(es) => es,
+                        Err(err) => {
+                            self.status =
+                                ModuleStatus::Failed(format!("State initializing error: {err}"));
+                            log::error!(
+                            "Starting module {} failed, error initializing the extra state: {err}",
+                            T::MODULE_NAME
+                        );
+                            return;
+                        }
+                    };
+
                 let rx_config = self.config.clone();
                 let rx_event = self.bus.get_receiver();
                 let (tx_shutdown, rx_shutdown) = ShutdownSignal::new();
@@ -172,6 +186,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     let res = run_module_loop::<T>(
                         module_config,
                         state,
+                        extra_state,
                         rx_config,
                         rx_event,
                         rx_shutdown,
@@ -358,6 +373,7 @@ async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) 
 async fn run_module_loop<T: PulsarModule>(
     mut config: T::Config,
     mut state: T::State,
+    mut extra_state: <T::Extra as Extra<T>>::ExtraState,
     rx_config: watch::Receiver<ModuleConfig>,
     rx_event: broadcast::Receiver<Arc<Event>>,
     mut rx_shutdown: ShutdownSignal,
@@ -404,6 +420,10 @@ async fn run_module_loop<T: PulsarModule>(
             _ = rx_stop_event_recv.recv() => {
                 // Drop the Event Receiver and replace it with None
                 rx_event = None
+            }
+            t_output = T::Extra::trigger(&mut extra_state) => {
+                let t_output = t_output?;
+                T::Extra::action(&t_output, &config, &mut state, ctx).await?
             }
             r = rx_shutdown.recv() => {
                 T::graceful_stop(state).await?;

@@ -83,8 +83,8 @@ pub mod pulsar {
     use pulsar_core::{
         event::FileFlags,
         pdk::{
-            ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError, Payload,
-            PulsarModule,
+            ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError, NoExtra,
+            Payload, PulsarModule,
         },
     };
     use tokio::{fs::File, io::AsyncReadExt};
@@ -94,6 +94,7 @@ pub mod pulsar {
     impl PulsarModule for FileSystemMonitorModule {
         type Config = Config;
         type State = FileSystemMonitorState;
+        type Extra = NoExtra;
 
         const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;
