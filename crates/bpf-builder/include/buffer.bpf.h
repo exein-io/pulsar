@@ -118,24 +118,31 @@ static __always_inline void buffer_append_skb_bytes(struct buffer *buffer,
                                                     __u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
-    LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
+    LOG_ERROR(
+      "Attempting to write beyond buffer capacity. Calculated position: %zu, capacity: %d.",
+      pos, HALF_BUFFER_MASK
+    );
     return;
   }
-  if (offset >= skb->len) {
-    LOG_ERROR("invalid offset: %zu, greater than packet length: %zu", offset, skb->len);
-    return;
-  }
+
   s32 len = skb->len - offset;
-  if (len >= HALF_BUFFER_MASK)
+  if (len >= HALF_BUFFER_MASK) {
+    LOG_ERROR("Payload size (%d) exceeds buffer capacity (%d).",
+              len, HALF_BUFFER_MASK);
     return;
-  if (len <= 0)
+  }
+
+  if (len <= 0) {
+    LOG_ERROR("Invalid offset (%zu) exceeding the packet length (%zu).",
+              offset, skb->len);
     return;
+  }
 
   int r = bpf_skb_load_bytes(skb, offset, &((char *)buffer->buffer)[pos],
                              len);
     
   if (r < 0) {
-    LOG_ERROR("reading failure: %d", r);
+    LOG_ERROR("Could not read the network packet payload: %d", r);
     return;
   }
 
