@@ -2,7 +2,6 @@
 
 use std::mem;
 
-use aya::BtfError;
 use aya_ebpf_bindings::bindings::bpf_func_id;
 pub use aya_obj::generated::bpf_prog_type as BpfProgType;
 use aya_obj::generated::{bpf_attr, bpf_cmd, bpf_insn};
@@ -25,8 +24,6 @@ const LOG_SIZE: usize = 4096;
 pub enum FeatureProbeError {
     #[error("Failed to load the eBPF feature probe: {0}")]
     Load(String),
-    #[error(transparent)]
-    Btf(#[from] BtfError),
 }
 
 pub fn autodetect_features() -> BpfFeatures {
