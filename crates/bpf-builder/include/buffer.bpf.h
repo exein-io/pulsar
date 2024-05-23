@@ -112,30 +112,30 @@ static void buffer_append_user_memory(struct buffer *buffer,
   buffer->len += len;
 }
 
-static __always_inline void buffer_append_skb_bytes(struct buffer *buffer,
-                                                    struct buffer_index *index,
-                                                    struct __sk_buff *skb,
-                                                    __u32 offset) {
+static __always_inline int buffer_append_skb_bytes(struct buffer *buffer,
+                                                   struct buffer_index *index,
+                                                   struct __sk_buff *skb,
+                                                   __u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
     LOG_ERROR(
       "Attempting to write beyond buffer capacity. Calculated position: %zu, capacity: %d.",
       pos, HALF_BUFFER_MASK
     );
-    return;
+    return -1;
   }
 
   s32 len = skb->len - offset;
   if (len >= HALF_BUFFER_MASK) {
     LOG_ERROR("Payload size (%d) exceeds buffer capacity (%d).",
               len, HALF_BUFFER_MASK);
-    return;
+    return -1;
   }
 
   if (len <= 0) {
     LOG_ERROR("Invalid offset (%zu) exceeding the packet length (%zu).",
               offset, skb->len);
-    return;
+    return -1;
   }
 
   int r = bpf_skb_load_bytes(skb, offset, &((char *)buffer->buffer)[pos],
@@ -143,9 +143,11 @@ static __always_inline void buffer_append_skb_bytes(struct buffer *buffer,
     
   if (r < 0) {
     LOG_ERROR("Could not read the network packet payload: %d", r);
-    return;
+    return -1;
   }
 
   index->len += len;
   buffer->len += len;
+
+  return 0;
 }
