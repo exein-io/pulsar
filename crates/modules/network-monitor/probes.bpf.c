@@ -655,7 +655,10 @@ __always_inline int process_skb(struct __sk_buff *skb,
     }
 
     buffer_index_init(&network_event->buffer, &msg_event->data);
-    buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb, headers_len);
+    if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
+                                headers_len) < 0) {
+      LOG_ERROR("Failed to retrieve the packet payload. The event is going to miss the `data` part.");
+    }
     break;
   }
   default:
