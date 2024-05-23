@@ -8,7 +8,7 @@ use quote::{quote, ToTokens};
 pub struct BpfFeatures {
     pub atomics: bool,
     pub cgroup_skb_task_btf: bool,
-    pub fn_pointers: bool,
+    pub bpf_loop: bool,
     pub lsm: bool,
 }
 
@@ -22,11 +22,11 @@ impl BpfFeatures {
         if self.cgroup_skb_task_btf {
             feature_codes.push('c');
         }
-        if self.fn_pointers {
-            feature_codes.push('f');
+        if self.bpf_loop {
+            feature_codes.push('l');
         }
         if self.lsm {
-            feature_codes.push('l');
+            feature_codes.push('s');
         }
 
         if feature_codes.is_empty() {
@@ -45,8 +45,8 @@ impl BpfFeatures {
         if self.cgroup_skb_task_btf {
             args.push("-DFEATURE_CGROUP_TASK_BTF".to_string());
         }
-        if self.fn_pointers {
-            args.push("-DFEATURE_FN_POINTERS".to_string());
+        if self.bpf_loop {
+            args.push("-DFEATURE_BPF_LOOP".to_string());
         }
         if self.lsm {
             args.push("-DFEATURE_LSM".to_string());
@@ -60,12 +60,12 @@ impl BpfFeatures {
 
         for atomics in [true, false] {
             for cgroup_skb_task_btf in [true, false] {
-                for fn_pointers in [true, false] {
+                for bpf_loop in [true, false] {
                     for lsm in [true, false] {
                         let features = Self {
                             atomics,
                             cgroup_skb_task_btf,
-                            fn_pointers,
+                            bpf_loop,
                             lsm,
                         };
                         combinations.insert(
@@ -85,14 +85,14 @@ impl ToTokens for BpfFeatures {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let atomics = self.atomics;
         let cgroup_skb_task_btf = self.cgroup_skb_task_btf;
-        let fn_pointers = self.fn_pointers;
+        let bpf_loop = self.bpf_loop;
         let lsm = self.lsm;
 
         let generated = quote! {
             BpfFeatures {
                 atomics: #atomics,
                 cgroup_skb_task_btf: #cgroup_skb_task_btf,
-                fn_pointers: #fn_pointers,
+                bpf_loop: #bpf_loop,
                 lsm: #lsm,
             }
         };
@@ -110,7 +110,7 @@ mod test {
         let features = BpfFeatures {
             atomics: false,
             cgroup_skb_task_btf: false,
-            fn_pointers: false,
+            bpf_loop: false,
             lsm: false,
         };
         assert_eq!(features.bpf_objfile_suffix(), "none.bpf.o");
@@ -119,7 +119,7 @@ mod test {
         let features = BpfFeatures {
             atomics: true,
             cgroup_skb_task_btf: false,
-            fn_pointers: false,
+            bpf_loop: false,
             lsm: false,
         };
         assert_eq!(features.bpf_objfile_suffix(), "a.bpf.o");
@@ -128,7 +128,7 @@ mod test {
         let features = BpfFeatures {
             atomics: true,
             cgroup_skb_task_btf: true,
-            fn_pointers: false,
+            bpf_loop: false,
             lsm: false,
         };
         assert_eq!(features.bpf_objfile_suffix(), "ac.bpf.o");
@@ -140,32 +140,32 @@ mod test {
         let features = BpfFeatures {
             atomics: true,
             cgroup_skb_task_btf: true,
-            fn_pointers: true,
+            bpf_loop: true,
             lsm: false,
         };
-        assert_eq!(features.bpf_objfile_suffix(), "acf.bpf.o");
+        assert_eq!(features.bpf_objfile_suffix(), "acl.bpf.o");
         assert_eq!(
             features.build_args().as_slice(),
             &[
                 "-DFEATURE_ATOMICS",
                 "-DFEATURE_CGROUP_TASK_BTF",
-                "-DFEATURE_FN_POINTERS"
+                "-DFEATURE_BPF_LOOP"
             ]
         );
 
         let features = BpfFeatures {
             atomics: true,
             cgroup_skb_task_btf: true,
-            fn_pointers: true,
+            bpf_loop: true,
             lsm: true,
         };
-        assert_eq!(features.bpf_objfile_suffix(), "acfl.bpf.o");
+        assert_eq!(features.bpf_objfile_suffix(), "acls.bpf.o");
         assert_eq!(
             features.build_args(),
             &[
                 "-DFEATURE_ATOMICS",
                 "-DFEATURE_CGROUP_TASK_BTF",
-                "-DFEATURE_FN_POINTERS",
+                "-DFEATURE_BPF_LOOP",
                 "-DFEATURE_LSM"
             ]
         );
@@ -173,7 +173,7 @@ mod test {
         let features = BpfFeatures {
             atomics: false,
             cgroup_skb_task_btf: true,
-            fn_pointers: false,
+            bpf_loop: false,
             lsm: false,
         };
         assert_eq!(features.bpf_objfile_suffix(), "c.bpf.o");

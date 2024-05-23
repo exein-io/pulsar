@@ -14,7 +14,7 @@
 // Note: callback_fn must be declared as `static __always_inline` to satisfy the
 // verifier. For some reason, having this double call to the same non-inline
 // function seems to cause issues.
-#ifdef FEATURE_FN_POINTERS
+#ifdef FEATURE_BPF_LOOP
 #define LOOP(max_iterations, max_unroll, callback_fn, ctx)                     \
   if (bpf_core_enum_value_exists(enum bpf_func_id, BPF_FUNC_loop)) {           \
     bpf_loop(max_iterations, callback_fn, ctx, 0);                             \

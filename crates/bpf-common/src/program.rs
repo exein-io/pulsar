@@ -101,6 +101,8 @@ impl BpfContext {
             Pinning::Disabled => format!("{PINNED_MAPS_PATH}_tmp"),
         };
 
+        let features = autodetect_features();
+
         Ok(Self {
             pinning,
             btf: Arc::new(btf),
@@ -108,7 +110,7 @@ impl BpfContext {
             pinning_path,
             log_level,
             kernel_version,
-            features: autodetect_features(),
+            features,
         })
     }
 

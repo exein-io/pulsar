@@ -33,7 +33,11 @@ pub fn autodetect_features() -> BpfFeatures {
             bpf_func_id::BPF_FUNC_get_current_task_btf,
             BpfProgType::BPF_PROG_TYPE_CGROUP_SKB,
         ),
-        fn_pointers: true,
+        bpf_loop: func_id_supported(
+            bpf_func_id::BPF_FUNC_loop,
+            // Program type doesn't matter here.
+            BpfProgType::BPF_PROG_TYPE_KPROBE,
+        ),
         lsm: lsm_supported(),
     }
 }
