@@ -163,11 +163,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         download_and_unpack_architest(&tempdir, &architest_tarball)?;
 
         cmd!(sh, "truncate -s +200M rootfs.ext2").run()?;
-        let loop_dev = cmd!(sh, "sudo losetup -fP --show rootfs.ext2").output()?;
-        let loop_dev = String::from_utf8(loop_dev.stdout)?;
-        let loop_dev = loop_dev.trim_end();
-        cmd!(sh, "sudo resize2fs {loop_dev}").run()?;
-        cmd!(sh, "sudo losetup -d {loop_dev}").run()?;
+        cmd!(sh, "sudo resize2fs rootfs.ext2").run()?;
 
         // Run qemu
         let mut qemu_process = std::process::Command::new(qemu_cmd)
