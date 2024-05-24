@@ -52,7 +52,7 @@
 
 <body id="body">
     <img id="logo"
-        src="https://raw.githubusercontent.com/Exein-io/pulsar/07677de701181ed959a9248841dd6d7285be5003/assets/pulsar-logo-white.png"
+        src="https://raw.githubusercontent.com/exein-io/pulsar/07677de701181ed959a9248841dd6d7285be5003/assets/pulsar-logo-white.png"
         alt="Pulsar logo" />
 
     <h2>

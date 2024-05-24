@@ -203,7 +203,7 @@ jobs:
           body: |
             <hr>  
 
-            Check out the [changelog](https://github.com/Exein-io/pulsar/blob/main/CHANGELOG.md) for details on all the changes and fixes.
+            Check out the [changelog](https://github.com/exein-io/pulsar/blob/main/CHANGELOG.md) for details on all the changes and fixes.
 
   docker-push:
     name: Push docker multi-arch image  

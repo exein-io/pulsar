@@ -21,8 +21,8 @@ it's best to add it as a git dependency. You'll need two more dependencies for
 interacting with pulsar modules: `bpf-common` (eBPF configuration) and tokio.
 
 ```
-network-monitor = { git = "https://github.com/Exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
-bpf-common = { git = "https://github.com/Exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
+network-monitor = { git = "https://github.com/exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
+bpf-common = { git = "https://github.com/exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
 tokio = { version = "1", features = ["full"] }
 ```
 

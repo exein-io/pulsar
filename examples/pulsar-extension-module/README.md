@@ -30,8 +30,8 @@ We'll add a dependency on the main Pulsar binary and launch it with the custom
 module we wrote.
 
 ```
-pulsar = { git = "https://github.com/Exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
-pulsar-core = { git = "https://github.com/Exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
+pulsar = { git = "https://github.com/exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
+pulsar-core = { git = "https://github.com/exein-io/pulsar", rev = "797f68641ed92b35b152e0d147b9cdcf3bfa49e5" }
 tokio = { version = "1", features = ["full"] }
 ```
 

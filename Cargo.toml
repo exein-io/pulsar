@@ -73,7 +73,7 @@ members = [
 version = "0.8.1"
 license = "Apache-2.0 WITH BPF probes exception under GPL-2.0"
 edition = "2021"
-repository = "https://github.com/Exein-io/pulsar"
+repository = "https://github.com/exein-io/pulsar"
 
 [workspace.dependencies]
 # Crates
