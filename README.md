@@ -3,8 +3,8 @@
   <img width="300" src="assets/pulsar-logo-white.png#gh-dark-mode-only" alt="Pulsar light logo">
 
   <p>
-    <a href="https://github.com/Exein-io/pulsar/actions/workflows/release.yaml">
-      <img src="https://github.com/Exein-io/pulsar/actions/workflows/release.yaml/badge.svg?branch=main" alt="Release">
+    <a href="https://github.com/exein-io/pulsar/actions/workflows/release.yaml">
+      <img src="https://github.com/exein-io/pulsar/actions/workflows/release.yaml/badge.svg?branch=main" alt="Release">
     </a>
     <a href="https://discord.gg/ZrySDqhBtZ"><img src="https://img.shields.io/discord/986983233256321075?color=%2331c753&logo=discord">
     <a href="https://opensource.org/licenses/Apache-2.0">
@@ -32,7 +32,7 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 To download and install Pulsar, run the following in your terminal:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://github.com/Exein-io/pulsar/releases/latest/download/pulsar-install.sh | sh
+curl --proto '=https' --tlsv1.2 -sSf https://github.com/exein-io/pulsar/releases/latest/download/pulsar-install.sh | sh
 ```
 
 Launch the pulsar daemon in a terminal **with administrator privileges**:
@@ -75,7 +75,7 @@ The recommended approach to getting started with Pulsar is by using the official
 
 ### Use Pre-built Binaries
 
-Another approach to install Pulsar is by using a pre-built binary. Binaries are available for the [latest release](https://github.com/Exein-io/pulsar/releases/latest). Use `pulsar-exec` for x86-64 (`pulsar-exec-static` for a static build) or `pulsar-exec-static-aarch64` for AArch64 platform. Using there approach you also need to download and setup the [helper scripts](./scripts) to have a more convenient way to start in daemon/cli mode.
+Another approach to install Pulsar is by using a pre-built binary. Binaries are available for the [latest release](https://github.com/exein-io/pulsar/releases/latest). Use `pulsar-exec` for x86-64 (`pulsar-exec-static` for a static build) or `pulsar-exec-static-aarch64` for AArch64 platform. Using there approach you also need to download and setup the [helper scripts](./scripts) to have a more convenient way to start in daemon/cli mode.
 
 ### Build from source
 
@@ -87,7 +87,7 @@ We do not recommend build Pulsar from source. Building from source is only neces
 - [Concepts](https://pulsar.sh/docs/category/concepts): dive deep into Pulsar architecture and main concepts.
 - [Tutorials](https://pulsar.sh/docs/category/tutorials): learn how to use Pulsar with practical examples.
 - [Develop new eBPF modules](https://pulsar.sh/docs/developers/tutorials/create-ebpf-probe-module): build new eBPF probes and integrate them into Pulsar through the modules system;
-- [Roadmap](https://github.com/orgs/Exein-io/projects/14): check out the plan for next Pulsar releases;
+- [Roadmap](https://github.com/orgs/exein-io/projects/14): check out the plan for next Pulsar releases;
 - [Support](https://discord.gg/MQgaTPef7a): join the Discord server for community support.
 
 ## Contributing
@@ -98,7 +98,7 @@ We have a [contributing guide](CONTRIBUTING.md) which will help you getting invo
 
 ## Community
 
-Join the Pulsar [Discord server](https://discord.gg/MQgaTPef7a) to chat with developers, maintainers, and the whole community. You can also drop any question about Pulsar on the official [GitHub discussions](https://github.com/Exein-io/pulsar/discussions) or use the [GitHub issues](https://github.com/Exein-io/pulsar/issues) for feature requests and bug reports.
+Join the Pulsar [Discord server](https://discord.gg/MQgaTPef7a) to chat with developers, maintainers, and the whole community. You can also drop any question about Pulsar on the official [GitHub discussions](https://github.com/exein-io/pulsar/discussions) or use the [GitHub issues](https://github.com/exein-io/pulsar/issues) for feature requests and bug reports.
 
 ## License
 

@@ -25,7 +25,7 @@
 // will reject the program on an earlier stage.
 //
 // Check these links for more details:
-// https://github.com/Exein-io/pulsar/issues/158
+// https://github.com/exein-io/pulsar/issues/158
 // https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
 
 #ifdef VERSION_5_13

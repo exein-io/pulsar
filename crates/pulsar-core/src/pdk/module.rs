@@ -167,7 +167,7 @@ pub struct ModuleSender {
 
 /// Raises unrecoverable errors from the module to the upper layer.
 ///
-/// Sending an error leads to a graceful shutdown of the module after [issue #7](https://github.com/Exein-io/pulsar/issues/7)
+/// Sending an error leads to a graceful shutdown of the module after [issue #7](https://github.com/exein-io/pulsar/issues/7)
 /// will be closed.
 pub type SignalSender = mpsc::Sender<ModuleSignal>;
 pub type ModuleError = Box<dyn std::error::Error + Send + Sync + 'static>;
