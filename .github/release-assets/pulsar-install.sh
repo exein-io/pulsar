@@ -9,11 +9,12 @@
 # It runs on Unix shells like {a,ba,da,k,z}sh. It uses the common `local`
 # extension. Note: Most shells limit `local` to 1 var per line, contra bash.
 
-INSTALLER_VERSION=0.1
+# Pulsar version will be inserted by the release workflow
+PULSAR_VERSION=
 
 usage() {
     cat 1>&2 <<EOF
-pulsar-install $INSTALLER_VERSION
+pulsar-install $PULSAR_VERSION
 The installer for pulsar
 USAGE:
     pulsar-install [OPTIONS]
@@ -25,7 +26,7 @@ EOF
 
 version() {
     cat 1>&2 <<EOF
-pulsar-install $INSTALLER_VERSION
+pulsar-install $PULSAR_VERSION
 EOF
 }
 
@@ -96,15 +97,15 @@ main() {
     printf '%s\n' 'info: downloading files' 1>&2
 
     # Download pulsar-exec
-    ensure downloader "https://github.com/Exein-io/pulsar/releases/latest/download/pulsar-exec${_arch}" "${_dir}/pulsar-exec"
+    ensure downloader "https://github.com/exein-io/pulsar/releases/download/${PULSAR_VERSION}/pulsar-exec${_arch}" "${_dir}/pulsar-exec"
 
     # Download release archive
-    local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/latest | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
+    local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/tags/${PULSAR_VERSION} | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
     local _tmp_pulsar_archive="${_dir}/pulsar.tar.gz"
     ensure downloader $_release_url $_tmp_pulsar_archive
 
     # Extract release archive
-    local _tmp_pulsar_src="${_dir}/pulsar-latest"
+    local _tmp_pulsar_src="${_dir}/pulsar-${PULSAR_VERSION}"
     mkdir -p $_tmp_pulsar_src
     ensure tar -xzf $_tmp_pulsar_archive -C $_tmp_pulsar_src --strip-components=1
 
