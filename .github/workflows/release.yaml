@@ -163,6 +163,12 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v4
 
+      - name: Create installer
+        run: |
+          installer_blueprint=.github/release-assets/pulsar-install.sh
+
+          sed "s/^PULSAR_VERSION=$/PULSAR_VERSION=${{ env.REGISTRY_TAG }}/" "$installer_blueprint" > /tmp/pulsar-install.sh
+
       - name: Check dev release and tag existence
         if: github.ref_type == 'branch'
         env:
@@ -183,7 +189,7 @@ jobs:
           tag: ${{ env.REGISTRY_TAG }}
           makeLatest: false
           prerelease: true
-          artifacts: "/tmp/binaries/*"
+          artifacts: "/tmp/binaries/*,/tmp/pulsar-install.sh"
           body: 'This is a nightly release based on main branch. Do not use for production'
 
       - name: Release
