@@ -32,7 +32,7 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 To download and install Pulsar, run the following in your terminal:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://github.com/exein-io/pulsar/releases/latest/download/pulsar-install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/exein-io/pulsar/releases/latest/download/pulsar-install.sh | sh
 ```
 
 Launch the pulsar daemon in a terminal **with administrator privileges**:
