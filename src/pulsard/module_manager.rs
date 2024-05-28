@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
 enum ModuleManagerCommand {
     StartModule {
-        tx_reply: oneshot::Sender<()>,
+        tx_reply: oneshot::Sender<Result<(), String>>,
     },
     StopModule {
         tx_reply: oneshot::Sender<Result<(), String>>,
@@ -118,7 +118,7 @@ impl<T: PulsarModule> ModuleManager<T> {
             ModuleManagerCommand::StartModule { tx_reply } => {
                 // Check if the  module is already running
                 if let ModuleStatus::Running(_) = self.status {
-                    let _ = tx_reply.send(());
+                    let _ = tx_reply.send(Ok(()));
                     return;
                 }
 
@@ -126,10 +126,11 @@ impl<T: PulsarModule> ModuleManager<T> {
                     Ok(mc) => mc,
                     Err(err) => {
                         self.status = ModuleStatus::Failed(format!("Configuration error: {err}"));
-                        log::error!(
+                        let err_msg = format!(
                             "Starting module {} failed, error in configuration: {err}",
                             T::MODULE_NAME
                         );
+                        let _ = tx_reply.send(Err(err_msg));
                         return;
                     }
                 };
@@ -153,27 +154,30 @@ impl<T: PulsarModule> ModuleManager<T> {
                     Err(err) => {
                         self.status =
                             ModuleStatus::Failed(format!("State initializing error: {err}"));
-                        log::error!(
+                        let err_msg = format!(
                             "Starting module {} failed, error initializing the state: {err}",
                             T::MODULE_NAME
                         );
+                        let _ = tx_reply.send(Err(err_msg));
                         return;
                     }
                 };
 
-                let extra_state =
-                    match T::Extra::init_extra_state(&self.module, &module_config).await {
-                        Ok(es) => es,
-                        Err(err) => {
-                            self.status =
-                                ModuleStatus::Failed(format!("State initializing error: {err}"));
-                            log::error!(
+                let extra_state = match T::Extra::init_extra_state(&self.module, &module_config)
+                    .await
+                {
+                    Ok(es) => es,
+                    Err(err) => {
+                        self.status =
+                            ModuleStatus::Failed(format!("Extra state initializing error: {err}"));
+                        let err_msg = format!(
                             "Starting module {} failed, error initializing the extra state: {err}",
                             T::MODULE_NAME
                         );
-                            return;
-                        }
-                    };
+                        let _ = tx_reply.send(Err(err_msg));
+                        return;
+                    }
+                };
 
                 let rx_config = self.config.clone();
                 let rx_event = self.bus.get_receiver();
@@ -206,7 +210,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                 //
                 // This can happen if the `select!` macro is used
                 // to cancel waiting for the response.
-                let _ = tx_reply.send(());
+                let _ = tx_reply.send(Ok(()));
             }
             ModuleManagerCommand::StopModule { tx_reply } => {
                 let result = match self.status {
@@ -299,7 +303,7 @@ impl ModuleManagerHandle {
     }
 
     /// Start the module
-    pub async fn start(&self) {
+    pub async fn start(&self) -> Result<(), String> {
         let (send, recv) = oneshot::channel();
         let msg = ModuleManagerCommand::StartModule { tx_reply: send };
 

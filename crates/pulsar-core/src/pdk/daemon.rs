@@ -12,6 +12,8 @@ pub enum PulsarDaemonError {
     #[error("module {0} not found")]
     ModuleNotFound(String),
     #[error("{0}")]
+    StartError(String),
+    #[error("{0}")]
     StopError(String),
     #[error("error updating the configuration")]
     ConfigurationUpdateError(#[from] anyhow::Error),
