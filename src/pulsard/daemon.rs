@@ -137,7 +137,9 @@ impl PulsarDaemonStarter {
 
             if is_enabled {
                 log::info!("Starting module {module_name}");
-                data.handle.start().await;
+                if let Err(err_msg) = data.handle.start().await {
+                    log::error!("{err_msg}");
+                };
             }
         }
 
@@ -246,8 +248,10 @@ impl PulsarDaemon {
             .get(module_name)
             .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
 
-        #[allow(clippy::unit_arg)]
-        Ok(data.handle.start().await)
+        data.handle
+            .start()
+            .await
+            .map_err(PulsarDaemonError::StartError)
     }
 
     /// Restart a module.
@@ -261,8 +265,10 @@ impl PulsarDaemon {
             .await
             .map_err(PulsarDaemonError::StopError)?;
 
-        #[allow(clippy::unit_arg)]
-        Ok(data.handle.start().await)
+        data.handle
+            .start()
+            .await
+            .map_err(PulsarDaemonError::StartError)
     }
 
     /// Stop a module.
