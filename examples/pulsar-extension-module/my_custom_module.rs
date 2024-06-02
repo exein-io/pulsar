@@ -2,25 +2,24 @@
 use std::collections::HashMap;
 
 use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, NoExtra, Payload, PulsarModule,
+    BasicPulsarModule, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload,
 };
 
 pub struct MyCustomModule;
 
-impl PulsarModule for MyCustomModule {
+impl BasicPulsarModule for MyCustomModule {
     type Config = MyModuleConfig;
     type State = MyState;
-    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "my-custom-module";
     const DEFAULT_ENABLED: bool = true;
 
-    fn init_state(
+    async fn init_state(
         &self,
         _config: &Self::Config,
         _ctx: &ModuleContext,
-    ) -> impl futures_util::Future<Output = Result<Self::State, ModuleError>> + Send {
-        async { Ok(Self::State { dns_query_count: 0 }) }
+    ) -> Result<Self::State, ModuleError> {
+        Ok(Self::State { dns_query_count: 0 })
     }
 
     // Handle configuration changes:

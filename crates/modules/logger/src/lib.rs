@@ -12,7 +12,7 @@ use std::{
 };
 
 use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, NoExtra, PulsarModule,
+    BasicPulsarModule, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError,
 };
 use thiserror::Error;
 
@@ -21,10 +21,9 @@ const PRIORITY: u8 = 25; // facility * 8 + severity. facility: daemon (3); sever
 
 pub struct LoggerModule;
 
-impl PulsarModule for LoggerModule {
+impl BasicPulsarModule for LoggerModule {
     type Config = Config;
     type State = LoggerState;
-    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "threat-logger";
     const DEFAULT_ENABLED: bool = true;
