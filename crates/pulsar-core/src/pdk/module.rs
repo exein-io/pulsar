@@ -18,8 +18,9 @@ impl<'a> TryFrom<&'a ModuleConfig> for NoConfig {
     }
 }
 
-/// Trait to implement to create a pulsar pluggable module
-pub trait PulsarModule: Send + Sync {
+/// Trait to implement to create a pulsar pluggable module. Note that this is the fully
+/// featured interface which is often too much. Please see [`BasicPulsarModule`] for a simpler interface.
+pub trait PulsarModule: Send {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
     type ExtraState: Send + 'static;
@@ -68,6 +69,8 @@ pub trait PulsarModule: Send + Sync {
     }
 }
 
+/// A simpler version of [`PulsarModule`] which is often enough. A blanket implementation ensures that
+/// [`PulsarModule`] is implemented for all implementors of [`BasicPulsarModule`].
 pub trait BasicPulsarModule: Send + Sync {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
