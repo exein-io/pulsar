@@ -1,28 +1,25 @@
-use pulsar_core::pdk::{Event, ModuleContext, ModuleError, NoConfig, NoExtra, PulsarModule};
+use pulsar_core::pdk::{BasicPulsarModule, Event, ModuleContext, ModuleError, NoConfig};
 use tokio::sync::mpsc;
 
 pub struct ProxyModule {
     pub tx_proxy: mpsc::Sender<Event>,
 }
 
-impl PulsarModule for ProxyModule {
+impl BasicPulsarModule for ProxyModule {
     type Config = NoConfig;
     type State = ProxyModuleState;
-    type Extra = NoExtra;
 
     const MODULE_NAME: &'static str = "proxy-module";
     const DEFAULT_ENABLED: bool = true;
 
-    fn init_state(
+    async fn init_state(
         &self,
         _config: &Self::Config,
         _ctx: &ModuleContext,
-    ) -> impl futures_util::Future<Output = Result<Self::State, ModuleError>> + Send {
-        async {
-            Ok(Self::State {
-                tx_proxy: self.tx_proxy.clone(),
-            })
-        }
+    ) -> Result<Self::State, ModuleError> {
+        Ok(Self::State {
+            tx_proxy: self.tx_proxy.clone(),
+        })
     }
 
     async fn on_event(

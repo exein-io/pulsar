@@ -19,10 +19,58 @@ impl<'a> TryFrom<&'a ModuleConfig> for NoConfig {
 }
 
 /// Trait to implement to create a pulsar pluggable module
-pub trait PulsarModule: Send {
+pub trait PulsarModule: Send + Sync {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
-    type Extra: Extra<Self>;
+    type ExtraState: Send + 'static;
+    type TriggerOutput: Send + Sync;
+
+    const MODULE_NAME: &'static str;
+    const DEFAULT_ENABLED: bool;
+
+    fn init_state(
+        &self,
+        config: &Self::Config,
+        ctx: &ModuleContext,
+    ) -> impl Future<Output = Result<(Self::State, Self::ExtraState), ModuleError>> + Send;
+
+    fn trigger(
+        extra_state: &mut Self::ExtraState,
+    ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> + Send;
+
+    fn action(
+        trigger_output: &Self::TriggerOutput,
+        config: &Self::Config,
+        state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> impl Future<Output = Result<(), ModuleError>> + Send;
+
+    fn on_config_change(
+        _new_config: &Self::Config,
+        _state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
+        ctx.stop_cfg_recv()
+    }
+
+    fn on_event(
+        _event: &Event,
+        _config: &Self::Config,
+        _state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
+        ctx.stop_event_recv()
+    }
+
+    /// Default: normal state drop
+    fn graceful_stop(_state: Self::State) -> impl Future<Output = Result<(), ModuleError>> + Send {
+        std::future::ready(Ok(()))
+    }
+}
+
+pub trait BasicPulsarModule: Send + Sync {
+    type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
+    type State: Send + 'static;
 
     const MODULE_NAME: &'static str;
     const DEFAULT_ENABLED: bool;
@@ -34,91 +82,88 @@ pub trait PulsarModule: Send {
     ) -> impl Future<Output = Result<Self::State, ModuleError>> + Send;
 
     fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
+        _new_config: &Self::Config,
+        _state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        let _ = new_config;
-        let _ = state;
-        let _ = ctx;
         ctx.stop_cfg_recv()
     }
 
     fn on_event(
-        event: &Event,
-        config: &Self::Config,
-        state: &mut Self::State,
+        _event: &Event,
+        _config: &Self::Config,
+        _state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        let _ = event;
-        let _ = config;
-        let _ = state;
-        let _ = ctx;
         ctx.stop_event_recv()
     }
 
     /// Default: normal state drop
-    fn graceful_stop(state: Self::State) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        drop(state);
+    fn graceful_stop(_state: Self::State) -> impl Future<Output = Result<(), ModuleError>> + Send {
         std::future::ready(Ok(()))
     }
 }
 
-pub trait Extra<T: PulsarModule + ?Sized> {
-    type ExtraState: Send + 'static;
-    type TriggerOutput: Send;
+impl<T> PulsarModule for T
+where
+    T: BasicPulsarModule,
+{
+    type Config = T::Config;
 
-    fn init_extra_state(
-        module: &T,
-        config: &T::Config,
-    ) -> impl Future<Output = Result<Self::ExtraState, ModuleError>> + Send;
+    type State = T::State;
 
-    fn trigger(
-        extra_state: &mut Self::ExtraState,
-    ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> + Send;
-
-    fn action(
-        trigger_output: &Self::TriggerOutput,
-        config: &T::Config,
-        state: &mut T::State,
-        ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(), ModuleError>> + Send;
-}
-
-pub struct NoExtra(());
-
-impl<T: PulsarModule> Extra<T> for NoExtra {
     type ExtraState = ();
 
     type TriggerOutput = ();
 
-    fn init_extra_state(
-        module: &T,
-        config: &<T as PulsarModule>::Config,
-    ) -> impl Future<Output = Result<Self::ExtraState, ModuleError>> + Send {
-        let _ = module;
-        let _ = config;
-        std::future::ready(Ok(()))
-    }
+    const MODULE_NAME: &'static str = Self::MODULE_NAME;
 
-    fn trigger(
-        extra_state: &mut Self::ExtraState,
-    ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> {
-        let _ = extra_state;
-        std::future::pending()
-    }
+    const DEFAULT_ENABLED: bool = Self::DEFAULT_ENABLED;
 
-    fn action(
-        trigger_output: &Self::TriggerOutput,
-        config: &<T as PulsarModule>::Config,
-        state: &mut <T as PulsarModule>::State,
+    async fn init_state(
+        &self,
+        config: &Self::Config,
         ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        let _ = trigger_output;
-        let _ = config;
-        let _ = state;
-        let _ = ctx;
-        std::future::ready(Ok(()))
+    ) -> Result<(Self::State, Self::ExtraState), ModuleError> {
+        BasicPulsarModule::init_state(self, config, ctx)
+            .await
+            .map(|v| (v, ()))
+    }
+
+    async fn trigger(
+        _extra_state: &mut Self::ExtraState,
+    ) -> Result<Self::TriggerOutput, ModuleError> {
+        std::future::pending().await
+    }
+
+    async fn action(
+        _trigger_output: &Self::TriggerOutput,
+        _config: &Self::Config,
+        _state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        Ok(())
+    }
+
+    async fn on_config_change(
+        new_config: &Self::Config,
+        state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        <Self as BasicPulsarModule>::on_config_change(new_config, state, ctx).await
+    }
+
+    async fn on_event(
+        event: &Event,
+        config: &Self::Config,
+        state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        <Self as BasicPulsarModule>::on_event(event, config, state, ctx).await
+    }
+
+    async fn graceful_stop(state: Self::State) -> Result<(), ModuleError> {
+        <Self as BasicPulsarModule>::graceful_stop(state).await
     }
 }
 
