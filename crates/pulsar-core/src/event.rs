@@ -211,6 +211,7 @@ pub enum Payload {
     },
     Exec {
         filename: String,
+        rootfs: String,
         argc: usize,
         argv: Argv,
     },
@@ -304,7 +305,7 @@ impl fmt::Display for Payload {
             Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
             Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
             Payload::Fork { ppid, uid, gid } => write!(f,"Fork {{ ppid: {ppid} uid: {uid} gid: {gid} }}"),
-            Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
+            Payload::Exec { filename, rootfs, argc, argv } => write!(f,"Exec {{ filename: {filename}, rootfs: {rootfs}, argc: {argc}, argv: {argv} }}"),
             Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
             Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
             Payload::CredentialsChange { uid, gid } => write!(f,"Credentials changed {{ uid: {uid} gid: {gid} }}"),

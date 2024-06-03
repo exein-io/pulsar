@@ -73,6 +73,7 @@ struct exec_event
 {
   uid_t uid;
   struct buffer_index filename;
+  struct buffer_index rootfs;
   int argc;
   struct buffer_index argv;
   struct namespaces namespaces;
@@ -150,6 +151,15 @@ struct
   __type(value, struct pending_dead_process);
   __uint(max_entries, MAX_PENDING_DEAD_PARENTS);
 } orphans_map SEC(".maps");
+
+static __always_inline struct path make_mnt_path(struct mount *mnt)
+{
+  struct path mnt_path = {
+    .dentry = BPF_CORE_READ(mnt, mnt_mountpoint),
+    .mnt = __builtin_preserve_access_index(&mnt->mnt),
+  };
+  return mnt_path;
+}
 
 /*
 Identifies the container engine and reads the cgroup id of a process
@@ -316,10 +326,11 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   u64 uid_gid = bpf_get_current_uid_gid();
 
+  struct mnt_namespace *mnt_ns = BPF_CORE_READ(p, nsproxy, mnt_ns);
   event->exec.uid = uid_gid;
   event->exec.namespaces.uts = BPF_CORE_READ(p, nsproxy, uts_ns, ns.inum);
   event->exec.namespaces.ipc = BPF_CORE_READ(p, nsproxy, ipc_ns, ns.inum);
-  event->exec.namespaces.mnt = BPF_CORE_READ(p, nsproxy, mnt_ns, ns.inum);
+  event->exec.namespaces.mnt = BPF_CORE_READ(mnt_ns, ns.inum);
   event->exec.namespaces.pid = BPF_CORE_READ(p, nsproxy, pid_ns_for_children, ns.inum);
   event->exec.namespaces.net = BPF_CORE_READ(p, nsproxy, net_ns, ns.inum);
   event->exec.namespaces.time = BPF_CORE_READ(p, nsproxy, time_ns, ns.inum);
@@ -382,6 +393,11 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   // Check target and whitelist
   tracker_check_rules(&GLOBAL_INTEREST_MAP, &m_rules, p, image);
+
+  // Rootfs mount is always the first one.
+  struct mount *root_mnt = BPF_CORE_READ(mnt_ns, root);
+  struct path mnt_path = make_mnt_path(root_mnt);
+  get_path_str(&mnt_path, &event->buffer, &event->exec.rootfs);
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
