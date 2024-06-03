@@ -23,7 +23,7 @@ impl<'a> TryFrom<&'a ModuleConfig> for NoConfig {
 pub trait PulsarModule: Send {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
-    type ExtraState: Send + 'static;
+    type Extension: Send + 'static;
     type TriggerOutput: Send + Sync;
 
     const MODULE_NAME: &'static str;
@@ -33,10 +33,10 @@ pub trait PulsarModule: Send {
         &self,
         config: &Self::Config,
         ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(Self::State, Self::ExtraState), ModuleError>> + Send;
+    ) -> impl Future<Output = Result<(Self::State, Self::Extension), ModuleError>> + Send;
 
     fn trigger(
-        extra_state: &mut Self::ExtraState,
+        state: &mut Self::Extension,
     ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> + Send;
 
     fn action(
@@ -115,7 +115,7 @@ where
 
     type State = T::State;
 
-    type ExtraState = ();
+    type Extension = ();
 
     type TriggerOutput = ();
 
@@ -127,14 +127,14 @@ where
         &self,
         config: &Self::Config,
         ctx: &ModuleContext,
-    ) -> Result<(Self::State, Self::ExtraState), ModuleError> {
+    ) -> Result<(Self::State, Self::Extension), ModuleError> {
         BasicPulsarModule::init_state(self, config, ctx)
             .await
             .map(|v| (v, ()))
     }
 
     async fn trigger(
-        _extra_state: &mut Self::ExtraState,
+        _extra_state: &mut Self::Extension,
     ) -> Result<Self::TriggerOutput, ModuleError> {
         std::future::pending().await
     }

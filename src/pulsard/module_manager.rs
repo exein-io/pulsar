@@ -362,7 +362,7 @@ async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) 
 async fn run_module_loop<T: PulsarModule>(
     mut config: T::Config,
     mut state: T::State,
-    mut extra_state: T::ExtraState,
+    mut extra_state: T::Extension,
     rx_config: watch::Receiver<ModuleConfig>,
     rx_event: broadcast::Receiver<Arc<Event>>,
     mut rx_shutdown: ShutdownSignal,
