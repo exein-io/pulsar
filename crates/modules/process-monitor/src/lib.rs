@@ -96,6 +96,7 @@ pub enum ProcessEvent {
     Exec {
         uid: Uid,
         filename: BufferIndex<str>,
+        rootfs: BufferIndex<str>,
         argc: u32,
         argv: BufferIndex<str>, // 0 separated strings
         namespaces: Namespaces,
@@ -209,6 +210,7 @@ pub mod pulsar {
                         ref argv,
                         namespaces,
                         ref c_container_id,
+                        ..
                     } => {
                         let argv =
                             extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
@@ -295,11 +297,13 @@ pub mod pulsar {
                 },
                 ProcessEvent::Exec {
                     filename,
+                    rootfs,
                     argc,
                     argv,
                     ..
                 } => Payload::Exec {
                     filename: filename.string(&buffer)?,
+                    rootfs: rootfs.string(&buffer)?,
                     argc: argc as usize,
                     argv: extract_parameters(argv.bytes(&buffer)?).into(),
                 },
