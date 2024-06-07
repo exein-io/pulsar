@@ -36,7 +36,7 @@ pub trait PulsarModule: Send {
     ) -> impl Future<Output = Result<(Self::State, Self::Extension), ModuleError>> + Send;
 
     fn trigger(
-        state: &mut Self::Extension,
+        extension: &mut Self::Extension,
     ) -> impl Future<Output = Result<Self::TriggerOutput, ModuleError>> + Send;
 
     fn action(
@@ -133,9 +133,7 @@ where
             .map(|v| (v, ()))
     }
 
-    async fn trigger(
-        _extra_state: &mut Self::Extension,
-    ) -> Result<Self::TriggerOutput, ModuleError> {
+    async fn trigger(_extension: &mut Self::Extension) -> Result<Self::TriggerOutput, ModuleError> {
         std::future::pending().await
     }
 
