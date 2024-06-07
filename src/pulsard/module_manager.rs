@@ -149,7 +149,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     tx_stop_event_recv,
                 );
 
-                let (state, extra_state) = match self.module.init_state(&module_config, &ctx).await
+                let (state, extension) = match self.module.init_state(&module_config, &ctx).await
                 {
                     Ok(s) => s,
                     Err(err) => {
@@ -175,7 +175,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     let res = run_module_loop::<T>(
                         module_config,
                         state,
-                        extra_state,
+                        extension,
                         rx_config,
                         rx_event,
                         rx_shutdown,
@@ -362,7 +362,7 @@ async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) 
 async fn run_module_loop<T: PulsarModule>(
     mut config: T::Config,
     mut state: T::State,
-    mut extra_state: T::Extension,
+    mut extension: T::Extension,
     rx_config: watch::Receiver<ModuleConfig>,
     rx_event: broadcast::Receiver<Arc<Event>>,
     mut rx_shutdown: ShutdownSignal,
@@ -410,7 +410,7 @@ async fn run_module_loop<T: PulsarModule>(
                 // Drop the Event Receiver and replace it with None
                 rx_event = None
             }
-            t_output = T::trigger(&mut extra_state) => {
+            t_output = T::trigger(&mut extension) => {
                 let t_output = t_output?;
                 T::action(&t_output, &config, &mut state, ctx).await?
             }
