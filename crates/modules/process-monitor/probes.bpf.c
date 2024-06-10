@@ -155,7 +155,8 @@ struct
 static __always_inline struct path make_mnt_path(struct mount *mnt)
 {
   struct path mnt_path = {
-    .dentry = BPF_CORE_READ(mnt, mnt_mountpoint),
+    // .dentry = BPF_CORE_READ(mnt, mnt_mountpoint),
+    .dentry = BPF_CORE_READ(mnt, mnt.mnt_root),
     .mnt = __builtin_preserve_access_index(&mnt->mnt),
   };
   return mnt_path;
@@ -379,12 +380,14 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   bpf_core_read(&first_character, 1, bprm_filename);
   if (first_character == '/')
   {
+    LOG_ERROR("filename is a full path");
     buffer_index_init(&event->buffer, &event->exec.filename);
     buffer_append_str(&event->buffer, &event->exec.filename, bprm_filename,
                       BUFFER_MAX);
   }
   else
   {
+    LOG_ERROR("filename is not a full path, resolving");
     struct path path = BPF_CORE_READ(bprm, file, f_path);
     get_path_str(&path, &event->buffer, &event->exec.filename);
   }
@@ -396,6 +399,12 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   // Rootfs mount is always the first one.
   struct mount *root_mnt = BPF_CORE_READ(mnt_ns, root);
+  const char *mnt_devname = BPF_CORE_READ(root_mnt, mnt_devname);
+  LOG_ERROR("mnt_devname: %s", mnt_devname);
+  struct qstr root_mnt_entry = BPF_CORE_READ(root_mnt, mnt_mountpoint, d_name);
+  LOG_ERROR("root_mnt: %s", root_mnt_entry.name);
+  struct qstr mountpoint_entry = BPF_CORE_READ(root_mnt, mnt_mp, m_dentry, d_name);
+  LOG_ERROR("mountpoint_entry: %s", mountpoint_entry);
   struct path mnt_path = make_mnt_path(root_mnt);
   get_path_str(&mnt_path, &event->buffer, &event->exec.rootfs);
 

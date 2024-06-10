@@ -107,6 +107,7 @@ static __always_inline long loop_get_dentry_name(u32 i, void *callback_ctx) {
         container_of(c->current.mnt, struct mount, mnt);
     struct mount *parent_mount = BPF_CORE_READ(current_mount, mnt_parent);
     if (current_mount == parent_mount) {
+      LOG_ERROR("Global root - path fully parsed");
       // Global root - path fully parsed
       return LOOP_STOP;
     } else {
@@ -115,12 +116,14 @@ static __always_inline long loop_get_dentry_name(u32 i, void *callback_ctx) {
       // at.
       c->current.mnt = &parent_mount->mnt;
       c->current.dentry = BPF_CORE_READ(current_mount, mnt_mountpoint);
+      LOG_ERROR("Reached root, but not global root");
       return LOOP_CONTINUE;
     }
   }
 
   // Add this dentry name to path
   struct qstr entry = BPF_CORE_READ(current_dentry, d_name);
+  LOG_ERROR("entry part: %s", entry.name);
   u32 next = c->components->total_components;
   if (next < MAX_PATH_COMPONENTS) {
     c->components->component_len[next] = entry.len;
