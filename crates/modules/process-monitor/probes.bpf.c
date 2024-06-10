@@ -155,8 +155,8 @@ struct
 static __always_inline struct path make_mnt_path(struct mount *mnt)
 {
   struct path mnt_path = {
-    // .dentry = BPF_CORE_READ(mnt, mnt_mountpoint),
-    .dentry = BPF_CORE_READ(mnt, mnt.mnt_root),
+    .dentry = BPF_CORE_READ(mnt, mnt_mountpoint),
+    // .dentry = BPF_CORE_READ(mnt, mnt.mnt_root),
     .mnt = __builtin_preserve_access_index(&mnt->mnt),
   };
   return mnt_path;
@@ -397,6 +397,21 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   // Check target and whitelist
   tracker_check_rules(&GLOBAL_INTEREST_MAP, &m_rules, p, image);
 
+  // Mount ns.
+  unsigned int mnt_ns_inum = BPF_CORE_READ(mnt_ns, ns.inum);
+  LOG_ERROR("mnt_ns_inum: %u", mnt_ns_inum);
+
+  // Try from bprm.
+  dev_t i_rdev = BPF_CORE_READ(bprm, executable, f_inode, i_rdev);
+  LOG_ERROR("i_rdev: %u", i_rdev);
+  struct qstr bprm_root_mnt_entry = BPF_CORE_READ(bprm, executable, f_path.mnt, mnt_root, d_name);
+  LOG_ERROR("bprm_root_mnt_entry: %s", bprm_root_mnt_entry.name);
+  struct vfsmount *bprm_mnt = BPF_CORE_READ(bprm, executable, f_path.mnt);
+
+  // Try superblock.
+  struct qstr sup = BPF_CORE_READ(bprm_mnt, mnt_sb, s_root, d_name);
+  LOG_ERROR("sup: %s", sup.name);
+
   // Rootfs mount is always the first one.
   struct mount *root_mnt = BPF_CORE_READ(mnt_ns, root);
   const char *mnt_devname = BPF_CORE_READ(root_mnt, mnt_devname);
@@ -405,6 +420,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   LOG_ERROR("root_mnt: %s", root_mnt_entry.name);
   struct qstr mountpoint_entry = BPF_CORE_READ(root_mnt, mnt_mp, m_dentry, d_name);
   LOG_ERROR("mountpoint_entry: %s", mountpoint_entry);
+
   struct path mnt_path = make_mnt_path(root_mnt);
   get_path_str(&mnt_path, &event->buffer, &event->exec.rootfs);
 
