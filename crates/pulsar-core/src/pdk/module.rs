@@ -19,7 +19,7 @@ impl<'a> TryFrom<&'a ModuleConfig> for NoConfig {
 }
 
 /// Trait to implement to create a pulsar pluggable module. Note that this is the fully
-/// featured interface which is often too much. Please see [`BasicPulsarModule`] for a simpler interface.
+/// featured interface which is often too much. Please see [`SimplePulsarModule`] for a simpler interface.
 pub trait PulsarModule: Send {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
@@ -46,18 +46,20 @@ pub trait PulsarModule: Send {
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send;
 
+    #[allow(unused_variables)]
     fn on_config_change(
-        _new_config: &Self::Config,
-        _state: &mut Self::State,
+        new_config: &Self::Config,
+        state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send {
         ctx.stop_cfg_recv()
     }
 
+    #[allow(unused_variables)]
     fn on_event(
-        _event: &Event,
-        _config: &Self::Config,
-        _state: &mut Self::State,
+        event: &Event,
+        config: &Self::Config,
+        state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send {
         ctx.stop_event_recv()
@@ -70,8 +72,8 @@ pub trait PulsarModule: Send {
 }
 
 /// A simpler version of [`PulsarModule`] which is often enough. A blanket implementation ensures that
-/// [`PulsarModule`] is implemented for all implementors of [`BasicPulsarModule`].
-pub trait BasicPulsarModule: Send + Sync {
+/// [`PulsarModule`] is implemented for all implementors of [`SimplePulsarModule`].
+pub trait SimplePulsarModule: Send + Sync {
     type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
     type State: Send + 'static;
 
@@ -84,18 +86,20 @@ pub trait BasicPulsarModule: Send + Sync {
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<Self::State, ModuleError>> + Send;
 
+    #[allow(unused_variables)]
     fn on_config_change(
-        _new_config: &Self::Config,
-        _state: &mut Self::State,
+        new_config: &Self::Config,
+        state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send {
         ctx.stop_cfg_recv()
     }
 
+    #[allow(unused_variables)]
     fn on_event(
-        _event: &Event,
-        _config: &Self::Config,
-        _state: &mut Self::State,
+        event: &Event,
+        config: &Self::Config,
+        state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<(), ModuleError>> + Send {
         ctx.stop_event_recv()
@@ -109,7 +113,7 @@ pub trait BasicPulsarModule: Send + Sync {
 
 impl<T> PulsarModule for T
 where
-    T: BasicPulsarModule,
+    T: SimplePulsarModule,
 {
     type Config = T::Config;
 
@@ -128,7 +132,7 @@ where
         config: &Self::Config,
         ctx: &ModuleContext,
     ) -> Result<(Self::State, Self::Extension), ModuleError> {
-        BasicPulsarModule::init_state(self, config, ctx)
+        SimplePulsarModule::init_state(self, config, ctx)
             .await
             .map(|v| (v, ()))
     }
@@ -151,7 +155,7 @@ where
         state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> Result<(), ModuleError> {
-        <Self as BasicPulsarModule>::on_config_change(new_config, state, ctx).await
+        <Self as SimplePulsarModule>::on_config_change(new_config, state, ctx).await
     }
 
     async fn on_event(
@@ -160,11 +164,11 @@ where
         state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> Result<(), ModuleError> {
-        <Self as BasicPulsarModule>::on_event(event, config, state, ctx).await
+        <Self as SimplePulsarModule>::on_event(event, config, state, ctx).await
     }
 
     async fn graceful_stop(state: Self::State) -> Result<(), ModuleError> {
-        <Self as BasicPulsarModule>::graceful_stop(state).await
+        <Self as SimplePulsarModule>::graceful_stop(state).await
     }
 }
 

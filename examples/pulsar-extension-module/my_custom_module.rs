@@ -2,12 +2,12 @@
 use std::collections::HashMap;
 
 use pulsar_core::pdk::{
-    BasicPulsarModule, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload,
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, SimplePulsarModule,
 };
 
 pub struct MyCustomModule;
 
-impl BasicPulsarModule for MyCustomModule {
+impl SimplePulsarModule for MyCustomModule {
     type Config = MyModuleConfig;
     type State = MyState;
 

@@ -1,11 +1,11 @@
-use pulsar_core::pdk::{BasicPulsarModule, Event, ModuleContext, ModuleError, NoConfig};
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, NoConfig, SimplePulsarModule};
 use tokio::sync::mpsc;
 
 pub struct ProxyModule {
     pub tx_proxy: mpsc::Sender<Event>,
 }
 
-impl BasicPulsarModule for ProxyModule {
+impl SimplePulsarModule for ProxyModule {
     type Config = NoConfig;
     type State = ProxyModuleState;
 
