@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use engine::RuleEngine;
 use pulsar_core::pdk::{
-    BasicPulsarModule, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError,
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule,
 };
 
 mod dsl;
@@ -15,7 +15,7 @@ const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 
 pub struct RuleEngineModule;
 
-impl BasicPulsarModule for RuleEngineModule {
+impl SimplePulsarModule for RuleEngineModule {
     type Config = Config;
     type State = State;
 

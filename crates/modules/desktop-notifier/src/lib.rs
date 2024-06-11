@@ -6,12 +6,12 @@ use std::{
 use anyhow::Context;
 use pulsar_core::{
     event::Threat,
-    pdk::{BasicPulsarModule, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError},
+    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule},
 };
 
 pub struct DesktopNotifierModule;
 
-impl BasicPulsarModule for DesktopNotifierModule {
+impl SimplePulsarModule for DesktopNotifierModule {
     type Config = Config;
     type State = ();
 

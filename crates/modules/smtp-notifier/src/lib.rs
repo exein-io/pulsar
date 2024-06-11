@@ -8,14 +8,14 @@ use lettre::{
 };
 use pulsar_core::{
     event::Threat,
-    pdk::{BasicPulsarModule, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError},
+    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule},
 };
 
 mod template;
 
 pub struct SmtpNotifierModule;
 
-impl BasicPulsarModule for SmtpNotifierModule {
+impl SimplePulsarModule for SmtpNotifierModule {
     type Config = SmtpNotifierConfig;
     type State = SmtpNotifierState;
 
