@@ -45,45 +45,6 @@ impl PulsarDaemonStarter {
             BpfLogLevel::Disabled
         };
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
-        #[cfg(debug_assertions)]
-        let trace_pipe_handle = bpf_common::trace_pipe::start().await;
-
-        for task_launcher in modules {
-            let module_name = task_launcher.name().to_owned();
-            let module_details = task_launcher.details().to_owned();
-
-            let config = config.get_watched_module_config(&module_name);
-            let is_enabled = config
-                .borrow()
-                .with_default("enabled", module_details.enabled_by_default)
-                .unwrap_or(false);
-            let module_handle = create_module_manager(
-                bus.clone(),
-                daemon_handle.clone(),
-                process_tracker.clone(),
-                task_launcher,
-                config,
-                bpf_context.clone(),
-            );
-            if is_enabled {
-                log::info!("Starting module {module_name}");
-                module_handle.start().await;
-            }
-            // TODO: remove this once we've moved filtering policy and process
-            // tracking to core
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-            if m.insert(module_name.to_string(), (module_details, module_handle))
-                .is_some()
-            {
-                bail!(
-                    "Error creating modules: module {} already present",
-                    module_name
-                )
-            }
-        }
-
-        log::debug!("Daemon started");
 
         Ok(Self {
             bus,
@@ -174,6 +135,8 @@ impl PulsarDaemonStarter {
 
         // Start daemon
         tokio::spawn(run_daemon_actor(daemon));
+
+        log::debug!("Daemon started");
 
         Ok(daemon_handle)
     }
