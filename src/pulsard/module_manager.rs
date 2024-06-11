@@ -149,8 +149,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     tx_stop_event_recv,
                 );
 
-                let (state, extension) = match self.module.init_state(&module_config, &ctx).await
-                {
+                let (state, extension) = match self.module.init_state(&module_config, &ctx).await {
                     Ok(s) => s,
                     Err(err) => {
                         self.status =
