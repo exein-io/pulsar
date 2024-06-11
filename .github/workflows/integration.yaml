@@ -32,7 +32,8 @@ jobs:
       - name: Install dependencies
         if: endsWith(matrix.platform.target, 'musl')
         run: |
-          sudo apt install -y qemu-system
+          sudo apt-get update
+          sudo apt-get install -y qemu-system
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
