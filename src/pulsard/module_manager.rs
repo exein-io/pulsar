@@ -358,6 +358,7 @@ async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) 
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_module_loop<T: PulsarModule>(
     mut config: T::Config,
     mut state: T::State,

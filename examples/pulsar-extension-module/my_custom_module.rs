@@ -57,7 +57,7 @@ impl SimplePulsarModule for MyCustomModule {
                     let mut extra = HashMap::new();
                     extra.insert("anomaly_score".to_string(), "1.0".to_string());
 
-                    ctx.send_threat_derived(&event, desc, Some(extra.into()));
+                    ctx.send_threat_derived(event, desc, Some(extra.into()));
                 }
             }
         }

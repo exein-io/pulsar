@@ -27,6 +27,7 @@ pub struct ModuleContext {
 
 impl ModuleContext {
     /// Constructs a new [ModuleContext]`
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bus: Bus,
         module_name: ModuleName,
