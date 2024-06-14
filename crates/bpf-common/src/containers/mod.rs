@@ -7,9 +7,12 @@ use std::{
     os::unix::ffi::OsStringExt,
     path::{Path, PathBuf},
     ptr,
+    str::FromStr,
 };
 
 use diesel::{connection::SimpleConnection, prelude::*};
+use hyper::{body, Client};
+use hyperlocal::{UnixClientExt, Uri as HyperlocalUri};
 use ini::Ini;
 use nix::unistd::Uid;
 use serde::{Deserialize, Serialize};
@@ -138,6 +141,32 @@ struct LibpodDBContainerConfig {
     json: String,
 }
 
+/// Docker API response for `image inspect` request.
+#[derive(Debug, Deserialize)]
+struct ImageInspect {
+    #[serde(rename = "GraphDriver")]
+    graph_driver: GraphDriver,
+}
+
+/// Data associated with Docker graphdriver.
+#[derive(Debug, Deserialize)]
+struct GraphDriver {
+    #[serde(rename = "Data")]
+    data: GraphDriverData,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphDriverData {
+    #[serde(rename = "LowerDir")]
+    lower_dir: Option<String>,
+    #[serde(rename = "MergedDir")]
+    merged_dir: Option<PathBuf>,
+    #[serde(rename = "UpperDir")]
+    upper_dir: Option<PathBuf>,
+    #[serde(rename = "WorkDir")]
+    work_dir: Option<PathBuf>,
+}
+
 /// Container information used in Pulsar alerts and rules.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Validatron)]
 pub struct ContainerInfo {
@@ -145,6 +174,8 @@ pub struct ContainerInfo {
     pub name: String,
     pub image: String,
     pub image_digest: String,
+    #[validatron(skip)]
+    pub layers: Vec<PathBuf>,
 }
 
 impl fmt::Display for ContainerInfo {
@@ -158,19 +189,19 @@ impl fmt::Display for ContainerInfo {
 }
 
 impl ContainerInfo {
-    pub fn from_container_id(
+    pub async fn from_container_id(
         container_id: ContainerId,
         uid: Uid,
     ) -> Result<Option<Self>, ContainerError> {
         let info = match container_id {
-            ContainerId::Docker(id) => Self::from_docker_id(id),
+            ContainerId::Docker(id) => Self::from_docker_id(id).await,
             ContainerId::Libpod(id) => Self::from_libpod_id(id, uid),
         };
 
         info.map(Some)
     }
 
-    fn from_docker_id(id: String) -> Result<Self, ContainerError> {
+    async fn from_docker_id(id: String) -> Result<Self, ContainerError> {
         const DOCKER_CONTAINERS_PATH: &str = "/var/lib/docker/containers";
 
         let path = PathBuf::from(DOCKER_CONTAINERS_PATH)
@@ -194,11 +225,49 @@ impl ContainerInfo {
         let image = config.config.image;
         let image_digest = config.image_digest;
 
+        // `image_digest` has format like:
+        //
+        // ```
+        // sha256:1d34ffeaf190be23d3de5a8de0a436676b758f48f835c3a2d4768b798c15a7f1
+        // ```
+        //
+        // The unprefixed digest is used as an image ID.
+        let image_id = image_digest.split(':').last().unwrap();
+
+        let client = Client::unix();
+        let url = HyperlocalUri::new(
+            "/var/run/docker.sock",
+            &format!("/images/{}/json", image_id),
+        );
+
+        let response = client.get(url.into()).await.unwrap();
+        let body_bytes = body::to_bytes(response).await.unwrap();
+
+        let response: ImageInspect = serde_json::from_slice(&body_bytes).unwrap();
+
+        // Gather all filesystem layer paths.
+        let mut layers = Vec::new();
+        if let Some(lower_dirs) = response.graph_driver.data.lower_dir {
+            for lower_dir in lower_dirs.split(':') {
+                layers.push(PathBuf::from_str(lower_dir).unwrap());
+            }
+        }
+        if let Some(merged_dir) = response.graph_driver.data.merged_dir {
+            layers.push(merged_dir);
+        }
+        if let Some(upper_dir) = response.graph_driver.data.upper_dir {
+            layers.push(upper_dir);
+        }
+        if let Some(work_dir) = response.graph_driver.data.work_dir {
+            layers.push(work_dir);
+        }
+
         Ok(Self {
             id,
             name,
             image,
             image_digest,
+            layers,
         })
     }
 
@@ -266,6 +335,8 @@ impl ContainerInfo {
             name: config.name,
             image: config.rootfs_image_name,
             image_digest: image.digest.clone(),
+            // TODO(vadorovsky): Parse layer information in Podman.
+            layers: Vec::new(),
         })
     }
 }
