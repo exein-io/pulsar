@@ -397,41 +397,46 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   // Check target and whitelist
   tracker_check_rules(&GLOBAL_INTEREST_MAP, &m_rules, p, image);
 
-  // Mount ns.
-  unsigned int mnt_ns_inum = BPF_CORE_READ(mnt_ns, ns.inum);
-  LOG_ERROR("mnt_ns_inum: %u", mnt_ns_inum);
-
-  // Try from bprm.
-  dev_t i_rdev = BPF_CORE_READ(bprm, executable, f_inode, i_rdev);
-  LOG_ERROR("i_rdev: %u", i_rdev);
-  struct qstr bprm_root_mnt_entry = BPF_CORE_READ(bprm, executable, f_path.mnt, mnt_root, d_name);
-  LOG_ERROR("bprm_root_mnt_entry: %s", bprm_root_mnt_entry.name);
-  struct vfsmount *bprm_mnt = BPF_CORE_READ(bprm, executable, f_path.mnt);
-
-  // Try superblock.
-  struct qstr sup = BPF_CORE_READ(bprm_mnt, mnt_sb, s_root, d_name);
-  LOG_ERROR("sup: %s", sup.name);
-
   // Rootfs mount is always the first one.
   struct mount *root_mnt = BPF_CORE_READ(mnt_ns, root);
-  const char *mnt_devname = BPF_CORE_READ(root_mnt, mnt_devname);
-  LOG_ERROR("mnt_devname: %s", mnt_devname);
-  struct qstr root_mnt_entry = BPF_CORE_READ(root_mnt, mnt_mountpoint, d_name);
-  LOG_ERROR("root_mnt: %s", root_mnt_entry.name);
-  struct qstr mountpoint_entry = BPF_CORE_READ(root_mnt, mnt_mp, m_dentry, d_name);
-  LOG_ERROR("mountpoint_entry: %s", mountpoint_entry);
+  struct dentry *root_dentry = BPF_CORE_READ(root_mnt, mnt_root);
 
-  struct path mnt_path = make_mnt_path(root_mnt);
-  get_path_str(&mnt_path, &event->buffer, &event->exec.rootfs);
 
-  struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-  struct mm_struct *mm = BPF_CORE_READ(task, mm);
-  long start = BPF_CORE_READ(mm, arg_start);
-  long end = BPF_CORE_READ(mm, arg_end);
-  int len = end - start;
-  buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
-                            len);
+  // // Mount ns.
+  // unsigned int mnt_ns_inum = BPF_CORE_READ(mnt_ns, ns.inum);
+  // LOG_ERROR("mnt_ns_inum: %u", mnt_ns_inum);
+
+  // // Try from bprm.
+  // dev_t i_rdev = BPF_CORE_READ(bprm, executable, f_inode, i_rdev);
+  // LOG_ERROR("i_rdev: %u", i_rdev);
+  // struct qstr bprm_root_mnt_entry = BPF_CORE_READ(bprm, executable, f_path.mnt, mnt_root, d_name);
+  // LOG_ERROR("bprm_root_mnt_entry: %s", bprm_root_mnt_entry.name);
+  // struct vfsmount *bprm_mnt = BPF_CORE_READ(bprm, executable, f_path.mnt);
+
+  // // Try superblock.
+  // struct qstr sup = BPF_CORE_READ(bprm_mnt, mnt_sb, s_root, d_name);
+  // LOG_ERROR("sup: %s", sup.name);
+
+  // // Rootfs mount is always the first one.
+  // struct mount *root_mnt = BPF_CORE_READ(mnt_ns, root);
+  // const char *mnt_devname = BPF_CORE_READ(root_mnt, mnt_devname);
+  // LOG_ERROR("mnt_devname: %s", mnt_devname);
+  // struct qstr root_mnt_entry = BPF_CORE_READ(root_mnt, mnt_mountpoint, d_name);
+  // LOG_ERROR("root_mnt: %s", root_mnt_entry.name);
+  // struct qstr mountpoint_entry = BPF_CORE_READ(root_mnt, mnt_mp, m_dentry, d_name);
+  // LOG_ERROR("mountpoint_entry: %s", mountpoint_entry);
+
+  // struct path mnt_path = make_mnt_path(root_mnt);
+  // get_path_str(&mnt_path, &event->buffer, &event->exec.rootfs);
+
+  // struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+  // struct mm_struct *mm = BPF_CORE_READ(task, mm);
+  // long start = BPF_CORE_READ(mm, arg_start);
+  // long end = BPF_CORE_READ(mm, arg_end);
+  // int len = end - start;
+  // buffer_index_init(&event->buffer, &event->exec.argv);
+  // buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
+  //                           len);
 
   output_process_event(ctx, event);
 
