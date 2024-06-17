@@ -183,10 +183,11 @@ The array size MUST be greater than 72.
               cgroup name for the given process
 */
 static __always_inline int get_container_info(struct task_struct *cur_tsk,
-                                              char *buf, char *buf_parent,
-                                              int *offset)
+                                              char *buf, int *offset)
 {
   int cgrp_id;
+  char buf_parent[CONTAINER_ID_MAX_BUF];
+
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
     cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
   else
@@ -256,7 +257,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
-    if (STRNCMP(buf_parent, 7, "libpod-") == 0)
+    if (STRNCMP(buf, 7, "libpod-") == 0)
     {
       *offset = 7;
       return PODMAN_CONTAINER_ENGINE;
@@ -282,7 +283,6 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
 
   char buf[CONTAINER_ID_MAX_BUF];
-  char buf_parent[CONTAINER_ID_MAX_BUF];
 
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
@@ -312,7 +312,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
   int id_offset;
-  int container_engine = get_container_info(child, buf, buf_parent, &id_offset);
+  int container_engine = get_container_info(child, buf, &id_offset);
   if (container_engine < 0)
   {
     // TODO: print error ??
@@ -343,7 +343,6 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
   char buf[CONTAINER_ID_MAX_BUF];
-  char buf_parent[CONTAINER_ID_MAX_BUF];
 
   struct process_event *event = init_process_event(EVENT_EXEC, tgid);
   if (!event)
@@ -362,7 +361,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   event->exec.namespaces.cgroup = BPF_CORE_READ(p, nsproxy, cgroup_ns, ns.inum);
 
   int id_offset;
-  int container_engine = get_container_info(p, buf, buf_parent, &id_offset);
+  int container_engine = get_container_info(p, buf, &id_offset);
   if (container_engine < 0)
   {
     event->exec.option_index.discriminant = OPTION_NONE;
