@@ -1,18 +1,15 @@
 use std::{
     ffi::{CStr, OsString},
     fmt,
-    fs::{self, File},
+    fs::File,
     io::{self, BufReader},
     mem,
     os::unix::ffi::OsStringExt,
     path::{Path, PathBuf},
     ptr,
-    str::FromStr,
 };
 
 use diesel::{connection::SimpleConnection, prelude::*};
-use hyper::{body, Client};
-use hyperlocal::{UnixClientExt, Uri as HyperlocalUri};
 use ini::Ini;
 use nix::unistd::Uid;
 use serde::{Deserialize, Serialize};
@@ -21,6 +18,7 @@ use validatron::Validatron;
 
 use crate::parsing::procfs::ProcfsError;
 
+pub mod layers;
 pub mod schema;
 
 #[derive(Error, Debug)]
@@ -141,52 +139,6 @@ struct LibpodDBContainerConfig {
     json: String,
 }
 
-/// Docker API response for `image inspect` request.
-#[derive(Debug, Deserialize)]
-struct ImageInspect {
-    #[serde(rename = "GraphDriver")]
-    graph_driver: GraphDriver,
-}
-
-/// Data associated with Docker graphdriver.
-#[derive(Debug, Deserialize)]
-struct GraphDriver {
-    #[serde(rename = "Data")]
-    data: Option<GraphDriverData>,
-    #[serde(rename = "Name")]
-    name: GraphDriverName,
-}
-
-#[derive(Debug, Deserialize)]
-struct GraphDriverData {
-    #[serde(rename = "LowerDir")]
-    lower_dir: Option<String>,
-    #[serde(rename = "MergedDir")]
-    merged_dir: Option<PathBuf>,
-    #[serde(rename = "UpperDir")]
-    upper_dir: Option<PathBuf>,
-    #[serde(rename = "WorkDir")]
-    work_dir: Option<PathBuf>,
-}
-
-#[derive(Debug, Deserialize)]
-enum GraphDriverName {
-    #[serde(rename = "btrfs")]
-    Btrfs,
-    #[serde(rename = "overlay")]
-    Overlayfs,
-}
-
-#[derive(Debug, Deserialize)]
-struct ImageDbEntry {
-    rootfs: Rootfs,
-}
-
-#[derive(Debug, Deserialize)]
-struct Rootfs {
-    diff_ids: Vec<String>,
-}
-
 /// Container information used in Pulsar alerts and rules.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Validatron)]
 pub struct ContainerInfo {
@@ -223,9 +175,6 @@ impl ContainerInfo {
 
     async fn from_docker_id(id: String) -> Result<Self, ContainerError> {
         const DOCKER_CONTAINERS_PATH: &str = "/var/lib/docker/containers";
-        const DOCKER_IMAGEDB_PATH: &str = "/var/lib/docker/image/btrfs/imagedb/content/sha256/";
-        const DOCKER_LAYERDB_PATH: &str = "/var/lib/docker/image/btrfs/layerdb/sha256/";
-        const DOCKER_BTRFS_SUBVOL_PATH: &str = "/var/lib/docker/btrfs/subvolumes/";
 
         let path = PathBuf::from(DOCKER_CONTAINERS_PATH)
             .join(&id)
@@ -257,67 +206,8 @@ impl ContainerInfo {
         // The unprefixed digest is used as an image ID.
         let image_id = image_digest.split(':').last().unwrap();
 
-        let client = Client::unix();
-        let url = HyperlocalUri::new(
-            "/var/run/docker.sock",
-            &format!("/images/{}/json", image_id),
-        );
-
-        let response = client.get(url.into()).await.unwrap();
-        let body_bytes = body::to_bytes(response).await.unwrap();
-
-        let response: ImageInspect = serde_json::from_slice(&body_bytes).unwrap();
-
-        // Gather all filesystem layer paths.
-        let mut layers = Vec::new();
-
-        match response.graph_driver.name {
-            GraphDriverName::Btrfs => {
-                let path = PathBuf::from(DOCKER_IMAGEDB_PATH).join(&image_id);
-                let file = File::open(&path).map_err(|source| ContainerError::ReadFile {
-                    source,
-                    path: path.clone(),
-                })?;
-
-                let reader = BufReader::new(file);
-                let imagedb_entry: ImageDbEntry = serde_json::from_reader(reader)
-                    .map_err(|source| ContainerError::ParseConfigFile { source, path })?;
-
-                for layer_id in imagedb_entry.rootfs.diff_ids {
-                    let layer_id = layer_id.split(':').last().unwrap();
-
-                    let path = PathBuf::from(DOCKER_LAYERDB_PATH).join(&layer_id);
-                    if path.exists() {
-                        let path = path.join("cache-id");
-                        let btrfs_subvol_id = fs::read_to_string(&path)
-                            .map_err(|source| ContainerError::ReadFile { source, path })?;
-                        let btrfs_subvol_path =
-                            PathBuf::from(DOCKER_BTRFS_SUBVOL_PATH).join(btrfs_subvol_id);
-
-                        layers.push(btrfs_subvol_path);
-                    }
-                }
-            }
-            GraphDriverName::Overlayfs => {
-                if let Some(graph_driver_data) = response.graph_driver.data {
-                    if let Some(lower_dirs) = graph_driver_data.lower_dir {
-                        for lower_dir in lower_dirs.split(':') {
-                            layers.push(PathBuf::from_str(lower_dir).unwrap());
-                        }
-                    }
-                    if let Some(merged_dir) = graph_driver_data.merged_dir {
-                        layers.push(merged_dir);
-                    }
-                    if let Some(upper_dir) = graph_driver_data.upper_dir {
-                        layers.push(upper_dir);
-                    }
-                    if let Some(work_dir) = graph_driver_data.work_dir {
-                        layers.push(work_dir);
-                    }
-                }
-            }
-            _ => {}
-        }
+        let layers = layers::docker_layers(image_id).await?;
+        log::debug!("found layer filesystems for container {id}: {layers:?}");
 
         Ok(Self {
             id,
