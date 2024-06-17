@@ -95,9 +95,9 @@ fn with_verbosity_flag(app: Command) -> Command {
 
 fn log_level_from_verbosity_flag_count(num: u8) -> log::Level {
     match num {
-        std::u8::MIN..=0 => log::Level::Info,
+        u8::MIN..=0 => log::Level::Info,
         1 => log::Level::Debug,
-        2..=std::u8::MAX => log::Level::Trace,
+        2..=u8::MAX => log::Level::Trace,
     }
 }
 
