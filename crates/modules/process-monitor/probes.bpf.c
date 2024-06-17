@@ -182,7 +182,9 @@ The array size MUST be greater than 72.
               of the process after a successful parse of a `container`
               cgroup name for the given process
 */
-static __always_inline int get_container_info(struct task_struct *cur_tsk, char *buf, size_t sz, int *offset)
+static __always_inline int get_container_info(struct task_struct *cur_tsk,
+                                              char *buf, char *buf_parent,
+                                              int *offset)
 {
   int cgrp_id;
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
@@ -193,17 +195,51 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
     return FAILED_READ_MEMORY_CGROUP_ID;
   }
 
-  const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
-  if (bpf_probe_read_kernel_str(buf, sz, name) < 0)
+  struct kernfs_node *kn = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn);
+  const char *name = BPF_CORE_READ(kn, name);
+  if (bpf_probe_read_kernel_str(buf, CONTAINER_ID_MAX_BUF, name) < 0)
   {
     LOG_ERROR("failed to get kernfs node name: %s\n", buf);
     return FAILED_READ_CGROUP_NAME;
   }
 
-  // Docker case
+  struct kernfs_node *parent_kn = BPF_CORE_READ(kn, parent);
+  const char *parent_name = NULL;
+  if (parent_kn != NULL)
+  {
+    parent_name = BPF_CORE_READ(kn, parent, name);
+    if (bpf_probe_read_kernel_str(buf_parent, CONTAINER_ID_MAX_BUF,
+                                  parent_name) < 0)
+    {
+      LOG_ERROR("failed to get parent kernfs node name: %s\n", buf_parent);
+      return FAILED_READ_PARENT_CGROUP_NAME;
+    }
+  }
+
+  // For Docker containers, there are two cgroup path formats:
+  //
+  // 1. `0::/system.slice/docker-d4ea646fc22c701dbb146e52db4e9125dcca2eebb2f5552f90fedbb28a0f0716.scope`
+  //    This is typical for systemd cgroup driver. In this case, the last
+  //    node contains the `docker-` prefix followed by the container ID.
+  // 2. `0::/docker/2cf2e0be458a80acb354c953f7bb03de5d2d277dfcb8ebaa6575f95668a0c15f`
+  //    This is typical for cgroupfs driver. In this case, the parent node is
+  //    `docker` and the child node contains the container ID.
+
+  // Case 1.
   if (STRNCMP(buf, 7, "docker-") == 0)
   {
     *offset = 7;
+    return DOCKER_CONTAINER_ENGINE;
+  }
+
+  // Case 2.
+  //
+  // The check for NULL character is needed to make sure it is the full kernfs
+  // node name.
+  if (STRNCMP(buf_parent, 6, "docker") == 0 && buf_parent[6] == '\0')
+  {
+    // The last node is unprefixed, it contains just container ID.
+    *offset = 0;
     return DOCKER_CONTAINER_ENGINE;
   }
 
@@ -213,16 +249,14 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, char 
   // `containerd-` prefixed cgroup name
   if (STRNCMP(buf, 9, "container") == 0 && buf[9] == '\0')
   {
-
-    const char *parent_name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, parent, name);
-
-    if (bpf_probe_read_kernel_str(buf, sz, parent_name) < 0)
+    // Read `parent_name` to the main buffer `buf`.
+    if (parent_name == NULL || bpf_probe_read_kernel_str(buf, CONTAINER_ID_MAX_BUF, parent_name) < 0)
     {
       LOG_ERROR("failed to get parent kernfs node name: %s\n", buf);
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
-    if (STRNCMP(buf, 7, "libpod-") == 0)
+    if (STRNCMP(buf_parent, 7, "libpod-") == 0)
     {
       *offset = 7;
       return PODMAN_CONTAINER_ENGINE;
@@ -248,6 +282,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
 
   char buf[CONTAINER_ID_MAX_BUF];
+  char buf_parent[CONTAINER_ID_MAX_BUF];
 
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
@@ -277,7 +312,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
   int id_offset;
-  int container_engine = get_container_info(child, buf, CONTAINER_ID_MAX_BUF, &id_offset);
+  int container_engine = get_container_info(child, buf, buf_parent, &id_offset);
   if (container_engine < 0)
   {
     // TODO: print error ??
@@ -308,6 +343,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
   char buf[CONTAINER_ID_MAX_BUF];
+  char buf_parent[CONTAINER_ID_MAX_BUF];
 
   struct process_event *event = init_process_event(EVENT_EXEC, tgid);
   if (!event)
@@ -326,7 +362,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   event->exec.namespaces.cgroup = BPF_CORE_READ(p, nsproxy, cgroup_ns, ns.inum);
 
   int id_offset;
-  int container_engine = get_container_info(p, buf, CONTAINER_ID_MAX_BUF, &id_offset);
+  int container_engine = get_container_info(p, buf, buf_parent, &id_offset);
   if (container_engine < 0)
   {
     event->exec.option_index.discriminant = OPTION_NONE;
