@@ -152,7 +152,7 @@ struct ImageInspect {
 #[derive(Debug, Deserialize)]
 struct GraphDriver {
     #[serde(rename = "Data")]
-    data: GraphDriverData,
+    data: Option<GraphDriverData>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -247,19 +247,21 @@ impl ContainerInfo {
 
         // Gather all filesystem layer paths.
         let mut layers = Vec::new();
-        if let Some(lower_dirs) = response.graph_driver.data.lower_dir {
-            for lower_dir in lower_dirs.split(':') {
-                layers.push(PathBuf::from_str(lower_dir).unwrap());
+        if let Some(graph_driver_data) = response.graph_driver.data {
+            if let Some(lower_dirs) = graph_driver_data.lower_dir {
+                for lower_dir in lower_dirs.split(':') {
+                    layers.push(PathBuf::from_str(lower_dir).unwrap());
+                }
             }
-        }
-        if let Some(merged_dir) = response.graph_driver.data.merged_dir {
-            layers.push(merged_dir);
-        }
-        if let Some(upper_dir) = response.graph_driver.data.upper_dir {
-            layers.push(upper_dir);
-        }
-        if let Some(work_dir) = response.graph_driver.data.work_dir {
-            layers.push(work_dir);
+            if let Some(merged_dir) = graph_driver_data.merged_dir {
+                layers.push(merged_dir);
+            }
+            if let Some(upper_dir) = graph_driver_data.upper_dir {
+                layers.push(upper_dir);
+            }
+            if let Some(work_dir) = graph_driver_data.work_dir {
+                layers.push(work_dir);
+            }
         }
 
         Ok(Self {
