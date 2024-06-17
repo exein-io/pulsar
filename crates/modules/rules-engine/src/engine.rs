@@ -90,7 +90,7 @@ impl PulsarEngine {
                 for r in ruleset.matches(event) {
                     self.internal
                         .sender
-                        .send_threat_derived(event, r.rule.name.clone(), None);
+                        .send_threat_derived(event, r.name.clone(), None);
                 }
             }
         }
