@@ -30,10 +30,12 @@ pub fn autodetect_features() -> BpfFeatures {
     BpfFeatures {
         atomics: atomics_supported(),
         cgroup_skb_task_btf: func_id_supported(
+            "bpf_get_current_task_btf",
             bpf_func_id::BPF_FUNC_get_current_task_btf,
             BpfProgType::BPF_PROG_TYPE_CGROUP_SKB,
         ),
         bpf_loop: func_id_supported(
+            "bpf_loop",
             bpf_func_id::BPF_FUNC_loop,
             // Program type doesn't matter here.
             BpfProgType::BPF_PROG_TYPE_KPROBE,

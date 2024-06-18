@@ -22,13 +22,22 @@ fn bpf_prog_func_id(func_id: u32) -> Vec<bpf_insn> {
 /// Similar checks are performed by [`bpftool`].
 ///
 /// [`bpftool`]: https://github.com/torvalds/linux/blob/v6.8/tools/bpf/bpftool/feature.c#L534-L544
-pub fn func_id_supported(func_id: u32, prog_type: BpfProgType) -> bool {
+pub fn func_id_supported(func_name: &str, func_id: u32, prog_type: BpfProgType) -> bool {
     let insns = bpf_prog_func_id(func_id);
     let res = load_program(prog_type, insns);
     match res {
         Ok(_) => true,
         Err(err) => {
-            warn!("Function {func_id} in program type {prog_type:?} not supported: {err}");
+            let err_msg = format!(
+                "Function `{func_name}` ({func_id}) not supported in program type {prog_type:?}"
+            );
+
+            if let Ok(true) = std::env::var("RUST_BACKTRACE").map(|s| s == "1") {
+                warn!("{err_msg}: {err}");
+            } else {
+                warn!("{err_msg}");
+            }
+
             false
         }
     }
