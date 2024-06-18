@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs, path::Path, str::FromStr, sync::Arc};
 use glob::glob;
 use pulsar_core::{
     event::{PayloadDiscriminant, Value},
-    pdk::{Event, ModuleContext },
+    pdk::{Event, ModuleContext},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
