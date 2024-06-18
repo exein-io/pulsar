@@ -41,8 +41,26 @@ pub enum ContainerError {
         source: serde_json::error::Error,
         path: PathBuf,
     },
+    #[error("parsing response from `{uri:?}` failed")]
+    ParseResponse {
+        #[source]
+        source: serde_json::error::Error,
+        uri: hyper::Uri,
+    },
     #[error("path `{path}` is non-UTF-8")]
     PathNonUtf8 { path: PathBuf },
+    #[error("failed to make a request to the UNIX socket `{uri:?}`")]
+    HyperRequest {
+        #[source]
+        source: hyper::Error,
+        uri: hyper::Uri,
+    },
+    #[error("failed to parse a response from the UNIX socket `{uri:?}`")]
+    HyperResponse {
+        #[source]
+        source: hyper::Error,
+        uri: hyper::Uri,
+    },
     #[error("could not connect to the database `{path:?}`")]
     SqliteConnection {
         #[source]
@@ -79,6 +97,10 @@ pub enum ContainerError {
     BoltBucketNotFound(String),
     #[error("bolt key `{0}` not found")]
     BoltKeyNotFound(String),
+    #[error("Invalid layer ID: `{0}`")]
+    InvalidLayerID(String),
+    #[error("Invalid image digest: `{0}`")]
+    InvalidImageDigest(String),
 }
 
 /// A container ID.
@@ -204,7 +226,10 @@ impl ContainerInfo {
         // ```
         //
         // The unprefixed digest is used as an image ID.
-        let image_id = image_digest.split(':').last().unwrap();
+        let image_id = image_digest
+            .split(':')
+            .last()
+            .ok_or(ContainerError::InvalidImageDigest(image_digest.clone()))?;
 
         let layers = layers::docker_layers(image_id).await?;
         log::debug!("found layer filesystems for container {id}: {layers:?}");

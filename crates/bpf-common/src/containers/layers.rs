@@ -80,12 +80,27 @@ struct Rootfs {
 /// Returns a list of layer paths for the given Docker image ID.
 pub(crate) async fn docker_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
     let client = Client::unix();
-    let url = HyperlocalUri::new(DOCKER_SOCKET, &format!("/images/{}/json", image_id));
+    let uri = HyperlocalUri::new(DOCKER_SOCKET, &format!("/images/{}/json", image_id));
+    let uri: hyper::Uri = uri.into();
 
-    let response = client.get(url.into()).await.unwrap();
-    let body_bytes = body::to_bytes(response).await.unwrap();
+    let response =
+        client
+            .get(uri.clone())
+            .await
+            .map_err(|source| ContainerError::HyperRequest {
+                source,
+                uri: uri.clone(),
+            })?;
+    let body_bytes =
+        body::to_bytes(response)
+            .await
+            .map_err(|source| ContainerError::HyperResponse {
+                source,
+                uri: uri.clone(),
+            })?;
 
-    let response: ImageInspect = serde_json::from_slice(&body_bytes).unwrap();
+    let response: ImageInspect = serde_json::from_slice(&body_bytes)
+        .map_err(|source| ContainerError::ParseResponse { source, uri })?;
 
     match response.graph_driver.name {
         GraphDriverName::Btrfs => docker_btrfs_layers(image_id),
@@ -132,7 +147,10 @@ fn docker_btrfs_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
         .map_err(|source| ContainerError::ParseConfigFile { source, path })?;
 
     for layer_id in imagedb_entry.rootfs.diff_ids {
-        let layer_id = layer_id.split(':').last().unwrap();
+        let layer_id = layer_id
+            .split(':')
+            .last()
+            .ok_or(ContainerError::InvalidLayerID(layer_id.clone()))?;
 
         let path = PathBuf::from(DOCKER_LAYERDB_PATH).join(&layer_id);
         if path.exists() {
@@ -156,6 +174,7 @@ fn docker_overlayfs_layers(
     if let Some(graph_driver_data) = graph_driver_data {
         if let Some(lower_dirs) = graph_driver_data.lower_dir {
             for lower_dir in lower_dirs.split(':') {
+                // `PathBuf::from_str` is infallible.
                 layers.push(PathBuf::from_str(lower_dir).unwrap());
             }
         }
