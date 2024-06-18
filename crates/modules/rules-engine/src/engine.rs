@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, path::Path, str::FromStr, sync::Arc};
 
 use glob::glob;
 use pulsar_core::{
-    event::PayloadDiscriminant,
+    event::{PayloadDiscriminant, Value},
     pdk::{Event, ModuleSender},
 };
 use serde::{Deserialize, Serialize};
@@ -88,9 +88,13 @@ impl PulsarEngine {
             // Match against a discriminant ruleset if there is one
             if let Some(ruleset) = self.internal.rulesets.get(&discriminant) {
                 for r in ruleset.matches(event) {
-                    self.internal
-                        .sender
-                        .send_threat_derived(event, r.name.clone(), None);
+                    let metadata_value =
+                        Value::try_from(&r.metadata).expect("failed to serialize metadata");
+                    self.internal.sender.send_threat_derived(
+                        event,
+                        r.rule.name.clone(),
+                        Some(metadata_value),
+                    );
                 }
             }
         }
@@ -195,7 +199,7 @@ impl RuleFile {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Metadata {
     pub category: Category,
     pub description: String,
@@ -208,7 +212,7 @@ pub struct RuleWithMetadata {
     pub(crate) metadata: Metadata,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Category {
     CommandAndControl,
