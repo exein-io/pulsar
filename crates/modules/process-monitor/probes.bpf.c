@@ -152,10 +152,17 @@ struct
 } orphans_map SEC(".maps");
 
 /*
+Buffer for reading container id of a process. The Container ID is located at `buf[offset]`
+ */
+struct container_id_buffer
+{
+  char buf[CONTAINER_ID_MAX_BUF];
+  int offset;
+};
+
+/*
 Identifies the container engine and reads the cgroup id of a process
 from its `task_struct` into an given array of character.
-
-The array size MUST be greater than 72.
 
 ### Input:
     `char buf[]`: a pointer to an array of characters
@@ -182,8 +189,7 @@ The array size MUST be greater than 72.
               of the process after a successful parse of a `container`
               cgroup name for the given process
 */
-static __always_inline int get_container_info(struct task_struct *cur_tsk,
-                                              char *buf, int *offset)
+static __always_inline int get_container_info(struct task_struct *cur_tsk, struct container_id_buffer *c_id_buf)
 {
   int cgrp_id;
   char buf_parent[CONTAINER_ID_MAX_BUF];
@@ -198,9 +204,9 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
 
   struct kernfs_node *kn = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn);
   const char *name = BPF_CORE_READ(kn, name);
-  if (bpf_probe_read_kernel_str(buf, CONTAINER_ID_MAX_BUF, name) < 0)
+  if (bpf_probe_read_kernel_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, name) < 0)
   {
-    LOG_ERROR("failed to get kernfs node name: %s\n", buf);
+    LOG_ERROR("failed to get kernfs node name: %s\n", c_id_buf->buf);
     return FAILED_READ_CGROUP_NAME;
   }
 
@@ -227,9 +233,9 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   //    `docker` and the child node contains the container ID.
 
   // Case 1.
-  if (STRNCMP(buf, 7, "docker-") == 0)
+  if (STRNCMP(c_id_buf->buf, 7, "docker-") == 0)
   {
-    *offset = 7;
+    c_id_buf->offset = 7;
     return DOCKER_CONTAINER_ENGINE;
   }
 
@@ -240,7 +246,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   if (STRNCMP(buf_parent, 6, "docker") == 0 && buf_parent[6] == '\0')
   {
     // The last node is unprefixed, it contains just container ID.
-    *offset = 0;
+    c_id_buf->offset = 0;
     return DOCKER_CONTAINER_ENGINE;
   }
 
@@ -248,28 +254,28 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   //
   // the check for NULL character is needed to avoid collisions with
   // `containerd-` prefixed cgroup name
-  if (STRNCMP(buf, 9, "container") == 0 && buf[9] == '\0')
+  if (STRNCMP(c_id_buf->buf, 9, "container") == 0 && c_id_buf->buf[9] == '\0')
   {
     // Read `parent_name` to the main buffer `buf`.
-    if (parent_name == NULL || bpf_probe_read_kernel_str(buf, CONTAINER_ID_MAX_BUF, parent_name) < 0)
+    if (parent_name == NULL || bpf_probe_read_kernel_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, parent_name) < 0)
     {
-      LOG_ERROR("failed to get parent kernfs node name: %s\n", buf);
+      LOG_ERROR("failed to get parent kernfs node name: %s\n", c_id_buf->buf);
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
-    if (STRNCMP(buf, 7, "libpod-") == 0)
+    if (STRNCMP(c_id_buf->buf, 7, "libpod-") == 0)
     {
-      *offset = 7;
+      c_id_buf->offset = 7;
       return PODMAN_CONTAINER_ENGINE;
     }
 
     // Error podman step 2
-    LOG_ERROR("failed parsing libpod id: %s\n", buf);
+    LOG_ERROR("failed parsing libpod id: %s\n", c_id_buf->buf);
     return FAILED_PARSE_LIBPOD_CGROUP_NAME;
   }
 
   // No container or unknown container engine
-  LOG_DEBUG("no container or unknown container engine. id: %s\n", buf);
+  LOG_DEBUG("no container or unknown container engine. id: %s\n", c_id_buf->buf);
   return UNKNOWN_CONTAINER_ENGINE;
 }
 
@@ -282,7 +288,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
 
-  char buf[CONTAINER_ID_MAX_BUF];
+  struct container_id_buffer c_id_buf;
 
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
@@ -311,8 +317,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
   event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
-  int id_offset;
-  int container_engine = get_container_info(child, buf, &id_offset);
+  int container_engine = get_container_info(child, &c_id_buf);
   if (container_engine < 0)
   {
     // TODO: print error ??
@@ -327,9 +332,9 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
     event->fork.option_index.container_id.container_engine = container_engine;
     buffer_index_init(&event->buffer, &event->fork.option_index.container_id.cgroup_id);
     buffer_append_str(&event->buffer, &event->fork.option_index.container_id.cgroup_id,
-                      buf + id_offset, CONTAINER_ID_MAX_BUF);
+                      c_id_buf.buf + c_id_buf.offset, CONTAINER_ID_MAX_BUF);
 
-    LOG_DEBUG("fork - detected container with id: %s", buf + id_offset);
+    LOG_DEBUG("fork - detected container with id: %s", c_id_buf.buf + c_id_buf.offset);
   }
 
   output_process_event(ctx, event);
@@ -342,7 +347,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
-  char buf[CONTAINER_ID_MAX_BUF];
+  struct container_id_buffer c_id_buf;
 
   struct process_event *event = init_process_event(EVENT_EXEC, tgid);
   if (!event)
@@ -360,8 +365,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   event->exec.namespaces.time = BPF_CORE_READ(p, nsproxy, time_ns, ns.inum);
   event->exec.namespaces.cgroup = BPF_CORE_READ(p, nsproxy, cgroup_ns, ns.inum);
 
-  int id_offset;
-  int container_engine = get_container_info(p, buf, &id_offset);
+  int container_engine = get_container_info(p, &c_id_buf);
   if (container_engine < 0)
   {
     event->exec.option_index.discriminant = OPTION_NONE;
@@ -374,9 +378,9 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
     event->exec.option_index.container_id.container_engine = container_engine;
     buffer_index_init(&event->buffer, &event->exec.option_index.container_id.cgroup_id);
     buffer_append_str(&event->buffer, &event->exec.option_index.container_id.cgroup_id,
-                      buf + id_offset, CONTAINER_ID_MAX_BUF);
+                      c_id_buf.buf + c_id_buf.offset, CONTAINER_ID_MAX_BUF);
 
-    LOG_DEBUG("exec - detected container with id: %s", buf + id_offset);
+    LOG_DEBUG("exec - detected container with id: %s", c_id_buf.buf + c_id_buf.offset);
   }
 
   // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
