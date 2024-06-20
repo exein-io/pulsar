@@ -303,11 +303,11 @@ pub mod pulsar {
         let data = data
             .bytes(&event.buffer)
             .map_err(|err| {
-                log::error!("[dns] Error getting message: {}", err);
+                log::error!("Error getting network packet payload: {err}");
             })
             .ok()?;
 
-        // any valid dns data?
+        // Check wheter the payload contains any DNS data.
         let dns = dns_parser::Packet::parse(data).ok()?;
         let with_q = !dns.questions.is_empty();
         let with_a = !dns.answers.is_empty();

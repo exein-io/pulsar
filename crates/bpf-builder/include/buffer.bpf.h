@@ -132,10 +132,16 @@ static __always_inline int buffer_append_skb_bytes(struct buffer *buffer,
     return -1;
   }
 
+  // * The `< 0` case is impossible to reproduce (otherwise it would mean
+  //   `skb->len` is somehow lower than the size of packet headers we already
+  //   consumed from that SKB).
+  //   It's here only to appease the eBPF verifier (using `u32` and checking
+  //   just for `0` doesn't work).
+  // * The `= 0` case usually applies to SYN, SYN-ACK, ACK or any other packets
+  //   which don't contain any payload after L4 headers.
+  //   Therefore, we don't return any error here.
   if (len <= 0) {
-    LOG_ERROR("Invalid offset (%zu) exceeding the packet length (%zu).",
-              offset, skb->len);
-    return -1;
+    return 0;
   }
 
   int r = bpf_skb_load_bytes(skb, offset, &((char *)buffer->buffer)[pos],

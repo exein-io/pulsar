@@ -520,6 +520,8 @@ __always_inline int process_skb(struct __sk_buff *skb,
   void *data_end = (void *)(long)skb->data_end;
   void *data = (void *)(long)skb->data;
 
+  buffer_index_init(&network_event->buffer, &msg_event->data);
+
   // Parse L3 header (IPv4 / IPv6).
   switch (l3_proto) {
   case ETH_P_IPV4: {
@@ -653,17 +655,16 @@ __always_inline int process_skb(struct __sk_buff *skb,
       }
       break;
     }
-
-    buffer_index_init(&network_event->buffer, &msg_event->data);
-    if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
-                                headers_len) < 0) {
-      LOG_ERROR("Failed to retrieve the packet payload. The event is going to miss the `data` part.");
-    }
     break;
   }
   default:
     LOG_DEBUG("ignored unsupported L4 protocol %d", l4_proto);
     goto send_event;
+  }
+
+  if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
+                              headers_len) < 0) {
+    LOG_ERROR("Failed to retrieve the packet payload. The event is going to miss the `data` part.");
   }
 
   msg_event->data_len = skb->len - headers_len;
