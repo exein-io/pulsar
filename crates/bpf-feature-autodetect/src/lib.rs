@@ -4,12 +4,14 @@ use std::mem;
 
 use aya_ebpf_bindings::bindings::bpf_func_id;
 pub use aya_obj::generated::bpf_prog_type as BpfProgType;
-use aya_obj::generated::{bpf_attr, bpf_cmd, bpf_insn};
+use aya_obj::generated::{bpf_attr, bpf_cmd, bpf_func_info, bpf_insn};
 use bpf_features::BpfFeatures;
+use bpf_loop::bpf_loop_supported;
 use libc::SYS_bpf;
 use thiserror::Error;
 
 pub mod atomic;
+pub mod bpf_loop;
 pub mod func;
 pub mod insn;
 pub mod kernel_version;
@@ -34,12 +36,7 @@ pub fn autodetect_features() -> BpfFeatures {
             bpf_func_id::BPF_FUNC_get_current_task_btf,
             BpfProgType::BPF_PROG_TYPE_CGROUP_SKB,
         ),
-        bpf_loop: func_id_supported(
-            "bpf_loop",
-            bpf_func_id::BPF_FUNC_loop,
-            // Program type doesn't matter here.
-            BpfProgType::BPF_PROG_TYPE_KPROBE,
-        ),
+        bpf_loop: bpf_loop_supported(),
         lsm: lsm_supported(),
     }
 }
@@ -47,7 +44,8 @@ pub fn autodetect_features() -> BpfFeatures {
 /// Loads the given eBPF bytecode to the kernel.
 pub(crate) fn load_program(
     prog_type: BpfProgType,
-    insns: Vec<bpf_insn>,
+    insns: &[bpf_insn],
+    func_info: &[bpf_func_info],
 ) -> Result<(), FeatureProbeError> {
     let mut attr = unsafe { mem::zeroed::<bpf_attr>() };
     let u = unsafe { &mut attr.__bindgen_anon_3 };
@@ -63,6 +61,12 @@ pub(crate) fn load_program(
     u.log_level = 1;
     u.log_buf = log.as_mut_ptr() as u64;
     u.log_size = LOG_SIZE as u32;
+
+    // if !func_info.is_empty() {
+    //     u.func_info = func_info.as_ptr() as u64;
+    //     u.func_info_cnt = func_info.len() as u32;
+    //     u.func_info_rec_size = mem::size_of::<bpf_func_info>() as u32;
+    // }
 
     let ret = unsafe {
         libc::syscall(

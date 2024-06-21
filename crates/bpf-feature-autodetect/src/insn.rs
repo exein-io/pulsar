@@ -6,9 +6,31 @@
 
 use aya_ebpf_bindings::bindings::{
     bpf_func_id, BPF_ALU64, BPF_ATOMIC, BPF_CALL, BPF_EXIT, BPF_JMP, BPF_K, BPF_LDX, BPF_MEM,
-    BPF_MOV, BPF_ST, BPF_STX,
+    BPF_MOV, BPF_ST, BPF_STX, BPF_X,
 };
 use aya_obj::generated::bpf_insn;
+
+/*
+
+#define BPF_ALU64_IMM(OP, DST, IMM)				\
+    ((struct bpf_insn) {					\
+        .code  = BPF_ALU64 | BPF_OP(OP) | BPF_K,	\
+        .dst_reg = DST,					\
+        .src_reg = 0,					\
+        .off   = 0,					\
+        .imm   = IMM })
+
+*/
+
+pub fn bpf_alu64_imm(op: u8, dst_reg: u8, imm: i32) -> bpf_insn {
+    bpf_insn {
+        code: BPF_ALU64 as u8 | bpf_op(op) | BPF_K as u8,
+        _bitfield_align_1: [],
+        _bitfield_1: bpf_insn::new_bitfield_1(dst_reg, 0),
+        off: 0,
+        imm,
+    }
+}
 
 pub fn bpf_atomic_op(size: u8, op: u32, dst_reg: u8, src_reg: u8, off: i16) -> bpf_insn {
     bpf_insn {
@@ -71,8 +93,53 @@ pub fn bpf_mov64_imm(dst_reg: u8, imm: i32) -> bpf_insn {
     }
 }
 
+/*
+
+#define BPF_MOV64_REG(DST, SRC)					\
+    ((struct bpf_insn) {					\
+        .code  = BPF_ALU64 | BPF_MOV | BPF_X,		\
+        .dst_reg = DST,					\
+        .src_reg = SRC,					\
+        .off   = 0,					\
+        .imm   = 0 })
+
+
+*/
+
+pub fn bpf_mov64_reg(dst_reg: u8, src_reg: u8) -> bpf_insn {
+    bpf_insn {
+        code: BPF_ALU64 as u8 | BPF_MOV as u8 | BPF_X as u8,
+        _bitfield_align_1: [],
+        _bitfield_1: bpf_insn::new_bitfield_1(dst_reg, src_reg),
+        off: 0,
+        imm: 0,
+    }
+}
+
 pub fn bpf_op(code: u8) -> u8 {
     code & 0xf0
+}
+
+/*
+
+#define BPF_RAW_INSN(CODE, DST, SRC, OFF, IMM)			\
+    ((struct bpf_insn) {					\
+        .code  = CODE,					\
+        .dst_reg = DST,					\
+        .src_reg = SRC,					\
+        .off   = OFF,					\
+        .imm   = IMM })
+
+*/
+
+pub fn bpf_raw_insn(code: u8, dst_reg: u8, src_reg: u8, off: i16, imm: i32) -> bpf_insn {
+    bpf_insn {
+        code,
+        _bitfield_align_1: [],
+        _bitfield_1: bpf_insn::new_bitfield_1(dst_reg, src_reg),
+        off,
+        imm,
+    }
 }
 
 pub fn bpf_size(code: u8) -> u8 {

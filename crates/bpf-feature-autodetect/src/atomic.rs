@@ -38,7 +38,7 @@ fn bpf_prog_atomic() -> Vec<bpf_insn> {
 pub fn atomics_supported() -> bool {
     let insns = bpf_prog_atomic();
     // Program type doesn't matter, kprobe is just the most basic one.
-    let res = load_program(BpfProgType::BPF_PROG_TYPE_KPROBE, insns);
+    let res = load_program(BpfProgType::BPF_PROG_TYPE_KPROBE, insns.as_slice(), &[]);
     match res {
         Ok(_) => true,
         Err(e) => {
