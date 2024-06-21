@@ -135,6 +135,28 @@ impl<T: Debug> TestRunner<T> {
             expectations: Vec::new(),
         }
     }
+
+    pub async fn run_async<F>(mut self, trigger_program: F) -> TestResult<T>
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        let _program = self.ebpf.await.context("running eBPF").unwrap();
+        // Run the triggering code
+        let start_time = Timestamp::now();
+        trigger_program.await;
+        let end_time = Timestamp::now();
+        // Wait ebpf to process pending events
+        tokio::time::sleep(MAX_TIMEOUT).await;
+        // Collect events
+        let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
+        TestResult {
+            start_time,
+            end_time,
+            events,
+            expectations: Vec::new(),
+        }
+    }
 }
 
 /// Simple BpfSender used to collect `bpf_common::program::Program` events.

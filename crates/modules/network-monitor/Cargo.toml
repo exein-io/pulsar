@@ -6,13 +6,19 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-test-suite = ["bpf-common/test-utils"]
+test-suite = [
+  "bpf-common/test-utils",
+  "dns-mock-server",
+  "hickory-resolver"
+]
 
 [dependencies]
 bpf-common = { workspace = true }
 pulsar-core = { workspace = true }
 
 tokio = { workspace = true, features = ["full"] }
+dns-mock-server = { workspace = true, optional = true }
+hickory-resolver = { workspace = true, optional = true }
 log = { workspace = true }
 nix = { workspace = true }
 dns-parser = { workspace = true }
