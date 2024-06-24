@@ -557,10 +557,6 @@ pub mod test_suite {
         // for TCP it's overriden on connection
         let mut source = dest;
         let msg = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let data_copied = match proto {
-            Proto::TCP => Vec::new(),
-            Proto::UDP => msg.to_vec(),
-        };
         TestRunner::with_ebpf(program)
             .run(|| match proto {
                 Proto::UDP => {
@@ -592,7 +588,7 @@ pub mod test_suite {
                 NetworkEvent::Send,
                 (dst, dest.into(), "destination address"),
                 (src, source.into(), "source address"),
-                (data, data_copied.clone(), "data copy"),
+                (data, msg.to_vec(), "data copy"),
                 (data_len, msg.len() as u32, "real message len"),
                 (proto, proto, "protocol")
             ))
@@ -600,7 +596,7 @@ pub mod test_suite {
                 NetworkEvent::Receive,
                 (dst, source.into(), "destination address"),
                 (src, dest.into(), "source address"),
-                (data, data_copied.clone(), "data copy"),
+                (data, msg.to_vec(), "data copy"),
                 (data_len, msg.len() as u32, "real message len"),
                 (proto, proto, "protocol")
             ))
