@@ -142,8 +142,8 @@ static __always_inline long loop_append_path_component(u32 i,
     return LOOP_STOP;
   char *name = (char *)c->components->component_name[t];
   int len = c->components->component_len[t];
-  buffer_append_str(c->buffer, c->index, "/", 1);
-  buffer_append_str(c->buffer, c->index, name, len);
+  buffer_append_str(c->buffer, c->index, "/", 1, 0);
+  buffer_append_str(c->buffer, c->index, name, len, 0);
   return LOOP_CONTINUE;
 }
 

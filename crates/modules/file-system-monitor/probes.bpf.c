@@ -135,7 +135,7 @@ static __always_inline void on_path_symlink(void *ctx, struct path *dir,
   get_path_str(&path, &event->buffer, &event->link.source);
   buffer_index_init(&event->buffer, &event->link.destination);
   buffer_append_str(&event->buffer, &event->link.destination, old_name,
-                    BUFFER_MAX);
+                    BUFFER_MAX, 0);
   event->link.hard_link = false;
   output_fs_event(ctx, event);
 }

@@ -157,7 +157,7 @@ Buffer for reading container id of a process. The Container ID is located at `bu
 struct container_id_buffer
 {
   char buf[CONTAINER_ID_MAX_BUF];
-  int offset;
+  size_t offset;
 };
 
 /*
@@ -332,7 +332,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
     event->fork.option_index.container_id.container_engine = container_engine;
     buffer_index_init(&event->buffer, &event->fork.option_index.container_id.cgroup_id);
     buffer_append_str(&event->buffer, &event->fork.option_index.container_id.cgroup_id,
-                      c_id_buf.buf + c_id_buf.offset, CONTAINER_ID_MAX_BUF);
+                      c_id_buf.buf, CONTAINER_ID_MAX_BUF, c_id_buf.offset);
 
     LOG_DEBUG("fork - detected container with id: %s", c_id_buf.buf + c_id_buf.offset);
   }
@@ -378,7 +378,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
     event->exec.option_index.container_id.container_engine = container_engine;
     buffer_index_init(&event->buffer, &event->exec.option_index.container_id.cgroup_id);
     buffer_append_str(&event->buffer, &event->exec.option_index.container_id.cgroup_id,
-                      c_id_buf.buf + c_id_buf.offset, CONTAINER_ID_MAX_BUF);
+                      c_id_buf.buf, CONTAINER_ID_MAX_BUF, c_id_buf.offset);
 
     LOG_DEBUG("exec - detected container with id: %s", c_id_buf.buf + c_id_buf.offset);
   }
@@ -409,7 +409,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   {
     buffer_index_init(&event->buffer, &event->exec.filename);
     buffer_append_str(&event->buffer, &event->exec.filename, bprm_filename,
-                      BUFFER_MAX);
+                      BUFFER_MAX, 0);
   }
   else
   {
@@ -621,7 +621,7 @@ int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path)
   event->cgroup_mkdir.id = BPF_CORE_READ(cgrp, kn, id);
   buffer_index_init(&event->buffer, &event->cgroup_mkdir.path);
   buffer_append_str(&event->buffer, &event->cgroup_mkdir.path, path,
-                    BUFFER_MAX);
+                    BUFFER_MAX, 0);
   output_process_event(ctx, event);
   return 0;
 }
@@ -638,7 +638,7 @@ int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path)
   event->cgroup_rmdir.id = BPF_CORE_READ(cgrp, kn, id);
   buffer_index_init(&event->buffer, &event->cgroup_rmdir.path);
   buffer_append_str(&event->buffer, &event->cgroup_rmdir.path, path,
-                    BUFFER_MAX);
+                    BUFFER_MAX, 0);
   output_process_event(ctx, event);
   return 0;
 }
@@ -660,7 +660,7 @@ int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
   event->cgroup_attach.pid = BPF_CORE_READ(task, tgid);
   buffer_index_init(&event->buffer, &event->cgroup_attach.path);
   buffer_append_str(&event->buffer, &event->cgroup_attach.path, path,
-                    BUFFER_MAX);
+                    BUFFER_MAX, 0);
   output_process_event(ctx, event);
   return 0;
 }
