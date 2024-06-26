@@ -63,21 +63,29 @@ static void buffer_index_init(struct buffer *buffer,
 // Copy up to len bytes from source to the buffer pointed by index.
 // On success, update index and buffer length. Source is treated as a string:
 // the copy will be interrupted when encountering a NULL byte.
-static void buffer_append_str(struct buffer *buffer, struct buffer_index *index,
-                              const char *source, int len) {
+static __always_inline void buffer_append_str(struct buffer *buffer,
+                                              struct buffer_index *index,
+                                              const char *source,
+                                              u32 len, u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
     LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
     return;
   }
-  if (len > HALF_BUFFER_MASK) {
-    len = HALF_BUFFER_MASK;
+
+  s32 partial_len = len - offset;
+  if (partial_len > HALF_BUFFER_MASK) {
+    partial_len = HALF_BUFFER_MASK;
   } else {
-    // include space for terminating 0
-    len = (len + 1) & HALF_BUFFER_MASK;
+    partial_len = (partial_len + 1) & HALF_BUFFER_MASK;
+  }
+  if (partial_len <= 0) {
+    LOG_ERROR("offset out of bounds: %u+%u", offset, len);
+    return;
   }
 
-  int r = bpf_core_read_str(&((char *)buffer->buffer)[pos], len, source);
+  int r = bpf_core_read_str(&((char *)buffer->buffer)[pos], partial_len,
+                            source + offset);
   if (r <= 0) {
     LOG_ERROR("reading failure: %d", r);
     return;
