@@ -192,7 +192,7 @@ from its `task_struct` into an given array of character.
 static __always_inline int get_container_info(struct task_struct *cur_tsk, struct container_id_buffer *c_id_buf)
 {
   int cgrp_id;
-  char buf_parent[CONTAINER_ID_MAX_BUF];
+  struct container_id_buffer parent_buf;
 
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
     cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
@@ -215,10 +215,10 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, struc
   if (parent_kn != NULL)
   {
     parent_name = BPF_CORE_READ(kn, parent, name);
-    if (bpf_probe_read_kernel_str(buf_parent, CONTAINER_ID_MAX_BUF,
+    if (bpf_probe_read_kernel_str(parent_buf.buf, CONTAINER_ID_MAX_BUF,
                                   parent_name) < 0)
     {
-      LOG_ERROR("failed to get parent kernfs node name: %s\n", buf_parent);
+      LOG_ERROR("failed to get parent kernfs node name: %s\n", parent_buf.buf);
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
   }
@@ -243,7 +243,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk, struc
   //
   // The check for NULL character is needed to make sure it is the full kernfs
   // node name.
-  if (STRNCMP(buf_parent, 6, "docker") == 0 && buf_parent[6] == '\0')
+  if (STRNCMP(parent_buf.buf, 6, "docker") == 0 && parent_buf.buf[6] == '\0')
   {
     // The last node is unprefixed, it contains just container ID.
     c_id_buf->offset = 0;
