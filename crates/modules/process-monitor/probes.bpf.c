@@ -162,20 +162,18 @@ struct container_id_buffer
 
 /*
 Identifies the container engine and reads the cgroup id of a process
-from its `task_struct` into an given array of character.
+from its `task_struct` into a given `container_id_buffer`.
 
 ### Input:
-    `char buf[]`: a pointer to an array of characters
-    `size_t sz`: size of the buffer
-    `int *offset`: a pointer to an integer
     `struct task_struct *cur_tsk`: a pointer to a process task struct
+    `struct container_id_buffer *c_id_buf`: a pointer to the buffer
 
 ### Success:
     the return value is:
       - `0`: it's a docker container id
       - `1`: it's a podman container id
-    and the characters array `buf` contains the id of the container
-    at the position specified in the value pointed by `offset`.
+    and `c_id_buf->buf` contains the id of the container at the position
+    specified in the value pointed by `c_id_buf->offset`.
 
 ### Error:
     if return value is less than `0`, in particular:
@@ -189,7 +187,8 @@ from its `task_struct` into an given array of character.
               of the process after a successful parse of a `container`
               cgroup name for the given process
 */
-static __always_inline int get_container_info(struct task_struct *cur_tsk, struct container_id_buffer *c_id_buf)
+static __always_inline int get_container_info(struct task_struct *cur_tsk,
+                                              struct container_id_buffer *c_id_buf)
 {
   int cgrp_id;
   struct container_id_buffer parent_buf;

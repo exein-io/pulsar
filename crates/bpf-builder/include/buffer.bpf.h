@@ -60,7 +60,9 @@ static void buffer_index_init(struct buffer *buffer,
   index->len = 0;
 }
 
-// Copy up to len bytes from source to the buffer pointed by index.
+// Copies up to @len bytes from @source, starting from the given @offset, to
+// the @buffer pointed by @index.
+//
 // On success, update index and buffer length. Source is treated as a string:
 // the copy will be interrupted when encountering a NULL byte.
 static __always_inline void buffer_append_str(struct buffer *buffer,
