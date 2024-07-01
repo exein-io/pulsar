@@ -66,6 +66,8 @@ mod module;
 mod module_context;
 pub mod process_tracker;
 
+use std::sync::Arc;
+
 pub use crate::bus::BusError;
 pub use crate::event::Event;
 pub use crate::event::Payload;
@@ -73,4 +75,28 @@ pub use config::*;
 pub use daemon::*;
 pub use module::*;
 pub use module_context::*;
-pub use semver::Version;
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::RecvError;
+
+/// Receive an event from a [[broadcast::Receiver]]. Log a warning if we have lost messages
+pub async fn receive_from_broadcast(
+    rx: &mut broadcast::Receiver<Arc<Event>>,
+    module_name: &str,
+) -> Result<Arc<Event>, ModuleError> {
+    let mut lost: u64 = 0;
+    loop {
+        match rx.recv().await {
+            Ok(value) => {
+                if lost > 0 {
+                    log::warn!(
+                        target: module_name,
+                        "brodcast channel lagged {lost} messages",
+                    );
+                }
+                return Ok(value);
+            }
+            Err(RecvError::Lagged(lagged)) => lost += lagged,
+            Err(RecvError::Closed) => return Err("broadcast channel closed".into()),
+        }
+    }
+}
