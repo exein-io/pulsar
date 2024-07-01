@@ -344,6 +344,8 @@ dependencies = [
  "diesel",
  "glob",
  "hex",
+ "hyper",
+ "hyperlocal",
  "lazy_static",
  "libc",
  "libsqlite3-sys",

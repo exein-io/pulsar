@@ -18,6 +18,7 @@ use validatron::Validatron;
 
 use crate::parsing::procfs::ProcfsError;
 
+pub mod layers;
 pub mod schema;
 
 #[derive(Error, Debug)]
@@ -40,8 +41,26 @@ pub enum ContainerError {
         source: serde_json::error::Error,
         path: PathBuf,
     },
+    #[error("parsing response from `{uri:?}` failed")]
+    ParseResponse {
+        #[source]
+        source: serde_json::error::Error,
+        uri: hyper::Uri,
+    },
     #[error("path `{path}` is non-UTF-8")]
     PathNonUtf8 { path: PathBuf },
+    #[error("failed to make a request to the UNIX socket `{uri:?}`")]
+    HyperRequest {
+        #[source]
+        source: hyper::Error,
+        uri: hyper::Uri,
+    },
+    #[error("failed to parse a response from the UNIX socket `{uri:?}`")]
+    HyperResponse {
+        #[source]
+        source: hyper::Error,
+        uri: hyper::Uri,
+    },
     #[error("could not connect to the database `{path:?}`")]
     SqliteConnection {
         #[source]
@@ -78,6 +97,10 @@ pub enum ContainerError {
     BoltBucketNotFound(String),
     #[error("bolt key `{0}` not found")]
     BoltKeyNotFound(String),
+    #[error("Invalid layer ID: `{0}`")]
+    InvalidLayerID(String),
+    #[error("Invalid image digest: `{0}`")]
+    InvalidImageDigest(String),
 }
 
 /// A container ID.
@@ -145,6 +168,8 @@ pub struct ContainerInfo {
     pub name: String,
     pub image: String,
     pub image_digest: String,
+    #[validatron(skip)]
+    pub layers: Vec<PathBuf>,
 }
 
 impl fmt::Display for ContainerInfo {
@@ -158,19 +183,19 @@ impl fmt::Display for ContainerInfo {
 }
 
 impl ContainerInfo {
-    pub fn from_container_id(
+    pub async fn from_container_id(
         container_id: ContainerId,
         uid: Uid,
     ) -> Result<Option<Self>, ContainerError> {
         let info = match container_id {
-            ContainerId::Docker(id) => Self::from_docker_id(id),
+            ContainerId::Docker(id) => Self::from_docker_id(id).await,
             ContainerId::Libpod(id) => Self::from_libpod_id(id, uid),
         };
 
         info.map(Some)
     }
 
-    fn from_docker_id(id: String) -> Result<Self, ContainerError> {
+    async fn from_docker_id(id: String) -> Result<Self, ContainerError> {
         const DOCKER_CONTAINERS_PATH: &str = "/var/lib/docker/containers";
 
         let path = PathBuf::from(DOCKER_CONTAINERS_PATH)
@@ -194,11 +219,27 @@ impl ContainerInfo {
         let image = config.config.image;
         let image_digest = config.image_digest;
 
+        // `image_digest` has format like:
+        //
+        // ```
+        // sha256:1d34ffeaf190be23d3de5a8de0a436676b758f48f835c3a2d4768b798c15a7f1
+        // ```
+        //
+        // The unprefixed digest is used as an image ID.
+        let image_id = image_digest
+            .split(':')
+            .last()
+            .ok_or(ContainerError::InvalidImageDigest(image_digest.clone()))?;
+
+        let layers = layers::docker_layers(image_id).await?;
+        log::debug!("found layer filesystems for container {id}: {layers:?}");
+
         Ok(Self {
             id,
             name,
             image,
             image_digest,
+            layers,
         })
     }
 
@@ -266,6 +307,8 @@ impl ContainerInfo {
             name: config.name,
             image: config.rootfs_image_name,
             image_digest: image.digest.clone(),
+            // TODO(vadorovsky): Parse layer information in Podman.
+            layers: Vec::new(),
         })
     }
 }

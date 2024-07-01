@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+    pin::Pin,
+};
 
 use bpf_common::{
     containers::{ContainerId, ContainerInfo},
@@ -209,7 +213,7 @@ impl ProcessTracker {
             tokio::select! {
                 msg = self.rx.recv() => match msg {
                     Some(msg) => {
-                        self.handle_message(msg);
+                        self.handle_message(msg).await;
                         self.cleanup();
                         // We check pending requests here and not periodically because
                         // the only way we can get a response is by handling a message.
@@ -224,9 +228,11 @@ impl ProcessTracker {
         }
     }
 
-    fn handle_message(&mut self, req: TrackerRequest) {
+    async fn handle_message(&mut self, req: TrackerRequest) {
         match req {
-            TrackerRequest::UpdateProcess(update) => self.handle_update(update),
+            TrackerRequest::UpdateProcess(update) => {
+                self.handle_update(update).await;
+            }
             TrackerRequest::GetProcessInfo(info_request) => {
                 let r = self.get_info(info_request.pid, info_request.ts);
                 match r {
@@ -263,100 +269,116 @@ impl ProcessTracker {
         }
     }
 
-    fn handle_update(&mut self, mut update: TrackerUpdate) {
-        match update {
-            TrackerUpdate::Fork {
-                pid,
-                uid,
-                gid,
-                timestamp,
-                ppid,
-                namespaces,
-                container_id,
-            } => {
-                let container =
-                    container_id.and_then(|c_id| {
-                        match ContainerInfo::from_container_id(c_id, uid) {
-                            Ok(container) => container,
-                            Err(err) => {
-                                log::error!("{err}");
-                                None
+    fn handle_update<'a>(
+        &'a mut self,
+        mut update: TrackerUpdate,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            match update {
+                TrackerUpdate::Fork {
+                    pid,
+                    uid,
+                    gid,
+                    timestamp,
+                    ppid,
+                    namespaces,
+                    container_id,
+                } => {
+                    let container = match container_id {
+                        Some(container_id) => {
+                            match ContainerInfo::from_container_id(container_id.clone(), uid).await
+                            {
+                                Ok(container) => container,
+                                Err(err) => {
+                                    log::error!("{err}");
+                                    None
+                                }
                             }
                         }
-                    });
+                        None => None,
+                    };
 
-                self.processes.insert(
-                    pid,
-                    ProcessData {
-                        ppid,
-                        uid,
-                        gid,
-                        fork_time: timestamp,
-                        exit_time: None,
-                        original_image: self.get_image(ppid, timestamp),
-                        exec_changes: BTreeMap::new(),
-                        argv: self
-                            .processes
-                            .get(&ppid)
-                            .map(|parent| parent.argv.clone())
-                            .unwrap_or_default(),
-                        namespaces,
-                        container,
-                    },
-                );
-                if let Some(pending_updates) = self.pending_updates.remove(&pid) {
-                    pending_updates
-                        .into_iter()
-                        .for_each(|update| self.handle_update(update));
-                }
-            }
-            TrackerUpdate::Exec {
-                pid,
-                uid,
-                timestamp,
-                ref mut image,
-                ref mut argv,
-                namespaces,
-                ref container_id,
-            } => {
-                let container = container_id.clone().and_then(|c_id| {
-                    match ContainerInfo::from_container_id(c_id, uid) {
-                        Ok(container) => container,
-                        Err(err) => {
-                            log::error!("{err}");
-                            None
+                    self.processes.insert(
+                        pid,
+                        ProcessData {
+                            ppid,
+                            uid,
+                            gid,
+                            fork_time: timestamp,
+                            exit_time: None,
+                            original_image: self.get_image(ppid, timestamp),
+                            exec_changes: BTreeMap::new(),
+                            argv: self
+                                .processes
+                                .get(&ppid)
+                                .map(|parent| parent.argv.clone())
+                                .unwrap_or_default(),
+                            namespaces,
+                            container,
+                        },
+                    );
+                    if let Some(pending_updates) = self.pending_updates.remove(&pid) {
+                        for update in pending_updates {
+                            self.handle_update(update).await;
                         }
                     }
-                });
+                }
+                TrackerUpdate::Exec {
+                    pid,
+                    uid,
+                    timestamp,
+                    ref mut image,
+                    ref mut argv,
+                    namespaces,
+                    ref container_id,
+                } => {
+                    let container = match container_id {
+                        Some(container_id) => {
+                            match ContainerInfo::from_container_id(container_id.clone(), uid).await
+                            {
+                                Ok(container) => container,
+                                Err(err) => {
+                                    log::error!("{err}");
+                                    None
+                                }
+                            }
+                        }
+                        None => None,
+                    };
 
-                if let Some(p) = self.processes.get_mut(&pid) {
-                    p.exec_changes.insert(timestamp, std::mem::take(image));
-                    p.argv = std::mem::take(argv);
-                    p.namespaces = namespaces;
-                    p.container = container;
-                } else {
-                    // if exec arrived before the fork, we save the event as pending
-                    log::debug!("(exec) Process {pid} not found in process tree, saving for later");
-                    self.pending_updates.entry(pid).or_default().push(update);
+                    if let Some(p) = self.processes.get_mut(&pid) {
+                        p.exec_changes.insert(timestamp, std::mem::take(image));
+                        p.argv = std::mem::take(argv);
+                        p.namespaces = namespaces;
+                        p.container = container;
+                    } else {
+                        // if exec arrived before the fork, we save the event as pending
+                        log::debug!(
+                            "(exec) Process {pid} not found in process tree, saving for later"
+                        );
+                        self.pending_updates.entry(pid).or_default().push(update);
+                    }
+                }
+                TrackerUpdate::Exit { pid, timestamp } => {
+                    if let Some(p) = self.processes.get_mut(&pid) {
+                        p.exit_time = Some(timestamp);
+                    } else {
+                        // if exit arrived before the fork, we save the event as pending
+                        log::debug!(
+                            "(exit) Process {pid} not found in process tree, saving for later"
+                        );
+                        self.pending_updates.entry(pid).or_default().push(update);
+                    }
+                }
+                TrackerUpdate::SetNewParent { pid, ppid } => {
+                    if let Some(p) = self.processes.get_mut(&pid) {
+                        p.ppid = ppid;
+                    } else {
+                        log::warn!("{ppid} is the new parent of {pid}, but we couldn't find it")
+                    }
                 }
             }
-            TrackerUpdate::Exit { pid, timestamp } => {
-                if let Some(p) = self.processes.get_mut(&pid) {
-                    p.exit_time = Some(timestamp);
-                } else {
-                    // if exit arrived before the fork, we save the event as pending
-                    log::debug!("(exit) Process {pid} not found in process tree, saving for later");
-                    self.pending_updates.entry(pid).or_default().push(update);
-                }
-            }
-            TrackerUpdate::SetNewParent { pid, ppid } => {
-                if let Some(p) = self.processes.get_mut(&pid) {
-                    p.ppid = ppid;
-                } else {
-                    log::warn!("{ppid} is the new parent of {pid}, but we couldn't find it")
-                }
-            }
-        }
+        })
     }
 
     fn get_info(&self, pid: Pid, ts: Timestamp) -> Result<ProcessInfo, TrackerError> {
