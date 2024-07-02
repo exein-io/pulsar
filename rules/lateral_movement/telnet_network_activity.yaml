@@ -17,13 +17,6 @@
   description: Detects the execution of the Telnet utility. Attackers may use Telnet to establish a remote connection to a device or server.
   condition: header.image == "/usr/bin/telnet"
 
-- name: Telnet network activity - Accept
-  type: Accept
-  category: lateral_movement
-  severity: medium
-  description: Detects Telnet network activity. Attackers may use Telnet to establish a remote connection to a device or server.
-  condition: header.image == "/usr/bin/telnet" 
-
 - name: Telnet network activity - Connect
   type: Connect
   category: lateral_movement
