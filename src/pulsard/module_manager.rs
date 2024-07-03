@@ -378,6 +378,29 @@ async fn run_module_loop<T: PulsarModule>(
 
     loop {
         tokio::select! {
+            // Futures need to polled in a specific order
+            biased;
+            // Shutdown
+            r = rx_shutdown.recv() => {
+                T::graceful_stop(state).await?;
+                return r
+            },
+            // Stop event receiver
+            _ = rx_stop_event_recv.recv() => {
+                // Drop the Event Receiver and replace it with None
+                rx_event = None
+            }
+            // Stop config receiver
+            _ = rx_stop_cfg_recv.recv() => {
+                // Drop the Configuration Receiver and replace it with None
+                rx_config = None
+            }
+            // Extra action
+            t_output = T::trigger(&mut extension) => {
+                let t_output = t_output?;
+                T::action(&t_output, &config, &mut state, ctx).await?
+            }
+            // New config
             rx_config = async {
                 match &mut rx_config {
                     Some(rx_config) => {
@@ -393,10 +416,7 @@ async fn run_module_loop<T: PulsarModule>(
                 config = T::Config::try_from(&rx_config.borrow())?;
                 T::on_config_change(&config, &mut state, ctx).await?;
             }
-            _ = rx_stop_cfg_recv.recv() => {
-                // Drop the Configuration Receiver and replace it with None
-                rx_config = None
-            }
+            // Incoming event
             event = async {
                 match &mut rx_event {
                     Some(rx_event) => pulsar_core::pdk::receive_from_broadcast(rx_event, ctx.module_name()).await,
@@ -406,18 +426,6 @@ async fn run_module_loop<T: PulsarModule>(
                 let event = event.expect("no more events");
                 T::on_event(&event, &config,  &mut state, ctx).await?;
             }
-            _ = rx_stop_event_recv.recv() => {
-                // Drop the Event Receiver and replace it with None
-                rx_event = None
-            }
-            t_output = T::trigger(&mut extension) => {
-                let t_output = t_output?;
-                T::action(&t_output, &config, &mut state, ctx).await?
-            }
-            r = rx_shutdown.recv() => {
-                T::graceful_stop(state).await?;
-                return r
-            },
         }
     }
 }
