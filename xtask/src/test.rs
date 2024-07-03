@@ -41,6 +41,10 @@ pub(crate) struct Options {
     /// Space or comma separated list of kernel versions to use in architest/QEMU.
     #[clap(long, default_value = "6.6", value_delimiter = ',')]
     kernel_versions: Vec<String>,
+
+    /// Arguments to pass to the test suite
+    #[clap(name = "args")]
+    test_args: Vec<String>,
 }
 
 fn download_tarball<P>(url: &str, tarball_path: P) -> Result<()>
@@ -105,6 +109,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         target,
         preserve_tempdir,
         kernel_versions,
+        test_args,
         ..
     } = options;
 
@@ -175,7 +180,8 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         std::thread::sleep(std::time::Duration::from_secs(12));
 
         cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
-        cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite").run()?;
+        let test_args = test_args.clone();
+        cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite {test_args...}").run()?;
 
         qemu_process.kill()?;
         qemu_process.wait()?;
@@ -198,6 +204,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
         release,
         features,
         force_architest,
+        test_args,
         ..
     } = &options;
     let mut args = Vec::new();
@@ -225,7 +232,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
     if *force_architest || !target.starts_with(arch) {
         test_architest(sh, options, &binary_file)?;
     } else {
-        cmd!(sh, "sudo -E {binary_file}").run()?;
+        cmd!(sh, "sudo -E {binary_file} {test_args...}").run()?;
     }
 
     Ok(())
