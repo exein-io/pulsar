@@ -71,6 +71,8 @@ pub enum ContainerError {
     ContainerNotFound { id: String },
     #[error("could not find libpod image store")]
     ImageStoreNotFound,
+    #[error("could not find libpod layer store")]
+    LayerStoreNotFound,
     #[error("could not find container image `{id}` in `{path:?}`")]
     ImageNotFound { id: String, path: PathBuf },
     #[error("parsing image digest {digest} failed")]
@@ -101,6 +103,10 @@ pub enum ContainerError {
     InvalidLayerID(String),
     #[error("Invalid image digest: `{0}`")]
     InvalidImageDigest(String),
+    #[error("layer {0} not found in the layer store")]
+    LayerNotFound(String),
+    #[error("could not find overlay directory")]
+    OverlayDirNotFound,
 }
 
 /// A container ID.
@@ -151,6 +157,7 @@ struct LibpodConfig {
 struct LibpodImageConfig {
     id: String,
     digest: String,
+    layer: String,
 }
 
 /// Database schema of libpod.
@@ -297,18 +304,20 @@ impl ContainerInfo {
 
         let image = images.iter().find(|image| image.id == image_id).ok_or(
             ContainerError::ImageNotFound {
-                id: image_id,
+                id: image_id.clone(),
                 path: image_store_path,
             },
         )?;
+
+        let layers = layers::podman_layers(&image.layer, uid, user_home)?;
+        log::debug!("found layer filesystems for container {id}: {layers:?}");
 
         Ok(Self {
             id,
             name: config.name,
             image: config.rootfs_image_name,
             image_digest: image.digest.clone(),
-            // TODO(vadorovsky): Parse layer information in Podman.
-            layers: Vec::new(),
+            layers,
         })
     }
 }
