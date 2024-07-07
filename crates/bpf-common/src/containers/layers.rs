@@ -2,12 +2,13 @@ use std::{
     fmt,
     fs::{self, File},
     io::BufReader,
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
 use hyper::{body, Client};
 use hyperlocal::{UnixClientExt, Uri as HyperlocalUri};
+use nix::unistd::Uid;
 use serde::Deserialize;
 
 use super::ContainerError;
@@ -53,6 +54,12 @@ enum GraphDriverName {
     Vfs,
     #[serde(rename = "zfs")]
     Zfs,
+}
+
+#[derive(Debug, Deserialize)]
+struct LibpodLayer {
+    id: String,
+    parent: Option<String>,
 }
 
 impl fmt::Display for GraphDriverName {
@@ -190,4 +197,117 @@ fn docker_overlayfs_layers(
     }
 
     Ok(layers)
+}
+
+/// For the given `top_layer`, return a vector which contains that layer and
+/// all parents of it. In other words, return a vector of all layers associated
+/// with an image.
+pub(crate) fn podman_layers<P: AsRef<Path>>(
+    top_layer_id: &str,
+    uid: Uid,
+    user_home: P,
+) -> Result<Vec<PathBuf>, ContainerError> {
+    let layer_store_path =
+        find_layer_store(uid, &user_home).ok_or(ContainerError::LayerStoreNotFound)?;
+    let layer_store_file =
+        File::open(&layer_store_path).map_err(|source| ContainerError::ReadFile {
+            source,
+            path: layer_store_path.clone(),
+        })?;
+    let reader = BufReader::new(layer_store_file);
+
+    let overlay_dir =
+        find_overlay_dir(uid, &user_home).ok_or(ContainerError::OverlayDirNotFound)?;
+
+    let mut layers = find_subdirs(overlay_dir.join(top_layer_id));
+    let config_layers: Vec<LibpodLayer> =
+        serde_json::from_reader(reader).map_err(|source| ContainerError::ParseConfigFile {
+            source,
+            path: layer_store_path.clone(),
+        })?;
+    let mut layer_id = top_layer_id;
+    let mut limit = config_layers.len();
+    loop {
+        let pos = config_layers[..limit]
+            .iter()
+            .rev()
+            .position(|layer| layer.id == layer_id)
+            .ok_or(ContainerError::LayerNotFound(layer_id.to_string()))?;
+        let layer = &config_layers[pos];
+        layers.extend(find_subdirs(overlay_dir.join(&layer.id)));
+        match layer.parent {
+            Some(ref parent) => {
+                layer_id = parent;
+                limit = pos;
+            }
+            None => break,
+        }
+    }
+
+    Ok(layers)
+}
+
+fn find_layer_store<P: AsRef<Path>>(uid: Uid, user_home: P) -> Option<PathBuf> {
+    const LIBPOD_LAYER_STORE_PATH: &str = "/var/lib/containers/storage/overlay-layers/layers.json";
+
+    let layer_store_path = if uid.is_root() {
+        PathBuf::from(LIBPOD_LAYER_STORE_PATH)
+    } else {
+        user_home
+            .as_ref()
+            .join(".local")
+            .join("share")
+            .join("containers")
+            .join("storage")
+            .join("overlay-layers")
+            .join("layers.json")
+    };
+
+    if !layer_store_path.exists() {
+        return None;
+    }
+
+    Some(layer_store_path)
+}
+
+fn find_overlay_dir<P: AsRef<Path>>(uid: Uid, user_home: P) -> Option<PathBuf> {
+    const OVERLAY_PATH: &str = "/var/lib/containers/storage/overlay";
+
+    let overlay_dir = if uid.is_root() {
+        PathBuf::from(OVERLAY_PATH)
+    } else {
+        user_home
+            .as_ref()
+            .join(".local")
+            .join("share")
+            .join("containers")
+            .join("storage")
+            .join("overlay")
+    };
+
+    if !overlay_dir.exists() {
+        return None;
+    }
+
+    Some(overlay_dir)
+}
+
+/// Returns all subdirectories of the given `parent_path`.
+fn find_subdirs<P: AsRef<Path>>(parent_path: P) -> Vec<PathBuf> {
+    let mut subdirectories = Vec::new();
+
+    if parent_path.as_ref().is_dir() {
+        if let Ok(entries) = fs::read_dir(parent_path) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        subdirectories.push(path);
+                    }
+                }
+            }
+        }
+    }
+
+    subdirectories
 }
