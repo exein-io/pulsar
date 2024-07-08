@@ -697,14 +697,13 @@ pub mod test_suite {
     ) -> TestReport {
         // Create necessary copies for each non-terminal closure.
         let dns_server_domain = domain.clone();
-        let dns_server_address = address.clone();
         let dns_query_domain = domain.clone();
         TestRunner::with_ebpf(program)
             .run_async(async move {
                 // DNS server.
                 let mut server = Server::default();
                 server
-                    .add_records(&dns_server_domain, vec![dns_server_address])
+                    .add_records(&dns_server_domain, vec![address])
                     .unwrap();
                 let socket = tokio::net::UdpSocket::bind(&addr).await.unwrap();
                 let local_addr = socket.local_addr().unwrap();
