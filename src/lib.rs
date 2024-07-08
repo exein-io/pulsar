@@ -59,9 +59,8 @@
 use std::env;
 
 use anyhow::Result;
+use pulsard::PulsarDaemonStarter;
 use std::sync::OnceLock;
-
-pub use pulsar_core::pdk::TaskLauncher;
 
 use cli::PulsarExecOpts;
 
@@ -78,28 +77,6 @@ pub(crate) fn version() -> &'static str {
     let v = VERSION.get_or_init(|| env!("CARGO_PKG_VERSION").to_string());
 
     v
-}
-
-pub fn modules() -> Vec<Box<dyn TaskLauncher>> {
-    [
-        #[cfg(feature = "process-monitor")]
-        process_monitor::pulsar::module(),
-        #[cfg(feature = "file-system-monitor")]
-        file_system_monitor::pulsar::module(),
-        #[cfg(feature = "network-monitor")]
-        network_monitor::pulsar::module(),
-        #[cfg(feature = "logger")]
-        logger::module(),
-        #[cfg(feature = "rules-engine")]
-        rules_engine::module(),
-        #[cfg(feature = "desktop-notifier")]
-        desktop_notifier::module(),
-        #[cfg(feature = "smtp-notifier")]
-        smtp_notifier::module(),
-    ]
-    .into_iter()
-    .map(|x| Box::new(x) as Box<dyn TaskLauncher>)
-    .collect()
 }
 
 /// Init logger. We log from info level and above, hide timestamp
@@ -123,12 +100,22 @@ pub fn init_logger(override_log_level: log::Level) {
 }
 
 /// Main pulsar entrypoint
-pub async fn run_pulsar_exec(
+pub async fn run_pulsar_exec(options: &PulsarExecOpts) -> Result<()> {
+    match &options.mode {
+        cli::Mode::PulsarCli(options) => pulsar::pulsar_cli_run(options).await,
+        cli::Mode::PulsarDaemon(options) => pulsard::pulsar_daemon_run(options, |_| Ok(())).await,
+    }
+}
+
+/// Customizable pulsar entrypoint
+pub async fn run_pulsar_exec_custom(
     options: &PulsarExecOpts,
-    modules: Vec<Box<dyn TaskLauncher>>,
+    customize_starter: impl FnOnce(&mut PulsarDaemonStarter) -> Result<()>,
 ) -> Result<()> {
     match &options.mode {
         cli::Mode::PulsarCli(options) => pulsar::pulsar_cli_run(options).await,
-        cli::Mode::PulsarDaemon(options) => pulsard::pulsar_daemon_run(options, modules).await,
+        cli::Mode::PulsarDaemon(options) => {
+            pulsard::pulsar_daemon_run(options, customize_starter).await
+        }
     }
 }

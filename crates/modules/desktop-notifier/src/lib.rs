@@ -1,53 +1,44 @@
 use std::{
     os::unix::process::CommandExt,
     process::{Command, Stdio},
-    sync::Arc,
 };
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 use pulsar_core::{
     event::Threat,
-    pdk::{
-        CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-        ShutdownSignal, Version,
-    },
+    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule},
 };
 
-const MODULE_NAME: &str = "desktop-notifier";
+pub struct DesktopNotifierModule;
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        false,
-        desktop_nitifier_task,
-    )
-}
+impl SimplePulsarModule for DesktopNotifierModule {
+    type Config = Config;
+    type State = ();
 
-async fn desktop_nitifier_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let mut config = rx_config.read()?;
+    const MODULE_NAME: &'static str = "desktop-notifier";
+    const DEFAULT_ENABLED: bool = false;
 
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            _ = rx_config.changed() => {
-                config = rx_config.read()?;
-                continue;
-            }
-            msg = receiver.recv() => {
-                handle_event(&config, msg?).await;
-            }
-        }
+    async fn init_state(
+        &self,
+        _config: &Self::Config,
+        _ctx: &ModuleContext,
+    ) -> Result<Self::State, ModuleError> {
+        Ok(())
+    }
+
+    async fn on_event(
+        event: &Event,
+        config: &Self::Config,
+        _state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        handle_event(config, event).await;
+        Ok(())
     }
 }
 
 /// Check if the given event is a threat which should be notified to the user
-async fn handle_event(config: &Config, event: Arc<Event>) {
+async fn handle_event(config: &Config, event: &Event) {
     if let Some(Threat {
         source,
         description,
@@ -99,7 +90,7 @@ async fn notify_send(config: &Config, args: Vec<String>) {
 }
 
 #[derive(Clone)]
-struct Config {
+pub struct Config {
     user_id: u32,
     display: String,
     notify_send_executable: String,

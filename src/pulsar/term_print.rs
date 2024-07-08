@@ -29,7 +29,6 @@ impl TermPrintable for Vec<ModuleOverview> {
 
         table.set_header(vec![
             Cell::new("MODULE").add_attribute(Attribute::Bold),
-            Cell::new("VERSION").add_attribute(Attribute::Bold),
             Cell::new("STATUS").add_attribute(Attribute::Bold),
         ]);
 
@@ -48,7 +47,6 @@ impl TermPrintable for Vec<ModuleOverview> {
                 Cell::new(module.name)
                     .fg(Color::Cyan)
                     .add_attribute(Attribute::Bold),
-                Cell::new(module.version),
                 Cell::new(status)
                     .fg(status_color)
                     .add_attribute(Attribute::Bold),
