@@ -670,7 +670,9 @@ pub mod test_suite {
             "dns_ipv4",
             run_dns(
                 SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 18110)),
-                vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+                "example.io".to_string(),
+                IpAddr::V4(Ipv4Addr::LOCALHOST),
+                "A".to_string(),
             ),
         )
     }
@@ -680,28 +682,41 @@ pub mod test_suite {
             "dns_ipv6",
             run_dns(
                 SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 18110, 0, 0)),
-                vec![IpAddr::V6(Ipv6Addr::LOCALHOST)],
+                "example.io".to_string(),
+                IpAddr::V6(Ipv6Addr::LOCALHOST),
+                "AAAA".to_string(),
             ),
         )
     }
 
-    async fn run_dns(addr: SocketAddr, records: Vec<IpAddr>) -> TestReport {
+    async fn run_dns(
+        addr: SocketAddr,
+        domain: String,
+        address: IpAddr,
+        expected_record_type: String,
+    ) -> TestReport {
+        // Create necessary copies for each non-terminal closure.
+        let dns_server_domain = domain.clone();
+        let dns_server_address = address.clone();
+        let dns_query_domain = domain.clone();
         TestRunner::with_ebpf(program)
             .run_async(async move {
                 // DNS server.
                 let mut server = Server::default();
-                server.add_records("example.io", records).unwrap();
+                server
+                    .add_records(&dns_server_domain, vec![dns_server_address])
+                    .unwrap();
                 let socket = tokio::net::UdpSocket::bind(&addr).await.unwrap();
                 let local_addr = socket.local_addr().unwrap();
                 tokio::spawn(async move {
                     server.start(socket).await.unwrap();
                 });
 
-                // DNS request.
+                // DNS requests.
                 let mut config = ResolverConfig::new();
                 config.add_name_server(NameServerConfig::new(local_addr, Protocol::Udp));
                 let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
-                resolver.lookup_ip("example.io").await.unwrap();
+                resolver.lookup_ip(&dns_server_domain).await.unwrap();
             })
             .await
             .expect(move |event| {
@@ -712,7 +727,7 @@ pub mod test_suite {
                     let data = data.bytes(&event.buffer).unwrap();
                     match parse_dns(data) {
                         Some(Payload::DnsQuery { questions }) => {
-                            questions.iter().any(|q| q.name == "example.io")
+                            questions.iter().any(|q| q.name == dns_query_domain)
                         }
                         _ => false,
                     }
@@ -728,12 +743,12 @@ pub mod test_suite {
                     let data = data.bytes(&event.buffer).unwrap();
                     match parse_dns(data) {
                         Some(Payload::DnsResponse { questions, answers }) => {
-                            questions.iter().any(|q| q.name == "example.io")
-                                && answers.iter().any(|a| {
-                                    a.name == "example.io"
-                                        && (a.data == "A(Record(127.0.0.1))"
-                                            || a.data == "AAAA(Record(::1))")
-                                })
+                            let expected_record =
+                                format!("{expected_record_type}(Record({address}))");
+                            questions.iter().any(|q| q.name == domain)
+                                && answers
+                                    .iter()
+                                    .any(|a| a.name == domain && a.data == expected_record)
                         }
                         _ => false,
                     }
