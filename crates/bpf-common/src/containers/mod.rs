@@ -304,7 +304,7 @@ impl ContainerInfo {
 
         let image = images.iter().find(|image| image.id == image_id).ok_or(
             ContainerError::ImageNotFound {
-                id: image_id.clone(),
+                id: image_id,
                 path: image_store_path,
             },
         )?;
