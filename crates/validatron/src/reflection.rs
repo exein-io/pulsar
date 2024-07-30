@@ -33,11 +33,11 @@
 //!
 //! The [ClassBuilder] can build 4 types of class
 //! - [Primitive] : representation of a base type. It needs a parsing function and a function to know which operator is available
-//! on it and how to use it.
+//!   on it and how to use it.
 //! - [Struct] : representation of a struct. It needs the description of its fields and how to access each one.
 //! - [Enum] : representation of a enum. It needs the description of its fields, including the relative variant, and how to access each one.
 //! - [Collection] : representation of a collection. It requires that the current type implements `IntoIterator<Item = &'x U>` if `U` is the
-//! type of the items in the collection.
+//!   type of the items in the collection.
 
 use std::marker::PhantomData;
 
