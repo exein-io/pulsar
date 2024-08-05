@@ -28,6 +28,8 @@ procfs = { workspace = true }
 libc = { workspace = true }
 glob = { workspace = true }
 hex = { workspace = true }
+hyper = { workspace = true }
+hyperlocal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 lazy_static = { workspace = true }
