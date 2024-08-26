@@ -136,7 +136,7 @@ fn docker_btrfs_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
 
     let mut layers = Vec::new();
 
-    let path = PathBuf::from(DOCKER_IMAGEDB_PATH).join(&image_id);
+    let path = PathBuf::from(DOCKER_IMAGEDB_PATH).join(image_id);
     let file = File::open(&path).map_err(|source| ContainerError::ReadFile {
         source,
         path: path.clone(),
@@ -152,7 +152,7 @@ fn docker_btrfs_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
             .last()
             .ok_or(ContainerError::InvalidLayerID(layer_id.clone()))?;
 
-        let path = PathBuf::from(DOCKER_LAYERDB_PATH).join(&layer_id);
+        let path = PathBuf::from(DOCKER_LAYERDB_PATH).join(layer_id);
         if path.exists() {
             let path = path.join("cache-id");
             let btrfs_subvol_id = fs::read_to_string(&path)
