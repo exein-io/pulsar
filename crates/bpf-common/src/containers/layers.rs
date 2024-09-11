@@ -298,12 +298,10 @@ fn find_subdirs<P: AsRef<Path>>(parent_path: P) -> Vec<PathBuf> {
 
     if parent_path.as_ref().is_dir() {
         if let Ok(entries) = fs::read_dir(parent_path) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        subdirectories.push(path);
-                    }
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    subdirectories.push(path);
                 }
             }
         }
