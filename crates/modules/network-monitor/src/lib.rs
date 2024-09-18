@@ -8,6 +8,10 @@ use bpf_common::{
     ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
+use pulsar_core::{
+    event::{DnsAnswer, DnsQuestion},
+    pdk::Payload,
+};
 
 const MODULE_NAME: &str = "network-monitor";
 
@@ -172,11 +176,44 @@ impl fmt::Display for NetworkEvent {
     }
 }
 
+fn parse_dns(data: &[u8]) -> Option<Payload> {
+    let dns = dns_parser::Packet::parse(data).ok()?;
+    let with_q = !dns.questions.is_empty();
+    let with_a = !dns.answers.is_empty();
+
+    let mut questions = Vec::new();
+    for q in dns.questions {
+        questions.push(DnsQuestion {
+            name: format!("{}", q.qname),
+            qtype: format!("{:?}", q.qtype),
+            qclass: format!("{:?}", q.qclass),
+        });
+    }
+
+    let mut answers = Vec::new();
+    for a in dns.answers {
+        answers.push(DnsAnswer {
+            name: format!("{}", a.name),
+            class: format!("{:?}", a.cls),
+            ttl: a.ttl,
+            data: format!("{:?}", a.data),
+        });
+    }
+
+    if with_q && !with_a {
+        Some(Payload::DnsQuery { questions })
+    } else if with_a {
+        Some(Payload::DnsResponse { answers, questions })
+    } else {
+        None
+    }
+}
+
 pub mod pulsar {
     use super::*;
     use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::{
-        event::{DnsAnswer, DnsQuestion, Host},
+        event::Host,
         pdk::{IntoPayload, ModuleContext, ModuleError, Payload, SimplePulsarModule},
     };
 
@@ -314,36 +351,7 @@ pub mod pulsar {
             .ok()?;
 
         // Check wheter the payload contains any DNS data.
-        let dns = dns_parser::Packet::parse(data).ok()?;
-        let with_q = !dns.questions.is_empty();
-        let with_a = !dns.answers.is_empty();
-
-        let mut questions = Vec::new();
-        for q in dns.questions {
-            questions.push(DnsQuestion {
-                name: format!("{}", q.qname),
-                qtype: format!("{:?}", q.qtype),
-                qclass: format!("{:?}", q.qclass),
-            });
-        }
-
-        let mut answers = Vec::new();
-        for a in dns.answers {
-            answers.push(DnsAnswer {
-                name: format!("{}", a.name),
-                class: format!("{:?}", a.cls),
-                ttl: a.ttl,
-                data: format!("{:?}", a.data),
-            });
-        }
-
-        if with_q && !with_a {
-            Some(Payload::DnsQuery { questions })
-        } else if with_a {
-            Some(Payload::DnsResponse { answers, questions })
-        } else {
-            None
-        }
+        parse_dns(data)
     }
 }
 
@@ -351,7 +359,10 @@ pub mod pulsar {
 pub mod test_suite {
     use std::{
         io::{Read, Write},
-        net::{SocketAddr, TcpListener, TcpStream, UdpSocket},
+        net::{
+            IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener,
+            TcpStream, UdpSocket,
+        },
         time::Duration,
     };
 
@@ -359,10 +370,13 @@ pub mod test_suite {
         event_check,
         test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };
+    use dns_mock_server::Server;
+    use hickory_resolver::{config::*, TokioAsyncResolver};
     use nix::{
         libc::kill,
         unistd::{fork, ForkResult},
     };
+    use pulsar_core::pdk::Payload;
 
     use super::*;
 
@@ -386,6 +400,8 @@ pub mod test_suite {
                 tcp_ipv6_sendmsg_recvmsg(),
                 close_ipv4(),
                 close_ipv6(),
+                dns_ipv4(),
+                dns_ipv6(),
             ],
         }
     }
@@ -652,6 +668,99 @@ pub mod test_suite {
                     (dst, dest.into(), "dest address")
                 ),
             )
+            .report()
+    }
+
+    fn dns_ipv4() -> TestCase {
+        TestCase::new(
+            "dns_ipv4",
+            run_dns(
+                SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 18110)),
+                "example.io".to_string(),
+                IpAddr::V4(Ipv4Addr::LOCALHOST),
+                "A".to_string(),
+            ),
+        )
+    }
+
+    fn dns_ipv6() -> TestCase {
+        TestCase::new(
+            "dns_ipv6",
+            run_dns(
+                SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 18110, 0, 0)),
+                "example.io".to_string(),
+                IpAddr::V6(Ipv6Addr::LOCALHOST),
+                "AAAA".to_string(),
+            ),
+        )
+    }
+
+    async fn run_dns(
+        addr: SocketAddr,
+        domain: String,
+        address: IpAddr,
+        expected_record_type: String,
+    ) -> TestReport {
+        // Create necessary copies for each non-terminal closure.
+        let dns_server_domain = domain.clone();
+        let dns_query_domain = domain.clone();
+        TestRunner::with_ebpf(program)
+            .run_async(async move {
+                // DNS server.
+                let mut server = Server::default();
+                server
+                    .add_records(&dns_server_domain, vec![address])
+                    .unwrap();
+                let socket = tokio::net::UdpSocket::bind(&addr).await.unwrap();
+                let local_addr = socket.local_addr().unwrap();
+                tokio::spawn(async move {
+                    server.start(socket).await.unwrap();
+                });
+
+                // DNS requests.
+                let mut config = ResolverConfig::new();
+                config.add_name_server(NameServerConfig::new(local_addr, Protocol::Udp));
+                let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
+                resolver.lookup_ip(&dns_server_domain).await.unwrap();
+            })
+            .await
+            .expect(move |event| {
+                if let NetworkEvent::Send { data, .. } = &event.payload {
+                    if data.is_empty() {
+                        return false;
+                    }
+                    let data = data.bytes(&event.buffer).unwrap();
+                    match parse_dns(data) {
+                        Some(Payload::DnsQuery { questions }) => {
+                            questions.iter().any(|q| q.name == dns_query_domain)
+                        }
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            })
+            .expect(move |event| {
+                if let NetworkEvent::Receive { data, .. } = &event.payload {
+                    if data.is_empty() {
+                        return false;
+                    }
+                    let data = data.bytes(&event.buffer).unwrap();
+                    match parse_dns(data) {
+                        Some(Payload::DnsResponse { questions, answers }) => {
+                            let expected_record =
+                                format!("{expected_record_type}(Record({address}))");
+                            questions.iter().any(|q| q.name == domain)
+                                && answers
+                                    .iter()
+                                    .any(|a| a.name == domain && a.data == expected_record)
+                        }
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            })
             .report()
     }
 }

@@ -118,6 +118,7 @@ cgroups-rs = { version = "0.3.4" }
 chrono = { version = "0.4.31" }
 clap = { version = "4.4.11", features = ["derive"] }
 comfy-table = "7.1.0"
+dns-mock-server = "0.1.4"
 dns-parser = "0.8.0"
 diesel = { version = "2.1", features = ["sqlite"] }
 env_logger = "0.10.1"
@@ -127,6 +128,7 @@ futures-util = "0.3.29"
 gethostname = "0.4.3"
 glob = "0.3.1"
 hex = "0.4.3"
+hickory-resolver = "0.24.1"
 hyper = "0.14.28"
 hyperlocal = "0.8"
 indicatif = "0.17"
