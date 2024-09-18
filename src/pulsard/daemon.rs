@@ -6,8 +6,9 @@ use bpf_common::program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT};
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        process_tracker::start_process_tracker, ModuleConfig, ModuleDetails, ModuleOverview,
-        ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle, TaskLauncher,
+        process_tracker::{start_process_tracker, ProcessTrackerHandle},
+        ModuleConfig, ModuleOverview, ModuleStatus, PulsarDaemonCommand, PulsarDaemonError,
+        PulsarDaemonHandle, PulsarModule,
     },
 };
 use tokio::sync::mpsc;
@@ -16,41 +17,20 @@ use crate::pulsard::{config::PulsarConfig, GENERAL_CONFIG};
 
 use super::module_manager::{create_module_manager, ModuleManagerHandle};
 
-/// Main component of Pulsar framework. It's implemented with the actor pattern and its entrypoint is its [`PulsarDaemonHandle`]
-///
-/// Contains references to all loaded modules. Each module is wrapped inside a [`super::ModuleManager`] actor to manage its lifecycle.
-///
-/// [`PulsarDaemon`] can:
-/// - administrate loaded modules using the relative [`ModuleManagerHandle`]
-/// - manage module configurations using [`PulsarConfig`]
-pub struct PulsarDaemon {
-    modules: HashMap<String, (ModuleDetails, ModuleManagerHandle)>,
+pub struct PulsarDaemonStarter {
+    bus: Bus,
     config: PulsarConfig,
-    rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
+    modules: HashMap<String, ModuleData>,
+    tx_modules_cmd: mpsc::Sender<PulsarDaemonCommand>,
     rx_modules_cmd: mpsc::Receiver<PulsarDaemonCommand>,
-    #[cfg(debug_assertions)]
-    #[allow(unused)]
-    trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
+    process_tracker: ProcessTrackerHandle,
+    bpf_context: BpfContext,
 }
 
-impl PulsarDaemon {
-    /// Construct a new [`PulsarDaemon`]
-    async fn new(
-        bus: Bus,
-        modules: Vec<Box<dyn TaskLauncher>>,
-        config: PulsarConfig,
-        rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
-    ) -> anyhow::Result<Self> {
+impl PulsarDaemonStarter {
+    pub(super) async fn new(bus: Bus, config: PulsarConfig) -> anyhow::Result<Self> {
         let (tx_modules_cmd, rx_modules_cmd) = mpsc::channel(8);
 
-        // This act as a "weak" PulsarDaemonHandle to be used inside modules.
-        //
-        // [`run_daemon_actor`] relies on the [`std::ops::Drop`] of the outside PulsarDaemonHandle to stop PulsarDaemon actor.
-        let daemon_handle = PulsarDaemonHandle {
-            tx_cmd: tx_modules_cmd,
-        };
-
-        let mut m = HashMap::new();
         let process_tracker = start_process_tracker();
 
         let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
@@ -65,56 +45,120 @@ impl PulsarDaemon {
             BpfLogLevel::Disabled
         };
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
-        #[cfg(debug_assertions)]
-        let trace_pipe_handle = bpf_common::trace_pipe::start().await;
-
-        for task_launcher in modules {
-            let module_name = task_launcher.name().to_owned();
-            let module_details = task_launcher.details().to_owned();
-
-            let config = config.get_watched_module_config(&module_name);
-            let is_enabled = config
-                .borrow()
-                .with_default("enabled", module_details.enabled_by_default)
-                .unwrap_or(false);
-            let module_handle = create_module_manager(
-                bus.clone(),
-                daemon_handle.clone(),
-                process_tracker.clone(),
-                task_launcher,
-                config,
-                bpf_context.clone(),
-            );
-            if is_enabled {
-                log::info!("Starting module {module_name}");
-                module_handle.start().await;
-            }
-            // TODO: remove this once we've moved filtering policy and process
-            // tracking to core
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-            if m.insert(module_name.to_string(), (module_details, module_handle))
-                .is_some()
-            {
-                bail!(
-                    "Error creating modules: module {} already present",
-                    module_name
-                )
-            }
-        }
-
-        log::debug!("Daemon started");
 
         Ok(Self {
-            modules: m,
+            bus,
             config,
-            rx_cmd,
+            modules: Default::default(),
+            tx_modules_cmd,
             rx_modules_cmd,
-            #[cfg(debug_assertions)]
-            trace_pipe_handle,
+            process_tracker,
+            bpf_context,
         })
     }
 
+    pub fn add_module<T: PulsarModule + 'static>(&mut self, module: T) -> anyhow::Result<()> {
+        let daemon_handle = PulsarDaemonHandle {
+            tx_cmd: self.tx_modules_cmd.clone(),
+        };
+
+        let module_name = T::MODULE_NAME.to_owned();
+
+        let config = self.config.get_watched_module_config(&module_name);
+
+        let module_handle = create_module_manager(
+            self.bus.clone(),
+            daemon_handle,
+            self.process_tracker.clone(), // TODO: move to module
+            module,
+            config,
+            self.bpf_context.clone(),
+        );
+
+        if self
+            .modules
+            .insert(
+                module_name.to_string(),
+                ModuleData {
+                    enabled_by_default: T::DEFAULT_ENABLED,
+                    handle: module_handle,
+                },
+            )
+            .is_some()
+        {
+            bail!(
+                "Error creating modules: module {} already present",
+                module_name
+            )
+        }
+
+        Ok(())
+    }
+
+    /// Create and start a [`PulsarDaemon`] actor to manage the underlying Pulsar modules.
+    ///
+    /// Returns the [`PulsarDaemonHandle`] that can be used to interact with the [`PulsarDaemon`] actor.
+    pub(super) async fn start_daemon(self) -> anyhow::Result<PulsarDaemonHandle> {
+        #[cfg(debug_assertions)]
+        let trace_pipe_handle = bpf_common::trace_pipe::start().await;
+
+        // This act as a "weak" PulsarDaemonHandle to be used inside modules.
+        //
+        // [`run_daemon_actor`] relies on the [`std::ops::Drop`] of the outside PulsarDaemonHandle to stop PulsarDaemon actor.
+        let daemon_handle = PulsarDaemonHandle {
+            tx_cmd: self.tx_modules_cmd,
+        };
+
+        // Start modules
+        for (module_name, data) in &self.modules {
+            let module_config = self.config.get_watched_module_config(module_name);
+            let is_enabled = module_config
+                .borrow()
+                .with_default("enabled", data.enabled_by_default)
+                .unwrap_or(false);
+
+            if is_enabled {
+                log::info!("Starting module {module_name}");
+                if let Err(err_msg) = data.handle.start().await {
+                    log::error!("{err_msg}");
+                };
+            }
+        }
+
+        let daemon = PulsarDaemon {
+            modules: self.modules,
+            config: self.config,
+            rx_cmd: self.rx_modules_cmd,
+            #[cfg(debug_assertions)]
+            trace_pipe_handle,
+        };
+
+        // Start daemon
+        tokio::spawn(run_daemon_actor(daemon));
+
+        log::debug!("Daemon started");
+
+        Ok(daemon_handle)
+    }
+}
+
+/// Main component of Pulsar framework. It's implemented with the actor pattern and its entrypoint is its [`PulsarDaemonHandle`]
+///
+/// Contains references to all loaded modules. Each module is wrapped inside a [`super::ModuleManager`] actor to manage its lifecycle.
+///
+/// [`PulsarDaemon`] can:
+/// - administrate loaded modules using the relative [`ModuleManagerHandle`]
+/// - manage module configurations using [`PulsarConfig`]
+pub struct PulsarDaemon {
+    modules: HashMap<String, ModuleData>,
+    config: PulsarConfig,
+    rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
+    #[cfg(debug_assertions)]
+    #[allow(unused)]
+    trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
+}
+
+impl PulsarDaemon {
     /// Handle commands coming from [`PulsarDaemonHandle`].
     async fn handle_cmd(&self, cmd: PulsarDaemonCommand) {
         match cmd {
@@ -174,47 +218,51 @@ impl PulsarDaemon {
 
     /// Get module status.
     async fn status(&self, module_name: &str) -> Result<ModuleStatus, PulsarDaemonError> {
-        let (_, module_handle) = self
+        let data = self
             .modules
             .get(module_name)
             .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
-        Ok(module_handle.status().await)
+        Ok(data.handle.status().await)
     }
 
     /// Start a module.
     async fn start(&self, module_name: &str) -> Result<(), PulsarDaemonError> {
-        let (_, module_handle) = self
+        let data = self
             .modules
             .get(module_name)
             .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
 
-        #[allow(clippy::unit_arg)]
-        Ok(module_handle.start().await)
+        data.handle
+            .start()
+            .await
+            .map_err(PulsarDaemonError::StartError)
     }
 
     /// Restart a module.
     async fn restart(&self, module_name: &str) -> Result<(), PulsarDaemonError> {
-        let (_, module_handle) = self
+        let data = self
             .modules
             .get(module_name)
             .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
-        module_handle
+        data.handle
             .stop()
             .await
             .map_err(PulsarDaemonError::StopError)?;
 
-        #[allow(clippy::unit_arg)]
-        Ok(module_handle.start().await)
+        data.handle
+            .start()
+            .await
+            .map_err(PulsarDaemonError::StartError)
     }
 
     /// Stop a module.
     async fn stop(&self, module_name: &str) -> Result<(), PulsarDaemonError> {
-        let (_, module_handle) = self
+        let data = self
             .modules
             .get(module_name)
             .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
 
-        module_handle
+        data.handle
             .stop()
             .await
             .map_err(PulsarDaemonError::StopError)
@@ -223,11 +271,10 @@ impl PulsarDaemon {
     /// Get loaded module list.
     async fn modules(&self) -> Vec<ModuleOverview> {
         let mut v = Vec::new();
-        for (name, (details, handle)) in self.modules.iter() {
+        for (name, data) in self.modules.iter() {
             v.push(ModuleOverview {
                 name: name.clone(),
-                version: details.version.clone(),
-                status: handle.status().await,
+                status: data.handle.status().await,
             })
         }
         v
@@ -268,25 +315,6 @@ impl PulsarDaemon {
     }
 }
 
-/// Create and start a [`PulsarDaemon`] actor to manage the underlying Pulsar modules.
-///
-/// Returns the [`PulsarDaemonHandle`] that can be used to interact with the [`PulsarDaemon`] actor.
-pub async fn start_daemon(
-    bus: Bus,
-    modules: Vec<Box<dyn TaskLauncher>>,
-    config: PulsarConfig,
-) -> anyhow::Result<PulsarDaemonHandle> {
-    let (tx_cmd, rx_cmd) = mpsc::channel(8);
-
-    let daemon_handle = PulsarDaemonHandle { tx_cmd };
-
-    let daemon = PulsarDaemon::new(bus, modules, config, rx_cmd).await?;
-
-    tokio::spawn(run_daemon_actor(daemon));
-
-    Ok(daemon_handle)
-}
-
 /// Run a [`PulsarDaemon`] actor.
 async fn run_daemon_actor(mut actor: PulsarDaemon) {
     loop {
@@ -295,10 +323,11 @@ async fn run_daemon_actor(mut actor: PulsarDaemon) {
                 Some(cmd) => actor.handle_cmd(cmd).await,
                 None => return
             },
-            cmd = actor.rx_modules_cmd.recv() => match cmd {
-                Some(cmd) => actor.handle_cmd(cmd).await,
-                None => unreachable!()
-            }
         )
     }
+}
+
+struct ModuleData {
+    enabled_by_default: bool,
+    handle: ModuleManagerHandle,
 }

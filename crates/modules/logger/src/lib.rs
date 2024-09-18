@@ -1,7 +1,3 @@
-use pulsar_core::pdk::{
-    CleanExit, ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, PulsarModule,
-    ShutdownSignal, Version,
-};
 use std::{
     borrow::Cow,
     cell::OnceCell,
@@ -14,60 +10,74 @@ use std::{
     },
     str::FromStr,
 };
+
+use pulsar_core::pdk::{
+    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule,
+};
 use thiserror::Error;
 
 const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
-const MODULE_NAME: &str = "logger";
 const PRIORITY: u8 = 25; // facility * 8 + severity. facility: daemon (3); severity: alert (1)
 
-pub fn module() -> PulsarModule {
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        true,
-        logger_task,
-    )
+pub struct LoggerModule;
+
+impl SimplePulsarModule for LoggerModule {
+    type Config = Config;
+    type State = LoggerState;
+
+    const MODULE_NAME: &'static str = "threat-logger";
+    const DEFAULT_ENABLED: bool = true;
+
+    async fn init_state(
+        &self,
+        config: &Self::Config,
+        ctx: &ModuleContext,
+    ) -> Result<Self::State, ModuleError> {
+        let logger = match Logger::from_config(config) {
+            Ok(logr) => logr,
+            Err(logr) => {
+                ctx.raise_warning("Failed to connect to syslog".into())
+                    .await;
+                logr
+            }
+        };
+
+        Ok(LoggerState { logger })
+    }
+
+    async fn on_config_change(
+        new_config: &Self::Config,
+        state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        state.logger = match Logger::from_config(new_config) {
+            Ok(logr) => logr,
+            Err(logr) => {
+                ctx.raise_warning("Failed to connect to syslog".into())
+                    .await;
+                logr
+            }
+        };
+        Ok(())
+    }
+
+    async fn on_event(
+        event: &Event,
+        _config: &Self::Config,
+        state: &mut Self::State,
+        ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        if let Err(e) = state.logger.process(event) {
+            ctx.raise_warning(format!("Writing to logs failed: {e}, syslog disabled"))
+                .await;
+            state.logger.syslog = None;
+        }
+        Ok(())
+    }
 }
 
-async fn logger_task(
-    ctx: ModuleContext,
-    mut shutdown: ShutdownSignal,
-) -> Result<CleanExit, ModuleError> {
-    let mut receiver = ctx.get_receiver();
-    let mut rx_config = ctx.get_config();
-    let sender = ctx.get_sender();
-
-    let mut logger = match Logger::from_config(rx_config.read()?) {
-        Ok(logr) => logr,
-        Err(logr) => {
-            sender
-                .raise_warning("Failed to connect to syslog".into())
-                .await;
-            logr
-        }
-    };
-
-    loop {
-        tokio::select! {
-            r = shutdown.recv() => return r,
-            _ = rx_config.changed() => {
-                logger = match Logger::from_config(rx_config.read()?) {
-                    Ok(logr) => logr,
-                    Err(logr) => {
-                        sender.raise_warning("Failed to connect to syslog".into()).await;
-                        logr
-                    }
-                }
-            }
-            msg = receiver.recv() => {
-                let msg = msg?;
-                if let Err(e) = logger.process(&msg) {
-                    sender.raise_warning(format!("Writing to logs failed: {e}")).await;
-                    logger = Logger { syslog: None, ..logger };
-                }
-            },
-        }
-    }
+pub struct LoggerState {
+    logger: Logger,
 }
 
 #[derive(Clone, Debug)]
@@ -92,7 +102,7 @@ impl FromStr for OutputFormat {
 }
 
 #[derive(Clone)]
-struct Config {
+pub struct Config {
     console: bool,
     // file: bool, //TODO:
     syslog: bool,
@@ -128,12 +138,12 @@ enum LoggerError {
 }
 
 impl Logger {
-    fn from_config(rx_config: Config) -> Result<Self, Self> {
+    fn from_config(config: &Config) -> Result<Self, Self> {
         let Config {
             console,
             syslog,
             output_format,
-        } = rx_config;
+        } = config;
 
         let connected_to_journal = io::stderr()
             .as_fd()
@@ -146,7 +156,7 @@ impl Logger {
             })
             .unwrap_or(false);
 
-        let opt_sock = (syslog && !connected_to_journal)
+        let opt_sock = (*syslog && !connected_to_journal)
             .then(|| {
                 let sock = UnixDatagram::unbound().ok()?;
                 UNIX_SOCK_PATHS
@@ -156,17 +166,17 @@ impl Logger {
             })
             .flatten();
 
-        if syslog && opt_sock.is_none() {
+        if *syslog && opt_sock.is_none() {
             Err(Self {
-                console,
+                console: *console,
                 syslog: opt_sock,
-                output_format,
+                output_format: output_format.clone(),
             })
         } else {
             Ok(Self {
-                console,
+                console: *console,
                 syslog: opt_sock,
-                output_format,
+                output_format: output_format.clone(),
             })
         }
     }

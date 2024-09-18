@@ -214,35 +214,41 @@ pub mod pulsar {
     use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::{
         event::Host,
-        pdk::{
-            CleanExit, IntoPayload, ModuleContext, ModuleError, Payload, PulsarModule,
-            ShutdownSignal, Version,
-        },
+        pdk::{IntoPayload, ModuleContext, ModuleError, Payload, SimplePulsarModule},
     };
 
-    pub fn module() -> PulsarModule {
-        PulsarModule::new(
-            MODULE_NAME,
-            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            true,
-            network_monitor_task,
-        )
+    pub struct NetworkMonitorModule;
+
+    impl SimplePulsarModule for NetworkMonitorModule {
+        type Config = pulsar_core::pdk::NoConfig;
+        type State = NetworkMonitorState;
+
+        const MODULE_NAME: &'static str = MODULE_NAME;
+        const DEFAULT_ENABLED: bool = true;
+
+        async fn init_state(
+            &self,
+            _config: &Self::Config,
+            ctx: &ModuleContext,
+        ) -> Result<Self::State, ModuleError> {
+            let dns_ctx = ctx.clone();
+
+            // intercept DNS
+            let sender =
+                BpfSenderWrapper::new(ctx.clone(), move |event: &BpfEvent<NetworkEvent>| {
+                    if let Some(dns_event) = collect_dns_if_any(event) {
+                        dns_ctx.send(event.pid, event.timestamp, dns_event);
+                    }
+                });
+
+            Ok(Self::State {
+                _ebpf_program: program(ctx.get_bpf_context(), sender).await?,
+            })
+        }
     }
 
-    async fn network_monitor_task(
-        ctx: ModuleContext,
-        mut shutdown: ShutdownSignal,
-    ) -> Result<CleanExit, ModuleError> {
-        let sender = ctx.get_sender();
-        let dns_sender = ctx.get_sender();
-        // intercept DNS
-        let sender = BpfSenderWrapper::new(sender, move |event: &BpfEvent<NetworkEvent>| {
-            if let Some(dns_event) = collect_dns_if_any(event) {
-                dns_sender.send(event.pid, event.timestamp, dns_event);
-            }
-        });
-        let _program = program(ctx.get_bpf_context(), sender).await?;
-        shutdown.recv().await
+    pub struct NetworkMonitorState {
+        _ebpf_program: Program,
     }
 
     impl From<Addr> for Host {

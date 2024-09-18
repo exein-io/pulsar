@@ -145,140 +145,153 @@ pub mod pulsar {
     use super::*;
     use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, CleanExit, IntoPayload, ModuleContext, ModuleError,
-        Payload, PulsarModule, ShutdownSignal, Version,
+        process_tracker::TrackerUpdate, IntoPayload, ModuleContext, ModuleError, Payload,
+        SimplePulsarModule,
     };
-    use tokio::sync::mpsc;
+    use tokio::{sync::mpsc, task::JoinHandle};
 
-    pub fn module() -> PulsarModule {
-        PulsarModule::new(
-            MODULE_NAME,
-            Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-            true,
-            process_monitor_task,
-        )
-    }
+    pub struct ProcessMonitorModule;
 
-    async fn process_monitor_task(
-        ctx: ModuleContext,
-        mut shutdown: ShutdownSignal,
-    ) -> Result<CleanExit, ModuleError> {
-        let rx_config = ctx.get_config();
-        let filtering_config: bpf_filtering::config::Config = rx_config.read()?;
-        let process_tracker = ctx.get_process_tracker();
-        let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
-        let mut program = program(
-            ctx.get_bpf_context(),
+    impl SimplePulsarModule for ProcessMonitorModule {
+        type Config = bpf_filtering::config::Config;
+        type State = ProcessMonitorStatus;
+
+        const MODULE_NAME: &'static str = MODULE_NAME;
+        const DEFAULT_ENABLED: bool = true;
+
+        async fn init_state(
+            &self,
+            config: &Self::Config,
+            ctx: &ModuleContext,
+        ) -> Result<Self::State, ModuleError> {
+            let process_tracker = ctx.get_process_tracker();
+
+            let (tx_processes, mut rx_processes) = mpsc::unbounded_channel();
+
             // When generating events we must update process_tracker.
             // We do this by wrapping the pulsar sender and calling this closure on every event.
-            BpfSenderWrapper::new(ctx.get_sender(), move |event: &BpfEvent<ProcessEvent>| {
-                let _ = tx_processes.send(match event.payload {
-                    ProcessEvent::Fork {
-                        uid,
-                        gid,
-                        ppid,
-                        namespaces,
-                        ref c_container_id,
-                    } => {
-                        let container_id = match c_container_id {
-                            COption::Some(ccid) => {
-                                let id = ccid.cgroup_id.string(&event.buffer).unwrap();
-                                let container_id = match ccid.container_engine {
-                                    ContainerEngineKind::Docker => ContainerId::Docker(id),
-                                    ContainerEngineKind::Podman => ContainerId::Libpod(id),
-                                };
-                                Some(container_id)
-                            }
-                            COption::None => None,
-                        };
-
-                        TrackerUpdate::Fork {
-                            pid: event.pid,
+            let sender =
+                BpfSenderWrapper::new(ctx.clone(), move |event: &BpfEvent<ProcessEvent>| {
+                    let _ = tx_processes.send(match event.payload {
+                        ProcessEvent::Fork {
                             uid,
                             gid,
                             ppid,
-                            timestamp: event.timestamp,
                             namespaces,
-                            container_id,
-                        }
-                    }
-                    ProcessEvent::Exec {
-                        uid,
-                        ref filename,
-                        argc,
-                        ref argv,
-                        namespaces,
-                        ref c_container_id,
-                    } => {
-                        let argv =
-                            extract_parameters(argv.bytes(&event.buffer).unwrap_or_else(|err| {
-                                log::error!("Error getting program arguments: {}", err);
-                                &[]
-                            }));
-                        if argv.len() != argc as usize {
-                            log::warn!(
-                                "argc ({}) doens't match argv ({:?}) for {}",
-                                argc,
-                                argv,
-                                event.pid
-                            )
-                        }
+                            ref c_container_id,
+                        } => {
+                            let container_id = match c_container_id {
+                                COption::Some(ccid) => {
+                                    let id = ccid.cgroup_id.string(&event.buffer).unwrap();
+                                    let container_id = match ccid.container_engine {
+                                        ContainerEngineKind::Docker => ContainerId::Docker(id),
+                                        ContainerEngineKind::Podman => ContainerId::Libpod(id),
+                                    };
+                                    Some(container_id)
+                                }
+                                COption::None => None,
+                            };
 
-                        let container_id = match c_container_id {
-                            COption::Some(ccid) => {
-                                let id = ccid.cgroup_id.string(&event.buffer).unwrap();
-                                let container_id = match ccid.container_engine {
-                                    ContainerEngineKind::Docker => ContainerId::Docker(id),
-                                    ContainerEngineKind::Podman => ContainerId::Libpod(id),
-                                };
-                                Some(container_id)
+                            TrackerUpdate::Fork {
+                                pid: event.pid,
+                                uid,
+                                gid,
+                                ppid,
+                                timestamp: event.timestamp,
+                                namespaces,
+                                container_id,
                             }
-                            COption::None => None,
-                        };
-
-                        TrackerUpdate::Exec {
-                            pid: event.pid,
-                            uid,
-                            // ignoring this error since it will be catched in IntoPayload
-                            image: filename.string(&event.buffer).unwrap_or_default(),
-                            timestamp: event.timestamp,
-                            argv,
-                            namespaces,
-                            container_id,
                         }
-                    }
-                    ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
-                        pid: event.pid,
-                        timestamp: event.timestamp,
-                    },
-                    ProcessEvent::ChangeParent { ppid } => TrackerUpdate::SetNewParent {
-                        pid: event.pid,
-                        ppid,
-                    },
-                    _ => return,
+                        ProcessEvent::Exec {
+                            uid,
+                            ref filename,
+                            argc,
+                            ref argv,
+                            namespaces,
+                            ref c_container_id,
+                        } => {
+                            let argv = extract_parameters(
+                                argv.bytes(&event.buffer).unwrap_or_else(|err| {
+                                    log::error!("Error getting program arguments: {}", err);
+                                    &[]
+                                }),
+                            );
+                            if argv.len() != argc as usize {
+                                log::warn!(
+                                    "argc ({}) doens't match argv ({:?}) for {}",
+                                    argc,
+                                    argv,
+                                    event.pid
+                                )
+                            }
+
+                            let container_id = match c_container_id {
+                                COption::Some(ccid) => {
+                                    let id = ccid.cgroup_id.string(&event.buffer).unwrap();
+                                    let container_id = match ccid.container_engine {
+                                        ContainerEngineKind::Docker => ContainerId::Docker(id),
+                                        ContainerEngineKind::Podman => ContainerId::Libpod(id),
+                                    };
+                                    Some(container_id)
+                                }
+                                COption::None => None,
+                            };
+
+                            TrackerUpdate::Exec {
+                                pid: event.pid,
+                                uid,
+                                // ignoring this error since it will be catched in IntoPayload
+                                image: filename.string(&event.buffer).unwrap_or_default(),
+                                timestamp: event.timestamp,
+                                argv,
+                                namespaces,
+                                container_id,
+                            }
+                        }
+                        ProcessEvent::Exit { .. } => TrackerUpdate::Exit {
+                            pid: event.pid,
+                            timestamp: event.timestamp,
+                        },
+                        ProcessEvent::ChangeParent { ppid } => TrackerUpdate::SetNewParent {
+                            pid: event.pid,
+                            ppid,
+                        },
+                        _ => return,
+                    });
                 });
-            }),
-        )
-        .await?;
 
-        bpf_filtering::initializer::setup_events_filter(
-            program.bpf(),
-            filtering_config,
-            &process_tracker,
-            &mut rx_processes,
-        )
-        .await
-        .context("Error initializing process filtering")?;
+            let mut program = program(ctx.get_bpf_context(), sender).await?;
 
-        // rx_processes will first be used during initialization,
-        // than it will be used to keep the process tracker updated
+            bpf_filtering::initializer::setup_events_filter(
+                program.bpf(),
+                config.clone(),
+                &process_tracker,
+                &mut rx_processes,
+            )
+            .await
+            .context("Error initializing process filtering")?;
 
-        loop {
-            tokio::select! {
-                r = shutdown.recv() => return r,
-                Some(msg) = rx_processes.recv() => process_tracker.update(msg),
-            }
+            let updater_task = tokio::spawn(async move {
+                while let Some(msg) = rx_processes.recv().await {
+                    process_tracker.update(msg)
+                }
+            });
+
+            Ok(Self::State {
+                _ebpf_program: program,
+                updater_task,
+            })
         }
+
+        async fn graceful_stop(state: Self::State) -> Result<(), ModuleError> {
+            state.updater_task.abort();
+            Ok(())
+        }
+    }
+
+    pub struct ProcessMonitorStatus {
+        _ebpf_program: Program,
+        updater_task: JoinHandle<()>,
     }
 
     impl IntoPayload for ProcessEvent {

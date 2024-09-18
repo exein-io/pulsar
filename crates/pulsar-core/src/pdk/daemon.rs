@@ -1,6 +1,5 @@
 use std::fmt;
 
-use semver::Version;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
@@ -12,6 +11,8 @@ use super::ModuleConfig;
 pub enum PulsarDaemonError {
     #[error("module {0} not found")]
     ModuleNotFound(String),
+    #[error("{0}")]
+    StartError(String),
     #[error("{0}")]
     StopError(String),
     #[error("error updating the configuration")]
@@ -209,6 +210,5 @@ pub enum PulsarDaemonCommand {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ModuleOverview {
     pub name: String,
-    pub version: Version,
     pub status: ModuleStatus,
 }

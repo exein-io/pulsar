@@ -10,7 +10,7 @@ async fn main() -> Result<()> {
     pulsar::init_logger(options.override_log_level);
 
     // Run pulsar-exec with crate provided modules
-    match pulsar::run_pulsar_exec(&options, pulsar::modules()).await {
+    match pulsar::run_pulsar_exec(&options).await {
         Ok(_) => std::process::exit(0),
         Err(e) => {
             cli::report_error(&e);

@@ -1,32 +1,38 @@
-use std::sync::{Arc, Mutex};
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, NoConfig, SimplePulsarModule};
+use tokio::sync::mpsc;
 
-use anyhow::Context;
-use pulsar_core::pdk::{ModuleContext, PulsarModule, Version};
-use tokio::sync::oneshot;
+pub struct ProxyModule {
+    pub tx_proxy: mpsc::Sender<Event>,
+}
 
-const MODULE_NAME: &str = "proxy-module";
+impl SimplePulsarModule for ProxyModule {
+    type Config = NoConfig;
+    type State = ProxyModuleState;
 
-/// Fake module used to extract the ModuleContext out of pulsar.
-pub fn module(tx_ctx: oneshot::Sender<ModuleContext>) -> PulsarModule {
-    // This code supports starting the module only once. A smarter solution
-    // needs to be architected if restarts are required.
-    let tx_ctx = Arc::new(Mutex::new(Some(tx_ctx)));
-    PulsarModule::new(
-        MODULE_NAME,
-        Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-        true,
-        move |ctx, mut shutdown| {
-            let tx_ctx = tx_ctx.clone();
-            async move {
-                let tx_ctx = tx_ctx
-                    .lock()
-                    .ok()
-                    .context("Getting mutex failed")?
-                    .take()
-                    .context("Module can be started only once")?;
-                tx_ctx.send(ctx).ok().context("Sending context failed")?;
-                shutdown.recv().await
-            }
-        },
-    )
+    const MODULE_NAME: &'static str = "proxy-module";
+    const DEFAULT_ENABLED: bool = true;
+
+    async fn init_state(
+        &self,
+        _config: &Self::Config,
+        _ctx: &ModuleContext,
+    ) -> Result<Self::State, ModuleError> {
+        Ok(Self::State {
+            tx_proxy: self.tx_proxy.clone(),
+        })
+    }
+
+    async fn on_event(
+        event: &Event,
+        _config: &Self::Config,
+        state: &mut Self::State,
+        _ctx: &ModuleContext,
+    ) -> Result<(), ModuleError> {
+        state.tx_proxy.send(event.clone()).await?;
+        Ok(())
+    }
+}
+
+pub struct ProxyModuleState {
+    tx_proxy: mpsc::Sender<Event>,
 }
