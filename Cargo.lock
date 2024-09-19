@@ -1668,18 +1668,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
-name = "logger"
-version = "0.8.1"
-dependencies = [
- "bpf-common",
- "log",
- "pulsar-core",
- "serde_json",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "lru-cache"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2187,7 +2175,6 @@ dependencies = [
  "file-system-monitor",
  "futures-util",
  "log",
- "logger",
  "network-monitor",
  "nix 0.27.1",
  "process-monitor",
@@ -2197,6 +2184,7 @@ dependencies = [
  "semver",
  "serde",
  "smtp-notifier",
+ "threat-logger",
  "tokio",
 ]
 
@@ -2935,6 +2923,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
 dependencies = [
  "num_cpus",
+]
+
+[[package]]
+name = "threat-logger"
+version = "0.8.1"
+dependencies = [
+ "bpf-common",
+ "log",
+ "pulsar-core",
+ "serde_json",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]

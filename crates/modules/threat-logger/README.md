@@ -1,4 +1,4 @@
-# Logger
+# Threat logger
 
 This module will log Pulsar threat events to stdout.
 
@@ -13,7 +13,7 @@ This module will log Pulsar threat events to stdout.
 Default configuration:
 
 ```ini
-[logger]
+[threat-logger]
 enabled=true
 console=true
 syslog=true

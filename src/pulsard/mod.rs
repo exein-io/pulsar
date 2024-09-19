@@ -47,8 +47,8 @@ pub async fn pulsar_daemon_run(
     starter.add_module(file_system_monitor::pulsar::FileSystemMonitorModule)?;
     #[cfg(feature = "network-monitor")]
     starter.add_module(network_monitor::pulsar::NetworkMonitorModule)?;
-    #[cfg(feature = "logger")]
-    starter.add_module(logger::LoggerModule)?;
+    #[cfg(feature = "threat-logger")]
+    starter.add_module(threat_logger::ThreatLoggerModule)?;
     #[cfg(feature = "rules-engine")]
     starter.add_module(rules_engine::RuleEngineModule)?;
     #[cfg(feature = "desktop-notifier")]

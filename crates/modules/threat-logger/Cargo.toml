@@ -1,5 +1,5 @@
 [package]
-name = "logger"
+name = "threat-logger"
 version.workspace = true
 license.workspace = true
 edition.workspace = true
