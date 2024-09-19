@@ -21,7 +21,7 @@ pulsar-core = { workspace = true }
 # Modules
 desktop-notifier = { workspace = true, optional = true }
 file-system-monitor = { workspace = true, optional = true }
-logger = { workspace = true, optional = true }
+threat-logger = { workspace = true, optional = true }
 network-monitor = { workspace = true, optional = true }
 process-monitor = { workspace = true, optional = true }
 rules-engine = { workspace = true, optional = true }
@@ -42,7 +42,7 @@ tokio = { workspace = true, features = ["full"] }
 [features]
 default = ["full", "tls-openssl"]
 full = ["core", "extra"]
-core = ["logger", "process-monitor", "network-monitor", "file-system-monitor"]
+core = ["threat-logger", "process-monitor", "network-monitor", "file-system-monitor"]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
 tls-openssl = ["smtp-notifier/tls-openssl"]
 tls-rustls = ["smtp-notifier/tls-rustls"]
@@ -56,7 +56,7 @@ members = [
     "crates/modules/process-monitor",
     "crates/modules/network-monitor",
     "crates/modules/rules-engine",
-    "crates/modules/logger",
+    "crates/modules/threat-logger",
     "crates/modules/desktop-notifier",
     "crates/modules/smtp-notifier",
     "crates/pulsar-core",
@@ -98,7 +98,7 @@ desktop-notifier = { path = "crates/modules/desktop-notifier" }
 file-system-monitor = { path = "crates/modules/file-system-monitor", features = [
     "test-suite",
 ] }
-logger = { path = "crates/modules/logger" }
+threat-logger = { path = "crates/modules/threat-logger" }
 network-monitor = { path = "crates/modules/network-monitor", features = [
     "test-suite",
 ] }

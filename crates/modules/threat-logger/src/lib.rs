@@ -19,11 +19,11 @@ use thiserror::Error;
 const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
 const PRIORITY: u8 = 25; // facility * 8 + severity. facility: daemon (3); severity: alert (1)
 
-pub struct LoggerModule;
+pub struct ThreatLoggerModule;
 
-impl SimplePulsarModule for LoggerModule {
+impl SimplePulsarModule for ThreatLoggerModule {
     type Config = Config;
-    type State = LoggerState;
+    type State = ThreatLoggerState;
 
     const MODULE_NAME: &'static str = "threat-logger";
     const DEFAULT_ENABLED: bool = true;
@@ -33,7 +33,7 @@ impl SimplePulsarModule for LoggerModule {
         config: &Self::Config,
         ctx: &ModuleContext,
     ) -> Result<Self::State, ModuleError> {
-        let logger = match Logger::from_config(config) {
+        let logger = match ThreatLogger::from_config(config) {
             Ok(logr) => logr,
             Err(logr) => {
                 ctx.raise_warning("Failed to connect to syslog".into())
@@ -42,7 +42,7 @@ impl SimplePulsarModule for LoggerModule {
             }
         };
 
-        Ok(LoggerState { logger })
+        Ok(ThreatLoggerState { logger })
     }
 
     async fn on_config_change(
@@ -50,7 +50,7 @@ impl SimplePulsarModule for LoggerModule {
         state: &mut Self::State,
         ctx: &ModuleContext,
     ) -> Result<(), ModuleError> {
-        state.logger = match Logger::from_config(new_config) {
+        state.logger = match ThreatLogger::from_config(new_config) {
             Ok(logr) => logr,
             Err(logr) => {
                 ctx.raise_warning("Failed to connect to syslog".into())
@@ -76,8 +76,8 @@ impl SimplePulsarModule for LoggerModule {
     }
 }
 
-pub struct LoggerState {
-    logger: Logger,
+pub struct ThreatLoggerState {
+    logger: ThreatLogger,
 }
 
 #[derive(Clone, Debug)]
@@ -123,21 +123,21 @@ impl TryFrom<&ModuleConfig> for Config {
 }
 
 #[derive(Debug)]
-struct Logger {
+struct ThreatLogger {
     console: bool,
     syslog: Option<UnixDatagram>,
     output_format: OutputFormat,
 }
 
 #[derive(Debug, Error)]
-enum LoggerError {
+enum ThreatLoggerError {
     #[error("error serializing event: {0}")]
     Json(String),
     #[error("io error")]
     IO(#[from] io::Error),
 }
 
-impl Logger {
+impl ThreatLogger {
     fn from_config(config: &Config) -> Result<Self, Self> {
         let Config {
             console,
@@ -181,14 +181,14 @@ impl Logger {
         }
     }
 
-    fn process(&mut self, event: &Event) -> Result<(), LoggerError> {
+    fn process(&mut self, event: &Event) -> Result<(), ThreatLoggerError> {
         if event.header().threat.is_some() {
             let json_event = OnceCell::new();
-            let json_event = || -> Result<&String, LoggerError> {
+            let json_event = || -> Result<&String, ThreatLoggerError> {
                 json_event
                     .get_or_init(|| serde_json::to_string(event))
                     .as_ref()
-                    .map_err(|err| LoggerError::Json(err.to_string()))
+                    .map_err(|err| ThreatLoggerError::Json(err.to_string()))
             };
 
             if self.console {
