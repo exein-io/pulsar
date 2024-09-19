@@ -114,7 +114,7 @@ pub mod pulsar {
             _state: &mut Self::State,
             ctx: &ModuleContext,
         ) -> Result<(), ModuleError> {
-            if config.elf_check_enabled {
+            if config.elf_check {
                 check_elf(ctx, &config.elf_check_whitelist, event).await;
             }
             Ok(())
@@ -171,7 +171,7 @@ pub mod pulsar {
 
     #[derive(Clone, Debug, Default)]
     pub struct Config {
-        elf_check_enabled: bool,
+        elf_check: bool,
         elf_check_whitelist: Vec<String>,
     }
 
@@ -180,7 +180,7 @@ pub mod pulsar {
 
         fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
             Ok(Config {
-                elf_check_enabled: config.with_default("elf_check_enabled", true)?,
+                elf_check: config.with_default("elf_check", true)?,
                 elf_check_whitelist: config.get_list_with_default(
                     "elf_check_whitelist",
                     vec![
