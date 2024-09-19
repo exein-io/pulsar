@@ -17,7 +17,7 @@ in its first bytes.
 
 |Config|Type|Description|
 |------|----|-----------|
-|`elf_check_enabled`|boolean|Enable ELF check|
+|`elf_check`|boolean|Enable ELF check|
 |`elf_check_whitelist`|path list|Paths ignored by ELF check|
 
 Default configuration:
@@ -25,7 +25,7 @@ Default configuration:
 ```ini
 [file-system-monitor]
 enabled=true
-elf_check_enabled=true
+elf_check=true
 elf_check_whitelist=/proc,/sys,/dev
 ```
 
@@ -33,7 +33,7 @@ You disable this module or the ELF check with:
 
 ```sh
 pulsar config --set file-system-monitor.enabled=false
-pulsar config --set file-system-monitor.elf_check_enabled=false
+pulsar config --set file-system-monitor.elf_check=false
 ```
 
 ## Testing
