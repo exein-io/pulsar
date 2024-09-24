@@ -46,7 +46,7 @@ jobs:
       - name: Integration tests
         if: endsWith(matrix.platform.target, 'musl')
         run: |
-            cargo xtask test \
+            cargo xtask test-suite \
                 --force-architest \
                 --target=${{ matrix.platform.target }} \
                 --kernel-versions=${{ matrix.platform.kernel-versions }} \
