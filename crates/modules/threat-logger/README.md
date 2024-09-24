@@ -23,5 +23,5 @@ output_format=plaintext
 You disable this module with:
 
 ```sh
-pulsar config --set logger.enabled=false
+pulsar config --set threat-logger.enabled=false
 ```
