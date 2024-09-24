@@ -3690,8 +3690,10 @@ version = "0.8.1"
 dependencies = [
  "anyhow",
  "clap",
+ "env_logger",
  "flate2",
  "indicatif",
+ "log",
  "num_cpus",
  "reqwest",
  "serde",

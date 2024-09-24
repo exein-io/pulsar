@@ -11,9 +11,15 @@ clap = { workspace = true, features = ["derive"] }
 flate2 = { workspace = true }
 indicatif = { workspace = true }
 num_cpus = { workspace = true }
-reqwest = { workspace = true, default-features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { workspace = true, default-features = false, features = [
+    "blocking",
+    "json",
+    "rustls-tls",
+] }
 serde = { workspace = true, features = ["derive"] }
 signal-hook = { workspace = true }
 tar = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 xshell = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }

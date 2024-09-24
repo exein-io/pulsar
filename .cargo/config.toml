@@ -1,5 +1,6 @@
 [alias]
 xtask = "run --package xtask --"
+surun = "run --package xtask -- surun"
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
