@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use xshell::{cmd, Shell};
 
@@ -13,6 +13,14 @@ impl SuRunCommand {
     pub fn run(&self) -> Result<()> {
         let cargo = std::env::var("CARGO").unwrap();
 
+        // To determine the target triple it checks in order:
+        // - `--target` command line option
+        // - `CARGO_BUILD_TARGET` environment variable
+        // - default host target
+        //
+        // TODO: it should check also hierarchical `config.toml` files as described
+        // in the following page:
+        // https://doc.rust-lang.org/cargo/reference/config.html#hierarchical-structure
         let target_triple = match self
             .run_args
             .iter()
@@ -20,8 +28,20 @@ impl SuRunCommand {
             .nth(1) // skip the `--target` identifier
         {
             Some(target_triple) => target_triple.to_owned(),
-            None => get_default_target(&cargo)
-                .context(format!("failed to get target triple with {cargo}"))?,
+            None => {
+                const TARGET_TRIPLE_ENV: &str = "CARGO_BUILD_TARGET";
+
+                match std::env::var(TARGET_TRIPLE_ENV) {
+                    Ok(target_triple) => target_triple,
+                    Err(std::env::VarError::NotPresent) => {
+                        get_default_target(&cargo)
+                            .context(format!("failed to get target triple with {cargo}"))?
+                    }
+                    Err(std::env::VarError::NotUnicode(var)) => {
+                        bail!("env variable `{TARGET_TRIPLE_ENV}` doesn't contain a valid unicode: {var:?}")
+                    }
+                }
+            }
         };
 
         log::debug!("Detected host triple: {target_triple}");
