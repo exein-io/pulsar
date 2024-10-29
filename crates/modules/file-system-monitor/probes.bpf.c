@@ -169,9 +169,7 @@ static __always_inline void on_path_rmdir(void *ctx, struct path *dir,
   output_fs_event(ctx, event);
 }
 
-PULSAR_LSM_HOOK(path_rename, struct path *, old_dir, struct dentry *,
-                old_dentry, struct path *, new_dir, struct dentry *,
-                new_dentry);
+// Manually implements hooks below
 static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
                                            struct dentry *old_dentry,
                                            struct path *new_dir,
@@ -188,3 +186,42 @@ static __always_inline void on_path_rename(void *ctx, struct path *old_dir,
   get_path_str(&destination, &event->buffer, &event->rename.destination);
   output_fs_event(ctx, event);
 }
+
+#ifdef FEATURE_LSM
+  /// This function shim is needed to make the verifier happy,
+  static __always_inline int shim_5_19_on_path_rename(unsigned long long *ctx,
+                                                struct path *old_dir,
+                                                struct dentry *old_dentry,
+                                                struct path *new_dir,
+                                                struct dentry *new_dentry,
+                                                unsigned int flags,
+                                                int ret) {
+    on_path_rename(ctx,old_dir, old_dentry, new_dir, new_dentry);
+    return ret;
+  }
+
+  SEC("lsm/path_rename")                                                      
+  int BPF_PROG(path_rename,
+               struct path *old_dir,
+               struct dentry *old_dentry,
+               struct path *new_dir,
+               struct dentry *new_dentry) {
+    // On kernel >= 5.19 there is another parameter before:
+    // `unsigned int flags` in `ctx[4]`;
+    // so ret it located foward
+    if (LINUX_KERNEL_VERSION >= KERNEL_VERSION(5, 19, 0)) {
+      unsigned int flags = (unsigned int) ctx[4];
+      int ret = (int) (ctx[5]);
+      return shim_5_19_on_path_rename(ctx, old_dir, old_dentry, new_dir, new_dentry, flags, ret);
+    } else {
+      on_path_rename(ctx,old_dir, old_dentry, new_dir, new_dentry);
+      return (int) (ctx[4]);
+    }                                                              
+  }
+#else
+  SEC("kprobe/security_path_rename")                                          
+  int BPF_KPROBE(security_path_rename, struct path *old_dir, struct dentry *old_dentry, struct path *new_dir, struct dentry *new_dentry) {
+    on_path_rename(ctx, old_dir, old_dentry, new_dir, new_dentry);
+    return 0;                                                                  
+  }
+#endif
