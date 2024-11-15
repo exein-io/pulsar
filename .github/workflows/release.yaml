@@ -199,7 +199,7 @@ jobs:
           name: ${{ env.REGISTRY_TAG }}
           draft: true
           tag: ${{ env.REGISTRY_TAG }}
-          artifacts: "/tmp/binaries/*"
+          artifacts: "/tmp/binaries/*,/tmp/pulsar-install.sh"
           body: |
             <hr>  
 
