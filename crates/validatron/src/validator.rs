@@ -25,7 +25,7 @@ enum Leaf<'a> {
     Owned(Box<dyn Any>), // methods need a relaxed leaf type
 }
 
-impl<'a> Deref for Leaf<'a> {
+impl Deref for Leaf<'_> {
     type Target = dyn Any;
 
     fn deref(&self) -> &Self::Target {
