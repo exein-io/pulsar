@@ -33,7 +33,10 @@ impl<T: Validatron> Ruleset<T> {
     }
 
     /// Perform the check on an instance of a type `T` and returns an iterator over the matching rules.
-    pub fn matches<'a>(&'a self, e: &'a T) -> impl Iterator<Item = &CompiledRule<T>> {
+    pub fn matches<'a, 'b>(&'a self, e: &'b T) -> impl Iterator<Item = &'b CompiledRule<T>>
+    where
+        'a: 'b,
+    {
         self.rules.iter().filter(|rule| rule.is_match(e))
     }
 }
