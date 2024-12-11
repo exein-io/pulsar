@@ -13,10 +13,10 @@ use aya::{
         Array, HashMap, Map, MapData,
     },
     programs::{CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint},
-    util::online_cpus,
+    util::{online_cpus, KernelVersion},
     Bpf, BpfLoader, Btf, BtfError, Pod,
 };
-use bpf_feature_autodetect::{autodetect_features, kernel_version::KernelVersion};
+use bpf_feature_autodetect::autodetect_features;
 use bpf_features::BpfFeatures;
 use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
@@ -83,15 +83,11 @@ impl BpfContext {
             log::warn!("The default value {PERF_PAGES_DEFAULT} will be used.");
             perf_pages = PERF_PAGES_DEFAULT;
         }
-        let kernel_version = match KernelVersion::autodetect() {
+        let kernel_version = match KernelVersion::current() {
             Ok(version) => version,
             Err(err) => {
                 log::warn!("Error identifying kernel version {err:?}. Assuming kernel 5.0.4");
-                KernelVersion {
-                    major: 5,
-                    minor: 0,
-                    patch: 4,
-                }
+                KernelVersion::new(5, 0, 4)
             }
         };
         // aya doesn't support specifying from userspace wether or not to pin maps.
@@ -280,7 +276,7 @@ impl ProgramBuilder {
                 .set_global("log_level", &(self.ctx.log_level as i32), true)
                 .set_global(
                     "LINUX_KERNEL_VERSION",
-                    &self.ctx.kernel_version.as_i32(),
+                    &self.ctx.kernel_version.code(),
                     true,
                 )
                 .load(&self.probe)?;
