@@ -1,10 +1,6 @@
 use std::fmt::Display;
 
-use axum::{
-    body,
-    http::{Response, StatusCode},
-    response::IntoResponse,
-};
+use axum::{http::StatusCode, response::IntoResponse};
 use pulsar_core::pdk::PulsarDaemonError;
 use thiserror::Error;
 
@@ -43,15 +39,13 @@ impl EngineApiError {
 
 impl IntoResponse for EngineApiError {
     fn into_response(self) -> axum::response::Response {
-        let status_code = &self.status_code();
+        let status_code = self.status_code();
 
-        let body = match self {
-            Self::InternalServerError => body::boxed(body::Full::from("internal")),
-            Self::BadRequest(err) => body::boxed(body::Full::from(err)),
-            Self::ServiceUnavailable => body::boxed(body::Full::from("unavailable")),
-        };
-
-        Response::builder().status(status_code).body(body).unwrap()
+        match self {
+            Self::InternalServerError => (status_code, "internal").into_response(),
+            Self::BadRequest(err) => (status_code, err).into_response(),
+            Self::ServiceUnavailable => (status_code, "unavailable").into_response(),
+        }
     }
 }
 

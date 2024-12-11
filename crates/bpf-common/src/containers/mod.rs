@@ -52,7 +52,7 @@ pub enum ContainerError {
     #[error("failed to make a request to the UNIX socket `{uri:?}`")]
     HyperRequest {
         #[source]
-        source: hyper::Error,
+        source: hyper_util::client::legacy::Error,
         uri: hyper::Uri,
     },
     #[error("failed to parse a response from the UNIX socket `{uri:?}`")]

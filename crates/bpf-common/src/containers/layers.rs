@@ -6,8 +6,11 @@ use std::{
     str::FromStr,
 };
 
-use hyper::{body, Client};
-use hyperlocal::{UnixClientExt, Uri as HyperlocalUri};
+use bytes::Buf;
+use http_body_util::{BodyExt, Full};
+use hyper::body::Bytes;
+use hyper_util::client::legacy::Client;
+use hyperlocal::{UnixClientExt, UnixConnector, Uri as HyperlocalUri};
 use nix::unistd::Uid;
 use serde::Deserialize;
 
@@ -86,7 +89,7 @@ struct Rootfs {
 
 /// Returns a list of layer paths for the given Docker image ID.
 pub(crate) async fn docker_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
-    let client = Client::unix();
+    let client: Client<UnixConnector, Full<Bytes>> = Client::unix();
     let uri = HyperlocalUri::new(DOCKER_SOCKET, &format!("/images/{}/json", image_id));
     let uri: hyper::Uri = uri.into();
 
@@ -98,15 +101,16 @@ pub(crate) async fn docker_layers(image_id: &str) -> Result<Vec<PathBuf>, Contai
                 source,
                 uri: uri.clone(),
             })?;
-    let body_bytes =
-        body::to_bytes(response)
-            .await
-            .map_err(|source| ContainerError::HyperResponse {
-                source,
-                uri: uri.clone(),
-            })?;
+    let body_bytes = response
+        .collect()
+        .await
+        .map_err(|source| ContainerError::HyperResponse {
+            source,
+            uri: uri.clone(),
+        })?
+        .aggregate();
 
-    let response: ImageInspect = serde_json::from_slice(&body_bytes)
+    let response: ImageInspect = serde_json::from_reader(body_bytes.reader())
         .map_err(|source| ContainerError::ParseResponse { source, uri })?;
 
     match response.graph_driver.name {

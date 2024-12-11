@@ -42,7 +42,12 @@ tokio = { workspace = true, features = ["full"] }
 [features]
 default = ["full", "tls-openssl"]
 full = ["core", "extra"]
-core = ["threat-logger", "process-monitor", "network-monitor", "file-system-monitor"]
+core = [
+    "threat-logger",
+    "process-monitor",
+    "network-monitor",
+    "file-system-monitor",
+]
 extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
 tls-openssl = ["smtp-notifier/tls-openssl"]
 tls-rustls = ["smtp-notifier/tls-rustls"]
@@ -112,7 +117,7 @@ anyhow = "1.0.75"
 aya = { version = "0.12.0", features = ["async_tokio"] }
 aya-ebpf-bindings = "0.1.0"
 aya-obj = "0.1.0"
-axum = { version = "0.6.20", features = ["ws"] }
+axum = { version = "0.8.1", features = ["ws"] }
 bytes = "1.5.0"
 cgroups-rs = { version = "0.3.4" }
 chrono = { version = "0.4.31" }
@@ -129,8 +134,10 @@ gethostname = "0.4.3"
 glob = "0.3.1"
 hex = "0.4.3"
 hickory-resolver = "0.24.1"
-hyper = "0.14.28"
-hyperlocal = "0.8"
+http-body-util = "0.1.2"
+hyper = "1.5.1"
+hyper-util = "0.1.10"
+hyperlocal = "0.9.1"
 indicatif = "0.17"
 lalrpop = "0.20.0"
 lalrpop-util = { version = "0.20.0", features = ["lexer"] }
@@ -162,7 +169,7 @@ procfs = { version = "0.16.0", default-features = false }
 quote = "1.0.33"
 rand = { version = "0.8.5" }
 regex = "1.10.2"
-reqwest = { version = "0.11.23", default-features = false, features = [
+reqwest = { version = "0.12.9", default-features = false, features = [
     "blocking",
     "json",
     "rustls-tls",
@@ -177,11 +184,11 @@ strum = { version = "0.25", features = ["derive"] }
 syn = "2.0.41"
 sys-mount = { version = "2.1.0", default-features = false }
 tar = "0.4"
-thiserror = "1.0.51"
+thiserror = "2.0.9"
 toml_edit = { version = "0.15.0", features = ["easy"] }
-tokio = { version = "1.35.1", features = ["full"] }
+tokio = { version = "1.42", features = ["full"] }
 tokio-fd = "0.3.0"
-tokio-tungstenite = "0.21.0"
+tokio-tungstenite = "0.26.1"
 uuid = { version = "1.6.1", features = ["v4"] }
 which = "5.0.0"
 xshell = "0.2.5"
