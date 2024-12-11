@@ -2,7 +2,10 @@ use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use futures::{Stream, StreamExt};
-use hyper::{Body, Method, Request, StatusCode, Uri};
+use http_body_util::{BodyExt, Either, Empty, Full};
+use hyper::body::{Buf, Bytes};
+use hyper::{Method, Request, StatusCode, Uri};
+use hyper_util::client::legacy::Client;
 use hyperlocal::{UnixClientExt, UnixConnector};
 use pulsar_core::pdk::{Event, ModuleOverview};
 use serde::de::DeserializeOwned;
@@ -16,7 +19,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct EngineApiClient {
     socket: String,
-    client: hyper::Client<UnixConnector, Body>,
+    client: Client<UnixConnector, Either<Full<Bytes>, Empty<Bytes>>>,
 }
 
 impl EngineApiClient {
@@ -59,7 +62,7 @@ impl EngineApiClient {
 
         Ok(Self {
             socket,
-            client: hyper::Client::unix(),
+            client: Client::unix(),
         })
     }
 
@@ -68,15 +71,21 @@ impl EngineApiClient {
     }
 
     async fn get<T: DeserializeOwned>(&self, uri: Uri) -> Result<T> {
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri(uri)
+            .body(Either::Right(Empty::<Bytes>::new()))
+            .map_err(|err| anyhow!("Error building the request. Reason: {}", err))?;
+
         let res = self
             .client
-            .get(uri)
+            .request(req)
             .await
             .map_err(|err| anyhow!("Error during the http request: reason {}", err))?;
 
-        let buf = hyper::body::to_bytes(res).await?;
+        let buf = res.collect().await?.aggregate();
 
-        let output = serde_json::from_slice(&buf)?;
+        let output = serde_json::from_reader(buf.reader())?;
 
         Ok(output)
     }
@@ -129,7 +138,7 @@ impl EngineApiClient {
             .method(Method::PATCH)
             .uri(url)
             .header("content-type", "application/json")
-            .body(Body::from(body_string))
+            .body(Either::Left(Full::from(body_string)))
             .map_err(|err| anyhow!("Error building the request. Reason: {}", err))?;
 
         let res = self
@@ -143,9 +152,11 @@ impl EngineApiClient {
         match status {
             StatusCode::OK => Ok(()),
             _ => {
-                let error = hyper::body::to_bytes(res)
+                let error = res
+                    .collect()
                     .await
-                    .map_err(|err| anyhow!("Error to bytes. Reason: {}", err))?;
+                    .map_err(|err| anyhow!("Error to bytes. Reason: {}", err))?
+                    .to_bytes();
                 let error = std::str::from_utf8(&error)
                     .map_err(|err| anyhow!("Cannot parse error str. Reason: {}", err))?;
                 Err(anyhow!("Error during request. {error}"))
@@ -157,7 +168,7 @@ impl EngineApiClient {
         let req = Request::builder()
             .method(Method::POST)
             .uri(uri)
-            .body(Body::empty())
+            .body(Either::Right(Empty::<Bytes>::new()))
             .map_err(|err| anyhow!("Error building the request. Reason: {}", err))?;
 
         let res = self
@@ -171,9 +182,11 @@ impl EngineApiClient {
         match status {
             StatusCode::OK => Ok(()),
             _ => {
-                let error = hyper::body::to_bytes(res)
+                let error = res
+                    .collect()
                     .await
-                    .map_err(|err| anyhow!("Error to bytes. Reason: {}", err))?;
+                    .map_err(|err| anyhow!("Error to bytes. Reason: {}", err))?
+                    .to_bytes();
                 let error = std::str::from_utf8(&error)
                     .map_err(|err| anyhow!("Cannot parse error str. Reason: {}", err))?;
                 Err(anyhow!("Error during request. {error}"))
