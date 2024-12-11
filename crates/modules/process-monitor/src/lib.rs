@@ -1,6 +1,6 @@
 use anyhow::Context;
 use bpf_common::{
-    bpf_feature_autodetect::kernel_version::KernelVersion,
+    aya::util::KernelVersion,
     containers::ContainerError,
     ebpf_program,
     parsing::{BufferIndex, IndexError},
@@ -19,12 +19,7 @@ pub async fn program(
     let binary = ebpf_program!(&ctx, "probes");
     let attach_to_lsm = ctx.lsm_supported();
     // LSM task_fix_set* calls are available since kernel commit 39030e1351aa1, in 5.10
-    let has_cred_specific_functions = ctx.kernel_version()
-        >= &KernelVersion {
-            major: 5,
-            minor: 10,
-            patch: 0,
-        };
+    let has_cred_specific_functions = ctx.kernel_version() >= &KernelVersion::new(5, 10, 0);
     let mut builder = ProgramBuilder::new(ctx, MODULE_NAME, binary)
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")

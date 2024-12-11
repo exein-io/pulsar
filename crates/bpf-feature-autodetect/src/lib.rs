@@ -13,7 +13,6 @@ pub mod atomic;
 pub mod bpf_loop;
 pub mod func;
 pub mod insn;
-pub mod kernel_version;
 pub mod lsm;
 
 use crate::{
