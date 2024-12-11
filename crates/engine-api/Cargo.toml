@@ -13,7 +13,9 @@ axum = { workspace = true, features = ["ws"] }
 anyhow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true }
+http-body-util = { workspace = true }
 hyper = { workspace = true }
+hyper-util = { workspace = true }
 futures = { workspace = true }
 hyperlocal = { workspace = true }
 serde_json = { workspace = true }

@@ -1,8 +1,3 @@
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use anyhow::{anyhow, Result};
 use axum::{
     extract::{
@@ -11,19 +6,13 @@ use axum::{
     },
     response::Response,
     routing::{get, patch, post},
-    BoxError, Json, Router,
+    Json, Router,
 };
-use futures::ready;
-use hyper::server::accept::Accept;
 use pulsar_core::{
     bus::Bus,
     pdk::{ModuleOverview, PulsarDaemonHandle},
 };
-use tokio::{
-    net::{UnixListener, UnixStream},
-    sync::oneshot,
-    task::JoinHandle,
-};
+use tokio::{net::UnixListener, sync::oneshot, task::JoinHandle};
 
 use crate::{
     dto::{ConfigKV, ModuleConfigKVs},
@@ -54,11 +43,11 @@ pub fn run_api_server(
 ) -> Result<ServerHandle> {
     let modules = Router::new()
         .route("/", get(modules))
-        .route("/:module_name/start", post(module_start))
-        .route("/:module_name/restart", post(module_restart))
-        .route("/:module_name/stop", post(module_stop))
-        .route("/:module_name/config", get(get_module_cfg))
-        .route("/:module_name/config", patch(update_module_cfg));
+        .route("/{module_name}/start", post(module_start))
+        .route("/{module_name}/restart", post(module_restart))
+        .route("/{module_name}/stop", post(module_stop))
+        .route("/{module_name}/config", get(get_module_cfg))
+        .route("/{module_name}/config", patch(update_module_cfg));
 
     let app = Router::new()
         .nest("/modules", modules)
@@ -74,11 +63,9 @@ pub fn run_api_server(
 
     let (tx_shutdown, rx_shutdown) = oneshot::channel();
 
-    let server = axum::Server::builder(ServerAccept { uds })
-        .serve(app.into_make_service())
-        .with_graceful_shutdown(async move {
-            let _ = rx_shutdown.await;
-        });
+    let server = axum::serve(uds, app).with_graceful_shutdown(async move {
+        let _ = rx_shutdown.await;
+    });
 
     let server_join_handle = tokio::spawn(async move {
         if let Err(e) = server.await {
@@ -180,7 +167,7 @@ async fn event_monitor_handler(
             match pulsar_core::pdk::receive_from_broadcast(&mut bus_receiver, "engine_api").await {
                 Ok(event) => match serde_json::to_string(&*event) {
                     Ok(json) => {
-                        if socket.send(Message::Text(json)).await.is_err() {
+                        if socket.send(Message::Text(json.into())).await.is_err() {
                             // client disconnected
                             return;
                         }
@@ -199,21 +186,4 @@ async fn event_monitor_handler(
     };
 
     ws.on_upgrade(handle_socket)
-}
-
-struct ServerAccept {
-    uds: UnixListener,
-}
-
-impl Accept for ServerAccept {
-    type Conn = UnixStream;
-    type Error = BoxError;
-
-    fn poll_accept(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-        let (stream, _addr) = ready!(self.uds.poll_accept(cx))?;
-        Poll::Ready(Some(Ok(stream)))
-    }
 }
