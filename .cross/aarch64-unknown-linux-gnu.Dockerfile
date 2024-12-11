@@ -9,6 +9,6 @@ RUN dpkg --add-architecture arm64 && \
         gnupg \
         libssl-dev:arm64 \
         libsqlite3-dev:arm64 \
-    && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 17 \
-    && ln -s /usr/bin/clang-17 /usr/bin/clang \
-    && ln -s /usr/bin/llvm-strip-17 /usr/bin/llvm-strip
+    && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 19 \
+    && ln -s /usr/bin/clang-19 /usr/bin/clang \
+    && ln -s /usr/bin/llvm-strip-19 /usr/bin/llvm-strip
