@@ -12,9 +12,11 @@ use aya::{
         perf::{AsyncPerfEventArray, PerfBufferError},
         Array, HashMap, Map, MapData,
     },
-    programs::{CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint},
+    programs::{
+        CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint,
+    },
     util::{online_cpus, KernelVersion},
-    Bpf, BpfLoader, Btf, BtfError, Pod,
+    Btf, BtfError, Ebpf, EbpfLoader, Pod,
 };
 use bpf_feature_autodetect::autodetect_features;
 use bpf_features::BpfFeatures;
@@ -151,12 +153,12 @@ macro_rules! ebpf_program {
 #[derive(Error, Debug)]
 pub enum ProgramError {
     #[error("loading probe")]
-    LoadingProbe(#[from] aya::BpfError),
+    LoadingProbe(#[from] aya::EbpfError),
     #[error("program not found {0}")]
     ProgramNotFound(String),
     #[error("incorrect program type {0}")]
     ProgramTypeError(String),
-    #[error("failed program load {program}")]
+    #[error("failed program load {program}, {program_error}")] // TODO: remove `program_error`
     ProgramLoadError {
         program: String,
         #[source]
@@ -243,15 +245,15 @@ impl ProgramBuilder {
         self
     }
 
-    pub fn cgroup_skb_egress(mut self, name: &str) -> Self {
+    pub fn cgroup_skb_egress(mut self, name: &str, mode: CgroupAttachMode) -> Self {
         self.programs
-            .push(ProgramType::CgroupSkbEgress(name.to_string()));
+            .push(ProgramType::CgroupSkbEgress(name.to_string(), mode));
         self
     }
 
-    pub fn cgroup_skb_ingress(mut self, name: &str) -> Self {
+    pub fn cgroup_skb_ingress(mut self, name: &str, mode: CgroupAttachMode) -> Self {
         self.programs
-            .push(ProgramType::CgroupSkbIngress(name.to_string()));
+            .push(ProgramType::CgroupSkbIngress(name.to_string(), mode));
         self
     }
 
@@ -270,7 +272,7 @@ impl ProgramBuilder {
 
         let bpf = tokio::task::spawn_blocking(move || {
             let _ = std::fs::create_dir(&self.ctx.pinning_path);
-            let mut bpf = BpfLoader::new()
+            let mut bpf = EbpfLoader::new()
                 .map_pin_path(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
                 .set_global("log_level", &(self.ctx.log_level as i32), true)
@@ -283,7 +285,7 @@ impl ProgramBuilder {
             for program in self.programs {
                 program.attach(&mut bpf, &btf)?;
             }
-            Result::<Bpf, ProgramError>::Ok(bpf)
+            Result::<Ebpf, ProgramError>::Ok(bpf)
         })
         .await
         .expect("join error")?;
@@ -304,8 +306,8 @@ enum ProgramType {
     Kprobe(String),
     Kretprobe(String),
     Lsm(String),
-    CgroupSkbEgress(String),
-    CgroupSkbIngress(String),
+    CgroupSkbEgress(String, CgroupAttachMode),
+    CgroupSkbIngress(String, CgroupAttachMode),
 }
 
 impl Display for ProgramType {
@@ -318,8 +320,10 @@ impl Display for ProgramType {
             ProgramType::Kprobe(kprobe) => write!(f, "kprobe {kprobe}"),
             ProgramType::Kretprobe(kretprobe) => write!(f, "kretprobe {kretprobe}"),
             ProgramType::Lsm(lsm) => write!(f, "lsm {lsm}"),
-            ProgramType::CgroupSkbEgress(cgroup_skb) => write!(f, "cgroup_skb/egress {cgroup_skb}"),
-            ProgramType::CgroupSkbIngress(cgroup_skb) => {
+            ProgramType::CgroupSkbEgress(cgroup_skb, _mode) => {
+                write!(f, "cgroup_skb/egress {cgroup_skb}")
+            }
+            ProgramType::CgroupSkbIngress(cgroup_skb, _mode) => {
                 write!(f, "cgroup_skb/ingress {cgroup_skb}")
             }
         }
@@ -327,7 +331,7 @@ impl Display for ProgramType {
 }
 
 impl ProgramType {
-    fn attach(&self, bpf: &mut Bpf, btf: &Btf) -> Result<(), ProgramError> {
+    fn attach(&self, bpf: &mut Ebpf, btf: &Btf) -> Result<(), ProgramError> {
         let load_err = |program_error| ProgramError::ProgramLoadError {
             program: self.to_string(),
             program_error: Box::new(program_error),
@@ -357,24 +361,24 @@ impl ProgramType {
                 program.load(lsm, btf).map_err(load_err)?;
                 program.attach().map_err(attach_err)?;
             }
-            ProgramType::CgroupSkbEgress(cgroup_skb) => {
+            ProgramType::CgroupSkbEgress(cgroup_skb, mode) => {
                 let program: &mut CgroupSkb = extract_program(bpf, cgroup_skb)?;
                 let path = get_cgroup2_mountpoint()?;
                 let cgroup = File::open(&path)
                     .map_err(|source| MountinfoError::ReadFile { source, path })?;
                 program.load().map_err(load_err)?;
                 program
-                    .attach(cgroup, CgroupSkbAttachType::Egress)
+                    .attach(cgroup, CgroupSkbAttachType::Egress, *mode)
                     .map_err(attach_err)?;
             }
-            ProgramType::CgroupSkbIngress(cgroup_skb) => {
+            ProgramType::CgroupSkbIngress(cgroup_skb, mode) => {
                 let program: &mut CgroupSkb = extract_program(bpf, cgroup_skb)?;
                 let path = get_cgroup2_mountpoint()?;
                 let cgroup = File::open(&path)
                     .map_err(|source| MountinfoError::ReadFile { source, path })?;
                 program.load().map_err(load_err)?;
                 program
-                    .attach(cgroup, CgroupSkbAttachType::Ingress)
+                    .attach(cgroup, CgroupSkbAttachType::Ingress, *mode)
                     .map_err(attach_err)?;
             }
         }
@@ -382,7 +386,7 @@ impl ProgramType {
     }
 }
 
-fn extract_program<'a, T>(bpf: &'a mut Bpf, program: &str) -> Result<&'a mut T, ProgramError>
+fn extract_program<'a, T>(bpf: &'a mut Ebpf, program: &str) -> Result<&'a mut T, ProgramError>
 where
     T: 'a,
     &'a mut T: TryFrom<&'a mut aya::programs::Program>,
@@ -399,7 +403,7 @@ pub struct Program {
     tx_exit: watch::Sender<()>,
     ctx: BpfContext,
     name: String,
-    bpf: Bpf,
+    bpf: Ebpf,
     used_maps: HashSet<String>,
 }
 
@@ -412,7 +416,7 @@ impl Drop for Program {
 }
 
 impl Program {
-    pub fn bpf(&mut self) -> &mut Bpf {
+    pub fn bpf(&mut self) -> &mut Ebpf {
         &mut self.bpf
     }
     /// Poll a BPF_MAP_TYPE_HASH with a certain interval

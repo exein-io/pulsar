@@ -23,7 +23,7 @@ chrono = { workspace = true }
 rand = { workspace = true }
 
 [features]
-default = ["openssl"]
+default = ["tls-openssl"]
 tls-openssl = ["openssl", "lettre/tokio1-native-tls"]
 tls-rustls = ["lettre/tokio1-rustls-tls"]
 openssl-vendored = ["openssl?/vendored"]

@@ -25,7 +25,7 @@ threat-logger = { workspace = true, optional = true }
 network-monitor = { workspace = true, optional = true }
 process-monitor = { workspace = true, optional = true }
 rules-engine = { workspace = true, optional = true }
-smtp-notifier = { workspace = true, optional = true }
+smtp-notifier = { workspace = true, optional = true, default-features = false }
 # External
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
@@ -111,12 +111,14 @@ process-monitor = { path = "crates/modules/process-monitor", features = [
     "test-suite",
 ] }
 rules-engine = { path = "crates/modules/rules-engine" }
-smtp-notifier = { path = "crates/modules/smtp-notifier" }
+smtp-notifier = { path = "crates/modules/smtp-notifier", default-features = false }
 # External
 anyhow = "1.0.75"
-aya = { version = "0.12.0", features = ["async_tokio"] }
-aya-ebpf-bindings = "0.1.0"
-aya-obj = "0.1.0"
+aya = { git = "https://github.com/aya-rs/aya", rev = "cc2da4a2a4148e6059b8dc02e8fa4bbd2026fc3a", features = [
+    "async_tokio",
+] }
+aya-ebpf-bindings = { git = "https://github.com/aya-rs/aya", rev = "cc2da4a2a4148e6059b8dc02e8fa4bbd2026fc3a" }
+aya-obj = { git = "https://github.com/aya-rs/aya", rev = "cc2da4a2a4148e6059b8dc02e8fa4bbd2026fc3a" }
 axum = { version = "0.8.1", features = ["ws"] }
 bytes = "1.5.0"
 cgroups-rs = { version = "0.3.4" }

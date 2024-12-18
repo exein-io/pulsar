@@ -4,8 +4,8 @@ use std::{
 };
 
 use bpf_common::{
-    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
-    ProgramBuilder, ProgramError,
+    aya::programs::CgroupAttachMode, ebpf_program, parsing::BufferIndex, program::BpfContext,
+    BpfSender, Pid, Program, ProgramBuilder, ProgramError,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 use pulsar_core::{
@@ -59,8 +59,8 @@ pub async fn program(
         .tracepoint("syscalls", "sys_exit_accept4")
         .tracepoint("syscalls", "sys_exit_accept")
         .kprobe("tcp_set_state")
-        .cgroup_skb_egress("skb_egress")
-        .cgroup_skb_ingress("skb_ingress");
+        .cgroup_skb_egress("skb_egress", CgroupAttachMode::AllowMultiple)
+        .cgroup_skb_ingress("skb_ingress", CgroupAttachMode::AllowMultiple);
 
     if attach_to_lsm {
         builder = builder
