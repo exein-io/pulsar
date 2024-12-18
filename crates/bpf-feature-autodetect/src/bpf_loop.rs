@@ -1,8 +1,8 @@
-use aya::{include_bytes_aligned, programs::TracePoint, Bpf, BpfError};
+use aya::{include_bytes_aligned, programs::TracePoint, Ebpf, EbpfError};
 use log::warn;
 
-fn load_probe() -> Result<(), BpfError> {
-    let mut bpf = Bpf::load(include_bytes_aligned!(concat!(
+fn load_probe() -> Result<(), EbpfError> {
+    let mut bpf = Ebpf::load(include_bytes_aligned!(concat!(
         env!("OUT_DIR"),
         "/test_bpf_loop.none.bpf.o"
     )))?;

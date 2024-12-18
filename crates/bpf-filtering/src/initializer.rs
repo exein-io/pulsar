@@ -1,7 +1,7 @@
 use std::{os::unix::prelude::OsStringExt, time::Duration};
 
 use anyhow::{Context, Result};
-use bpf_common::{aya::Bpf, Pid};
+use bpf_common::{aya::Ebpf, Pid};
 use pulsar_core::{
     pdk::process_tracker::{ProcessTrackerHandle, TrackerUpdate},
     Timestamp,
@@ -32,7 +32,7 @@ const INIT_TIMEOUT: Duration = Duration::from_millis(100);
 ///    this makes sure the eBPF code didn't fill map_interest with wrong data
 ///    because of unitialized entries.
 pub async fn setup_events_filter(
-    bpf: &mut Bpf,
+    bpf: &mut Ebpf,
     mut config: Config,
     process_tracker: &ProcessTrackerHandle,
     rx_processes: &mut mpsc::UnboundedReceiver<TrackerUpdate>,
@@ -137,7 +137,7 @@ struct Initializer {
 }
 
 impl Initializer {
-    fn new(bpf: &mut Bpf, config: Config) -> Result<Self> {
+    fn new(bpf: &mut Ebpf, config: Config) -> Result<Self> {
         let mut interest_map = InterestMap::load(bpf, &config.interest_map_name)?;
         // clear interest map
         interest_map.clear()?;
