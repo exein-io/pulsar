@@ -274,7 +274,7 @@ impl<T: Debug> TestResult<T> {
         for expectation in self.expectations {
             match expectation {
                 Expectation::Predicate(predicate) => {
-                    let found = events.iter().map(predicate).any(|x| x);
+                    let found = events.iter().any(predicate);
                     if !found {
                         lines.push(format!("event not found among {} analyzed", events.len()));
                         success = false;
