@@ -4,16 +4,16 @@ on:
     branches:
       - main
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 env:
   TMP_LOCAL_IMAGE: localhost:5000/exein-io/pulsar
   REGISTRY_IMAGE: ghcr.io/exein-io/pulsar
-  REGISTRY_TAG: ${{ github.ref_type == 'tag' &&  github.ref_name || 'dev' }}
+  REGISTRY_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
 jobs:
   vendored_archive:
-    name: Vendored archive
+    name: Create vendored archive
     runs-on: ubuntu-latest
     steps:
       - name: Code checkout
@@ -37,10 +37,11 @@ jobs:
           tar cJf pulsar-vendored-${{ env.REGISTRY_TAG }}.tar.xz pulsar-${{ env.REGISTRY_TAG }}
           echo "archive_file_name=$(realpath ./pulsar-vendored-${{ env.REGISTRY_TAG }}.tar.xz)" >> $GITHUB_OUTPUT
 
-      - name: Upload archive
+      # Note this artifact name is unique and does NOT conflict with build job artifact names
+      - name: Upload vendored archive
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ env.REGISTRY_TAG }}
+          name: vendored-archive-${{ env.REGISTRY_TAG }}
           path: ${{ steps.create-archive.outputs.archive_file_name }}
           if-no-files-found: error
           retention-days: 1
@@ -66,7 +67,7 @@ jobs:
             docker:
               base-image: debian:bookworm
               platform: linux/arm64
-          
+
           - target: aarch64-unknown-linux-musl
             args: "--no-default-features --features full --features all-vendored --features tls-rustls"
 
@@ -119,11 +120,12 @@ jobs:
           tags: ${{ env.TAG }}
           outputs: type=docker,dest=/tmp/images/${{ env.TARFILE }}
 
+      # We include the target in the artifact name to avoid collisions in parallel
       - name: Upload Docker image
-        uses: actions/upload-artifact@v4
         if: ${{ matrix.platform.docker != null }}
+        uses: actions/upload-artifact@v4
         with:
-          name: images-${{ env.REGISTRY_TAG }}
+          name: images-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
           path: /tmp/images/${{ env.TARFILE }}
           if-no-files-found: error
           retention-days: 1
@@ -139,10 +141,11 @@ jobs:
           mv ./target/${{ matrix.platform.target }}/release/pulsar-exec ${binary_name}
           echo "binary_name=${binary_name}" >> $GITHUB_OUTPUT
 
+      # Again, ensure artifact names are unique per target
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ env.REGISTRY_TAG }}
+          name: binaries-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
           path: ${{ steps.rename_binary.outputs.binary_name }}
           if-no-files-found: error
           retention-days: 1
@@ -151,14 +154,23 @@ jobs:
     name: Create release
     runs-on: ubuntu-latest
     needs:
-      - build
       - vendored_archive
+      - build
     steps:
+      # We ONLY want the binaries (all targets) and vendored archive, so we do:
       - name: Download binaries
         uses: actions/download-artifact@v3
         with:
-          name: binaries-${{ env.REGISTRY_TAG }}
+          # This matches all binary artifacts from every matrix job
+          name: "binaries-${{ env.REGISTRY_TAG }}-*"
           path: /tmp/binaries
+
+      - name: Download vendored archive
+        uses: actions/download-artifact@v3
+        with:
+          # Single vendored artifact name
+          name: "vendored-archive-${{ env.REGISTRY_TAG }}"
+          path: /tmp/vendored
 
       - name: Code checkout
         uses: actions/checkout@v4
@@ -166,7 +178,6 @@ jobs:
       - name: Create installer
         run: |
           installer_blueprint=.github/release-assets/pulsar-install.sh
-
           sed "s/^PULSAR_VERSION=$/PULSAR_VERSION=${{ env.REGISTRY_TAG }}/" "$installer_blueprint" > /tmp/pulsar-install.sh
 
       - name: Check dev release and tag existence
@@ -176,7 +187,6 @@ jobs:
         run: |
           export GH_PAGER=
           git push origin :refs/tags/dev
-
           if gh release view dev > /dev/null 2>&1; then
             gh release delete dev -y
           fi
@@ -189,7 +199,7 @@ jobs:
           tag: ${{ env.REGISTRY_TAG }}
           makeLatest: false
           prerelease: true
-          artifacts: "/tmp/binaries/*,/tmp/pulsar-install.sh"
+          artifacts: "/tmp/binaries/*,/tmp/vendored/*,/tmp/pulsar-install.sh"
           body: 'This is a nightly release based on main branch. Do not use for production'
 
       - name: Release
@@ -199,14 +209,14 @@ jobs:
           name: ${{ env.REGISTRY_TAG }}
           draft: true
           tag: ${{ env.REGISTRY_TAG }}
-          artifacts: "/tmp/binaries/*,/tmp/pulsar-install.sh"
+          artifacts: "/tmp/binaries/*,/tmp/vendored/*,/tmp/pulsar-install.sh"
           body: |
-            <hr>  
-
-            Check out the [changelog](https://github.com/exein-io/pulsar/blob/main/CHANGELOG.md) for details on all the changes and fixes.
+            <hr>
+            Check out the [changelog](https://github.com/exein-io/pulsar/blob/main/CHANGELOG.md) 
+            for details on all the changes and fixes.
 
   docker-push:
-    name: Push docker multi-arch image  
+    name: Push Docker multi-arch image
     runs-on: ubuntu-latest
     needs:
       - build
@@ -216,16 +226,18 @@ jobs:
         ports:
           - 5000:5000
     steps:
+      # We do NOT download the binaries or vendored archives here,
+      # only Docker images. We use a wildcard for all platforms.
       - name: Download images
         uses: actions/download-artifact@v3
         with:
-          name: images-${{ env.REGISTRY_TAG }}
+          name: "images-${{ env.REGISTRY_TAG }}-*"
           path: /tmp/images
 
       - name: Load images
         run: |
           for image in /tmp/images/*.tar; do
-            docker load -i $image
+            docker load -i "$image"
           done
 
       - name: Push images to local registry
@@ -242,13 +254,13 @@ jobs:
       - name: Create manifest list and push
         run: |
           docker buildx imagetools create -t ${{ env.REGISTRY_IMAGE }}:${{ env.REGISTRY_TAG }} \
-            $(docker image ls --format '{{.Repository}}:{{.Tag}}' '${{ env.TMP_LOCAL_IMAGE }}' | tr '\n' ' ')
+            $(docker image ls --format '{{.Repository}}:{{.Tag}}' "${{ env.TMP_LOCAL_IMAGE }}" | tr '\n' ' ')
 
       - name: Push to latest
         if: github.ref_type == 'tag'
         run: |
           docker buildx imagetools create -t ${{ env.REGISTRY_IMAGE }}:latest \
-            $(docker image ls --format '{{.Repository}}:{{.Tag}}' '${{ env.TMP_LOCAL_IMAGE }}' | tr '\n' ' ')
+            $(docker image ls --format '{{.Repository}}:{{.Tag}}' "${{ env.TMP_LOCAL_IMAGE }}" | tr '\n' ' ')
 
       - name: Inspect image
         run: |
