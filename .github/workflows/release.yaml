@@ -125,7 +125,7 @@ jobs:
         if: ${{ matrix.platform.docker != null }}
         uses: actions/upload-artifact@v4
         with:
-          name: images-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
+          name: image-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
           path: /tmp/images/${{ env.TARFILE }}
           if-no-files-found: error
           retention-days: 1
@@ -145,7 +145,7 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
+          name: binary-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
           path: ${{ steps.rename_binary.outputs.binary_name }}
           if-no-files-found: error
           retention-days: 1
@@ -162,14 +162,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           # This matches all binary artifacts from every matrix job
-          name: "binaries-${{ env.REGISTRY_TAG }}-*"
+          pattern: "binary-${{ env.REGISTRY_TAG }}-*"
           path: /tmp/binaries
 
       - name: Download vendored archive
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           # Single vendored artifact name
-          name: "vendored-archive-${{ env.REGISTRY_TAG }}"
+          pattern: "vendored-archive-${{ env.REGISTRY_TAG }}"
           path: /tmp/vendored
 
       - name: Code checkout
@@ -231,7 +231,7 @@ jobs:
       - name: Download images
         uses: actions/download-artifact@v4
         with:
-          name: "images-${{ env.REGISTRY_TAG }}-*"
+          pattern: "image-${{ env.REGISTRY_TAG }}-*"
           path: /tmp/images
 
       - name: Load images
