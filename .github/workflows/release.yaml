@@ -163,6 +163,7 @@ jobs:
         with:
           # This matches all binary artifacts from every matrix job
           pattern: "binary-${{ env.REGISTRY_TAG }}-*"
+          merge-multiple: true
           path: /tmp/binaries
 
       - name: Download vendored archive
@@ -170,6 +171,7 @@ jobs:
         with:
           # Single vendored artifact name
           pattern: "vendored-archive-${{ env.REGISTRY_TAG }}"
+          merge-multiple: true
           path: /tmp/vendored
 
       - name: Code checkout
@@ -232,6 +234,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: "image-${{ env.REGISTRY_TAG }}-*"
+          merge-multiple: true
           path: /tmp/images
 
       - name: Load images
