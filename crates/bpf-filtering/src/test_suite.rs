@@ -1,7 +1,7 @@
 use crate::config::Rule;
 use crate::maps::{Cgroup, InterestMap, Map, PolicyDecision, RuleMap};
 use bpf_common::aya::programs::RawTracePoint;
-use bpf_common::aya::{self, Bpf, BpfLoader};
+use bpf_common::aya::{self, Ebpf, EbpfLoader};
 use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
 use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;
@@ -278,7 +278,7 @@ fn cgroups_tracked() -> TestCase {
 }
 
 // attach a single tracepoint for test purposes
-fn attach_raw_tracepoint(bpf: &mut Bpf, tp: &str) {
+fn attach_raw_tracepoint(bpf: &mut Ebpf, tp: &str) {
     let tracepoint: &mut RawTracePoint = bpf
         .program_mut(tp)
         .ok_or_else(|| ProgramError::ProgramNotFound(tp.to_string()))
@@ -357,7 +357,7 @@ fn exit_cleans_up_resources() -> TestCase {
     })
 }
 
-fn load_ebpf() -> Bpf {
+fn load_ebpf() -> Ebpf {
     let ctx = BpfContext::new(
         bpf_common::program::Pinning::Disabled,
         bpf_common::program::PERF_PAGES_DEFAULT,
@@ -366,7 +366,7 @@ fn load_ebpf() -> Bpf {
     .unwrap();
     const PIN_PATH: &str = "/sys/fs/bpf/filtering-test";
     let _ = std::fs::create_dir(PIN_PATH);
-    let bpf = BpfLoader::new()
+    let bpf = EbpfLoader::new()
         .map_pin_path(PIN_PATH)
         .load(ebpf_program!(&ctx, "filtering_example").as_slice())
         .unwrap();
