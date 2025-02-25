@@ -10,6 +10,11 @@ use bpf_common::{
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
 
+mod config;
+mod initializer;
+mod maps;
+mod process_tree;
+
 const MODULE_NAME: &str = "process-monitor";
 
 pub async fn program(
@@ -148,7 +153,7 @@ pub mod pulsar {
     pub struct ProcessMonitorModule;
 
     impl SimplePulsarModule for ProcessMonitorModule {
-        type Config = bpf_filtering::config::Config;
+        type Config = crate::config::Config;
         type State = ProcessMonitorStatus;
 
         const MODULE_NAME: &'static str = MODULE_NAME;
@@ -257,7 +262,7 @@ pub mod pulsar {
 
             let mut program = program(ctx.get_bpf_context(), sender).await?;
 
-            bpf_filtering::initializer::setup_events_filter(
+            crate::initializer::setup_events_filter(
                 program.bpf(),
                 config.clone(),
                 &process_tracker,

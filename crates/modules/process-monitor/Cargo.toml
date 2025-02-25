@@ -10,7 +10,6 @@ test-suite = [ "bpf-common/test-utils" ]
 
 [dependencies]
 bpf-common = { workspace = true }
-bpf-filtering = { workspace = true }
 pulsar-core = { workspace = true }
 
 tokio = { workspace = true, features = ["full"] }
@@ -19,6 +18,8 @@ log = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 which = { workspace = true }
+aya = { workspace = true }
+lazy_static = { workspace = true }
 
 [build-dependencies]
 bpf-builder = { workspace = true }

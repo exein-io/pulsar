@@ -62,7 +62,7 @@ pub async fn setup_events_filter(
     }
 
     // load process list from procfs
-    let mut process_tree = ProcessTree::load_from_procfs()?;
+    let mut process_tree = ProcessTree::load_from_bpf_iterator(bpf)?;
 
     let mut initializer = Initializer::new(bpf, config)?;
     if let Err(err) = initializer.track_target_cgroups().await {

@@ -69,7 +69,6 @@ members = [
     "crates/bpf-builder",
     "crates/engine-api",
     "crates/validatron",
-    "crates/bpf-filtering",
     "crates/bpf-features",
     "crates/bpf-feature-autodetect",
     "crates/bpf-features-macros",
@@ -93,7 +92,6 @@ bpf-common = { path = "crates/bpf-common", features = [
 bpf-features = { path = "crates/bpf-features" }
 bpf-feature-autodetect = { path = "crates/bpf-feature-autodetect" }
 bpf-features-macros = { path = "crates/bpf-features-macros" }
-bpf-filtering = { path = "crates/bpf-filtering", features = ["test-suite"] }
 engine-api = { path = "crates/engine-api" }
 pulsar-core = { path = "crates/pulsar-core" }
 validatron = { path = "crates/validatron" }
@@ -114,7 +112,7 @@ rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
 # External
 anyhow = "1.0.75"
-aya = { version = "0.13.1", features = ["async_tokio"] }
+aya = { git = "https://github.com/vadorovsky/aya", branch = "task-storage-user-space", features = ["async_tokio"] }
 aya-ebpf-bindings = "0.1.0"
 aya-obj = "0.1.0"
 axum = { version = "0.8.1", features = ["ws"] }

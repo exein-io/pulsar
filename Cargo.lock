@@ -221,18 +221,18 @@ dependencies = [
 [[package]]
 name = "aya"
 version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d18bc4e506fbb85ab7392ed993a7db4d1a452c71b75a246af4a80ab8c9d2dd50"
+source = "git+https://github.com/vadorovsky/aya?branch=task-storage-user-space#410451e02a201dfe0e712bca84e5571aa0db3565"
 dependencies = [
  "assert_matches",
  "aya-obj 0.2.1",
  "bitflags 2.6.0",
  "bytes",
+ "hashbrown 0.15.2",
  "libc",
  "log",
  "object 0.36.5",
  "once_cell",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
  "tokio",
 ]
 
@@ -268,15 +268,13 @@ dependencies = [
 [[package]]
 name = "aya-obj"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c51b96c5a8ed8705b40d655273bc4212cbbf38d4e3be2788f36306f154523ec7"
+source = "git+https://github.com/vadorovsky/aya?branch=task-storage-user-space#410451e02a201dfe0e712bca84e5571aa0db3565"
 dependencies = [
  "bytes",
- "core-error",
  "hashbrown 0.15.2",
  "log",
  "object 0.36.5",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
 ]
 
 [[package]]
@@ -422,24 +420,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "bpf-filtering"
-version = "0.9.0"
-dependencies = [
- "anyhow",
- "bpf-builder",
- "bpf-common",
- "cgroups-rs",
- "lazy_static",
- "log",
- "nix 0.27.1",
- "pulsar-core",
- "regex",
- "thiserror 2.0.9",
- "tokio",
- "which",
 ]
 
 [[package]]
@@ -2348,9 +2328,10 @@ name = "process-monitor"
 version = "0.9.0"
 dependencies = [
  "anyhow",
+ "aya",
  "bpf-builder",
  "bpf-common",
- "bpf-filtering",
+ "lazy_static",
  "log",
  "nix 0.27.1",
  "pulsar-core",
@@ -3195,7 +3176,6 @@ name = "test-suite"
 version = "0.9.0"
 dependencies = [
  "bpf-common",
- "bpf-filtering",
  "file-system-monitor",
  "futures",
  "libtest-mimic",

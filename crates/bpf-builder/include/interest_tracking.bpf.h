@@ -61,13 +61,12 @@ struct bpf_map_def_aya {
 #define PINNING_ENABLED 1
 #define PINNING_DISABLED 0
 #define MAP_INTEREST(map_interest, pinning_enabled)                            \
-  struct bpf_map_def_aya SEC("maps/" #map_interest) map_interest = {           \
-      .type = BPF_MAP_TYPE_HASH,                                               \
-      .key_size = sizeof(int),                                                 \
-      .value_size = sizeof(char),                                              \
-      .max_entries = 16384,                                                    \
-      .pinning = pinning_enabled,                                              \
-  };
+  struct {                                                                     \
+      __uint(type, BPF_MAP_TYPE_TASK_STORAGE);                                 \
+      __uint(map_flags, BPF_F_NO_PREALLOC);                                    \
+      __type(key, int);                                                        \
+      __type(value, char);                                                     \
+  } map_interest SEC(".maps");
 // By default, all probes should use the global "m_interest" map,
 // which is managed by process-monitor
 #define GLOBAL_INTEREST_MAP m_interest
@@ -75,7 +74,7 @@ struct bpf_map_def_aya {
 #define GLOBAL_INTEREST_MAP_DECLARATION                                        \
   MAP_INTEREST(GLOBAL_INTEREST_MAP, PINNING_ENABLED)
 
-static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
+static __always_inline bool tracker_fork(void *tracker,
                                          struct task_struct *parent,
                                          struct task_struct *child) {
   pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
@@ -101,7 +100,7 @@ static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
 }
 
 // Check if the new process filename should result in tracker changes
-static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
+static __always_inline bool tracker_check_rules(void *tracker,
                                                 void *rules,
                                                 struct task_struct *p,
                                                 const char *filename) {
@@ -152,7 +151,7 @@ static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
 // Check if the cgroup_path is contained in the rules hashmap. If it is,
 // insert the given process inside the interest tracker.
 static __always_inline void
-tracker_check_cgroup_rules(struct bpf_map_def_aya *tracker, void *rules,
+tracker_check_cgroup_rules(void *tracker, void *rules,
                            struct task_struct *p, const char *cgroup_path) {
   char path[MAX_CGROUP_LEN];
   __builtin_memset(path, 0, MAX_CGROUP_LEN);
@@ -166,7 +165,7 @@ tracker_check_cgroup_rules(struct bpf_map_def_aya *tracker, void *rules,
 
 // Returns true if an element was removed from the map.
 // Does nothing if any process threat is still alive.
-static __always_inline bool tracker_remove(struct bpf_map_def_aya *tracker,
+static __always_inline bool tracker_remove(void *tracker,
                                            struct task_struct *p) {
   pid_t tgid = BPF_CORE_READ(p, group_leader, pid);
   // We want to ignore threads and focus on whole processes, so we have
@@ -195,7 +194,7 @@ static __always_inline bool tracker_remove(struct bpf_map_def_aya *tracker,
 // Return if we should generate events for this process.
 // Takes a caller name which will be logged in case of error.
 static __always_inline bool
-tracker_is_interesting(struct bpf_map_def_aya *tracker, u32 tgid,
+tracker_is_interesting(void *tracker, u32 tgid,
                        const char *caller, bool do_warning,
                        bool track_by_default) {
   u8 *value = (u8 *)bpf_map_lookup_elem(tracker, &tgid);
