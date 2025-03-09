@@ -7,7 +7,7 @@ use bpf_common::{
     program::BpfContext,
     BpfSender, Gid, Pid, Program, ProgramBuilder, ProgramError, Uid,
 };
-use pulsar_core::event::Namespaces;
+use pulsar_core::event::{CContainerId, COption, ContainerEngineKind, Namespaces};
 use thiserror::Error;
 
 const MODULE_NAME: &str = "process-monitor";
@@ -52,27 +52,6 @@ pub enum ProcessEventError {
     Container(#[from] ContainerError),
     #[error("container not found for process {0}")]
     ContainerNotFound(Pid),
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub enum COption<T> {
-    None,
-    Some(T),
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub struct CContainerId {
-    container_engine: ContainerEngineKind,
-    cgroup_id: BufferIndex<str>,
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub enum ContainerEngineKind {
-    Docker,
-    Podman,
 }
 
 // The events sent from eBPF to userspace must be byte by byte

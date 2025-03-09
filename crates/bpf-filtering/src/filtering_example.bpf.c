@@ -19,12 +19,6 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   return 0;
 }
 
-SEC("raw_tracepoint/sched_process_exit")
-int BPF_PROG(sched_process_exit, struct task_struct *p) {
-  tracker_remove(&m_interest, p);
-  return 0;
-}
-
 SEC("raw_tracepoint/cgroup_attach_task")
 int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
              struct task_struct *task) {

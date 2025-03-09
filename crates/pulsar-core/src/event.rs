@@ -4,7 +4,7 @@ use std::{
     time::SystemTime,
 };
 
-use bpf_common::containers::ContainerInfo;
+use bpf_common::{containers::ContainerInfo, parsing::BufferIndex};
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
 use strum::{EnumDiscriminants, EnumString};
@@ -557,6 +557,27 @@ impl fmt::Display for Namespaces {
             self.uts, self.ipc, self.mnt, self.pid, self.net, self.time, self.cgroup
         )
     }
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub enum COption<T> {
+    None,
+    Some(T),
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct CContainerId {
+    pub container_engine: ContainerEngineKind,
+    pub cgroup_id: BufferIndex<str>,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub enum ContainerEngineKind {
+    Docker,
+    Podman,
 }
 
 fn print_vec(f: &mut fmt::Formatter<'_>, v: impl IntoIterator<Item = impl Display>) -> fmt::Result {

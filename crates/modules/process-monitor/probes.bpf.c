@@ -508,17 +508,6 @@ int BPF_PROG(sched_process_exit, struct task_struct *p)
     return 0;
   }
 
-  // cleanup resources from map_interest
-  if (!tracker_remove(&GLOBAL_INTEREST_MAP, p))
-  {
-    LOG_DEBUG("%d not found in map_interest during exit", tgid);
-    // Multiple threads may exit at the same time, causing the check above
-    // to pass multiple times. Since we want to generate only one event,
-    // we'll consider a missing entry in map_interest as a signal that
-    // we've already emitted the exit event.
-    return 0;
-  }
-
   struct process_event *event = init_process_event(EVENT_EXIT, tgid);
   if (!event)
     return 0;
@@ -698,5 +687,42 @@ SEC("kprobe/commit_creds")
 int BPF_KPROBE(commit_creds, struct cred *new)
 {
   on_creds_change(ctx, new);
+  return 0;
+}
+
+SEC("iter/task")
+int iter_task(struct bpf_iter__task *ctx) {
+  struct seq_file *seq = ctx->meta->seq;
+  struct task_struct *task = ctx->task;
+  // Verifier requires this check.
+  if (task == NULL) {
+    return 0;
+  }
+
+  pid_t pid = task->pid;
+  u32 uid = task->nsproxy->pid_ns_for_children->user_ns->owner.val;
+  u32 gid = task->nsproxy->pid_ns_for_children->user_ns->group.val;
+  pid_t ppid = task->parent->pid;
+  u32 uts_ns = task->nsproxy->uts_ns->ns.inum;
+  u32 ipc_ns = task->nsproxy->ipc_ns->ns.inum;
+  u32 mnt_ns = task->nsproxy->mnt_ns->ns.inum;
+  u32 pid_ns = task->nsproxy->pid_ns_for_children->ns.inum;
+  u32 net_ns = task->nsproxy->net_ns->ns.inum;
+  u32 time_ns = task->nsproxy->time_ns->ns.inum;
+  u32 cgroup_ns = task->nsproxy->cgroup_ns->ns.inum;
+
+  BPF_SEQ_PRINTF(seq,
+                 "%d %u %u %d %u %u %u %u %u %u %u",
+                 pid, uid, gid, ppid, uts_ns, ipc_ns, mnt_ns, pid_ns,
+                 net_ns, time_ns, cgroup_ns);
+
+  struct container_id_buffer c_id_buf;
+  int container_engine = get_container_info(task, &c_id_buf);
+  if (container_engine >= 0) {
+    char *container_id = c_id_buf.buf + c_id_buf.offset;
+    BPF_SEQ_PRINTF(seq, "%u %s", container_engine, container_id);
+  }
+
+  BPF_SEQ_PRINTF(seq, "\n");
   return 0;
 }

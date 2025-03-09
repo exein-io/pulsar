@@ -1,12 +1,12 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::io::{BufRead, BufReader};
 
 use bpf_common::{
+    aya::{programs::Iter, Btf, Ebpf},
     containers::ContainerId,
-    parsing::procfs::{self, ProcfsError},
     Gid, Pid, Uid,
 };
 use lazy_static::lazy_static;
-use pulsar_core::event::Namespaces;
+use pulsar_core::event::{ContainerEngineKind, Namespaces};
 use regex::Regex;
 use thiserror::Error;
 
@@ -36,147 +36,90 @@ pub(crate) enum Error {
     ProcessNotFound { pid: Pid },
     #[error("loading process {pid}: parent image {ppid} not found")]
     ParentNotFound { pid: Pid, ppid: Pid },
-    #[error(transparent)]
-    Procfs(#[from] ProcfsError),
-    #[error("failed to get the {ns_type} namespace for process {pid}")]
-    Namespace { pid: Pid, ns_type: String },
 }
 
 pub(crate) const PID_0: Pid = Pid::from_raw(0);
-pub(crate) const UID_0: Uid = Uid::from_raw(0);
-pub(crate) const GID_0: Gid = Gid::from_raw(0);
-
-fn get_process_namespace(pid: Pid, ns_type: &str) -> Result<u32, Error> {
-    let path = Path::new("/proc")
-        .join(pid.to_string())
-        .join("ns")
-        .join(ns_type);
-
-    let link_target = fs::read_link(path).map_err(|_| Error::Namespace {
-        pid,
-        ns_type: ns_type.to_owned(),
-    })?;
-    let link_target = link_target.to_string_lossy();
-    let ns: u32 = NAMESPACE_RE
-        .captures(&link_target)
-        .and_then(|cap| cap.get(1))
-        .and_then(|m| m.as_str().parse().ok())
-        .ok_or(Error::Namespace {
-            pid,
-            ns_type: ns_type.to_owned(),
-        })?;
-
-    Ok(ns)
-}
-
-fn get_process_namespace_or_log(pid: Pid, namespace_type: &str) -> u32 {
-    get_process_namespace(pid, namespace_type).unwrap_or_else(|e| {
-        if pid.as_raw() != 0 {
-            log::warn!(
-                "Failed to determine {} namespace for process {:?}: {}",
-                namespace_type,
-                pid,
-                e
-            );
-        }
-        u32::default()
-    })
-}
-
-fn get_process_namespaces(pid: Pid) -> Namespaces {
-    Namespaces {
-        uts: get_process_namespace_or_log(pid, "uts"),
-        ipc: get_process_namespace_or_log(pid, "ipc"),
-        mnt: get_process_namespace_or_log(pid, "mnt"),
-        net: get_process_namespace_or_log(pid, "net"),
-        pid: get_process_namespace_or_log(pid, "pid"),
-        time: get_process_namespace_or_log(pid, "time"),
-        cgroup: get_process_namespace_or_log(pid, "cgroup"),
-    }
-}
 
 impl ProcessTree {
-    /// Construct the `ProcessTree` by reading from `procfs`:
-    /// - process list
-    /// - parent pid
-    /// - image
-    pub(crate) fn load_from_procfs() -> Result<Self, Error> {
-        let mut processes: HashMap<Pid, ProcessData> = HashMap::new();
-        let mut children: HashMap<Pid, Vec<Pid>> = HashMap::new();
-        let mut sorted_processes: Vec<ProcessData> = Vec::new();
+    pub(crate) fn load_from_bpf_iterator(bpf: &mut Ebpf) -> Result<Self, Error> {
+        let mut processes = Vec::new();
 
-        // Get process list
-        for pid in procfs::get_running_processes()? {
-            let uid = procfs::get_process_user_id(pid)?;
-            let gid = procfs::get_process_group_id(pid)?;
+        let btf = Btf::from_sys_fs().unwrap();
+        let prog: &mut Iter = bpf.program_mut("iter_task").unwrap().try_into().unwrap();
+        prog.load("task", &btf).unwrap();
 
-            let image = procfs::get_process_image(pid)
-                .map(|path| path.to_string_lossy().to_string())
-                .unwrap_or_else(|err| {
-                    log::debug!("{}", err);
-                    String::new()
-                });
-            let parent = procfs::get_process_parent_pid(pid).unwrap_or_else(|err| {
-                log::debug!("Error getting parent pid of {pid}: {}", err);
-                Pid::from_raw(1)
-            });
-            let namespaces = get_process_namespaces(pid);
+        let link_id = prog.attach().unwrap();
+        let link = prog.take_link(link_id).unwrap();
+        let file = link.into_file().unwrap();
+        let reader = BufReader::new(file);
 
-            let container_id = procfs::get_process_container_id(pid)?;
+        let lines = reader.lines();
+        for line in lines {
+            let line = line.unwrap();
+            let parts: Vec<_> = line.split_whitespace().collect();
 
-            processes.insert(
-                pid,
-                ProcessData {
-                    pid,
-                    uid,
-                    gid,
-                    image,
-                    parent,
-                    namespaces,
-                    container_id,
-                },
-            );
-            children.entry(parent).or_default().push(pid);
-        }
-
-        // Make sure to add PID 0 (which is part of kernel) to map_interest to avoid
-        // warnings about missing entries.
-        let namespaces = get_process_namespaces(PID_0);
-        processes.insert(
-            PID_0,
-            ProcessData {
-                pid: PID_0,
-                uid: UID_0,
-                gid: GID_0,
-                image: String::from("kernel"),
-                parent: PID_0,
-                namespaces,
-                container_id: None,
-            },
-        );
-
-        // Sort process tree by starting by process 0
-        fn add_process_and_children(
-            pid: Pid,
-            processes: &mut HashMap<Pid, ProcessData>,
-            children: &mut HashMap<Pid, Vec<Pid>>,
-            sorted_processes: &mut Vec<ProcessData>,
-        ) {
-            let process = processes.remove(&pid).unwrap();
-            sorted_processes.push(process);
-            for child in children.remove(&pid).unwrap_or_default() {
-                add_process_and_children(child, processes, children, sorted_processes);
+            if parts.len() != 12 || parts.len() != 14 {
+                panic!("invalid format");
             }
-        }
-        add_process_and_children(PID_0, &mut processes, &mut children, &mut sorted_processes);
-        if !processes.is_empty() {
-            log::warn!("Found processes not starting from root: {:?}", processes);
-            sorted_processes.extend(processes.into_values());
+
+            let pid: i32 = parts[0].parse().unwrap();
+            let pid = Pid::from_raw(pid);
+            let uid: u32 = parts[1].parse().unwrap();
+            let uid = Uid::from_raw(uid);
+            let gid: u32 = parts[2].parse().unwrap();
+            let gid = Gid::from_raw(gid);
+            let ppid: i32 = parts[3].parse().unwrap();
+            let parent = Pid::from_raw(ppid);
+
+            let uts: u32 = parts[4].parse().unwrap();
+            let ipc: u32 = parts[5].parse().unwrap();
+            let mnt: u32 = parts[6].parse().unwrap();
+            let pid_ns: u32 = parts[7].parse().unwrap();
+            let net: u32 = parts[8].parse().unwrap();
+            let time: u32 = parts[9].parse().unwrap();
+            let cgroup: u32 = parts[10].parse().unwrap();
+            let namespaces = Namespaces {
+                uts,
+                ipc,
+                mnt,
+                pid: pid_ns,
+                net,
+                time,
+                cgroup,
+            };
+
+            let is_a_container: u32 = parts[11].parse().unwrap();
+            let container_id = if is_a_container == 1 {
+                let container_engine: u32 = parts[12].parse().unwrap();
+                let container_engine = match container_engine {
+                    0 => ContainerEngineKind::Docker,
+                    1 => ContainerEngineKind::Podman,
+                    _ => panic!("unknown container engine"),
+                };
+                let container_id = parts[13].to_owned();
+                let container_id = match container_engine {
+                    ContainerEngineKind::Docker => ContainerId::Docker(container_id),
+                    ContainerEngineKind::Podman => ContainerId::Libpod(container_id),
+                };
+                Some(container_id)
+            } else {
+                None
+            };
+
+            let process = ProcessData {
+                pid,
+                uid,
+                gid,
+                image: String::new(),
+                parent,
+                namespaces,
+                container_id,
+            };
+
+            processes.push(process);
         }
 
-        Ok(Self {
-            processes: sorted_processes,
-        })
+        Ok(Self { processes })
     }
 
     /// Add a new entry and return its process info.

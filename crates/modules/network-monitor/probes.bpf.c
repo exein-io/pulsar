@@ -413,11 +413,12 @@ static __always_inline void
 
 SEC("kprobe/tcp_set_state")
 int tcp_set_state(struct pt_regs *regs) {
-  pid_t tgid = bpf_get_current_pid_tgid() >> 32;
+  struct task_struct *task = get_current_task();
+  pid_t tgid = BPF_CORE_READ(task, tgid);
   // this function may be called after the process has already exited,
   // so we don't want to log errors in case tgid has already been
   // deleted from map_interest
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, false,
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, task, __func__, false,
                               true))
     return 0;
 
@@ -487,7 +488,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   struct task_struct *task = get_current_task();
   pid_t tgid = BPF_CORE_READ(task, tgid);
 
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, task, __func__, true,
                               true))
     return CGROUP_SKB_OK;
 

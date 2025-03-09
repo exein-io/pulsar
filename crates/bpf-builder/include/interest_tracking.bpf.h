@@ -1,19 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 #pragma once
 
+#include "bpf/bpf_helpers.h"
 #include "common.bpf.h"
+#include "task.bpf.h"
 #include "vmlinux.h"
-
-struct bpf_map_def_aya {
-  unsigned int type;
-  unsigned int key_size;
-  unsigned int value_size;
-  unsigned int max_entries;
-  unsigned int map_flags;
-  // aya extensions:
-  unsigned int id;      // unused
-  unsigned int pinning; // enables pinning
-};
 
 // This header-only library allows to apply eBPF tracing hooks only to some
 // processes.
@@ -61,13 +52,12 @@ struct bpf_map_def_aya {
 #define PINNING_ENABLED 1
 #define PINNING_DISABLED 0
 #define MAP_INTEREST(map_interest, pinning_enabled)                            \
-  struct bpf_map_def_aya SEC("maps/" #map_interest) map_interest = {           \
-      .type = BPF_MAP_TYPE_HASH,                                               \
-      .key_size = sizeof(int),                                                 \
-      .value_size = sizeof(char),                                              \
-      .max_entries = 16384,                                                    \
-      .pinning = pinning_enabled,                                              \
-  };
+  struct {                                                                     \
+      __uint(type, BPF_MAP_TYPE_TASK_STORAGE);                                 \
+      __uint(map_flags, BPF_F_NO_PREALLOC);                                    \
+      __type(key, int);                                                        \
+      __type(value, u8);                                                       \
+  } map_interest SEC(".maps");
 // By default, all probes should use the global "m_interest" map,
 // which is managed by process-monitor
 #define GLOBAL_INTEREST_MAP m_interest
@@ -75,7 +65,7 @@ struct bpf_map_def_aya {
 #define GLOBAL_INTEREST_MAP_DECLARATION                                        \
   MAP_INTEREST(GLOBAL_INTEREST_MAP, PINNING_ENABLED)
 
-static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
+static __always_inline bool tracker_fork(void *tracker,
                                          struct task_struct *parent,
                                          struct task_struct *child) {
   pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
@@ -101,7 +91,7 @@ static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
 }
 
 // Check if the new process filename should result in tracker changes
-static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
+static __always_inline bool tracker_check_rules(void *tracker,
                                                 void *rules,
                                                 struct task_struct *p,
                                                 const char *filename) {
@@ -152,42 +142,25 @@ static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
 // Check if the cgroup_path is contained in the rules hashmap. If it is,
 // insert the given process inside the interest tracker.
 static __always_inline void
-tracker_check_cgroup_rules(struct bpf_map_def_aya *tracker, void *rules,
+tracker_check_cgroup_rules(void *tracker, void *rules,
                            struct task_struct *p, const char *cgroup_path) {
   char path[MAX_CGROUP_LEN];
   __builtin_memset(path, 0, MAX_CGROUP_LEN);
   bpf_core_read_str(path, MAX_CGROUP_LEN, cgroup_path);
   if (bpf_map_lookup_elem(rules, path)) {
-    pid_t tgid = BPF_CORE_READ(p, tgid);
     u8 policy = INTEREST_TRACK_SELF | INTEREST_TRACK_CHILDREN;
-    long res = bpf_map_update_elem(tracker, &tgid, &policy, BPF_ANY);
+    u8 *value = (u8 *)bpf_task_storage_get(tracker, p, 0, BPF_LOCAL_STORAGE_GET_F_CREATE);
+    if (value)
+      *value = policy;
   }
-}
-
-// Returns true if an element was removed from the map.
-// Does nothing if any process threat is still alive.
-static __always_inline bool tracker_remove(struct bpf_map_def_aya *tracker,
-                                           struct task_struct *p) {
-  pid_t tgid = BPF_CORE_READ(p, group_leader, pid);
-  // We want to ignore threads and focus on whole processes, so we have
-  // to wait for the whole process group to exit. Unfortunately, checking
-  // if the current task's pid matches its tgid is not enough because
-  // the main thread could exit before the child one.
-  if (BPF_CORE_READ(p, signal, live.counter) > 0) {
-    return false;
-  }
-  // cleanup resources from tracker
-  if (bpf_map_delete_elem(tracker, &tgid) != 0) {
-    return false;
-  }
-  return true;
 }
 
 // Return tgid if we're interested in this process. Returns -1 if we're not.
 #define tracker_interesting_tgid(tracker)                                      \
   ({                                                                           \
-    pid_t tgid = bpf_get_current_pid_tgid() >> 32;                             \
-    if (!tracker_is_interesting(tracker, tgid, __func__, true, true))          \
+    struct task_struct *p = get_current_task();                                \
+    pid_t tgid = BPF_CORE_READ(p, tgid);                                       \
+    if (!tracker_is_interesting(tracker, p, __func__, true, true))             \
       tgid = -1;                                                               \
     tgid;                                                                      \
   })
@@ -195,20 +168,21 @@ static __always_inline bool tracker_remove(struct bpf_map_def_aya *tracker,
 // Return if we should generate events for this process.
 // Takes a caller name which will be logged in case of error.
 static __always_inline bool
-tracker_is_interesting(struct bpf_map_def_aya *tracker, u32 tgid,
+tracker_is_interesting(void *tracker, struct task_struct *p,
                        const char *caller, bool do_warning,
                        bool track_by_default) {
-  u8 *value = (u8 *)bpf_map_lookup_elem(tracker, &tgid);
+  u8 *value = (u8 *)bpf_task_storage_get(tracker, p, 0, 0);
   // If we can't find an element, we process it
   if (value == NULL) {
     if (do_warning && log_level >= LOG_LEVEL_ERROR) {
       // We want to warn about missing entries in tracker, but only
       // if process tracking is running. We check if tracker contains
-      // pid 1, which should always exist.
-      u32 pid_init = 1;
-      if (bpf_map_lookup_elem(tracker, &pid_init)) {
-        LOG_ERROR("[%s] missing entry for pid %d", caller, tgid);
-      }
+      // // pid 1, which should always exist.
+      // u32 pid_init = 1;
+      // if (bpf_map_lookup_elem(tracker, &pid_init)) {
+      pid_t tgid = BPF_CORE_READ(p, tgid);
+      LOG_ERROR("[%s] missing entry for pid %d", caller, tgid);
+      // }
     }
     return track_by_default;
   }
