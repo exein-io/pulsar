@@ -1,4 +1,4 @@
-use std::any::{type_name, Any, TypeId};
+use std::any::{Any, TypeId, type_name};
 
 use crate::{
     HandleOperatorFn, MethodsBuilder, Operator, Validatron, ValidatronClass, ValidatronClassKind,
@@ -90,7 +90,7 @@ impl Primitive {
         op: Operator,
         value: &str,
     ) -> Result<DynOperatorConstUnchecked, ValidatronError> {
-        self.inner.compare_fn_any_value_unchecked(op, value)
+        unsafe { self.inner.compare_fn_any_value_unchecked(op, value) }
     }
 
     pub fn compare_fn_any_multi(&self, op: Operator) -> Result<DynOperatorMulti, ValidatronError> {
@@ -105,7 +105,7 @@ impl Primitive {
         &self,
         op: Operator,
     ) -> Result<DynOperatorMultiUnchecked, ValidatronError> {
-        self.inner.compare_fn_any_multi_unchecked(op)
+        unsafe { self.inner.compare_fn_any_multi_unchecked(op) }
     }
 
     pub fn field_type_id(&self) -> TypeId {
@@ -171,7 +171,7 @@ where
         let compare_fn = (self.handle_op_fn)(op)?;
 
         Ok(Box::new(move |source| {
-            let source = &*(source as *const dyn Any as *const T);
+            let source = unsafe { &*(source as *const dyn Any as *const T) };
             compare_fn(source, &value)
         }))
     }
@@ -197,8 +197,8 @@ where
         let compare_fn = (self.handle_op_fn)(op)?;
 
         Ok(Box::new(move |first, second| {
-            let first = &*(first as *const dyn Any as *const T);
-            let second = &*(second as *const dyn Any as *const T);
+            let first = unsafe { &*(first as *const dyn Any as *const T) };
+            let second = unsafe { &*(second as *const dyn Any as *const T) };
 
             compare_fn(first, second)
         }))

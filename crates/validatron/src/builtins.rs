@@ -120,9 +120,9 @@ impl<T: Validatron + Send + Sync + 'static> Validatron for Option<T> {
 #[cfg(test)]
 mod test {
     use crate::{
-        validator::{get_valid_rule, get_valid_unary_rule},
         AdtField, Field, Identifier, MethodCall, Operator, RValue, RelationalOperator, SimpleField,
         Validatron,
+        validator::{get_valid_rule, get_valid_unary_rule},
     };
 
     #[test]

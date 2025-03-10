@@ -4,8 +4,8 @@ use std::{
 };
 
 use bpf_common::{
-    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Pid, Program,
-    ProgramBuilder, ProgramError,
+    BpfSender, Pid, Program, ProgramBuilder, ProgramError, ebpf_program, parsing::BufferIndex,
+    program::BpfContext,
 };
 use nix::sys::socket::{SockaddrIn, SockaddrIn6};
 use pulsar_core::{
@@ -211,7 +211,7 @@ fn parse_dns(data: &[u8]) -> Option<Payload> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{parsing::IndexError, program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{BpfSenderWrapper, parsing::IndexError, program::BpfEvent};
     use pulsar_core::{
         event::Host,
         pdk::{IntoPayload, ModuleContext, ModuleError, Payload, SimplePulsarModule},
@@ -371,10 +371,10 @@ pub mod test_suite {
         test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };
     use dns_mock_server::Server;
-    use hickory_resolver::{config::*, TokioAsyncResolver};
+    use hickory_resolver::{TokioAsyncResolver, config::*};
     use nix::{
         libc::kill,
-        unistd::{fork, ForkResult},
+        unistd::{ForkResult, fork},
     };
     use pulsar_core::pdk::Payload;
 

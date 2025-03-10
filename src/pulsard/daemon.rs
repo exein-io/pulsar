@@ -1,21 +1,21 @@
 use std::collections::HashMap;
 
-use anyhow::{bail, Result};
-use bpf_common::program::{BpfContext, BpfLogLevel, Pinning, PERF_PAGES_DEFAULT};
+use anyhow::{Result, bail};
+use bpf_common::program::{BpfContext, BpfLogLevel, PERF_PAGES_DEFAULT, Pinning};
 
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        process_tracker::{start_process_tracker, ProcessTrackerHandle},
         ModuleConfig, ModuleOverview, ModuleStatus, PulsarDaemonCommand, PulsarDaemonError,
         PulsarDaemonHandle, PulsarModule,
+        process_tracker::{ProcessTrackerHandle, start_process_tracker},
     },
 };
 use tokio::sync::mpsc;
 
-use crate::pulsard::{config::PulsarConfig, GENERAL_CONFIG};
+use crate::pulsard::{GENERAL_CONFIG, config::PulsarConfig};
 
-use super::module_manager::{create_module_manager, ModuleManagerHandle};
+use super::module_manager::{ModuleManagerHandle, create_module_manager};
 
 pub struct PulsarDaemonStarter {
     bus: Bus,

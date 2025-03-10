@@ -1,5 +1,5 @@
 use std::{
-    any::{type_name, Any},
+    any::{Any, type_name},
     marker::PhantomData,
 };
 
@@ -81,7 +81,7 @@ impl Collection {
         &self,
         value: &str,
     ) -> Result<DynContainsFnUnchecked, ValidatronError> {
-        self.inner.contains_fn_any_value_unchecked(value)
+        unsafe { self.inner.contains_fn_any_value_unchecked(value) }
     }
 
     pub fn contains_fn_any_multi(&self) -> Result<DynContainsMulti, ValidatronError> {
@@ -95,7 +95,7 @@ impl Collection {
     pub unsafe fn contains_fn_any_multi_unchecked(
         &self,
     ) -> Result<DynContainsMultiUnchecked, ValidatronError> {
-        self.inner.contains_fn_any_multi_unchecked()
+        unsafe { self.inner.contains_fn_any_multi_unchecked() }
     }
 }
 
@@ -166,13 +166,15 @@ where
             return Err(ValidatronError::CollectionValueNotPrimitive);
         };
 
-        let cmp = primitive.compare_fn_any_value_unchecked(
-            crate::Operator::Relational(crate::RelationalOperator::Equals),
-            value,
-        )?;
+        let cmp = unsafe {
+            primitive.compare_fn_any_value_unchecked(
+                crate::Operator::Relational(crate::RelationalOperator::Equals),
+                value,
+            )?
+        };
 
         Ok(Box::new(move |source| {
-            let source = &*(source as *const dyn Any as *const T);
+            let source = unsafe { &*(source as *const dyn Any as *const T) };
 
             source.into_iter().any(|item| cmp(item))
         }))
@@ -208,13 +210,15 @@ where
             return Err(ValidatronError::CollectionValueNotPrimitive);
         };
 
-        let cmp = primitive.compare_fn_any_multi_unchecked(crate::Operator::Relational(
-            crate::RelationalOperator::Equals,
-        ))?;
+        let cmp = unsafe {
+            primitive.compare_fn_any_multi_unchecked(crate::Operator::Relational(
+                crate::RelationalOperator::Equals,
+            ))?
+        };
 
         Ok(Box::new(move |collection, second| {
-            let collection = &*(collection as *const dyn Any as *const T);
-            let second = &*(second as *const dyn Any as *const U);
+            let collection = unsafe { &*(collection as *const dyn Any as *const T) };
+            let second = unsafe { &*(second as *const dyn Any as *const U) };
 
             collection.into_iter().any(|item| cmp(item, second))
         }))

@@ -1,5 +1,5 @@
 use nix::unistd::geteuid;
-use test_suite::{modules, TestSuiteRunner};
+use test_suite::{TestSuiteRunner, modules};
 
 #[tokio::main]
 async fn main() {

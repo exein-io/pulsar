@@ -1,9 +1,9 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use bpf_common::{
+    Gid, Pid, Uid,
     containers::ContainerId,
     parsing::procfs::{self, ProcfsError},
-    Gid, Pid, Uid,
 };
 use lazy_static::lazy_static;
 use pulsar_core::event::Namespaces;

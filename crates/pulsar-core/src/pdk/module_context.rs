@@ -2,15 +2,15 @@ use std::time::UNIX_EPOCH;
 
 use anyhow::{Context, Result};
 use bpf_common::program::BpfContext;
-use bpf_common::{program::BpfEvent, time::Timestamp, Pid};
+use bpf_common::{Pid, program::BpfEvent, time::Timestamp};
 use tokio::sync::{broadcast, mpsc};
 
 use crate::event::{Header, Threat, Value};
 use crate::{bus::Bus, pdk::PulsarDaemonHandle};
 
 use super::process_tracker::ProcessInfo;
-use super::{process_tracker::ProcessTrackerHandle, ModuleError, ModuleName, ModuleSignal};
 use super::{Event, Payload};
+use super::{ModuleError, ModuleName, ModuleSignal, process_tracker::ProcessTrackerHandle};
 
 /// Entrypoint to access all the functions available to the module.
 #[derive(Clone)]

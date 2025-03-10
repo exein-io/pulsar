@@ -1,6 +1,6 @@
 use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use futures::{Stream, StreamExt};
 use http_body_util::{BodyExt, Either, Empty, Full};
 use hyper::body::{Buf, Bytes};
@@ -42,8 +42,10 @@ impl EngineApiClient {
                     bail!("No write permission on '{socket}'")
                 }
                 _ => {
-                    bail!(anyhow::Error::new(err)
-                        .context(format!("Failed to get '{socket}' metadata")))
+                    bail!(
+                        anyhow::Error::new(err)
+                            .context(format!("Failed to get '{socket}' metadata"))
+                    )
                 }
             },
             Ok(metadata) => {

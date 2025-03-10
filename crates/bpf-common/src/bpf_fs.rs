@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use procfs::process::{MountInfo, Process};
 use std::fs::DirBuilder;
 use std::os::unix::fs::DirBuilderExt;

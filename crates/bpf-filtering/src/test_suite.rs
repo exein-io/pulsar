@@ -6,9 +6,9 @@ use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
 use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;
 use bpf_common::test_utils::random_name_with_prefix;
-use bpf_common::{ebpf_program, Pid, ProgramError};
+use bpf_common::{Pid, ProgramError, ebpf_program};
 use nix::unistd::execv;
-use nix::unistd::{fork, ForkResult};
+use nix::unistd::{ForkResult, fork};
 use std::ffi::CString;
 use which::which;
 

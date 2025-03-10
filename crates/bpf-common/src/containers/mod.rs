@@ -251,8 +251,7 @@ impl ContainerInfo {
     }
 
     fn from_libpod_id(id: String, uid: Uid) -> Result<Self, ContainerError> {
-        let user_home =
-            unsafe { get_user_home_dir(uid) }.ok_or(ContainerError::HomeDirNotFound { uid })?;
+        let user_home = get_user_home_dir(uid).ok_or(ContainerError::HomeDirNotFound { uid })?;
 
         let user_home = Path::new(&user_home);
 
@@ -404,24 +403,26 @@ impl LibpodDatabaseBackend {
     }
 }
 
-unsafe fn get_user_home_dir(uid: Uid) -> Option<OsString> {
-    let amt = match libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) {
+fn get_user_home_dir(uid: Uid) -> Option<OsString> {
+    let amt = match unsafe { libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) } {
         n if n < 0 => 512_usize,
         n => n as usize,
     };
     let mut buf = Vec::with_capacity(amt);
-    let mut passwd: libc::passwd = mem::zeroed();
+    let mut passwd: libc::passwd = unsafe { mem::zeroed() };
     let mut result = ptr::null_mut();
-    match libc::getpwuid_r(
-        uid.as_raw(),
-        &mut passwd,
-        buf.as_mut_ptr(),
-        buf.capacity(),
-        &mut result,
-    ) {
+    match unsafe {
+        libc::getpwuid_r(
+            uid.as_raw(),
+            &mut passwd,
+            buf.as_mut_ptr(),
+            buf.capacity(),
+            &mut result,
+        )
+    } {
         0 if !result.is_null() => {
             let ptr = passwd.pw_dir as *const _;
-            let bytes = CStr::from_ptr(ptr).to_bytes();
+            let bytes = unsafe { CStr::from_ptr(ptr).to_bytes() };
             if bytes.is_empty() {
                 None
             } else {

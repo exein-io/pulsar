@@ -5,7 +5,7 @@ use std::{
 
 use nix::{
     sys::time::TimeValLike,
-    time::{clock_gettime, ClockId},
+    time::{ClockId, clock_gettime},
 };
 
 /// Timestamp indicates a timestamp in nanoseconds since boot.

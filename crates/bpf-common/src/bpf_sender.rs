@@ -4,7 +4,7 @@
 
 use tokio::sync::mpsc;
 
-use crate::{program::BpfEvent, ProgramError};
+use crate::{ProgramError, program::BpfEvent};
 
 pub trait BpfSender<T>: Clone + Send + 'static {
     /// Must not block since it can be used in async contexts

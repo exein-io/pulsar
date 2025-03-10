@@ -65,23 +65,23 @@ impl<T: Validatron + 'static> ExtractorFrom<T> {
 
     fn chain(self, next: AnyExtractorFn) -> Self {
         match self {
-            ExtractorFrom::Some(current) => {
-                ExtractorFrom::Some(Box::new(move |t| {
-                    let value = current(t)?;
+            ExtractorFrom::Some(current) => ExtractorFrom::Some(Box::new(move |t| {
+                let value = current(t)?;
 
-                    match value {
-                        Leaf::Ref(r) => next(r),
-                        Leaf::Owned(o) => {
-                            let next = next(&o)?;
+                match value {
+                    Leaf::Ref(r) => next(r),
+                    Leaf::Owned(o) => {
+                        let next = next(&o)?;
 
-                            match next {
-                                Leaf::Ref(_) => unreachable!("this shold not happen because the method is the last extractor"),
-                                Leaf::Owned(o) => Some(Leaf::Owned(o)),
-                            }
+                        match next {
+                            Leaf::Ref(_) => unreachable!(
+                                "this shold not happen because the method is the last extractor"
+                            ),
+                            Leaf::Owned(o) => Some(Leaf::Owned(o)),
                         }
                     }
-                }))
-            }
+                }
+            })),
             ExtractorFrom::None => ExtractorFrom::Some(Box::new(move |t| next(t as &dyn Any))),
         }
     }
@@ -374,9 +374,9 @@ pub fn get_valid_unary_rule<T: Validatron + 'static>(
 #[cfg(test)]
 mod test {
     use crate::{
-        validator::{get_valid_rule, get_valid_unary_rule},
         AdtField, Field, Identifier, MethodCall, MultiOperator, Operator, RValue,
         RelationalOperator, SimpleField, Validatron, ValidatronClass,
+        validator::{get_valid_rule, get_valid_unary_rule},
     };
 
     #[test]

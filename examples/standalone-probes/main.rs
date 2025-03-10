@@ -1,8 +1,8 @@
 use std::future::Future;
 
 use bpf_common::{
-    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
     Program, ProgramError,
+    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
 };
 use clap::{Parser, Subcommand};
 use pulsar_core::pdk::IntoPayload;

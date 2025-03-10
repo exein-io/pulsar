@@ -1,4 +1,4 @@
-use crate::{validator, Condition, Validatron, ValidatronError};
+use crate::{Condition, Validatron, ValidatronError, validator};
 
 /// Final form of a rule for a type `T`.
 ///

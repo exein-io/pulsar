@@ -1,5 +1,5 @@
 use std::{
-    any::{type_name, Any},
+    any::{Any, type_name},
     collections::HashMap,
     marker::PhantomData,
 };
@@ -99,7 +99,9 @@ fn add_variant(
         .insert(field_name, variant)
         .is_some()
     {
-        panic!("you added two variant+field with the same name '{variant_name}+{field_name}' into a enum class definition")
+        panic!(
+            "you added two variant+field with the same name '{variant_name}+{field_name}' into a enum class definition"
+        )
     }
 }
 
@@ -169,7 +171,7 @@ impl VariantAttribute {
     /// The `unsafe` is related to the returned function. That function accepts values as [Any],
     /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn into_extractor_fn_unchecked(self) -> UncheckedDynEnumFieldExtractorFn {
-        self.inner.into_extractor_fn_unchecked()
+        unsafe { self.inner.into_extractor_fn_unchecked() }
     }
 }
 
@@ -208,7 +210,7 @@ where
 
     unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynEnumFieldExtractorFn {
         Box::new(move |source| {
-            let source = &*(source as *const dyn Any as *const T);
+            let source = unsafe { &*(source as *const dyn Any as *const T) };
 
             (self.extractor)(source).map(|res| res as _)
         })

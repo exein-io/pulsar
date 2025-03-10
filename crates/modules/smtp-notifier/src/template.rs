@@ -66,14 +66,16 @@ mod tests {
             filename: "/etc/shadow".to_string(),
         };
 
-        assert!(template
-            .render(
-                &SystemTime::now(),
-                "super-detector",
-                "curl",
-                "accessed sensitive file",
-                &payload,
-            )
-            .is_ok())
+        assert!(
+            template
+                .render(
+                    &SystemTime::now(),
+                    "super-detector",
+                    "curl",
+                    "accessed sensitive file",
+                    &payload,
+                )
+                .is_ok()
+        )
     }
 }

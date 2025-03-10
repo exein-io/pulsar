@@ -1,7 +1,7 @@
 use bpf_features::BpfFeatures;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, LitStr};
+use syn::{LitStr, parse_macro_input};
 
 /// Generates a mapping of `BpfFeatures` to eBPF program bytes. The bytes are
 /// embedded into the final binary thanks to `include_bytes_aligned`.

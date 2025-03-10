@@ -250,7 +250,7 @@ mod tests {
 
     use crate::{
         dsl,
-        engine::{parse_rule, Category, Metadata, RuleWithMetadata, Severity, UserRule},
+        engine::{Category, Metadata, RuleWithMetadata, Severity, UserRule, parse_rule},
     };
 
     #[test]

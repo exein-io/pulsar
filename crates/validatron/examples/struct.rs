@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use validatron::{
-    validator::get_valid_rule, Field, Identifier, Operator, RValue, RelationalOperator,
-    SimpleField, Validatron,
+    Field, Identifier, Operator, RValue, RelationalOperator, SimpleField, Validatron,
+    validator::get_valid_rule,
 };
 
 #[derive(Debug, Clone, Validatron)]

@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Context, Result};
-use aya::{include_bytes_aligned, programs::Lsm, Btf, EbpfLoader};
+use anyhow::{Context, Result, anyhow};
+use aya::{Btf, EbpfLoader, include_bytes_aligned, programs::Lsm};
 
 /// Check if the system supports eBPF LSM programs.
 /// The kernel must be build with CONFIG_BPF_LSM=y, which is available

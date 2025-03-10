@@ -250,7 +250,7 @@ impl<T: PulsarModule> ModuleManager<T> {
     }
 
     pub fn add_warning(&mut self, warning: String) {
-        if let ModuleStatus::Running(ref mut warnings) = &mut self.status {
+        if let ModuleStatus::Running(warnings) = &mut self.status {
             warnings.push(warning);
         }
     }

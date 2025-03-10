@@ -41,9 +41,9 @@ use bytes::Bytes;
 use tokio::sync::mpsc;
 
 use crate::{
+    BpfSender, Pid, Program, ProgramError,
     program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
     time::Timestamp,
-    BpfSender, Pid, Program, ProgramError,
 };
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);

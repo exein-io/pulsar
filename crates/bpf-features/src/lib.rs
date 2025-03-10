@@ -2,7 +2,7 @@ use std::{collections::HashMap, hash::Hash};
 
 pub use aya_obj::generated::bpf_prog_type as BpfProgType;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BpfFeatures {

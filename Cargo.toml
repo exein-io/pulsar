@@ -80,7 +80,7 @@ members = [
 [workspace.package]
 version = "0.9.0"
 license = "Apache-2.0 WITH BPF probes exception under GPL-2.0"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/exein-io/pulsar"
 
 [workspace.dependencies]

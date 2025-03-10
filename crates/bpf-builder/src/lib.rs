@@ -5,7 +5,7 @@ use std::{
     string::String,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use bpf_features::BpfFeatures;
 
 static CLANG_DEFAULT: &str = "clang";

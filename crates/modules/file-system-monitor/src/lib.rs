@@ -1,6 +1,6 @@
 use bpf_common::{
-    ebpf_program, parsing::BufferIndex, program::BpfContext, BpfSender, Program, ProgramBuilder,
-    ProgramError,
+    BpfSender, Program, ProgramBuilder, ProgramError, ebpf_program, parsing::BufferIndex,
+    program::BpfContext,
 };
 
 const MODULE_NAME: &str = "file-system-monitor";
