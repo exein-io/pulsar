@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use pulsar_core::pdk::ModuleConfig;
 use tokio::sync::watch;
 

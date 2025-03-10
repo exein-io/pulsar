@@ -1,4 +1,4 @@
-use aya::{include_bytes_aligned, programs::TracePoint, Ebpf, EbpfError};
+use aya::{Ebpf, EbpfError, include_bytes_aligned, programs::TracePoint};
 use log::warn;
 
 fn load_probe() -> Result<(), EbpfError> {

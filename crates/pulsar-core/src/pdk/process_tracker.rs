@@ -5,9 +5,9 @@ use std::{
 };
 
 use bpf_common::{
+    Gid, Pid, Uid,
     containers::{ContainerId, ContainerInfo},
     time::Timestamp,
-    Gid, Pid, Uid,
 };
 use thiserror::Error;
 use tokio::{

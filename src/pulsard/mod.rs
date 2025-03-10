@@ -1,9 +1,9 @@
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use bpf_common::bpf_fs;
 use engine_api::server::{self, EngineAPIContext};
 use nix::unistd::geteuid;
 use pulsar_core::bus::Bus;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 
 use crate::cli::pulsard::PulsarDaemonOpts;
 

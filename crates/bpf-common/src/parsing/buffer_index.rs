@@ -3,7 +3,7 @@
 //! data only when paired with the pointed at Bytes.
 
 use bytes::Bytes;
-use std::str::{from_utf8, Utf8Error};
+use std::str::{Utf8Error, from_utf8};
 use thiserror::Error;
 
 #[derive(Debug)]

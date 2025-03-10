@@ -2,7 +2,7 @@ use aya_ebpf_bindings::bindings::{BPF_DW, BPF_JEQ, BPF_REG_0, BPF_REG_1, BPF_REG
 use aya_obj::generated::bpf_insn;
 use log::warn;
 
-use super::{load_program, BpfProgType};
+use super::{BpfProgType, load_program};
 use crate::insn;
 
 /// eBPF program bytecode with simple atomic operations.

@@ -1,7 +1,7 @@
 use std::{
     collections::{
-        hash_map::{IntoIter, Iter},
         HashMap,
+        hash_map::{IntoIter, Iter},
     },
     fmt::{Debug, Display},
     str::FromStr,

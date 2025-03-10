@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 /// Bumps the rlimit for memlock up to full capacity.
 /// This is required to load even reasonably sized eBPF maps until kernel 5.11.

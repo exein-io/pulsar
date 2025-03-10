@@ -1,5 +1,5 @@
 use std::{
-    any::{type_name, Any},
+    any::{Any, type_name},
     collections::HashMap,
     marker::PhantomData,
 };
@@ -125,7 +125,7 @@ impl Method {
     /// The `unsafe` is related to the returned function. That function accepts values as [Any],
     /// but must be called with values of the right type, because it doesn't perform checks.
     pub unsafe fn into_extractor_fn_unchecked(self) -> UncheckedDynMethod0CallFn {
-        self.inner.into_extractor_fn_unchecked()
+        unsafe { self.inner.into_extractor_fn_unchecked() }
     }
 }
 
@@ -164,7 +164,7 @@ where
 
     unsafe fn into_extractor_fn_unchecked(self: Box<Self>) -> UncheckedDynMethod0CallFn {
         Box::new(move |source| {
-            let source = &*(source as *const dyn Any as *const T);
+            let source = unsafe { &*(source as *const dyn Any as *const T) };
 
             Box::new((self.executor)(source)) as _
         })

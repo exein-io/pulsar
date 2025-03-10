@@ -6,7 +6,7 @@ use std::{
 
 use bpf_common::containers::ContainerInfo;
 use chrono::{DateTime, Utc};
-use serde::{de::DeserializeOwned, ser, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned, ser};
 use strum::{EnumDiscriminants, EnumString};
 use validatron::{Operator, Validatron, ValidatronError};
 
@@ -53,7 +53,10 @@ impl fmt::Display for Event {
         }) = &self.header().threat
         {
             if f.alternate() {
-                write!(f, "[{time} \x1b[1;30;43mTHREAT\x1b[0m {process_info}] [{source} - {description}] {payload}")
+                write!(
+                    f,
+                    "[{time} \x1b[1;30;43mTHREAT\x1b[0m {process_info}] [{source} - {description}] {payload}"
+                )
             } else {
                 write!(
                     f,
@@ -295,44 +298,134 @@ pub enum Payload {
 impl fmt::Display for Payload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Payload::FileCreated { filename } => write!(f,"File Created {{ filename: {filename} }}"),
-            Payload::FileDeleted { filename } => write!(f,"File Deleted {{ filename: {filename} }}"),
-            Payload::DirCreated { dirname } => write!(f,"Dir Created {{ dirname: {dirname} }}"),
-            Payload::DirDeleted { dirname } => write!(f,"Dir Deleted {{ dirname: {dirname} }}"),
-            Payload::FileOpened { filename, flags } => write!(f,"File Opened {{ filename: {filename}, flags:{flags} }}"),
-            Payload::FileLink { source, destination, hard_link } => write!(f,"File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"),
-            Payload::FileRename { source, destination } => write!(f,"File Rename {{ source: {source}, destination {destination} }}"),
-            Payload::ElfOpened { filename, flags } => write!(f,"Elf Opened {{ filename: {filename}, flags: {flags} }}"),
-            Payload::Fork { ppid, uid, gid } => write!(f,"Fork {{ ppid: {ppid} uid: {uid} gid: {gid} }}"),
-            Payload::Exec { filename, argc, argv } => write!(f,"Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"),
-            Payload::Exit { exit_code } => write!(f,"Exit {{ exit_code: {exit_code} }}"),
-            Payload::ChangeParent { ppid } => write!(f,"Parent changed {{ ppid: {ppid} }}"),
-            Payload::CredentialsChange { uid, gid } => write!(f,"Credentials changed {{ uid: {uid} gid: {gid} }}"),
-            Payload::CgroupCreated { cgroup_path, cgroup_id } => write!(f,"Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
-            Payload::CgroupDeleted { cgroup_path, cgroup_id } => write!(f,"Cgroup deleted {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"),
-            Payload::CgroupAttach { cgroup_path, cgroup_id, attached_pid } => write!(f,"Process attached to cgroup {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id}, attached_pid {attached_pid} }}"),
-            Payload::SyscallActivity { .. } => write!(f,"Syscall Activity"),
-            Payload::Bind { address, is_tcp } => write!(f,"Bind {{ address: {address}, is_tcp: {is_tcp} }}"),
-            Payload::Listen { address } => write!(f,"Listen {{ address: {address} }}"),  
-            Payload::Connect { destination, is_tcp } => write!(f,"Connect {{ destination: {destination}, is_tcp: {is_tcp} }}"),
-            Payload::Accept { source, destination } => write!(f,"Accept {{ source: {source}, destination: {destination} }}"),
-            Payload::Close { source, destination } => write!(f,"Close {{ source: {source}, destination: {destination} }}"),
-            Payload::Receive { source, destination, len, is_tcp } => write!(f,"Receive {{ source: {source}, destination: {destination}, len: {len}, is_tcp: {is_tcp} }}"),
+            Payload::FileCreated { filename } => {
+                write!(f, "File Created {{ filename: {filename} }}")
+            }
+            Payload::FileDeleted { filename } => {
+                write!(f, "File Deleted {{ filename: {filename} }}")
+            }
+            Payload::DirCreated { dirname } => write!(f, "Dir Created {{ dirname: {dirname} }}"),
+            Payload::DirDeleted { dirname } => write!(f, "Dir Deleted {{ dirname: {dirname} }}"),
+            Payload::FileOpened { filename, flags } => {
+                write!(f, "File Opened {{ filename: {filename}, flags:{flags} }}")
+            }
+            Payload::FileLink {
+                source,
+                destination,
+                hard_link,
+            } => write!(
+                f,
+                "File Link {{ source: {source}, destination: {destination}, hard_link: {hard_link} }}"
+            ),
+            Payload::FileRename {
+                source,
+                destination,
+            } => write!(
+                f,
+                "File Rename {{ source: {source}, destination {destination} }}"
+            ),
+            Payload::ElfOpened { filename, flags } => {
+                write!(f, "Elf Opened {{ filename: {filename}, flags: {flags} }}")
+            }
+            Payload::Fork { ppid, uid, gid } => {
+                write!(f, "Fork {{ ppid: {ppid} uid: {uid} gid: {gid} }}")
+            }
+            Payload::Exec {
+                filename,
+                argc,
+                argv,
+            } => write!(
+                f,
+                "Exec {{ filename: {filename}, argc: {argc}, argv: {argv} }}"
+            ),
+            Payload::Exit { exit_code } => write!(f, "Exit {{ exit_code: {exit_code} }}"),
+            Payload::ChangeParent { ppid } => write!(f, "Parent changed {{ ppid: {ppid} }}"),
+            Payload::CredentialsChange { uid, gid } => {
+                write!(f, "Credentials changed {{ uid: {uid} gid: {gid} }}")
+            }
+            Payload::CgroupCreated {
+                cgroup_path,
+                cgroup_id,
+            } => write!(
+                f,
+                "Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"
+            ),
+            Payload::CgroupDeleted {
+                cgroup_path,
+                cgroup_id,
+            } => write!(
+                f,
+                "Cgroup deleted {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"
+            ),
+            Payload::CgroupAttach {
+                cgroup_path,
+                cgroup_id,
+                attached_pid,
+            } => write!(
+                f,
+                "Process attached to cgroup {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id}, attached_pid {attached_pid} }}"
+            ),
+            Payload::SyscallActivity { .. } => write!(f, "Syscall Activity"),
+            Payload::Bind { address, is_tcp } => {
+                write!(f, "Bind {{ address: {address}, is_tcp: {is_tcp} }}")
+            }
+            Payload::Listen { address } => write!(f, "Listen {{ address: {address} }}"),
+            Payload::Connect {
+                destination,
+                is_tcp,
+            } => write!(
+                f,
+                "Connect {{ destination: {destination}, is_tcp: {is_tcp} }}"
+            ),
+            Payload::Accept {
+                source,
+                destination,
+            } => write!(
+                f,
+                "Accept {{ source: {source}, destination: {destination} }}"
+            ),
+            Payload::Close {
+                source,
+                destination,
+            } => write!(
+                f,
+                "Close {{ source: {source}, destination: {destination} }}"
+            ),
+            Payload::Receive {
+                source,
+                destination,
+                len,
+                is_tcp,
+            } => write!(
+                f,
+                "Receive {{ source: {source}, destination: {destination}, len: {len}, is_tcp: {is_tcp} }}"
+            ),
             Payload::DnsQuery { questions } => {
-                write!(f,"Dns Query {{ questions: ")?;
+                write!(f, "Dns Query {{ questions: ")?;
                 print_vec(f, questions)?;
-                write!(f," }}")
-            },
+                write!(f, " }}")
+            }
             Payload::DnsResponse { questions, answers } => {
-                write!(f,"Dns Response {{ questions: ")?;
+                write!(f, "Dns Response {{ questions: ")?;
                 print_vec(f, questions)?;
-                write!(f,", answers: ")?;
+                write!(f, ", answers: ")?;
                 print_vec(f, answers)?;
-                write!(f," }}")
-            },
-            Payload::Send { source, destination, len, is_tcp } => write!(f,"Send {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"),
-            Payload::Custom { description, value:_ } => write!(f,"Custom {{ description: {description} }}"),
-            Payload::Empty => write!(f,"Empty"),
+                write!(f, " }}")
+            }
+            Payload::Send {
+                source,
+                destination,
+                len,
+                is_tcp,
+            } => write!(
+                f,
+                "Send {{ source: {source}, destination {destination}, len: {len}, is_tcp: {is_tcp} }}"
+            ),
+            Payload::Custom {
+                description,
+                value: _,
+            } => write!(f, "Custom {{ description: {description} }}"),
+            Payload::Empty => write!(f, "Empty"),
         }
     }
 }

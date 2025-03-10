@@ -5,8 +5,8 @@
 //! probes.
 
 use aya_ebpf_bindings::bindings::{
-    bpf_func_id, BPF_ALU64, BPF_ATOMIC, BPF_CALL, BPF_EXIT, BPF_JMP, BPF_K, BPF_LDX, BPF_MEM,
-    BPF_MOV, BPF_ST, BPF_STX,
+    BPF_ALU64, BPF_ATOMIC, BPF_CALL, BPF_EXIT, BPF_JMP, BPF_K, BPF_LDX, BPF_MEM, BPF_MOV, BPF_ST,
+    BPF_STX, bpf_func_id,
 };
 use aya_obj::generated::bpf_insn;
 

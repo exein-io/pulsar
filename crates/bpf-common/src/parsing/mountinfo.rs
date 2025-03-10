@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, prelude::*, BufReader},
+    io::{self, BufReader, prelude::*},
 };
 
 use thiserror::Error;

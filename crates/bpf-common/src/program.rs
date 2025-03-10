@@ -8,15 +8,15 @@ use std::{
 };
 
 use aya::{
+    Btf, BtfError, Ebpf, EbpfLoader, Pod,
     maps::{
-        perf::{AsyncPerfEventArray, PerfBufferError},
         Array, HashMap, Map, MapData,
+        perf::{AsyncPerfEventArray, PerfBufferError},
     },
     programs::{
         CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint,
     },
-    util::{online_cpus, KernelVersion},
-    Btf, BtfError, Ebpf, EbpfLoader, Pod,
+    util::{KernelVersion, online_cpus},
 };
 use bpf_feature_autodetect::autodetect_features;
 use bpf_features::BpfFeatures;
@@ -25,9 +25,9 @@ use thiserror::Error;
 use tokio::{sync::watch, task::JoinError};
 
 use crate::{
-    parsing::mountinfo::{get_cgroup2_mountpoint, MountinfoError},
-    time::Timestamp,
     BpfSender, Pid,
+    parsing::mountinfo::{MountinfoError, get_cgroup2_mountpoint},
+    time::Timestamp,
 };
 
 const PERF_HEADER_SIZE: usize = 4;
@@ -135,7 +135,7 @@ macro_rules! ebpf_program {
     ($ctx:expr , $probe:expr) => {{
         use std::collections::HashMap;
 
-        use bpf_common::{ebpf_programs_map, BpfFeatures};
+        use bpf_common::{BpfFeatures, ebpf_programs_map};
 
         let programs: HashMap<BpfFeatures, &[u8]> = HashMap::from(ebpf_programs_map!($probe));
 

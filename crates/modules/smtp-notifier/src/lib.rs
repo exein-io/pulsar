@@ -2,9 +2,9 @@ use std::{default::Default, error::Error, fmt, str::FromStr};
 
 use anyhow::Context;
 use lettre::{
-    message::{header::ContentType, Mailbox},
-    transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::{Mailbox, header::ContentType},
+    transport::smtp::authentication::Credentials,
 };
 use pulsar_core::{
     event::Threat,

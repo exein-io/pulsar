@@ -1,10 +1,10 @@
 use std::{os::unix::prelude::OsStringExt, time::Duration};
 
 use anyhow::{Context, Result};
-use bpf_common::{aya::Ebpf, Pid};
+use bpf_common::{Pid, aya::Ebpf};
 use pulsar_core::{
-    pdk::process_tracker::{ProcessTrackerHandle, TrackerUpdate},
     Timestamp,
+    pdk::process_tracker::{ProcessTrackerHandle, TrackerUpdate},
 };
 use tokio::sync::mpsc;
 
@@ -14,7 +14,7 @@ use super::{
     config::{Config, Rule},
     maps::InterestMap,
     maps::{Image, PolicyDecision, RuleMap},
-    process_tree::{ProcessData, ProcessTree, PID_0},
+    process_tree::{PID_0, ProcessData, ProcessTree},
 };
 
 const INIT_TIMEOUT: Duration = Duration::from_millis(100);

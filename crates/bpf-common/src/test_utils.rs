@@ -18,8 +18,8 @@ pub mod cgroup {
 
     use cgroups_rs::cgroup_builder::CgroupBuilder;
     use nix::{
-        sys::signal::{kill, Signal::SIGKILL},
-        unistd::{fork, ForkResult, Pid},
+        sys::signal::{Signal::SIGKILL, kill},
+        unistd::{ForkResult, Pid, fork},
     };
 
     /// Create a cgroup v2 with the given name and return its inode number

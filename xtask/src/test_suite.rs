@@ -9,7 +9,7 @@ use clap::Parser;
 use flate2::read::GzDecoder;
 use indicatif::{ProgressBar, ProgressStyle};
 use tar::Archive;
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 
 use crate::tempdir::TempDir;
 
@@ -94,8 +94,9 @@ where
 }
 
 fn download_and_unpack_architest(tempdir: &TempDir, architest_tarball: &str) -> Result<()> {
-    let url =
-        format!("https://github.com/exein-io/architest/releases/download/{ARCHITEST_VERSION}/{architest_tarball}");
+    let url = format!(
+        "https://github.com/exein-io/architest/releases/download/{ARCHITEST_VERSION}/{architest_tarball}"
+    );
     let tarball_path = tempdir.join(architest_tarball);
 
     download_tarball(&url, &tarball_path)?;

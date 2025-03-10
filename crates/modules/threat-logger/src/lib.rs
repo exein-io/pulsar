@@ -199,7 +199,7 @@ impl ThreatLogger {
                 println!("{out}");
             }
 
-            if let Some(ref mut syslog) = &mut self.syslog {
+            if let Some(syslog) = &mut self.syslog {
                 let out = match self.output_format {
                     OutputFormat::Plaintext => format!("<{PRIORITY}>{event}"),
                     OutputFormat::Json => format!("<{PRIORITY}>{}", json_event()?),

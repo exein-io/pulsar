@@ -6,7 +6,7 @@ use nix::unistd::{Gid, Pid, Uid};
 use regex::Regex;
 use std::{
     fs::{self, File},
-    io::{self, prelude::*, BufReader},
+    io::{self, BufReader, prelude::*},
     path::PathBuf,
 };
 use thiserror::Error;
@@ -203,10 +203,14 @@ mod test {
         let container_id = get_container_id_from_cgroup("0::/init.scope");
         assert_eq!(container_id, None);
 
-        let container_id = get_container_id_from_cgroup("0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-gnome-Alacritty-3266.scope");
+        let container_id = get_container_id_from_cgroup(
+            "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-gnome-Alacritty-3266.scope",
+        );
         assert_eq!(container_id, None);
 
-        let container_id = get_container_id_from_cgroup("0::/system.slice/docker-14467e1a5a6da17b660a130932f1ab568f35586bac8bc5147987d9bba4da08de.scope");
+        let container_id = get_container_id_from_cgroup(
+            "0::/system.slice/docker-14467e1a5a6da17b660a130932f1ab568f35586bac8bc5147987d9bba4da08de.scope",
+        );
         assert_eq!(
             container_id,
             Some(ContainerId::Docker(
@@ -217,7 +221,9 @@ mod test {
         // The standard cgroup pattern observed with podman on:
         // * Gentoo
         // * openSUSE
-        let container_id = get_container_id_from_cgroup("0::/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362.scope/container");
+        let container_id = get_container_id_from_cgroup(
+            "0::/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-3f084b4c7b789c1a0f174da3fcd339e31125d3096b3ff46a0bef4fad71d09362.scope/container",
+        );
         assert_eq!(
             container_id,
             Some(ContainerId::Libpod(

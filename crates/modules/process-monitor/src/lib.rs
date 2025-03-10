@@ -1,11 +1,11 @@
 use anyhow::Context;
 use bpf_common::{
+    BpfSender, Gid, Pid, Program, ProgramBuilder, ProgramError, Uid,
     aya::util::KernelVersion,
     containers::ContainerError,
     ebpf_program,
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
-    BpfSender, Gid, Pid, Program, ProgramBuilder, ProgramError, Uid,
 };
 use pulsar_core::event::Namespaces;
 use thiserror::Error;
@@ -138,10 +138,10 @@ fn extract_parameters(argv: &[u8]) -> Vec<String> {
 
 pub mod pulsar {
     use super::*;
-    use bpf_common::{containers::ContainerId, program::BpfEvent, BpfSenderWrapper};
+    use bpf_common::{BpfSenderWrapper, containers::ContainerId, program::BpfEvent};
     use pulsar_core::pdk::{
-        process_tracker::TrackerUpdate, IntoPayload, ModuleContext, ModuleError, Payload,
-        SimplePulsarModule,
+        IntoPayload, ModuleContext, ModuleError, Payload, SimplePulsarModule,
+        process_tracker::TrackerUpdate,
     };
     use tokio::{sync::mpsc, task::JoinHandle};
 
@@ -343,8 +343,8 @@ pub mod test_suite {
     use bpf_common::test_utils::cgroup::{fork_in_temp_cgroup, temp_cgroup};
     use bpf_common::test_utils::{find_executable, random_name_with_prefix};
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
-    use nix::libc::{prctl, PR_SET_CHILD_SUBREAPER};
-    use nix::unistd::{fork, getgid, getuid, setgid, setuid, ForkResult};
+    use nix::libc::{PR_SET_CHILD_SUBREAPER, prctl};
+    use nix::unistd::{ForkResult, fork, getgid, getuid, setgid, setuid};
     use std::fs;
     use std::process::exit;
     use std::thread::sleep;

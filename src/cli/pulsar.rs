@@ -1,4 +1,4 @@
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use clap::{ArgGroup, Parser, Subcommand};
 
 pub const NAME: &str = "pulsar";
