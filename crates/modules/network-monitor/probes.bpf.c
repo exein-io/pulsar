@@ -210,7 +210,7 @@ static __always_inline void copy_iphdr_source(struct iphdr *ih,
                                               struct address *addr) {
   addr->ip_ver = 0;
   ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
-  bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->saddr);
+  __builtin_memcpy(&addr->v4.sin_addr.s_addr, &ih->saddr, IPV4_NUM_OCTECTS);
   reset_unused_fields_v4(&addr->v4);
 }
 
@@ -218,7 +218,7 @@ static __always_inline void copy_iphdr_dest(struct iphdr *ih,
                                             struct address *addr) {
   addr->ip_ver = 0;
   ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
-  bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->daddr);
+  __builtin_memcpy(&addr->v4.sin_addr.s_addr, &ih->daddr, IPV4_NUM_OCTECTS);
   reset_unused_fields_v4(&addr->v4);
 }
 
@@ -226,8 +226,8 @@ static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
                                                 struct address *addr) {
   addr->ip_ver = 1;
   ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
-  bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
-                &ih6->saddr.in6_u.u6_addr32);
+  __builtin_memcpy(&addr->v6.sin6_addr.in6_u.u6_addr32,
+                   &ih6->saddr.in6_u.u6_addr32, IPV6_NUM_OCTECTS);
   reset_unused_fields_v6(&addr->v6);
 }
 
@@ -235,8 +235,8 @@ static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
                                               struct address *addr) {
   addr->ip_ver = 1;
   ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
-  bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
-                &ih6->daddr.in6_u.u6_addr32);
+  __builtin_memcpy(&addr->v6.sin6_addr.in6_u.u6_addr32,
+                   &ih6->daddr.in6_u.u6_addr32, IPV6_NUM_OCTECTS);
   reset_unused_fields_v6(&addr->v6);
 }
 
@@ -485,8 +485,12 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
 __always_inline int process_skb(struct __sk_buff *skb,
                                 __u8 direction) {
   struct task_struct *task = get_current_task();
-  pid_t tgid = BPF_CORE_READ(task, tgid);
-
+  pid_t tgid;
+  long err = bpf_probe_read_kernel(&tgid, sizeof(pid_t), &task->tgid);
+  if (err) {
+    LOG_ERROR("could not get tgid of the task");
+    return CGROUP_SKB_OK;
+  }
   if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
                               true))
     return CGROUP_SKB_OK;
