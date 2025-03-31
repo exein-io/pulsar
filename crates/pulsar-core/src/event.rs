@@ -652,6 +652,13 @@ impl fmt::Display for Namespaces {
     }
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub enum ContainerEngineKind {
+    Docker,
+    Podman,
+}
+
 fn print_vec(f: &mut fmt::Formatter<'_>, v: impl IntoIterator<Item = impl Display>) -> fmt::Result {
     write!(f, "[ ")?;
 
