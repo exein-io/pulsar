@@ -1,0 +1,23 @@
+
+
+
+# Title: Archive Collected Data, Archive via Utility
+
+# Creation date: 2025/04/09
+
+# MITRE ATT&CK Tactic: TA0009 - Collection - https://attack.mitre.org/tactics/TA0009/
+
+# MITRE ATT&CK Technique: T1560 - Archive via Utility - https://attack.mitre.org/techniques/T1560/001/
+
+- name: collection sensitive files
+  type: Exec
+  category: credential_access
+  severity: medium
+  description: AAA
+  condition: (payload.filename ENDS_WITH "zip" OR payload.filename ENDS_WITH "tar" OR payload.filename ENDS_WITH "gzip")
+    AND (payload.argv CONTAINS "/root/.ssh/id_rsa"
+    OR payload.argv CONTAINS "/root/.ssh/id_rsa.pub"
+    OR payload.argv CONTAINS "/root/.ssh/id_ed25519"
+    OR payload.argv CONTAINS "/root/.ssh/id_ed25519.pub"
+    OR payload.argv CONTAINS "/etc/group"
+    OR payload.argv CONTAINS "/etc/gshadow")
