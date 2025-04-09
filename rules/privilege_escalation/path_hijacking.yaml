@@ -1,0 +1,22 @@
+# Title: PATH Variable Manipulation for Binary Hijacking
+
+# Creation date: 2025/04/08
+
+# MITRE ATT&CK Tactic: TA0004 - Privilege Escalation - https://attack.mitre.org/tactics/TA0004/
+
+# MITRE ATT&CK Technique: T1574.007 - Hijack Execution Flow: PATH Hijacking - https://attack.mitre.org/techniques/T1574/007/
+
+- name: Executable run from non-standard directory
+  type: Exec
+  category: privilege_escalation
+  severity: medium
+  description: Detects execution of a binary located outside standard system executable directories. Advenrsaries may use a PATH hijack attempt where a malicious binary is placed in an attacker-controlled path.
+  condition: payload.filename STARTS_WITH "/tmp" AND NOT (
+      payload.filename STARTS_WITH "/bin/" OR
+      payload.filename STARTS_WITH "/sbin/" OR
+      payload.filename STARTS_WITH "/usr/bin/" OR
+      payload.filename STARTS_WITH "/usr/sbin/" OR
+      payload.filename STARTS_WITH "/usr/local/bin/" OR
+      payload.filename STARTS_WITH "/usr/libexec/" OR
+      payload.filename STARTS_WITH "/usr/lib/systemd/"
+    )
