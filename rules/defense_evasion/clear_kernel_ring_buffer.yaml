@@ -12,4 +12,4 @@
   severity: low
   description: Monitors for the execution of the dmesg utility with the clear flag. Attackers may clear kernel ring buffer events to 
     evade detection after installing a Linux kernel module (LKM).
-  condition: header.image == "/usr/bin/dmesg" AND payload.argv CONTAINS "-c"
+  condition: header.image STARTS_WITH "/usr/bin/dmesg" AND (payload.argv CONTAINS "-c" OR payload.argv CONTAINS "--clear")

@@ -1,0 +1,30 @@
+# Title: var log file creation by unusual process
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK Tactics - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique - Hide Artifacts - https://attack.mitre.org/techniques/T1564/
+
+- name: File Creation in /var/log via Suspicious Process (No Extension)
+  type: FileCreated
+  category: defense_evasion
+  severity: low
+  description: Detects the creation of files in the /var/log/ directory via process executables located in
+    world-writeable locations or via hidden processes. Attackers may attempt to hide their activities by
+    creating files in the /var/log/ directory, which is commonly used for logging system events. This rule
+    specifically targets files without common extension, which may be used to evade standard log rotation tools.
+  condition: payload.filename STARTS_WITH "/var/log/"
+    AND (
+      header.image STARTS_WITH "/tmp/" OR header.image STARTS_WITH "/var/tmp" OR 
+      header.image STARTS_WITH "/dev/shm/" OR header.image STARTS_WITH "./" OR
+      header.image STARTS_WITH "/boot/" OR header.image STARTS_WITH "."
+    )
+    AND NOT (
+      payload.filename ENDS_WITH ".log" OR
+      payload.filename ENDS_WITH ".gz" OR
+      payload.filename ENDS_WITH ".old" OR
+      payload.filename ENDS_WITH ".1" OR
+      payload.filename ENDS_WITH ".bak" OR
+      payload.filename ENDS_WITH ".xz"
+    )

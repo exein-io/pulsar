@@ -1,0 +1,15 @@
+# Title: Kill command executed
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK Tactics - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique - Impair defense - https://attack.mitre.org/techniques/T1562/
+
+- name: Kill command executed
+  type: Exec
+  category: defense_evasion
+  severity: low
+  description: Detects the execution of kill, pkill, and killall commands on Linux systems. Attackers may use these commands 
+    to kill security tools or other processes to evade detection or disrupt system operations.
+  condition: payload.filename ENDS_WITH "kill" OR payload.filename ENDS_WITH "pkill" OR payload.filename ENDS_WITH "killall"

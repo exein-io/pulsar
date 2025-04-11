@@ -12,12 +12,16 @@
   severity: low
   description: Monitors for the execution of the systemctl utility with the disable flag to disable the AppArmor service. Attackers may 
     attempt to disable the AppArmor service to evade detection and avoid possible restrictions on their actions and resources.
-  condition: payload.filename == "/usr/bin/systemctl" AND payload.argv CONTAINS "disable" AND payload.argv CONTAINS "apparmor"
-
+  condition: (
+    (payload.filename STARTS_WITH "/usr/bin/systemctl" AND payload.argv CONTAINS "disable" AND (payload.argv CONTAINS "apparmor" OR payload.argv CONTAINS "apparmor.service")) OR
+    (payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "apparmor" AND payload.argv CONTAINS "stop") OR
+    (payload.filename ENDS_WITH "chkconfig" AND payload.argv CONTAINS "apparmor" AND payload.argv CONTAINS "off")
+    )
+    
 - name: Create symlink to disable AppArmor
   type: Exec
   category: defense_evasion
   severity: low
   description: Monitors for the execution of the ln utility to create a symlink to disable AppArmor. Attackers may attempt to create a 
     symlink to disable AppArmor to evade detection and avoid possible restrictions on their actions and resources.
-  condition: payload.filename == "/usr/bin/ln" AND payload.argv CONTAINS "/etc/apparmor.d/" AND payload.argv CONTAINS "/etc/apparmor.d/disable/"
+  condition: payload.filename STARTS_WITH "/usr/bin/ln" AND payload.argv CONTAINS "/etc/apparmor.d/" AND payload.argv CONTAINS "/etc/apparmor.d/disable/"
