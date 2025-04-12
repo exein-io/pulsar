@@ -19,55 +19,55 @@ pub enum EngineClientError {
     /// Socket not found
     #[error("Unix socket not found: {0}")]
     SocketNotFound(String),
-    
+
     /// Failed to get metadata
     #[error("Failed to get metadata: {0}")]
     FailedToGetMetadata(String),
-    
+
     /// No write permission
     #[error("No write permission: {0}")]
     NoWritePermission(String),
-    
+
     /// Not a unix socket
     #[error("Not a unix socket: {0}")]
     NotASocket(String),
-    
+
     /// C string conversion error
     #[error("C string conversion error: {0}")]
     CStringConversion(String),
-    
+
     /// Hyper request error
     #[error("Hyper request error: {0}")]
     HyperRequest(String),
-    
+
     /// HTTP error
     #[error("HTTP error: {0}")]
     HttpError(#[from] http::Error),
-    
+
     /// Serialization error
     #[error("Serialization error: {0}")]
     SerializeError(String),
-    
+
     /// Deserialization error
     #[error("Deserialization error: {0}")]
     DeserializeError(String),
-    
+
     /// UTF-8 error
     #[error("UTF-8 error: {0}")]
     Utf8Error(String),
-    
+
     /// Unexpected response
     #[error("Unexpected response: {0}")]
     UnexpectedResponse(String),
-    
+
     /// I/O error
     #[error("I/O error: {0}")]
     IoError(String),
-    
+
     /// WebSocket error
     #[error("WebSocket error: {0}")]
     WebSocketError(String),
-    
+
     /// Unknown error
     #[error("Unknown error: {0}")]
     Other(String),
@@ -116,11 +116,11 @@ pub enum WebsocketError {
     /// JSON error
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
-    
+
     /// Connection error
     #[error("Connection error: {0}")]
     ConnectionError(#[from] tokio_tungstenite::tungstenite::Error),
-    
+
     /// Unsupported message type
     #[error("Unsupported message type")]
     UnsupportedMessageType,
