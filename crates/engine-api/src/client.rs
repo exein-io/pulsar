@@ -1,6 +1,6 @@
 use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::Result;
 use futures::{Stream, StreamExt};
 use http_body_util::{BodyExt, Either, Empty, Full};
 use hyper::body::{Buf, Bytes};
@@ -13,7 +13,7 @@ use tokio_tungstenite::{client_async, tungstenite::Message};
 
 use crate::{
     dto::{ConfigKV, ModuleConfigKVs},
-    error::WebsocketError,
+    error::{WebsocketError, EngineClientError},
 };
 
 #[derive(Debug, Clone)]
@@ -23,11 +23,11 @@ pub struct EngineApiClient {
 }
 
 impl EngineApiClient {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self, EngineClientError> {
         Self::unix(super::DEFAULT_UDS.to_owned())
     }
 
-    pub fn unix(socket: String) -> Result<Self> {
+    pub fn unix(socket: String) -> Result<Self, EngineClientError> {
         // The is a bug using Metadata in combination with OpenOption when using pulsar cli via sudo so I had to use the libc to verify the permissions
         // Probably https://stackoverflow.com/questions/71505367/no-such-a-file-or-directory-even-path-is-file-true it's a reference
         // TODO: Should be investigated
@@ -36,31 +36,32 @@ impl EngineApiClient {
         match std::fs::metadata(&socket) {
             Err(err) => match err.kind() {
                 std::io::ErrorKind::NotFound => {
-                    bail!("'{socket}' not found. Check if the daemon is running")
+                    return Err(EngineClientError::SocketNotFound(socket));
                 }
                 std::io::ErrorKind::PermissionDenied => {
-                    bail!("No write permission on '{socket}'")
+                    return Err(EngineClientError::NoWritePermission(socket));
                 }
                 _ => {
-                    bail!(
-                        anyhow::Error::new(err)
-                            .context(format!("Failed to get '{socket}' metadata"))
-                    )
+                    return Err(EngineClientError::FailedToGetMetadata(socket));
                 }
             },
             Ok(metadata) => {
-                ensure!(
-                    metadata.file_type().is_socket(),
-                    "'{socket}' is not a unix socket"
-                );
+                if !metadata.file_type().is_socket() {
+                    return Err(EngineClientError::NotASocket(socket));
+                }
             }
         };
 
         // Check for write permission on socket
-        let cstring = CString::new(socket.as_str())
-            .with_context(|| format!("Can't convert '{socket}' to a valid string "))?;
+        let cstring = match CString::new(socket.as_str()) {
+            Ok(cs) => cs,
+            Err(err) => return Err(EngineClientError::CStringConversion(err.to_string())),
+        };
+        
         let write_permission = unsafe { libc::access(cstring.as_ptr(), libc::W_OK) } == 0;
-        ensure!(write_permission, "No write permission on '{socket}'");
+        if !write_permission {
+            return Err(EngineClientError::NoWritePermission(socket));
+        }
 
         Ok(Self {
             socket,
@@ -72,52 +73,57 @@ impl EngineApiClient {
         hyperlocal::Uri::new(self.socket.clone(), path.as_ref()).into()
     }
 
-    async fn get<T: DeserializeOwned>(&self, uri: Uri) -> Result<T> {
+    async fn get<T: DeserializeOwned>(&self, uri: Uri) -> Result<T, EngineClientError> {
         let req = Request::builder()
             .method(Method::GET)
             .uri(uri)
             .body(Either::Right(Empty::<Bytes>::new()))
-            .map_err(|err| anyhow!("Error building the request. Reason: {}", err))?;
+            .map_err(|e| EngineClientError::HttpError(e))?;
 
         let res = self
             .client
             .request(req)
             .await
-            .map_err(|err| anyhow!("Error during the http request: reason {}", err))?;
+            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?;
 
-        let buf = res.collect().await?.aggregate();
+        let buf = res
+            .collect()
+            .await
+            .map_err(|e| EngineClientError::HyperRequest(e.to_string()))?
+            .aggregate();
 
-        let output = serde_json::from_reader(buf.reader())?;
+        let output = serde_json::from_reader(buf.reader())
+            .map_err(|e| EngineClientError::DeserializeError(e.to_string()))?;
 
         Ok(output)
     }
 
-    pub async fn list_modules(&self) -> Result<Vec<ModuleOverview>> {
+    pub async fn list_modules(&self) -> Result<Vec<ModuleOverview>, EngineClientError> {
         let url = self.uri("/modules");
         self.get(url).await
     }
 
-    pub async fn get_configs(&self) -> Result<Vec<ModuleConfigKVs>> {
+    pub async fn get_configs(&self) -> Result<Vec<ModuleConfigKVs>, EngineClientError> {
         let url = self.uri("/configs");
         self.get(url).await
     }
 
-    pub async fn start(&self, module_name: &str) -> Result<()> {
+    pub async fn start(&self, module_name: &str) -> Result<(), EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/start"));
         self.empty_post(url).await
     }
 
-    pub async fn stop(&self, module_name: &str) -> Result<()> {
+    pub async fn stop(&self, module_name: &str) -> Result<(), EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/stop"));
         self.empty_post(url).await
     }
 
-    pub async fn restart(&self, module_name: &str) -> Result<()> {
+    pub async fn restart(&self, module_name: &str) -> Result<(), EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/restart"));
         self.empty_post(url).await
     }
 
-    pub async fn get_module_config(&self, module_name: &str) -> Result<Vec<ConfigKV>> {
+    pub async fn get_module_config(&self, module_name: &str) -> Result<Vec<ConfigKV>, EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/config"));
         self.get(url).await
     }
@@ -127,27 +133,27 @@ impl EngineApiClient {
         module_name: &str,
         config_key: String,
         config_value: String,
-    ) -> Result<()> {
+    ) -> Result<(), EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/config"));
 
         let body_string = serde_json::to_string(&ConfigKV {
             key: config_key,
             value: config_value,
         })
-        .map_err(|err| anyhow!("Error during object serialization. Reason: {err}"))?;
+        .map_err(|err| EngineClientError::SerializeError(err.to_string()))?;
 
         let req = Request::builder()
             .method(Method::PATCH)
             .uri(url)
             .header("content-type", "application/json")
             .body(Either::Left(Full::from(body_string)))
-            .map_err(|err| anyhow!("Error building the request. Reason: {}", err))?;
+            .map_err(|e| EngineClientError::HttpError(e))?;
 
         let res = self
             .client
             .request(req)
             .await
-            .map_err(|err| anyhow!("Error during the http request. Reason: {}", err))?;
+            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?;
 
         let status = res.status();
 
@@ -157,27 +163,31 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| anyhow!("Error to bytes. Reason: {}", err))?
+                    .map_err(|err| EngineClientError::HyperRequest(format!("Error collecting response: {}", err)))?
                     .to_bytes();
-                let error = std::str::from_utf8(&error)
-                    .map_err(|err| anyhow!("Cannot parse error str. Reason: {}", err))?;
-                Err(anyhow!("Error during request. {error}"))
+                
+                let error_str = match std::str::from_utf8(&error) {
+                    Ok(s) => s,
+                    Err(e) => return Err(EngineClientError::Utf8Error(e.to_string())),
+                };
+                
+                Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
             }
         }
     }
 
-    async fn empty_post(&self, uri: Uri) -> Result<()> {
+    async fn empty_post(&self, uri: Uri) -> Result<(), EngineClientError> {
         let req = Request::builder()
             .method(Method::POST)
             .uri(uri)
             .body(Either::Right(Empty::<Bytes>::new()))
-            .map_err(|err| anyhow!("Error building the request. Reason: {}", err))?;
+            .map_err(|e| EngineClientError::HttpError(e))?;
 
         let res = self
             .client
             .request(req)
             .await
-            .map_err(|err| anyhow!("Error during the http request. Reason: {}", err))?;
+            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?;
 
         let status = res.status();
 
@@ -187,20 +197,28 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| anyhow!("Error to bytes. Reason: {}", err))?
+                    .map_err(|err| EngineClientError::HyperRequest(format!("Error collecting response: {}", err)))?
                     .to_bytes();
-                let error = std::str::from_utf8(&error)
-                    .map_err(|err| anyhow!("Cannot parse error str. Reason: {}", err))?;
-                Err(anyhow!("Error during request. {error}"))
+                
+                let error_str = match std::str::from_utf8(&error) {
+                    Ok(s) => s,
+                    Err(e) => return Err(EngineClientError::Utf8Error(e.to_string())),
+                };
+                
+                Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
             }
         }
     }
 
-    pub async fn event_monitor(&self) -> Result<impl Stream<Item = Result<Event, WebsocketError>>> {
-        let stream = tokio::net::UnixStream::connect(&self.socket).await?;
+    pub async fn event_monitor(&self) -> Result<impl Stream<Item = Result<Event, WebsocketError>>, EngineClientError> {
+        let stream = tokio::net::UnixStream::connect(&self.socket)
+            .await
+            .map_err(|e| EngineClientError::IoError(format!("Failed to connect to socket: {}", e)))?;
 
         // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
-        let (ws_stream, _) = client_async("ws://localhost/monitor", stream).await?;
+        let (ws_stream, _) = client_async("ws://localhost/monitor", stream)
+            .await
+            .map_err(|e| EngineClientError::WebSocketError(format!("WebSocket initialization failed: {}", e)))?;
 
         let (_, read_stream) = ws_stream.split();
 
