@@ -89,11 +89,11 @@ impl EngineApiClient {
         let buf = res
             .collect()
             .await
-            .map_err(|e| EngineClientError::HyperRequest(e.to_string()))?
+            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?
             .aggregate();
 
         let output = serde_json::from_reader(buf.reader())
-            .map_err(|e| EngineClientError::DeserializeError(e.to_string()))?;
+            .map_err(|err| EngineClientError::DeserializeError(err.to_string()))?;
 
         Ok(output)
     }
@@ -176,7 +176,7 @@ impl EngineApiClient {
 
                 let error_str = match std::str::from_utf8(&error) {
                     Ok(s) => s,
-                    Err(e) => return Err(EngineClientError::Utf8Error(e.to_string())),
+                    Err(err) => return Err(EngineClientError::Utf8Error(err.to_string())),
                 };
 
                 Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
@@ -215,7 +215,7 @@ impl EngineApiClient {
 
                 let error_str = match std::str::from_utf8(&error) {
                     Ok(s) => s,
-                    Err(e) => return Err(EngineClientError::Utf8Error(e.to_string())),
+                    Err(err) => return Err(EngineClientError::Utf8Error(err.to_string())),
                 };
 
                 Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
@@ -228,21 +228,21 @@ impl EngineApiClient {
     ) -> Result<impl Stream<Item = Result<Event, WebsocketError>>, EngineClientError> {
         let stream = tokio::net::UnixStream::connect(&self.socket)
             .await
-            .map_err(|e| {
-                EngineClientError::IoError(format!("Failed to connect to socket: {}", e))
+            .map_err(|err| {
+                EngineClientError::IoError(format!("Failed to connect to socket: {}", err))
             })?;
 
         // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
         let (ws_stream, _) = client_async("ws://localhost/monitor", stream)
             .await
-            .map_err(|e| {
-                EngineClientError::WebSocketError(format!("WebSocket initialization failed: {}", e))
+            .map_err(|err| {
+                EngineClientError::WebSocketError(format!("WebSocket initialization failed: {}", err))
             })?;
 
         let (_, read_stream) = ws_stream.split();
 
         let events_stream = read_stream.map(|item| {
-            item.map_err(|e| e.into()).and_then(|msg| {
+            item.map_err(|err| err.into()).and_then(|msg| {
                 if let Message::Text(json) = msg {
                     let event: Event =
                         serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
