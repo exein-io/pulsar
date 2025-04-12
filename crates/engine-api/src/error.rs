@@ -167,10 +167,3 @@ impl From<PulsarDaemonError> for EngineApiError {
         }
     }
 }
-
-// Implement From<EngineClientError> for anyhow::Error to allow easy conversion
-impl From<EngineClientError> for anyhow::Error {
-    fn from(err: EngineClientError) -> Self {
-        anyhow::anyhow!(err.to_string())
-    }
-}

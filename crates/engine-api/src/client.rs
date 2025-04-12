@@ -78,7 +78,7 @@ impl EngineApiClient {
             .method(Method::GET)
             .uri(uri)
             .body(Either::Right(Empty::<Bytes>::new()))
-            .map_err(|e| EngineClientError::HttpError(e))?;
+            .map_err(EngineClientError::HttpError)?;
 
         let res = self
             .client
@@ -150,7 +150,7 @@ impl EngineApiClient {
             .uri(url)
             .header("content-type", "application/json")
             .body(Either::Left(Full::from(body_string)))
-            .map_err(|e| EngineClientError::HttpError(e))?;
+            .map_err(EngineClientError::HttpError)?;
 
         let res = self
             .client
@@ -189,7 +189,7 @@ impl EngineApiClient {
             .method(Method::POST)
             .uri(uri)
             .body(Either::Right(Empty::<Bytes>::new()))
-            .map_err(|e| EngineClientError::HttpError(e))?;
+            .map_err(EngineClientError::HttpError)?;
 
         let res = self
             .client
