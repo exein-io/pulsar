@@ -1,0 +1,17 @@
+# Title: OpenSSL Password Hash Generation
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1136 - Create Account - https://attack.mitre.org/techniques/T1136/
+
+- name: OpenSSL Password Hash Generation
+  type: Exec
+  category: persistence
+  severity: low
+  description: Detects the usage of the `openssl` binary to generate password hashes on Linux systems. The `openssl` command
+    is a cryptographic utility that can be used to generate password hashes. Attackers may use `openssl` to generate
+    password hashes for new user accounts or to change the password of existing accounts, which can be leveraged to maintain
+    persistence on a Linux system.
+  condition: payload.filename ENDS_WITH "openssl" AND payload.argv CONTAINS "passwd"

@@ -1,0 +1,14 @@
+# Title: AWS CLI command with custom endpoint URL
+
+# Creation Date: 2025/05/11
+
+# MITRE ATT&CK Tactics: TA0011 - Command and Control - https://attack.mitre.org/tactics/TA0011/
+
+# MITRE ATT&CK Technique: T1572 - Protocol Tunneling - https://attack.mitre.org/techniques/T1572/
+
+- name: AWS CLI Endpoint URL Used
+  type: Exec
+  category: command_and_control
+  severity: medium
+  description: Detects the use of AWS CLI with a specified endpoint URL, which may indicate attempts to communicate with unauthorized AWS endpoints.
+  condition: payload.filename ENDS_WITH "/aws" AND payload.argv CONTAINS "--endpoint-url"

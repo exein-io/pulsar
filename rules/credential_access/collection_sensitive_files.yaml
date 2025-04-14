@@ -2,19 +2,35 @@
 
 # Creation date: 2025/04/09
 
+# MITRE ATT&CK Tactic: TA0009 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
 # MITRE ATT&CK Tactic: TA0009 - Collection - https://attack.mitre.org/tactics/TA0009/
 
 # MITRE ATT&CK Technique: T1560 - Archive via Utility - https://attack.mitre.org/techniques/T1560/001/
 
-- name: collection sensitive files
+# Missing the folders under /home/user/
+- name: Sensitive file compression
   type: Exec
   category: credential_access
   severity: medium
-  description: AAA
-  condition: (payload.filename ENDS_WITH "zip" OR payload.filename ENDS_WITH "tar" OR payload.filename ENDS_WITH "gzip")
+  description: Identifies the use of a compression utility to collect known files containing sensitive information, such as credentials
+    and system configurations.
+  condition: (payload.filename ENDS_WITH "zip" OR payload.filename ENDS_WITH "tar" OR payload.filename ENDS_WITH "gzip"
+      OR payload.filename ENDS_WITH "hdiutil" OR payload.filename ENDS_WITH "7z")
     AND (payload.argv CONTAINS "/root/.ssh/id_rsa"
-    OR payload.argv CONTAINS "/root/.ssh/id_rsa.pub"
-    OR payload.argv CONTAINS "/root/.ssh/id_ed25519"
-    OR payload.argv CONTAINS "/root/.ssh/id_ed25519.pub"
-    OR payload.argv CONTAINS "/etc/group"
-    OR payload.argv CONTAINS "/etc/gshadow")
+      OR payload.argv CONTAINS "/root/.ssh/id_rsa.pub"
+      OR payload.argv CONTAINS "/root/.ssh/id_ed25519"
+      OR payload.argv CONTAINS "/root/.ssh/id_ed25519.pub"
+      OR payload.argv CONTAINS "/root/.ssh/authorized_keys"
+      OR payload.argv CONTAINS "/root/.ssh/authorized_keys2"
+      OR payload.argv CONTAINS "/root/.ssh/known_hosts"
+      OR payload.argv CONTAINS "/root/.bash_history"
+      OR payload.argv CONTAINS "/root/.aws/credentials"
+      OR payload.argv CONTAINS "/root/.aws/config"
+      OR payload.argv CONTAINS "/root/.docker/config"
+      OR payload.argv CONTAINS "/etc/hosts/"
+      OR payload.argv CONTAINS "/etc/group"
+      OR payload.argv CONTAINS "/etc/passwd"
+      OR payload.argv CONTAINS "/etc/shadow"
+      OR payload.argv CONTAINS "/etc/gshadow"
+    )

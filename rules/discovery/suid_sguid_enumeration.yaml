@@ -13,12 +13,15 @@
   description: Detects execution of the 'find' command to search for SetUID or SetGID files, which is commonly used by attackers during reconnaissance.
   condition: payload.filename ENDS_WITH "/find" AND payload.argv CONTAINS "-perm" 
     AND (payload.argv CONTAINS "6000" OR payload.argv CONTAINS "-6000"
-    OR payload.argv CONTAINS "4000" OR payload.argv CONTAINS "-4000"
-    OR payload.argv CONTAINS "2000" OR payload.argv CONTAINS "-2000"
-    OR payload.argv CONTAINS "/u=s" OR payload.argv CONTAINS "-u=s"
-    OR payload.argv CONTAINS "/g=s" OR payload.argv CONTAINS "-g=s"
-    OR payload.argv CONTAINS "/u=s,g=s" OR payload.argv CONTAINS "/g=s,u=s"
+      OR payload.argv CONTAINS "4000" OR payload.argv CONTAINS "-4000"
+      OR payload.argv CONTAINS "2000" OR payload.argv CONTAINS "-2000"
+      OR payload.argv CONTAINS "/u=s" OR payload.argv CONTAINS "-u=s"
+      OR payload.argv CONTAINS "/g=s" OR payload.argv CONTAINS "-g=s"
+      OR payload.argv CONTAINS "/u=s,g=s" OR payload.argv CONTAINS "/g=s,u=s"
     )
-    AND NOT (header.uid == 0 OR header.gid == 0)
-      OR (payload.argv CONTAINS "/usr/bin/pkexec AND payload.argv CONTAINS "-xdev" AND payload.argc == 7))
-       
+    AND NOT (header.uid == 0 OR header.gid == 0 
+      OR (payload.argv CONTAINS "/usr/bin/pkexec" AND payload.argv CONTAINS "-xdev" AND payload.argc == 7)
+      OR (payload.filename STARTS_WITH "/usr/lib/systemd/systemd-nsresourced")
+      OR (payload.filename STARTS_WITH "/usr/lib/systemd/systemd-userdbds")
+    )
+    

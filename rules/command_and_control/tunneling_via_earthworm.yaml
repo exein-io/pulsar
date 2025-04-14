@@ -13,4 +13,8 @@
   description: Identifies the execution of the EarthWorm tunneler. Adversaries may tunnel network communications to and from a victim
     system within a separate protocol to avoid detection and network filtering, or to enable access to otherwise unreachable
     systems.
-  condition: payload.argv CONTAINS "-s" AND payload.argv CONTAINS "-d" AND payload.argv CONTAINS "rssocks"
+  condition: (
+      payload.argv CONTAINS "rssocks" OR payload.argv CONTAINS "ssocksd" OR payload.argv CONTAINS "lcx_listen" 
+      OR payload.argv CONTAINS "lcx_slave" OR payload.argv CONTAINS "lcx_tran" OR payload.argv CONTAINS "socksd" 
+      OR payload.argv CONTAINS "rcsocks" OR payload.argv CONTAINS "-s" OR payload.argv CONTAINS "-d" OR payload.argv CONTAINS "-e"
+    )

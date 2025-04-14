@@ -1,0 +1,18 @@
+# Title: Network service discovery
+
+# Creation Date: 2025.04.11
+
+# MITRE ATT&CK Tactics TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK technique T1046 - Network Service Discovery - https://attack.mitre.org/techniques/T1046/
+
+- name: Potential Network Scan Executed From Host
+  type: Exec
+  category: discovery
+  severity: medium
+  description: Monitors for the execution of unix utilities that are capable of conducting network scans.
+    Adversaries may leverage built-in tools such as ping, netcat or socat to execute ping sweeps across the network while
+    attempting to evade detection or due to the lack of network mapping tools available on the compromised host.
+  condition: payload.filename ENDS_WITH "nping" OR payload.filename ENDS_WITH "hping" OR payload.filename ENDS_WITH "hping2" OR
+    payload.filename ENDS_WITH "hping3" OR payload.filename ENDS_WITH "nc" OR payload.filename ENDS_WITH "ncat" OR
+    payload.filename ENDS_WITH "netcat" OR payload.filename ENDS_WITH "socat"

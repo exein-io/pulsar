@@ -6,6 +6,7 @@
 
 # MITRE ATT&CK Technique: T1518 - Software Discovery - https://attack.mitre.org/techniques/T1518/
 
+# elastic: and not process.parent.executable == "/usr/share/qemu/init/qemu-kvm-init"
 - name: Search for virtual machine files
   type: Exec
   category: discovery

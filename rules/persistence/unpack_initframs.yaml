@@ -1,0 +1,17 @@
+# Title: Initramfs Unpacking via unmkinitramfs
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1574 - Hijack Execution Flow - https://attack.mitre.org/techniques/T1574/
+
+- name: Initramfs Unpacking via unmkinitramfs
+  type: Exec
+  category: persistence
+  severity: low
+  description: This rule detects the unpacking of an initramfs image using the `unmkinitramfs` command on Linux systems. The
+    `unmkinitramfs` command is used to extract the contents of an initramfs image, which is used to boot the system.
+    Attackers may use `unmkinitramfs` to unpack an initramfs image and modify its contents to include malicious code or
+    backdoors, allowing them to maintain persistence on the system.
+  condition: payload.filename ENDS_WITH "unmkinitramfs"

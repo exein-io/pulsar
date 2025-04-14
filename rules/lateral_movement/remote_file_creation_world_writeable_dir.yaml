@@ -1,0 +1,16 @@
+# Title: 
+
+# Creation Date:
+
+# MITRE ATT&CK TACTICS: TA0008 - Lateral Movement - https://attack.mitre.org/tactics/TA0008/
+
+#MITRE ATT&CK TECHNIQUE: 
+#header.image IN ["/usr/bin/scp", "/usr/bin/ssh", "/usr/bin/sshd", "/usr/bin/ftp", "/usr/bin/sftp","/usr/sbin/vsftpd", "/usr/lib/openssh/sftp-server", "/usr/bin/rsync"]
+
+- name: Remote File Creation in World Writeable Directory
+  type: FileCreated
+  category: lateral_movement
+  severity: medium
+  description: Detects the creation of a file in a world-writeable directory through a service that is commonly used for file transfer. This behavior is often associated with lateral movement and can be an indicator of an attacker attempting to move laterally within a network.
+  condition: (header.image ENDS_WITH "/scp" OR header.image ENDS_WITH "/sshd" OR header.image ENDS_WITH "/ssh" OR header.image ENDS_WITH "/ftp" OR header.image ENDS_WITH "/sftp" OR header.image ENDS_WITH "/vsftpd" OR header.image ENDS_WITH "/sftp-server" OR header.image ENDS_WITH "/rsync")
+   AND (payload.filename STARTS_WITH "/tmp" OR payload.filename STARTS_WITH "/var/tmp" OR payload.filename STARTS_WITH "/dev/shm" OR payload.filename STARTS_WITH "/home")

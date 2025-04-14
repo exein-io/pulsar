@@ -1,0 +1,20 @@
+# Title: Potential Linux Backdoor User Account Creation"
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1536 - Create Account - https://attack.mitre.org/techniques/T1136/
+
+- name: Potential Linux Backdoor User Account Creation
+  type: Exec
+  category: persistence
+  severity: medium
+  description: Detects the attempt to create a new backdoor user by setting the user's UID to 0. Attackers may alter a user's UID to
+    0 to establish persistence on a system.
+  condition: payload.filename ENDS_WITH "usermod"
+    AND (
+      payload.argv CONTAINS "-u" OR
+      payload.argv CONTAINS "0" OR
+      payload.argv CONTAINS "-o"
+    )

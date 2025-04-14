@@ -31,6 +31,7 @@
   condition: payload.destination.ip IN ["1.234.21.73", "103.109.247.10", "103.124.107.109", "103.173.121.17", "103.224.241.74", "103.253.145.28"]
 
 
+# cd /tmp && ln -s ../etc/shadow . 
 - name: Create sensitive files symlink
   type: FileLink
   category: execution
@@ -48,14 +49,13 @@
   condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
 
 
-- name: Create files below /dev
-  type: FileCreated
-  category: execution
-  severity: medium
-  description: Detects the creation of files below /dev. Adversaries may create files below /dev to gain access to information or to 
-    escalate privileges.
-  condition: payload.filename STARTS_WITH "/dev"
-
+#- name: Create files below /dev
+ # type: FileCreated
+  #category: execution
+  #severity: medium
+  #description: Detects the creation of files below /dev. Adversaries may create files below /dev to gain access to information or to 
+  #  escalate privileges.
+  #condition: payload.filename STARTS_WITH "/dev"
 
 - name: Activities of management binaries
   type: Exec
@@ -203,7 +203,8 @@
   severity: high
   description: Detects the execution of the insmod utility to inject a Linux kernel module. Adversaries may inject a kernel module to gain access 
     to information or to escalate privileges.
-  condition: payload.filename ENDS_WITH "/insmod" AND NOT ( payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
+  condition: payload.filename ENDS_WITH "/insmod" 
+    AND NOT ( payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
 
 - name: Linux Kernel Module Injection Detected
   type: Exec
@@ -211,16 +212,17 @@
   severity: high
   description: Detects the execution of the modprobe utility to inject a Linux kernel module. Adversaries may inject a kernel module to gain access 
     to information or to escalate privileges.
-  condition: payload.filename ENDS_WITH "/modprobe" AND NOT payload.argv CONTAINS "-r"
+  condition: payload.filename ENDS_WITH "/modprobe" 
+    AND NOT payload.argv CONTAINS "-r"
 
-- name: Executable deleted itself
-  type: FileDeleted
+# Monitor kmod when used to load modules
+- name: Linux Kernel Module Injection via kmod
+  type: Exec
   category: execution
   severity: high
-  description: Detects the deletion of an executable file. Adversaries may delete an executable file to remove evidence of their activities on the 
-    system.
-  condition: payload.filename == header.image
-
+  description: Detects the execution of kmod to directly load a Linux kernel module.
+  condition: payload.filename ENDS_WITH "/kmod" AND payload.argv CONTAINS "insert" 
+    AND NOT (payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
 
 # Rules preventing known vulnerabilities
 - name: CVE-2021-4034, possible envp manipulation with empty argv

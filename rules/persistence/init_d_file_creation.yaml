@@ -1,0 +1,54 @@
+# Title: System V Init Script Created
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1037 - Boot or Logon Initialization Scripts - https://attack.mitre.org/techniques/T1037/
+
+- name: System V Init Script Created
+  type: FileCreated
+  category: persistence
+  severity: medium
+  description: Detects the creation or renaming of files in `/etc/init.d/`, which is typically used for system startup scripts. This may indicate attempts at persistence.
+  condition: payload.filename STARTS_WITH "/etc/init.d/"
+    AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet",
+        "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+        "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/",  "/usr/bin/pamac-daemon",
+        "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/local/bin/dockerd"
+      ] OR
+      (payload.filename ENDS_WITH "swp") OR
+      (payload.filename ENDS_WITH "swpx") OR
+      (payload.filename ENDS_WITH "swx") OR
+      (payload.filename ENDS_WITH "dpkg-remove") OR
+      (payload.filename ENDS_WITH "dpkg-new") OR
+      payload.filename STARTS_WITH "/etc/init.d/beat" OR
+      payload.filename STARTS_WITH "/etc/init.d/elastic-agent" OR
+      payload.filename STARTS_WITH "/nix/store/" OR
+      payload.filename STARTS_WITH "/var/lib/dpkg/" OR
+      payload.filename STARTS_WITH "/snap/" OR
+      payload.filename STARTS_WITH "/dev/fd/" OR
+      payload.filename STARTS_WITH "/usr/lib/virtualbox/" OR
+      payload.filename STARTS_WITH "/opt/puppetlabs/puppet/bin/ruby" OR
+      header.image IN [
+        "docker-init", "jumpcloud-agent", "crio"
+      ] OR
+      payload.filename IN [
+        "executor", "univention-config-registry", "install", "dockerd-entrypoint.sh", "platform-python", "ssm-agent-worker"
+      ] OR
+      (
+        header.image STARTS_WITH "ln" AND payload.filename STARTS_WITH "/etc/init.d/rc.d/"
+      ) OR
+      (
+        header.image STARTS_WITH "sed" AND payload.filename STARTS_WITH "sed"
+      ) OR
+      (
+        header.image STARTS_WITH "perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp"
+      )
+    )

@@ -1,0 +1,23 @@
+# Title: Rc script creation
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T103 - Boot or Logon Initialization Scripts - https://attack.mitre.org/techniques/T1037/
+
+- name: rc.local/rc.common File Creation
+  type: FileCreated
+  category: persistence
+  severity: medium
+  description: Detect the creation or alteration of rc.local/rc.common files.
+    Adversaries may alter rc.local/rc.common to execute malicious code at start-up, and gain persistence onto the system.
+  condition: payload.filename ENDS_WITH "rc.local" 
+    AND (
+      payload.filename STARTS_WITH "/etc/rc.local" OR
+      payload.filename STARTS_WITH "/etc/rc.common"
+    )
+    AND NOT (
+      header.image IN ["dpkg", "dockerd", "snapd", "yum", "dnf", "apt-get", "podman", "pacman", "systemd", "crontab", "apk"]
+      OR (header.image ENDS_WITH "systemd-rc-local-generator" AND payload.filename STARTS_WITH "/run/systemd/generator/")
+    )

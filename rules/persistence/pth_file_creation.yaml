@@ -1,0 +1,35 @@
+# Title: Python Path File (pth) Creation
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1546 - Event Triggered Execution - https://attack.mitre.org/techniques/T1546/
+
+- name: .pth File Creation in Python Site-Packages
+  type: FileCreated
+  category: persistence
+  severity: low
+  description: detects the creation of .pth files in system-wide and user-specific Python package
+    directories, which can be abused for persistent code execution. .pth files automatically
+    execute Python code when the interpreter starts, making them a stealthy persistence mechanism.
+    Monitoring these paths helps identify unauthorized modifications that could indicate
+    persistence by an attacker or malicious package injection.
+  condition: payload.filename ENDS_WITH "pth"
+    AND (
+      payload.filename STARTS_WITH "/usr/local/lib/python2/dist-packages/" OR
+      payload.filename STARTS_WITH "/usr/lib/python2/dist-packages/" OR
+      payload.filename STARTS_WITH "/usr/local/lib/python3/dist-packages/" OR
+      payload.filename STARTS_WITH "/usr/lib/python3/dist-packages/" OR
+      payload.filename STARTS_WITH "/usr/local/lib/python/site-packages/" OR
+      payload.filename STARTS_WITH "/usr/lib/python/site-packages/" OR
+      payload.filename ENDS_WITH "/lib/python/site-packages/" OR
+      payload.filename ENDS_WITH "/lib/python/site-packages/"
+    )
+    AND NOT (
+      header.image IN ["pip", "restic", "pacman", "dockerd", "poetry", "pamac-daemon", "dnf", "pip3", "pip2"]
+      OR header.image IN ["/usr/bin/python2", "/usr/local/bin/python2", "/opt/venv/bin/python2"]
+      OR header.image IN ["/usr/bin/python3", "/usr/local/bin/python3", "/opt/venv/bin/python3"]
+      OR header.image IN ["/usr/bin/python", "/usr/local/bin/python", "/opt/venv/bin/python"]
+      OR header.image IN ["/nix/store/*libexec/docker/dockerd", "/snap/docker/*dockerd"]
+    )

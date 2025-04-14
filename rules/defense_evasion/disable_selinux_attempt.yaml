@@ -21,4 +21,5 @@
   description: Detects the creation or renaming of the SELinux configuration file. SELinux is a security module that
     provides access control security policies. Modifications to the SELinux configuration file may indicate an attempt to
     impair defenses by disabling or modifying security tools.
-  condition: payload.filename STARTS_WITH "/etc/selinux/config" AND NOT header.image IN ["dockerd", "platform-python"]
+  condition: payload.filename STARTS_WITH "/etc/selinux/config" 
+    AND NOT header.image IN ["dockerd", "platform-python", "/usr/bin/systemd-tmpfiles", "/usr/bin/systemd/systemd-hostnamed"]
