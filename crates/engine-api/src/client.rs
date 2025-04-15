@@ -83,7 +83,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(|err| EngineClientError::HyperClientError(err))?;
+            .map_err(EngineClientError::HyperClientError)?;
 
         let status = res.status();
 
@@ -261,7 +261,7 @@ impl EngineApiClient {
         let (_, read_stream) = ws_stream.split();
 
         let events_stream = read_stream.map(|item| {
-            item.map_err(|err| WebsocketError::from_tungstenite_error(err))
+            item.map_err(WebsocketError::from_tungstenite_error)
                 .and_then(|msg| {
                     if let Message::Text(json) = msg {
                         let event: Event =
