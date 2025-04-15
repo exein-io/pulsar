@@ -77,7 +77,7 @@ impl EngineApiClient {
             .method(Method::GET)
             .uri(uri)
             .body(Either::Right(Empty::<Bytes>::new()))
-            .map_err(EngineClientError::HttpError)?;
+            .map_err(EngineClientError::RequestBuilderError)?;
 
         let res = self
             .client
