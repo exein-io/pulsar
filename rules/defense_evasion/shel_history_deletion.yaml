@@ -1,0 +1,24 @@
+# Title: Shell History Removal
+
+# Creation Date: 2022/10/21
+
+# MITRE ATT&CK Tactics TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1070 - Indicator Removal: Clear Command History - https://attack.mitre.org/techniques/T1070/003/
+
+- name: Shell history deletion
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects the deletion of shell history files. Adversaries may delete shell history files to remove evidence of their activities on 
+    the system.
+  condition: payload.filename ENDS_WITH "ash_history" OR payload.filename ENDS_WITH "zsh_history" OR payload.filename ENDS_WITH "fish_history" OR payload.filename ENDS_WITH "fish_read_history" OR  payload.filename ENDS_WITH "bash_history"
+
+
+- name: Shell history truncation
+  type: FileOpened
+  category: defense_evasion
+  severity: medium
+  description: Detects the truncation of shell history files. Adversaries may truncate shell history files to remove evidence of their activities 
+    on the system.
+  condition: (payload.filename ENDS_WITH "ash_history" OR payload.filename ENDS_WITH "zsh_history" OR payload.filename ENDS_WITH "fish_history" OR payload.filename ENDS_WITH "fish_read_history" OR  payload.filename ENDS_WITH "bash_history") AND  payload.flags CONTAINS "O_TRUNC"

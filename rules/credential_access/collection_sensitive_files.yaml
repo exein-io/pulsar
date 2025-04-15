@@ -2,9 +2,7 @@
 
 # Creation date: 2025/04/09
 
-# MITRE ATT&CK Tactic: TA0009 - Credential Access - https://attack.mitre.org/tactics/TA0006/
-
-# MITRE ATT&CK Tactic: TA0009 - Collection - https://attack.mitre.org/tactics/TA0009/
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
 
 # MITRE ATT&CK Technique: T1560 - Archive via Utility - https://attack.mitre.org/techniques/T1560/001/
 

@@ -1,0 +1,34 @@
+# Title: Kernel Module Injection via Utility Execution
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1547.006 - Boot or Logon Autostart Execution: Kernel Modules and Extensions - https://attack.mitre.org/techniques/T1547/006/
+
+- name: Linux Kernel Module Injection Detected
+  type: Exec
+  category: defense_evasion
+  severity: high
+  description: Detects the execution of the insmod utility to inject a Linux kernel module. Adversaries may inject a kernel module to gain access 
+    to information or to escalate privileges.
+  condition: payload.filename ENDS_WITH "/insmod" 
+    AND NOT ( payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
+
+- name: Linux Kernel Module Injection Detected
+  type: Exec
+  category: defense_evasion
+  severity: high
+  description: Detects the execution of the modprobe utility to inject a Linux kernel module. Adversaries may inject a kernel module to gain access 
+    to information or to escalate privileges.
+  condition: payload.filename ENDS_WITH "/modprobe" 
+    AND NOT payload.argv CONTAINS "-r"
+
+# Monitor kmod when used to load modules
+- name: Linux Kernel Module Injection via kmod
+  type: Exec
+  category: defense_evasion
+  severity: high
+  description: Detects the execution of kmod to directly load a Linux kernel module.
+  condition: payload.filename ENDS_WITH "/kmod" AND payload.argv CONTAINS "insert" 
+    AND NOT (payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
