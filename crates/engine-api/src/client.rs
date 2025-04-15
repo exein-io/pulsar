@@ -92,7 +92,7 @@ impl EngineApiClient {
                 let buf = res
                     .collect()
                     .await
-                    .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?
+                    .map_err(EngineClientError::hyper_request_error)?
                     .aggregate();
 
                 let output = serde_json::from_reader(buf.reader())
@@ -104,7 +104,7 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?
+                    .map_err(EngineClientError::hyper_request_error)?
                     .to_bytes();
 
                 let error_str = std::str::from_utf8(&error)
@@ -188,17 +188,15 @@ impl EngineApiClient {
                     .collect()
                     .await
                     .map_err(|err| {
-                        EngineClientError::HyperRequestError(format!(
+                        EngineClientError::hyper_request_error(format!(
                             "Error collecting response: {}",
                             err
                         ))
                     })?
                     .to_bytes();
 
-                let error_str = match std::str::from_utf8(&error) {
-                    Ok(s) => s,
-                    Err(err) => return Err(EngineClientError::Utf8Error(err.to_string())),
-                };
+                let error_str = std::str::from_utf8(&error)
+                    .map_err(|err| EngineClientError::Utf8Error(err.to_string()))?;
 
                 Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
             }
@@ -216,7 +214,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?;
+            .map_err(EngineClientError::HyperClientError)?;
 
         let status = res.status();
 
@@ -227,17 +225,15 @@ impl EngineApiClient {
                     .collect()
                     .await
                     .map_err(|err| {
-                        EngineClientError::HyperRequestError(format!(
+                        EngineClientError::hyper_request_error(format!(
                             "Error collecting response: {}",
                             err
                         ))
                     })?
                     .to_bytes();
 
-                let error_str = match std::str::from_utf8(&error) {
-                    Ok(s) => s,
-                    Err(err) => return Err(EngineClientError::Utf8Error(err.to_string())),
-                };
+                let error_str = std::str::from_utf8(&error)
+                    .map_err(|err| EngineClientError::Utf8Error(err.to_string()))?;
 
                 Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
             }
