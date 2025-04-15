@@ -171,13 +171,13 @@ impl EngineApiClient {
             .uri(url)
             .header("content-type", "application/json")
             .body(Either::Left(Full::from(body_string)))
-            .map_err(EngineClientError::HttpError)?;
+            .map_err(EngineClientError::RequestBuilderError)?;
 
         let res = self
             .client
             .request(req)
             .await
-            .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?;
+            .map_err(EngineClientError::HyperClientError)?;
 
         let status = res.status();
 
@@ -210,7 +210,7 @@ impl EngineApiClient {
             .method(Method::POST)
             .uri(uri)
             .body(Either::Right(Empty::<Bytes>::new()))
-            .map_err(EngineClientError::HttpError)?;
+            .map_err(EngineClientError::RequestBuilderError)?;
 
         let res = self
             .client
