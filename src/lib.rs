@@ -45,14 +45,14 @@
 //!
 //! - `default`: Enables core and extra.
 //! - `core`: Enables all the monitoring features listed below, specifically
-//!           `  logger`, `process-monitor`, `network-monitor` and `file-system-monitor`.
+//!   `logger`, `process-monitor`, `network-monitor` and `file-system-monitor`.
 //! - `extra`: Enables the rule-engine feature.
 //! - `logger`: Enables the event logger to print threat events in the console.
 //! - `process-monitor`: Enables a monitor on processes lifecycle and manages the list
-//!                      of interesting applications. It's considered a core module and
-//!                      should never be disabled.
+//!   of interesting applications. It's considered a core module and
+//!   should never be disabled.
 //! - `network-monitor`: Enables a monitor on networks events: connections events and
-//!                      dns events.
+//!   dns events.
 //! - `file-system-monitor`: Enables a monitor on file system events, example file open, delete, ecc.
 //! - `rules-engine`: Enables the rule engine module to process events and detect threats.
 

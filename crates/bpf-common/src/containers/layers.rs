@@ -160,7 +160,7 @@ fn docker_btrfs_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
     for layer_id in imagedb_entry.rootfs.diff_ids {
         let layer_id = layer_id
             .split(':')
-            .last()
+            .next_back()
             .ok_or(ContainerError::InvalidLayerID(layer_id.clone()))?;
 
         let path = PathBuf::from(DOCKER_LAYERDB_PATH).join(layer_id);
