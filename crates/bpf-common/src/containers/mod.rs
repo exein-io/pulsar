@@ -235,7 +235,7 @@ impl ContainerInfo {
         // The unprefixed digest is used as an image ID.
         let image_id = image_digest
             .split(':')
-            .last()
+            .next_back()
             .ok_or(ContainerError::InvalidImageDigest(image_digest.clone()))?;
 
         let layers = layers::docker_layers(image_id).await?;
