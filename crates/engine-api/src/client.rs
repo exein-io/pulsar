@@ -1,6 +1,5 @@
 use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
-use anyhow::Result;
 use futures::{Stream, StreamExt};
 use http_body_util::{BodyExt, Either, Empty, Full};
 use hyper::body::{Buf, Bytes};
@@ -39,7 +38,7 @@ impl EngineApiClient {
                     return Err(EngineClientError::SocketNotFound(socket));
                 }
                 std::io::ErrorKind::PermissionDenied => {
-                    return Err(EngineClientError::NoWritePermission(socket));
+                    return Err(EngineClientError::NoReadPermission(socket));
                 }
                 _ => {
                     return Err(EngineClientError::FailedToGetMetadata(socket));
@@ -84,18 +83,40 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?;
+            .map_err(|err| EngineClientError::HyperClientError(err))?;
 
-        let buf = res
-            .collect()
-            .await
-            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?
-            .aggregate();
+        let status = res.status();
 
-        let output = serde_json::from_reader(buf.reader())
-            .map_err(|err| EngineClientError::DeserializeError(err.to_string()))?;
+        match status.is_success() {
+            true => {
+                let buf = res
+                    .collect()
+                    .await
+                    .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?
+                    .aggregate();
 
-        Ok(output)
+                let output = serde_json::from_reader(buf.reader())
+                    .map_err(|err| EngineClientError::DeserializeError(err.to_string()))?;
+
+                Ok(output)
+            }
+            false => {
+                let error = res
+                    .collect()
+                    .await
+                    .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?
+                    .to_bytes();
+
+                let error_str = std::str::from_utf8(&error)
+                    .map_err(|err| EngineClientError::Utf8Error(err.to_string()))?;
+
+                Err(EngineClientError::UnexpectedResponse(format!(
+                    "HTTP error {}: {}",
+                    status.as_u16(),
+                    error_str
+                )))
+            }
+        }
     }
 
     pub async fn list_modules(&self) -> Result<Vec<ModuleOverview>, EngineClientError> {
@@ -156,7 +177,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?;
+            .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?;
 
         let status = res.status();
 
@@ -167,7 +188,7 @@ impl EngineApiClient {
                     .collect()
                     .await
                     .map_err(|err| {
-                        EngineClientError::HyperRequest(format!(
+                        EngineClientError::HyperRequestError(format!(
                             "Error collecting response: {}",
                             err
                         ))
@@ -195,7 +216,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(|err| EngineClientError::HyperRequest(err.to_string()))?;
+            .map_err(|err| EngineClientError::HyperRequestError(err.to_string()))?;
 
         let status = res.status();
 
@@ -206,7 +227,7 @@ impl EngineApiClient {
                     .collect()
                     .await
                     .map_err(|err| {
-                        EngineClientError::HyperRequest(format!(
+                        EngineClientError::HyperRequestError(format!(
                             "Error collecting response: {}",
                             err
                         ))
@@ -235,22 +256,21 @@ impl EngineApiClient {
         // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
         let (ws_stream, _) = client_async("ws://localhost/monitor", stream)
             .await
-            .map_err(|err| {
-                EngineClientError::WebSocketError(format!("WebSocket initialization failed: {}", err))
-            })?;
+            .map_err(EngineClientError::from)?;
 
         let (_, read_stream) = ws_stream.split();
 
         let events_stream = read_stream.map(|item| {
-            item.map_err(|err| err.into()).and_then(|msg| {
-                if let Message::Text(json) = msg {
-                    let event: Event =
-                        serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
-                    Ok(event)
-                } else {
-                    Err(WebsocketError::UnsupportedMessageType)
-                }
-            })
+            item.map_err(|err| WebsocketError::from_tungstenite_error(err))
+                .and_then(|msg| {
+                    if let Message::Text(json) = msg {
+                        let event: Event =
+                            serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
+                        Ok(event)
+                    } else {
+                        Err(WebsocketError::UnsupportedMessageType)
+                    }
+                })
         });
 
         Ok(events_stream)
