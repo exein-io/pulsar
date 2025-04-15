@@ -127,7 +127,12 @@ impl EngineClientError {
     pub fn request_builder_error(err: http::Error) -> Self {
         Self::RequestBuilderError(err)
     }
+
+    pub fn hyper_request_error<E: std::fmt::Display>(err: E) -> Self {
+        Self::HyperRequestError(err.to_string())
+    }
 }
+
 /// WebSocket related errors
 #[derive(Debug, Error)]
 pub enum WebsocketError {
