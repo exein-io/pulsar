@@ -1,0 +1,29 @@
+# Title: GRUB Configuration File Modification
+
+# Creation date: 2025/04/15
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1547 - IBoot or Logon Autostart Execution  - https://attack.mitre.org/techniques/T1547/
+
+- name: GRUB configuration file modification
+  type: FileOpened
+  category: persistence
+  severity: medium
+  description: Detects modifications to GRUB configuration files. Modifying GRUB may indicate an attempt to change boot-time settings for persistence or to disable security features.
+  condition: (
+      payload.filename STARTS_WITH "/etc/default/grub" OR
+      payload.filename STARTS_WITH "/boot/grub" OR
+      payload.filename STARTS_WITH "/etc/grub"
+    )
+
+- name: GRUB configuration regeneration
+  type: Exec
+  category: persistence
+  severity: medium
+  description: Detects execution of GRUB configuration regeneration commands such as grub2-mkconfig or update-grub. Attackers may regenerate GRUB config after tampering with boot parameters to disable security modules or achieve persistence.
+  condition: (
+    payload.filename CONTAINS "grub2-mkconfig" OR
+    payload.filename CONTAINS "update-grub"
+    )
+

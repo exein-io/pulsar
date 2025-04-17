@@ -1,57 +1,53 @@
 # Title: Reverse shell 
 
-#
+# Creation Date: 2025/04/15
 
-#
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
 
-#
+# MITRE ATT&CK Techinque: T1059 - Command and Scripting Interpreter: Unix Shell - https://attack.mitre.org/techniques/T1059/004/
 
 # https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Reverse%20Shell%20Cheatsheet.md
 
 - name: Potential Reverse Shell via /dev/tcp
   type: Exec
   category: execution
-  severity: high
+  severity: low
   description: Detects execution of commands that utilize /dev/tcp to establish network connections, commonly used in reverse shells.
-  condition: payload.argv CONTAINS "/dev/tcp/" AND (payload.argv CONTAINS ">&1" OR payload.argv CONTAINS "0>&1" OR payload.argv CONTAINS "2>&1")
-
-- name: Background Process Reverse Shell
-  type: Exec
-  category: execution
-  severity: high
-  description: Detects attempts to establish reverse shells using background processes like nohup or setsid.
-  condition: (payload.filename ENDS_WITH "/nohup" OR payload.filename ENDS_WITH "/setsid") AND payload.argv CONTAINS "/dev/tcp/" AND payload.argv CONTAINS ">&1"
+  condition: payload.filename STARTS_WITH "/usr/bin/bash" AND (payload.argv CONTAINS "-i" OR payload.argv CONTAINS ">&")
+  #payload.argv CONTAINS "/dev/tcp/" AND (payload.argv CONTAINS ">&" OR payload.argv CONTAINS ">&1" OR payload.argv CONTAINS "0>&1" OR payload.argv CONTAINS "2>&1")
 
 - name: Netcat Reverse Shell
   type: Exec
   category: execution
-  severity: high
+  severity: low
   description: Detects use of netcat to establish reverse shells.
-  condition: (payload.filename ENDS_WITH "/nc" OR payload.filename ENDS_WITH "/netcat") AND (payload.argv CONTAINS "-e" OR payload.argv CONTAINS "-c")
+  condition: (payload.filename ENDS_WITH "/nc" OR payload.filename ENDS_WITH "/netcat" OR payload.filename ENDS_WITH "ncat") 
+    AND (payload.argv CONTAINS "-e" OR payload.argv CONTAINS "-c")
+    AND (payload.argv CONTAINS "/bin/bash" OR payload.argv CONTAINS "/bin/sh")
 
-- name: Python Socket Reverse Shell
-  type: Exec
-  category: execution
-  severity: high
-  description: Detects use of Python with socket operations commonly used in reverse shells.
-  condition: (payload.filename ENDS_WITH "/python" OR payload.filename ENDS_WITH "/python3") 
-    AND payload.argv CONTAINS "socket" 
-    AND (payload.argv CONTAINS "exec" OR payload.argv CONTAINS "subprocess" OR payload.argv CONTAINS "os.dup2")
+#- name: Python Socket Reverse Shell
+#  type: Exec
+#  category: execution
+#  severity: medium
+#  description: Detects use of Python with socket operations commonly used in reverse shells.
+#  condition: (payload.filename ENDS_WITH "/python" OR payload.filename ENDS_WITH "/python3") 
+#    AND payload.argv CONTAINS "socket" 
+#    AND (payload.argv CONTAINS "exec" OR payload.argv CONTAINS "subprocess" OR payload.argv CONTAINS "os.dup2")
 
-- name: Perl Reverse Shell
-  type: Exec
-  category: execution
-  severity: high
-  description: Detects use of Perl with socket operations commonly used in reverse shells.
-  condition: payload.filename ENDS_WITH "/perl" AND payload.argv CONTAINS "Socket" 
-    AND (payload.argv CONTAINS "exec" OR payload.argv CONTAINS "open")
+#- name: Perl Reverse Shell
+#  type: Exec
+#  category: execution
+#  severity: medium
+#  description: Detects use of Perl with socket operations commonly used in reverse shells.
+#  condition: payload.filename ENDS_WITH "/perl" AND payload.argv CONTAINS "Socket" 
+#    AND (payload.argv CONTAINS "exec" OR payload.argv CONTAINS "open")
 
-- name: Bash Input/Output Redirection
-  type: Exec
-  category: execution 
-  severity: medium
-  description: Detects suspicious Bash command execution with input/output redirection commonly used in reverse shells.
-  condition: (payload.filename ENDS_WITH "/bash" OR payload.filename ENDS_WITH "/sh") 
-    AND ((payload.argv CONTAINS "0<&" AND payload.argv CONTAINS ">&1") 
-      OR (payload.argv CONTAINS "dev/tcp" AND payload.argv CONTAINS ">&1")
-    )
+#- name: Bash Input/Output Redirection
+#  type: Exec
+#  category: execution 
+#  severity: medium
+#  description: Detects suspicious Bash command execution with input/output redirection commonly used in reverse shells.
+#  condition: (payload.filename ENDS_WITH "/usr/bin/bash" OR payload.filename ENDS_WITH "/usr/bin/sh") 
+#    AND ((payload.argv CONTAINS "0<&" AND payload.argv CONTAINS ">&1") 
+#      OR (payload.argv CONTAINS "dev/tcp" AND payload.argv CONTAINS ">&1")
+#    )

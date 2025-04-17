@@ -2,9 +2,9 @@
 
 # Creation Date: 2025/04/11
 
-# MITRE ATT&CK Tactics - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
 
-# MITRE ATT&CK Technique - Hide Artifacts - https://attack.mitre.org/techniques/T1564/
+# MITRE ATT&CK Technique: T1564 - Hide Artifacts - https://attack.mitre.org/techniques/T1564/
 
 - name: File Creation in /var/log via Suspicious Process (No Extension)
   type: FileCreated

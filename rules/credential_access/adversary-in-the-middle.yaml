@@ -5,8 +5,8 @@
 # MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
 
 # MITRE ATT&CK Technique: T1580 - Adversary-in-the-middle - https://attack.mitre.org/techniques/T1557/002/
-#(payload.destination.ip STARTS_WITH 169,254 AND payload.destination.port == 0)
 
+#(payload.destination.ip STARTS_WITH 169,254 AND payload.destination.port == 0)
 - name: ARP Cache Poisoning Detection
   type: Connect
   category: credential_access

@@ -2,9 +2,9 @@
 
 # Creation Date: 2025/04/10
 
-# MITRE ATT&CK Tactics TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
 
-# MITRE ATT&CK Techinque T1059 - Command and scripting interpreter - https://attack.mitre.org/techniques/T1059/004/
+# MITRE ATT&CK Techinque: T1059 - Command and scripting interpreter - https://attack.mitre.org/techniques/T1059/004/
 
 - name: BPF Filter applied using TC
   type: Exec

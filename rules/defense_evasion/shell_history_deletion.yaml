@@ -2,7 +2,7 @@
 
 # Creation Date: 2022/10/21
 
-# MITRE ATT&CK Tactics TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
 
 # MITRE ATT&CK Technique: T1070 - Indicator Removal: Clear Command History - https://attack.mitre.org/techniques/T1070/003/
 

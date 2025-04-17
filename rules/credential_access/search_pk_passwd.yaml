@@ -22,3 +22,17 @@
           OR payload.argv CONTAINS "BEGIN EC PRIVATE"
       )
     )
+
+
+# Title: Recursive Credential Harvesting via Grep
+
+# Creation date: 2025/04/17
+
+- name: Grep recursive password search
+  type: Exec
+  category: credential_access
+  severity: medium
+  description: Detects use of grep to recursively search for the term 'password' across the filesystem.
+  condition: (header.image ENDS_WITH "grep" OR payload.filename ENDS_WITH "grep")
+    AND payload.argv CONTAINS "-r"
+    AND payload.argv CONTAINS "password"

@@ -2,10 +2,10 @@
 
 # Creation Date: 09/04/2025
 
-# MITRE ATT&CK Tactics: T0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+# MITRE ATT&CK Tactic: T0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
 
 # MITRE ATT&CK Technique: T1098 - Account Manipulation - https://attack.mitre.org/techniques/T1098/
-### PERSISTENCE o CREDENTIAL ACCESS
+
 - name: SSHD config modification
   type: FileOpened
   category: credential_access

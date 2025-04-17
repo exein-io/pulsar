@@ -2,9 +2,9 @@
 
 # Creation Date: 2025/04/10
 
-# MITRE ATT&CK Tactics - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
 
-# MITRE ATT&CK Technique - Abuse Elevation Control Mechanism - https://attack.mitre.org/techniques/T1548/003/
+# MITRE ATT&CK Technique: T1548 - Abuse Elevation Control Mechanism - https://attack.mitre.org/techniques/T1548/003/
 
 - name: Does configuration file creation
   type: FileCreated
