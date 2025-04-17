@@ -9,7 +9,7 @@
 - name: SSH related file changes
   type: FileOpened
   category: credential_access
-  severity: high
+  severity: low
   description: Identifies a Secure Shell (SSH) client or server process creating or writing to a known SSH backdoor log file.
     Adversaries may modify SSH related binaries for persistence or credential access via patching sensitive functions to
     enable unauthorized access or to log SSH credentials for exfiltration.

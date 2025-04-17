@@ -115,6 +115,7 @@
     payload.filename ENDS_WITH "iodine" OR payload.filename ENDS_WITH "iodined" OR payload.filename ENDS_WITH "dnscat" 
     OR payload.filename ENDS_WITH "hans" OR payload.filename ENDS_WITH "hans-ubuntu" OR payload.filename ENDS_WITH "ptunnel-ng" 
     OR payload.filename ENDS_WITH "ssf" OR payload.filename ENDS_WITH "3proxy" OR payload.filename ENDS_WITH "ngrok"
+    OR payload.filename ENDS_WITH "dnscat2" OR payload.filename ENDS_WITH "dns2tcp" OR payload.filename ENDS_WITH "dnstt"
     AND (
     header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
     OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 

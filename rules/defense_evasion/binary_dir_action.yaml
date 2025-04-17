@@ -1,0 +1,50 @@
+# Title: Tampering with Executable Binary Directories
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1036.005 - Masquerading: Match Legitimate Name or Location - https://attack.mitre.org/techniques/T1036/005/
+
+# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
+- name: Rename any file below binary directories
+  type: FileRename
+  category: execution
+  severity: medium
+  description: Detects the renaming of files below binary directories. Adversaries may rename files below binary directories to gain access to 
+    information or to escalate privileges.
+  condition: payload.source STARTS_WITH "/usr/bin" OR payload.source STARTS_WITH "/usr/sbin" OR payload.source STARTS_WITH "/bin" OR payload.source STARTS_WITH "/sbin"
+
+# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
+- name: Delete any file/directory below binary directories
+  type: FileDeleted
+  category: execution
+  severity: medium
+  description: Detects the deletion of files/directories below binary directories. Adversaries may delete files/directories below binary directories 
+    to gain access to information or to escalate privileges.
+  condition: payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin"
+
+- name: Create a directory below binary directories
+  type: DirCreated
+  category: execution
+  severity: medium
+  description: Detects the creation of a directory below binary directories. Adversaries may create a directory below binary directories to gain 
+    access to information or to escalate privileges.
+  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
+
+- name: Delete any directory below binary directories
+  type: DirDeleted
+  category: execution
+  severity: medium
+  description: Detects the deletion of a directory below binary directories. Adversaries may delete a directory below binary directories to gain 
+    access to information or to escalate privileges.
+  condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
+
+# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
+- name: Write any file below binary directories
+  type: FileOpened
+  category: execution
+  severity: medium
+  description: Detects the write of a file below binary directories. Adversaries may write a file below binary directories to gain access to 
+    information or to escalate privileges.
+  condition: (payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")

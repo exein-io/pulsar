@@ -1,0 +1,67 @@
+# Title: Cron Job Created or Modified
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1542 - Pre-OS Boot - https://attack.mitre.org/techniques/T1542/
+
+
+- name: Cron File Created or Renamed
+  type: FileCreated
+  category: persistence
+  severity: low
+  description: monitors for (ana)cron jobs being created or renamed. Linux cron jobs are scheduled tasks that can be
+      leveraged by system administrators to set up scheduled tasks, but may be abused by malicious actors for persistence,
+      privilege escalation and command execution. By creating or modifying cron job configurations, attackers can execute
+      malicious commands or scripts at predefined intervals, ensuring their continued presence and enabling unauthorized
+      activities.
+  condition: (
+      payload.filename STARTS_WITH "/etc/cron.allow" OR
+      payload.filename STARTS_WITH "/etc/cron.deny" OR
+      payload.filename STARTS_WITH "/etc/cron.d/" OR
+      payload.filename STARTS_WITH "/etc/cron.hourly/" OR
+      payload.filename STARTS_WITH "/etc/cron.daily/" OR
+      payload.filename STARTS_WITH "/etc/cron.weekly/" OR
+      payload.filename STARTS_WITH "/etc/cron.monthly/" OR
+      payload.filename STARTS_WITH "/etc/crontab" OR
+      payload.filename STARTS_WITH "/var/spool/cron/crontabs/" OR
+      payload.filename STARTS_WITH "/var/spool/anacron/"
+    )
+    AND header.image != ""
+    AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/usr/bin/puppet", "/bin/puppet",
+        "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+        "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/",
+        "/usr/bin/pamac-daemon", "/bin/pamac-daemon", "/usr/local/bin/dockerd",
+        "/opt/elasticbeanstalk/bin/platform-engine", "/opt/puppetlabs/puppet/bin/ruby",
+        "/usr/libexec/platform-python", "/opt/imunify360/venv/bin/python3",
+        "/opt/eset/efs/lib/utild", "/usr/sbin/anacron", "/kaniko/kaniko-executor"
+      ]
+      OR header.image STARTS_WITH "/nix/store/"
+      OR header.image STARTS_WITH "/var/lib/dpkg/"
+      OR header.image STARTS_WITH "/tmp/vmis."
+      OR header.image STARTS_WITH "/snap/"
+      OR header.image STARTS_WITH "/dev/fd/"
+      OR header.image STARTS_WITH "/usr/libexec/platform-python"
+      OR header.image STARTS_WITH "/usr/local/bin/dockerd"
+      OR header.image STARTS_WITH "/usr/bin/crio"
+      OR header.image STARTS_WITH "/usr/sbin/crond"
+      OR header.image STARTS_WITH "/usr/lib/systemd/system/"
+      OR header.image STARTS_WITH "/kaniko/kaniko-executor"
+      OR header.image STARTS_WITH "/etc/cron.d/jumpcloud-updater"
+      OR header.image STARTS_WITH "/var/spool/cron/crontabs/tmp."
+      OR (
+        payload.filename ENDS_WITH "swp" OR
+        payload.filename ENDS_WITH "swpx" OR
+        payload.filename ENDS_WITH "swx" OR
+        payload.filename ENDS_WITH "dpkg-remove"
+      )
+      OR (header.image STARTS_WITH "sed" AND payload.filename ENDS_WITH "sed")
+      OR (header.image STARTS_WITH "perl" AND payload.filename ENDS_WITH "e2scrub_all.tmp")
+    )

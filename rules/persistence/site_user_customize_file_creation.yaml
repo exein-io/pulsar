@@ -1,0 +1,35 @@
+# Title: Initramfs Unpacking via unmkinitramfs
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1546 - Event Triggered Execution - https://attack.mitre.org/techniques/T1546/
+
+- name: Python Site or User Customize File Creation
+  type: FileCreated
+  category: persistence
+  severity: low
+  description: Detect creation or renaming of specific Python customization files that could be used for persistence by adversaries, excluding known benign processes.
+  condition:
+    (
+      (payload.filename STARTS_WITH "/usr/lib/python3" AND payload.filename ENDS_WITH "sitecustomize.py")
+      OR (payload.filename STARTS_WITH "/usr/local/lib/python3" AND payload.filename ENDS_WITH "sitecustomize.py")
+      OR (payload.filename STARTS_WITH "/usr/lib/python3" AND payload.filename ENDS_WITH "dist-packages/sitecustomize.py")
+      OR (payload.filename STARTS_WITH "/usr/local/lib/python3" AND payload.filename ENDS_WITH "dist-packages/sitecustomize.py")
+      OR (payload.filename STARTS_WITH "/opt/" AND payload.filename ENDS_WITH "lib/python3/sitecustomize.py")
+      OR (payload.filename STARTS_WITH "/home/" AND payload.filename ENDS_WITH ".local/lib/python3/site-packages/usercustomize.py")
+      OR (payload.filename STARTS_WITH "/home/" AND payload.filename ENDS_WITH ".config/python/usercustomize.py")
+    )
+    AND NOT (
+      header.image IN [
+        "/usr/local/bin/pip2", "/usr/bin/restic", "/usr/bin/pacman", "/usr/bin/dockerd", "/usr/local/bin/pip3",
+        "/usr/bin/pip3", "/usr/local/bin/pip", "/usr/bin/pip", "/usr/bin/podman", "/usr/local/bin/poetry",
+        "/usr/bin/poetry", "/usr/bin/pamac-daemon", "./venv/bin/pip"
+      ]
+      OR header.image STARTS_WITH "/usr/bin/python"
+      OR header.image STARTS_WITH "/usr/local/bin/python"
+      OR header.image STARTS_WITH "/opt/venv/bin/python"
+      OR (header.image STARTS_WITH "/nix/store/" AND header.image ENDS_WITH "docker/dockerd")
+      OR header.image STARTS_WITH "/snap/docker"
+    )

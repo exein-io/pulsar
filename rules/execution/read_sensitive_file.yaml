@@ -1,0 +1,22 @@
+# Title: Read of Sensitive Files
+
+# Creation date: 2025/04/15
+
+# MITRE ATT&CK Tactic: TA0009 - Collection - https://attack.mitre.org/tactics/TA0009/
+
+# MITRE ATT&CK Technique: T1005 - Data from Local System - https://attack.mitre.org/techniques/T1005/
+
+# Checks read of sensitive files with the exception of cron (cron for Debian like and cronie for RedHat like and SLES)
+- name: Read sensitive file
+  type: FileOpened
+  category: execution
+  severity: medium
+  description: Detects the read of sensitive files with the exception of cron (cron for Debian like and cronie for RedHat like and SLES). 
+    Adversaries may read sensitive files to gather information about the system or to use in later stages of an attack.
+  condition: (
+    payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"]
+      OR payload.filename STARTS_WITH "/etc/sudoers.d/"
+        OR payload.filename STARTS_WITH "/etc/pam.d/"
+    ) AND (payload.flags CONTAINS "O_RDONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND
+      NOT header.image IN ["/usr/sbin/cron", "/usr/sbin/crond"]

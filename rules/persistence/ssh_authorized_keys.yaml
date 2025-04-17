@@ -1,0 +1,14 @@
+# Title: SSH authorized keys
+
+# Creation Date: 09/04/2025
+
+# MITRE ATT&CK Tactics: TA003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1098 - Account Manipulation: SSH Authorized Keys - https://attack.mitre.org/techniques/T1098/004/
+
+- name: Modify SSH key
+  type: FileOpened
+  category: persistence
+  severity: high
+  description: Detects modifications to SSH keys and related files. Adversaries may create or modify files below /.ssh to gain persistent access to a system.
+  condition: payload.filename CONTAINS ".ssh/" AND payload.flags CONTAINS "O_WRONLY"

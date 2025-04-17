@@ -15,3 +15,10 @@
   condition: payload.filename IN ["/var/run/utmp", "/var/log/wtmp", "/var/log/btmp", "/var/log/lastlog", "/var/log/faillog", 
     "/var/log/syslog", "/var/log/messages", "/var/log/secure", "/var/log/auth.log", "/var/log/boot.log", "/var/log/kern.log"]
     AND NOT header.image IN ["/usr/bin/gzip", "/usr/bin/executor", "/usr/bin/dockerd"]
+
+- name: Truncate log files
+  type: FileOpened
+  category: execution
+  severity: medium
+  description: Detects the truncation of log files. Adversaries may truncate log files to remove evidence of their activities on the system.
+  condition: (payload.filename STARTS_WITH "/var/log" OR payload.filename STARTS_WITH "/dev/log") AND payload.flags CONTAINS "O_TRUNC"

@@ -1,0 +1,38 @@
+# Title: Shared Object Created or Changed by Previously Unknown header
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1546 - Dynamic Linker Hijacking - https://attack.mitre.org/techniques/T1574/006/
+
+- name: .so file creation in system directories
+  type: FileCreated
+  category: persistence
+  severity: medium
+  description: Detect creation of shared libraries (.so files) in critical system paths like /dev/shm, /usr/lib, /lib, etc. by non-package manager processes.
+  condition: payload.filename ENDS_WITH "so" 
+    AND (
+      payload.filename STARTS_WITH "/dev/shm/" OR
+      payload.filename STARTS_WITH "/usr/lib/" OR
+      payload.filename STARTS_WITH "/usr/lib64/" OR
+      payload.filename STARTS_WITH "/usr/local/lib/" OR
+      payload.filename STARTS_WITH "/usr/local/lib64/" OR
+      payload.filename STARTS_WITH "/lib/x86_64-linux-gnu/" OR
+      payload.filename STARTS_WITH "/usr/lib/x86_64-linux-gnu/" OR
+      payload.filename STARTS_WITH "/lib/i386-linux-gnu/" OR
+      payload.filename STARTS_WITH "/usr/lib/i386-linux-gnu/" OR
+      payload.filename STARTS_WITH "/lib/" OR
+      payload.filename STARTS_WITH "/lib64/"
+    )
+    AND NOT (
+      header.image IN ["dockerd", "dpkg", "rpm", "snapd", "yum", "vmis-launcher", "pacman", "apt-get", "dnf", "podman", 
+      "platform-python", "dnf-automatic", "unattended-upgrade", "apk", "snap-update-ns", "install", "exe", "systemd", 
+      "root", "sshd", "pip", "jlink", "python", "update-alternatives", "pip", "crio", "packagekitd"]
+      OR (header.image ENDS_WITH "vmware-install.pl" AND payload.filename STARTS_WITH "/usr/lib/vmware-tools/") 
+      OR (header.image ENDS_WITH "ssm-agent-worker" AND payload.filename STARTS_WITH "/usr/lib/jvm/java")
+      OR (
+        header.image STARTS_WITH "/dev/fd/" OR header.image == "/" OR 
+        header.image STARTS_WITH "/kaniko/executor" OR header.image STARTS_WITH "/usr/bin/buildah"
+      )
+    )

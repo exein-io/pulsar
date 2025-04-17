@@ -6,6 +6,7 @@
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
+# elastic has: process.parent.name in ("sudo", "bash", "dash", "ash", "sh", "tcsh", "csh", "zsh", "ksh", "fish") 
 - name: Remove Linux Kernel Module with rmmod
   type: Exec
   category: defense_evasion
