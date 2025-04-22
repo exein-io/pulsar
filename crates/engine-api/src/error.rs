@@ -45,11 +45,11 @@ pub enum EngineClientError {
 
     /// Collect Response Error
     #[error("Error collecting response: {0}")]
-    CollectResponseError(String),
+    CollectResponseError(#[from] hyper::Error),
 
     /// Error during request building
     #[error("Failed to build request: {0}")]
-    RequestBuilderError(http::Error),
+    RequestBuilderError(#[from] http::Error),
 
     /// Serialization error
     #[error("Serialization error: {0}")]

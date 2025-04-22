@@ -92,7 +92,7 @@ impl EngineApiClient {
                 let buf = res
                     .collect()
                     .await
-                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
+                    .map_err(EngineClientError::CollectResponseError)?
                     .aggregate();
 
                 let output = serde_json::from_reader(buf.reader())
@@ -104,7 +104,7 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
+                    .map_err(EngineClientError::CollectResponseError)?
                     .to_bytes();
 
                 let error_str =
@@ -187,7 +187,7 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
+                    .map_err(EngineClientError::CollectResponseError)?
                     .to_bytes();
 
                 let error_str =
@@ -219,7 +219,7 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
+                    .map_err(EngineClientError::CollectResponseError)?
                     .to_bytes();
 
                 let error_str =
