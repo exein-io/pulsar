@@ -83,7 +83,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(EngineClientError::HyperClientError)?;
+            .map_err(EngineClientError::HyperError)?;
 
         let status = res.status();
 
@@ -92,7 +92,7 @@ impl EngineApiClient {
                 let buf = res
                     .collect()
                     .await
-                    .map_err(EngineClientError::hyper_request_error)?
+                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
                     .aggregate();
 
                 let output = serde_json::from_reader(buf.reader())
@@ -104,11 +104,11 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(EngineClientError::hyper_request_error)?
+                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
                     .to_bytes();
 
-                let error_str = std::str::from_utf8(&error)
-                    .map_err(|err| EngineClientError::Utf8Error(err.to_string()))?;
+                let error_str =
+                    std::str::from_utf8(&error).map_err(EngineClientError::Utf8Error)?;
 
                 Err(EngineClientError::UnexpectedResponse(format!(
                     "HTTP error {}: {}",
@@ -177,7 +177,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(EngineClientError::HyperClientError)?;
+            .map_err(EngineClientError::HyperError)?;
 
         let status = res.status();
 
@@ -187,16 +187,11 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| {
-                        EngineClientError::hyper_request_error(format!(
-                            "Error collecting response: {}",
-                            err
-                        ))
-                    })?
+                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
                     .to_bytes();
 
-                let error_str = std::str::from_utf8(&error)
-                    .map_err(|err| EngineClientError::Utf8Error(err.to_string()))?;
+                let error_str =
+                    std::str::from_utf8(&error).map_err(EngineClientError::Utf8Error)?;
 
                 Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
             }
@@ -214,7 +209,7 @@ impl EngineApiClient {
             .client
             .request(req)
             .await
-            .map_err(EngineClientError::HyperClientError)?;
+            .map_err(EngineClientError::HyperError)?;
 
         let status = res.status();
 
@@ -224,16 +219,11 @@ impl EngineApiClient {
                 let error = res
                     .collect()
                     .await
-                    .map_err(|err| {
-                        EngineClientError::hyper_request_error(format!(
-                            "Error collecting response: {}",
-                            err
-                        ))
-                    })?
+                    .map_err(|err| EngineClientError::CollectResponseError(err.to_string()))?
                     .to_bytes();
 
-                let error_str = std::str::from_utf8(&error)
-                    .map_err(|err| EngineClientError::Utf8Error(err.to_string()))?;
+                let error_str =
+                    std::str::from_utf8(&error).map_err(EngineClientError::Utf8Error)?;
 
                 Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
             }
@@ -257,16 +247,15 @@ impl EngineApiClient {
         let (_, read_stream) = ws_stream.split();
 
         let events_stream = read_stream.map(|item| {
-            item.map_err(WebsocketError::from_tungstenite_error)
-                .and_then(|msg| {
-                    if let Message::Text(json) = msg {
-                        let event: Event =
-                            serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
-                        Ok(event)
-                    } else {
-                        Err(WebsocketError::UnsupportedMessageType)
-                    }
-                })
+            item.map_err(|err| err.into()).and_then(|msg| {
+                if let Message::Text(json) = msg {
+                    let event: Event =
+                        serde_json::from_str(&json).map_err(WebsocketError::JsonError)?;
+                    Ok(event)
+                } else {
+                    Err(WebsocketError::UnsupportedMessageType)
+                }
+            })
         });
 
         Ok(events_stream)

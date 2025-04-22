@@ -1,11 +1,9 @@
-use std::fmt::Display;
-
 use axum::{http::StatusCode, response::IntoResponse};
 use hyper::http;
-use hyper_util::client::legacy::Error as HyperError;
 use pulsar_core::pdk::PulsarDaemonError;
+use std::fmt::Display;
+use std::str::Utf8Error;
 use thiserror::Error;
-use tokio::io;
 
 #[derive(Debug)]
 pub enum EngineApiError {
@@ -41,21 +39,17 @@ pub enum EngineClientError {
     #[error("C string conversion error: {0}")]
     CStringConversion(String),
 
-    /// Hyper client error
+    /// Hyper error
     #[error("Hyper client error: {0}")]
-    HyperClientError(#[from] HyperError),
+    HyperError(#[from] hyper_util::client::legacy::Error),
 
-    /// Hyper request error
-    #[error("Hyper request error: {0}")]
-    HyperRequestError(String),
+    /// Collect Response Error
+    #[error("Error collecting response: {0}")]
+    CollectResponseError(String),
 
     /// Error during request building
     #[error("Failed to build request: {0}")]
     RequestBuilderError(http::Error),
-
-    /// HTTP error
-    #[error("HTTP error: {0}")]
-    HttpError(#[from] http::Error),
 
     /// Serialization error
     #[error("Serialization error: {0}")]
@@ -67,7 +61,7 @@ pub enum EngineClientError {
 
     /// UTF-8 error
     #[error("UTF-8 error: {0}")]
-    Utf8Error(String),
+    Utf8Error(#[from] Utf8Error),
 
     /// Unexpected response
     #[error("Unexpected response: {0}")]
@@ -84,12 +78,6 @@ pub enum EngineClientError {
     /// Unknown error
     #[error("Unknown error: {0}")]
     Other(String),
-}
-
-impl From<std::ffi::NulError> for EngineClientError {
-    fn from(err: std::ffi::NulError) -> Self {
-        Self::CStringConversion(err.to_string())
-    }
 }
 
 impl From<serde_json::Error> for EngineClientError {
@@ -111,28 +99,6 @@ impl From<serde_json::Error> for EngineClientError {
     }
 }
 
-impl From<std::str::Utf8Error> for EngineClientError {
-    fn from(err: std::str::Utf8Error) -> Self {
-        Self::Utf8Error(err.to_string())
-    }
-}
-
-impl From<io::Error> for EngineClientError {
-    fn from(err: io::Error) -> Self {
-        Self::IoError(err.to_string())
-    }
-}
-
-impl EngineClientError {
-    pub fn request_builder_error(err: http::Error) -> Self {
-        Self::RequestBuilderError(err)
-    }
-
-    pub fn hyper_request_error<E: std::fmt::Display>(err: E) -> Self {
-        Self::HyperRequestError(err.to_string())
-    }
-}
-
 /// WebSocket related errors
 #[derive(Debug, Error)]
 pub enum WebsocketError {
@@ -148,11 +114,9 @@ pub enum WebsocketError {
     #[error("WebSocket connection error: {0}")]
     ConnectionError(String),
 }
-
-impl WebsocketError {
-    /// Convert a tokio_tungstenite::tungstenite::Error to WebsocketError
-    pub fn from_tungstenite_error(err: tokio_tungstenite::tungstenite::Error) -> Self {
-        Self::ConnectionError(err.to_string())
+impl From<tokio_tungstenite::tungstenite::Error> for WebsocketError {
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
+        WebsocketError::ConnectionError(err.to_string())
     }
 }
 
