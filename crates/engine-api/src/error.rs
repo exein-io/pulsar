@@ -112,12 +112,7 @@ pub enum WebsocketError {
 
     /// Connection error
     #[error("WebSocket connection error: {0}")]
-    ConnectionError(String),
-}
-impl From<tokio_tungstenite::tungstenite::Error> for WebsocketError {
-    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
-        WebsocketError::ConnectionError(err.to_string())
-    }
+    ConnectionError(#[from] tokio_tungstenite::tungstenite::Error),
 }
 
 impl Display for EngineApiError {
