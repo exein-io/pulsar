@@ -235,9 +235,7 @@ impl EngineApiClient {
     ) -> Result<impl Stream<Item = Result<Event, WebsocketError>>, EngineClientError> {
         let stream = tokio::net::UnixStream::connect(&self.socket)
             .await
-            .map_err(|err| {
-                EngineClientError::IoError(format!("Failed to connect to socket: {}", err))
-            })?;
+            .map_err(EngineClientError::SocketConnectionError)?;
 
         // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
         let (ws_stream, _) = client_async("ws://localhost/monitor", stream)

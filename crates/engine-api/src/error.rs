@@ -67,9 +67,9 @@ pub enum EngineClientError {
     #[error("Unexpected response: {0}")]
     UnexpectedResponse(String),
 
-    /// I/O error
-    #[error("I/O error: {0}")]
-    IoError(String),
+    /// Socket connection error
+    #[error("Failed to connect to socket: {0}")]
+    SocketConnectionError(#[from] std::io::Error),
 
     /// WebSocket error
     #[error("WebSocket error: {0}")]
