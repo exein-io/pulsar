@@ -54,7 +54,7 @@ impl EngineApiClient {
         // Check for write permission on socket
         let cstring = match CString::new(socket.as_str()) {
             Ok(cs) => cs,
-            Err(err) => return Err(EngineClientError::CStringConversion(err.to_string())),
+            Err(err) => return Err(EngineClientError::CStringConversion(err)),
         };
 
         let write_permission = unsafe { libc::access(cstring.as_ptr(), libc::W_OK) } == 0;

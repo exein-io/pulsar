@@ -37,15 +37,15 @@ pub enum EngineClientError {
 
     /// C string conversion error
     #[error("C string conversion error: {0}")]
-    CStringConversion(String),
+    CStringConversion(#[from] std::ffi::NulError),
 
     /// Hyper error
     #[error("Hyper client error: {0}")]
-    HyperError(#[from] hyper_util::client::legacy::Error),
+    HyperError(#[from] hyper_util::client::legacy::Error), // For client.request() errors
 
     /// Collect Response Error
     #[error("Error collecting response: {0}")]
-    CollectResponseError(#[from] hyper::Error),
+    CollectResponseError(#[from] hyper::Error), // For res.collect() errors
 
     /// Error during request building
     #[error("Failed to build request: {0}")]
