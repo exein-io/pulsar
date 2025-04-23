@@ -69,7 +69,7 @@ pub enum EngineClientError {
 
     /// Socket connection error
     #[error("Failed to connect to socket: {0}")]
-    SocketConnectionError(#[from] std::io::Error),
+    SocketConnectionError(std::io::Error),
 
     /// WebSocket error
     #[error("WebSocket error: {0}")]
