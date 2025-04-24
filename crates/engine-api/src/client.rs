@@ -33,17 +33,15 @@ impl EngineApiClient {
 
         // Check if input exists and if it is a unix socket
         match std::fs::metadata(&socket) {
-            Err(err) => return match err.kind() {
-                std::io::ErrorKind::NotFound => {
-                    Err(EngineClientError::SocketNotFound(socket))
-                }
-                std::io::ErrorKind::PermissionDenied => {
-                    Err(EngineClientError::NoReadPermission(socket))
-                }
-                _ => {
-                    Err(EngineClientError::FailedToGetMetadata(socket))
-                }
-            },
+            Err(err) => {
+                return match err.kind() {
+                    std::io::ErrorKind::NotFound => Err(EngineClientError::SocketNotFound(socket)),
+                    std::io::ErrorKind::PermissionDenied => {
+                        Err(EngineClientError::NoReadPermission(socket))
+                    }
+                    _ => Err(EngineClientError::FailedToGetMetadata(socket)),
+                };
+            }
             Ok(metadata) => {
                 if !metadata.file_type().is_socket() {
                     return Err(EngineClientError::NotASocket(socket));
