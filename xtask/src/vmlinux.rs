@@ -156,7 +156,34 @@ fn generate_vmlinux_for_arch(
     // info configuration.
     disable_config(builddir, "CONFIG_GDB_SCRIPTS")?;
 
-    // Enable all cgroup types.
+    // Enable BPF and BTF.
+    enable_config(builddir, "CONFIG_BPF")?;
+    enable_config(builddir, "CONFIG_BPF_JIT")?;
+    enable_config(builddir, "CONFIG_BPF_JIT_ALWAYS_ON")?;
+    enable_config(builddir, "CONFIG_BPF_SYSCALL")?;
+    enable_config(builddir, "CONFIG_BPF_EVENTS")?;
+    enable_config(builddir, "CONFIG_HAVE_EBPF_JIT")?;
+    enable_config(builddir, "CONFIG_DEBUG_INFO")?;
+    enable_config(builddir, "CONFIG_DEBUG_KERNEL")?;
+    enable_config(builddir, "CONFIG_DEBUG_INFO_DWARF5")?;
+    enable_config(builddir, "CONFIG_DEBUG_INFO_BTF")?;
+    enable_config(builddir, "CONFIG_DEBUG_FS")?;
+
+    // Enable ftrace and kprobes (with possibility to overwrite return values).
+    enable_config(builddir, "CONFIG_FTRACE_SYSCALLS")?;
+    disable_config(builddir, "CONFIG_TRACEFS_DISABLE_AUTOMOUNT")?;
+    enable_config(builddir, "CONFIG_KPROBES")?;
+    enable_config(builddir, "CONFIG_FUNCTION_TRACER")?;
+    enable_config(builddir, "CONFIG_FTRACE")?;
+    enable_config(builddir, "CONFIG_BPF_KPROBE_OVERRIDE")?;
+
+    // Enable LSM.
+    enable_config(builddir, "CONFIG_SECURITY")?;
+    enable_config(builddir, "CONFIG_SECURITYFS")?;
+    enable_config(builddir, "CONFIG_SECURITY_PATH")?;
+    enable_config(builddir, "CONFIG_BPF_LSM")?;
+
+    // Enable cpusets, all cgroup types and attaching BPF programs to cgroups.
     enable_config(builddir, "CONFIG_CPUSETS")?;
     enable_config(builddir, "CONFIG_CGROUP_SCHED")?;
     enable_config(builddir, "CONFIG_CGROUP_CPUACCT")?;
@@ -171,64 +198,16 @@ fn generate_vmlinux_for_arch(
     enable_config(builddir, "CONFIG_CGROUP_PIDS")?;
     enable_config(builddir, "CONFIG_CGROUP_RDMA")?;
     enable_config(builddir, "CONFIG_CGROUP_MISC")?;
+    enable_config(builddir, "CONFIG_CGROUP_BPF")?;
 
-    // Enable BTF and all BPF features. Even though some of these might not
-    // seem directly related from name, they are (DWARF is needed for BTF,
-    // page pool stats are related to XDP sockets).
-    enable_config(builddir, "CONFIG_FTRACE")?;
-    disable_config(builddir, "CONFIG_PSTORE_FTRACE")?;
-    disable_config(builddir, "CONFIG_DEBUG_CGROUP_REF")?;
-    enable_config(builddir, "CONFIG_KPROBES")?;
-    disable_config(builddir, "KPROBE_EVENTS_ON_NOTRACE")?;
-    enable_config(builddir, "CONFIG_BLK_DEV_IO_TRACE")?;
-    enable_config(builddir, "CONFIG_KPROBE_EVENTS")?;
-    enable_config(builddir, "CONFIG_FTRACE_EVENTS")?;
-    enable_config(builddir, "CONFIG_USER_EVENTS")?;
-    enable_config(builddir, "CONFIG_HAVE_KPROBES_ON_FTRACE")?;
-    enable_config(builddir, "CONFIG_DYNAMIC_FTRACE_WITH_REGS")?;
-    enable_config(builddir, "CONFIG_FTRACE_SYSCALLS")?;
-    enable_config(builddir, "CONFIG_FUNCTION_ERROR_INJECTION")?;
-    enable_config(builddir, "CONFIG_BPF_KPROBE_OVERRIDE")?;
-    enable_config(builddir, "CONFIG_LIRC")?;
-    enable_config(builddir, "CONFIG_BPF_LIRC_MODE2")?;
-    enable_config(builddir, "CONFIG_FUNCTION_TRACER")?;
-    enable_config(builddir, "CONFIG_FUNCTION_GRAPH_TRACER")?;
-    enable_config(builddir, "CONFIG_FUNCTION_GRAPH_RETVAL")?;
-    enable_config(builddir, "CONFIG_FPROBE")?;
-    enable_config(builddir, "CONFIG_FPROBE_EVENTS")?;
-    disable_config(builddir, "FTRACE_RECORD_RECURSION")?;
-    disable_config(builddir, "CONFIG_FTRACE_SORT_STARTUP_TEST")?;
-    enable_config(builddir, "CONFIG_FUNCTION_PROFILER")?;
-    enable_config(builddir, "CONFIG_DYNAMIC_FTRACE")?;
-    enable_config(builddir, "CONFIG_DYNAMIC_FTRACE_WITH_ARGS")?;
-    enable_config(builddir, "CONFIG_DYNAMIC_FTRACE_WITH_CALL_OPS")?;
-    enable_config(builddir, "CONFIG_DYNAMIC_FTRACE_WITH_DIRECT_CALLS")?;
-    enable_config(builddir, "CONFIG_DYNAMIC_FTRACE_WITH_REGS")?;
-    enable_config(builddir, "CONFIG_IPV6_SUBTREES")?;
-    enable_config(builddir, "CONFIG_IPV6_SEG6_LWTUNNEL")?;
-    enable_config(builddir, "CONFIG_IPV6_SEG6_BPF")?;
+    // Enable network-related BPF features.
+    enable_config(builddir, "CONFIG_SECURITY_NETWORK")?;
     enable_config(builddir, "CONFIG_LWTUNNEL")?;
     enable_config(builddir, "CONFIG_LWTUNNEL_BPF")?;
-    enable_config(builddir, "CONFIG_HID_BPF")?;
-    disable_config(builddir, "CONFIG_DEBUG_INFO_NONE")?;
-    enable_config(builddir, "CONFIG_DEBUG_INFO_DWARF5")?;
-    enable_config(builddir, "CONFIG_BPF_SYSCALL")?;
-    enable_config(builddir, "CONFIG_BPF_UNPRIV_DEFAULT_OFF")?;
-    disable_config(builddir, "CONFIG_BPF_PRELOAD")?;
-    enable_config(builddir, "CONFIG_CGROUP_BPF")?;
     enable_config(builddir, "CONFIG_XDP_SOCKETS")?;
     enable_config(builddir, "CONFIG_XDP_SOCKETS_DIAG")?;
-    enable_config(builddir, "CONFIG_BPF_STREAM_PARSER")?;
-    enable_config(builddir, "CONFIG_PAGE_POOL_STATS")?;
-    disable_config(builddir, "CONFIG_DEBUG_INFO_REDUCED")?;
-    enable_config(builddir, "CONFIG_DEBUG_INFO_COMPRESSED_NONE")?;
-    disable_config(builddir, "CONFIG_DEBUG_INFO_COMPRESSED_ZLIB")?;
-    disable_config(builddir, "CONFIG_DEBUG_INFO_SPLIT")?;
-    disable_config(builddir, "CONFIG_MODULE_ALLOW_BTF_MISMATCH")?;
-    enable_config(builddir, "CONFIG_PROBE_EVENTS_BTF_ARGS")?;
-    enable_config(builddir, "CONFIG_BPF_LSM")?;
-    enable_config(builddir, "CONFIG_DEBUG_INFO_BTF")?;
-    enable_config(builddir, "CONFIG_LIVEPATCH")?;
+    enable_config(builddir, "CONFIG_NET_SCHED")?;
+    enable_config(builddir, "CONFIG_NET_CLS_BPF")?;
 
     // Setting the configuration above might trigger prompt for another
     // settings depending on it. In such case, just pick the default values.
