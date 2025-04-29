@@ -1,0 +1,20 @@
+# Title: EFI Bootloader File Modification
+
+# Creation date: 2025/04/28
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1542.002 - Pre-OS Boot: Bootkit - https://attack.mitre.org/techniques/T1542/002/
+
+- name: Unauthorized EFI Bootloader Modification
+  type: FileOpened
+  category: persistence
+  severity: high
+  description: Detects modification of the fallback EFI bootloader (bootx64.efi). Adversaries may replace or tamper with EFI files to gain pre-boot persistence or bypass Secure Boot protections.
+  condition: (
+    payload.filename ENDS_WITH "/boot/efi/EFI/BOOT/bootx64.efi" OR 
+    payload.filename ENDS_WITH "/boot/efi/EFI/Microsoft/Boot/bootmgfw.efi"
+    ) AND NOT (
+      header.image IN ["/usr/bin/fwupdmgr", "/usr/bin/fwupdate", "/usr/bin/efibootmgr"]
+      OR payload.filename STARTS_WITH "/tmp/"
+    )
