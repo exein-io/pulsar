@@ -12,4 +12,4 @@
   severity: medium
   description: Detects the creation of files below /dev. Adversaries may create files below /dev to gain access to information or to 
     escalate privileges.
-  condition: payload.filename STARTS_WITH "/devvvvvv"
+  condition: payload.filename STARTS_WITH "/dev"
