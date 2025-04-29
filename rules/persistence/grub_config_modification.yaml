@@ -2,7 +2,7 @@
 
 # Creation date: 2025/04/15
 
-# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
 
 # MITRE ATT&CK Technique: T1547 - IBoot or Logon Autostart Execution  - https://attack.mitre.org/techniques/T1547/
 
@@ -10,20 +10,22 @@
   type: FileOpened
   category: persistence
   severity: medium
-  description: Detects modifications to GRUB configuration files. Modifying GRUB may indicate an attempt to change boot-time settings for persistence or to disable security features.
+  description: Detects opening of GRUB configuration files that may indicate boot parameter tampering. 
+    Adversaries may alter GRUB settings to disable security features or establish persistence at system startup.
   condition: (
-      payload.filename STARTS_WITH "/etc/default/grub" OR
-      payload.filename STARTS_WITH "/boot/grub" OR
-      payload.filename STARTS_WITH "/etc/grub"
-    )
+    payload.filename STARTS_WITH "/etc/default/grub" OR
+    payload.filename STARTS_WITH "/boot/grub" OR
+    payload.filename STARTS_WITH "/etc/grub"
+    ) AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
 
 - name: GRUB configuration regeneration
   type: Exec
   category: persistence
   severity: medium
-  description: Detects execution of GRUB configuration regeneration commands such as grub2-mkconfig or update-grub. Attackers may regenerate GRUB config after tampering with boot parameters to disable security modules or achieve persistence.
+  description: Detects execution of commands that regenerate GRUB configuration files, such as grub2-mkconfig or update-grub. 
+    Adversaries may rebuild GRUB config after altering boot parameters to disable defenses or persist across reboots.
   condition: (
-    payload.filename CONTAINS "grub2-mkconfig" OR
-    payload.filename CONTAINS "update-grub"
+    payload.filename ENDS_WITH "grub-mkconfig" OR
+    payload.filename ENDS_WITH "grub2-mkconfig" OR
+    payload.filename ENDS_WITH "update-grub"
     )
-

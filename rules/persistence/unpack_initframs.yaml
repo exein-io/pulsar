@@ -10,8 +10,6 @@
   type: Exec
   category: persistence
   severity: low
-  description: This rule detects the unpacking of an initramfs image using the `unmkinitramfs` command on Linux systems. The
-    `unmkinitramfs` command is used to extract the contents of an initramfs image, which is used to boot the system.
-    Attackers may use `unmkinitramfs` to unpack an initramfs image and modify its contents to include malicious code or
-    backdoors, allowing them to maintain persistence on the system.
+  description: Detects the use of the unmkinitramfs command, which is typically used to extract the contents of an initramfs image.
+    Adversaries may use this command to unpack an initramfs image and insert malicious code or backdoors to gain persistence on the system.
   condition: payload.filename ENDS_WITH "unmkinitramfs"

@@ -6,7 +6,6 @@
 
 # MITRE ATT&CK Technique: T1552 - Unsecured Credentials - https://attack.mitre.org/techniques/T1552/
 
-# cd /tmp && ln -s ../etc/shadow . 
 - name: Create sensitive files symlink
   type: FileLink
   category: execution
@@ -14,12 +13,11 @@
   description: Detects the creation of sensitive files as a symlink. Adversaries may create symlinks to sensitive files to gain access to 
     information or to escalate privileges.
   condition: (
-      (payload.destination ENDS_WITH "etc/shadow" OR
+      (payload.destination ENDS_WITH "/etc/shadow" OR
       payload.destination ENDS_WITH "/etc/sudoers" OR
       payload.destination ENDS_WITH "/etc/pam.conf" OR
       payload.destination ENDS_WITH "etc/security/pwquality.conf")
     OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
-
 
 - name: Create sensitive files hardlink
   type: FileLink
@@ -28,7 +26,7 @@
   description: Detects the creation of sensitive files as a hardlink. Adversaries may create hardlinks to sensitive files to gain access to 
     information or to escalate privileges.
   condition: (
-      (payload.destination ENDS_WITH "etc/shadow" OR
+      (payload.destination ENDS_WITH "/etc/shadow" OR
       payload.destination ENDS_WITH "/etc/sudoers" OR
       payload.destination ENDS_WITH "/etc/pam.conf" OR
       payload.destination ENDS_WITH "etc/security/pwquality.conf")

@@ -63,18 +63,7 @@
   condition: (payload.filename ENDS_WITH "curl" OR payload.filename ENDS_WITH "socat" 
       OR payload.filename ENDS_WITH "nc" OR payload.filename ENDS_WITH "netcat"
       OR payload.filename ENDS_WITH "ncat" OR payload.filename ENDS_WITH "nc.traditional")
-    AND payload.argv CONTAINS "/var/run/docker.sock" OR payload.argv CONTAINS "/run/docker.sock"
-
-- name: File Made Executable via Chmod Inside A Container
-  type: Exec
-  category: execution
-  severity: low
-  description: Detects when chmod or chown are used to add the execute permission to a file inside a container. Modifying file
-    permissions to make a file executable could indicate malicious activity, as an attacker may attempt to run unauthorized or malicious code inside the container.
-  condition: header.container.is_some() 
-    AND (payload.filename ENDS_WITH "chmod" OR payload.filename ENDS_WITH "chown")
-    AND (payload.argv CONTAINS "4755" OR payload.argv CONTAINS "755" OR payload.argv CONTAINS "000" OR payload.argv CONTAINS"777" OR 
-      payload.argv CONTAINS "444" OR payload.argv CONTAINS "-x" OR payload.argv CONTAINS"+x")
+    AND (payload.argv CONTAINS "/var/run/docker.sock" OR payload.argv CONTAINS "/run/docker.sock")
 
 - name: Suspicious Network Tool Launched in Container
   type: Exec
@@ -86,21 +75,21 @@
   condition: header.container.is_some() 
     AND (
       payload.filename ENDS_WITH "nc.traditional" OR
-      payload.filename ENDS_WITH "nc" OR
-      payload.filename ENDS_WITH "ncat" OR
-      payload.filename ENDS_WITH "netcat" OR
-      payload.filename ENDS_WITH "nmap" OR
-      payload.filename ENDS_WITH "dig" OR
-      payload.filename ENDS_WITH "nslookup" OR
-      payload.filename ENDS_WITH "tcpdump" OR
-      payload.filename ENDS_WITH "tshark" OR
-      payload.filename ENDS_WITH "ngrep" OR
-      payload.filename ENDS_WITH "telnet" OR
-      payload.filename ENDS_WITH "mitmproxy" OR
-      payload.filename ENDS_WITH "socat" OR
-      payload.filename ENDS_WITH "zmap" OR
-      payload.filename ENDS_WITH "masscan" OR
-      payload.filename ENDS_WITH "zgrab"
+      payload.filename ENDS_WITH "/nc" OR
+      payload.filename ENDS_WITH "/ncat" OR
+      payload.filename ENDS_WITH "/netcat" OR
+      payload.filename ENDS_WITH "/nmap" OR
+      payload.filename ENDS_WITH "/dig" OR
+      payload.filename ENDS_WITH "/nslookup" OR
+      payload.filename ENDS_WITH "/tcpdump" OR
+      payload.filename ENDS_WITH "/tshark" OR
+      payload.filename ENDS_WITH "/ngrep" OR
+      payload.filename ENDS_WITH "/telnet" OR
+      payload.filename ENDS_WITH "/mitmproxy" OR
+      payload.filename ENDS_WITH "/socat" OR
+      payload.filename ENDS_WITH "/zmap" OR
+      payload.filename ENDS_WITH "/masscan" OR
+      payload.filename ENDS_WITH "/zgrab"
     )
 
 - name: Container Management Utility Run Inside A Container
@@ -112,34 +101,36 @@
     indicate compromise or a misconfiguration.
   condition: header.container.is_some() 
     AND (
-      payload.filename ENDS_WITH "dockerd" OR
-      payload.filename ENDS_WITH "docker" OR
-      payload.filename ENDS_WITH "kubelet" OR
-      payload.filename ENDS_WITH "kube-proxy" OR
-      payload.filename ENDS_WITH "kubectl" OR
-      payload.filename ENDS_WITH "containerd" OR
-      payload.filename ENDS_WITH "runc" OR
-      payload.filename ENDS_WITH "systemd" OR
-      payload.filename ENDS_WITH "crictl"
+      payload.filename ENDS_WITH "/dockerd" OR
+      payload.filename ENDS_WITH "/docker" OR
+      payload.filename ENDS_WITH "/kubelet" OR
+      payload.filename ENDS_WITH "/kube-proxy" OR
+      payload.filename ENDS_WITH "/kubectl" OR
+      payload.filename ENDS_WITH "/containerd" OR
+      payload.filename ENDS_WITH "/runc" OR
+      payload.filename ENDS_WITH "/systemd" OR
+      payload.filename ENDS_WITH "/crictl"
     )
 
-- name: Privileged Docker Container Creation
+- name: SSH Process Launched Inside A Container
   type: Exec
-  category: privilege_escalation
+  category: lateral_movement
   severity: medium
-  description: Detects Docker container launches with the --privileged flag, which can allow attackers to escalate privileges or escape containers.
-  condition: header.container.is_some() AND
-    payload.filename ENDS_WITH "/docker" AND
-    payload.argv CONTAINS "run" AND
-    payload.argv CONTAINS "--privileged"
+  description: Detects the execution of SSH processes inside a container. Attackers may use SSH to establish remote access to 
+    compromised systems, allowing them to move laterally within the environment. With valid credentials an attacker may move laterally 
+    to other containers or to the underlying host through container breakout.
+  condition: header.container.is_some() 
+    AND (
+      payload.filename ENDS_WITH "/ssh" OR
+      payload.filename ENDS_WITH "/sshd" OR
+      payload.filename ENDS_WITH "/autossh"
+    ) 
 
 - name: Mount Launched Inside a Container
   type: Exec
   category: privilege_escalation
   severity: medium
-  description: Detects the use of the mount utility from inside a container. The mount command is used to make a
-    device or file system accessible to the system, and then to connect its root directory to a specified mount point on the
-    local file system. When launched inside a privileged container an attacker can access sensitive host level files which could be used for further privilege escalation
-    and container escapes to the host machine. Any usage of mount inside a running privileged container should be further investigated.
+  description: Detects the use of the mount utility from inside a container. When launched inside a privileged container 
+    an attacker can access sensitive host level files which could be used for further privilege escalation and container escapes to the host machine.
   condition: header.container.is_some() AND
     payload.filename ENDS_WITH "mount"

@@ -9,7 +9,7 @@
 - name: Rename with suspicious pattern
   type: FileRename
   category: defense_evasion
-  severity: medium
+  severity: low
   description: Detects the renaming of files or directories with a suspicious pattern that may indicate an attempt to hide files or 
     directories. Adversaries may use this technique to hide files or directories on the system for persistence and defense evasion.
   condition: NOT header.image IN [
@@ -22,4 +22,3 @@
     (payload.source STARTS_WITH "/tmp" OR payload.source STARTS_WITH "/var/tmp" OR payload.source STARTS_WITH "/dev/shm")
     AND 
     (payload.destination STARTS_WITH "/tmp/." OR payload.destination STARTS_WITH "/var/tmp/." OR payload.destination STARTS_WITH "/dev/shm/.")
-    

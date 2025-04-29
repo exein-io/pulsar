@@ -6,11 +6,25 @@
 
 # MITRE ATT&CK Technique: T1518 - Software Discovery - https://attack.mitre.org/techniques/T1518/
 
-# elastic: and not process.parent.executable == "/usr/share/qemu/init/qemu-kvm-init"
 - name: Search for virtual machine files
   type: Exec
   category: discovery
-  severity: medium
+  severity: low
   description: Detects the execution of the 'grep', 'egrep', or 'pgrep' process with arguments related to virtual machine (VM) files. 
     Adversaries may use this technique to search for, analyze, or manipulate VM files on the system.
-  condition: (payload.filename IN ["/usr/bin/grep", "/usr/bin/egrep", "/usr/bin/pgrep"]) AND (payload.argv CONTAINS "vmdk" OR payload.argv CONTAINS "vmx" OR payload.argv CONTAINS "vmxf" OR payload.argv CONTAINS "vmsd" OR payload.argv CONTAINS "vmsn" OR payload.argv CONTAINS "vswp" OR payload.argv CONTAINS "vmss" OR payload.argv CONTAINS "nvram" OR payload.argv CONTAINS "vmem")
+  condition: (
+      payload.filename STARTS_WITH "/usr/bin/grep" OR 
+      payload.filename STARTS_WITH "/usr/bin/egrep" OR 
+      payload.filename STARTS_WITH "/usr/bin/pgrep"
+    )
+    AND (
+      payload.argv CONTAINS "vmdk" OR 
+      payload.argv CONTAINS "vmx" OR 
+      payload.argv CONTAINS "vmxf" OR 
+      payload.argv CONTAINS "vmsd" OR 
+      payload.argv CONTAINS "vmsn" OR 
+      payload.argv CONTAINS "vswp" OR 
+      payload.argv CONTAINS "vmss" OR 
+      payload.argv CONTAINS "nvram" OR 
+      payload.argv CONTAINS "vmem"
+    )

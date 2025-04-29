@@ -1,4 +1,4 @@
-# Title: Loadable Kernel Module Configuration File Creation
+# Title: User Added to Privileged Group
 
 # Creation date: 2025/04/14
 
@@ -6,22 +6,21 @@
 
 # MITRE ATT&CK Technique: T1547 - Boot or Logon Autostart Execution - https://attack.mitre.org/techniques/T1547/
 
-- name: Linux User Added to Privileged Group
+- name: User Added to Privileged Group
   type: Exec
   category: persistence
   severity: low
-  description: Detects attempts to add a user to a privileged group. Attackers may add users to a privileged group in order to
-    establish persistence on a system.
-  condition: payload.filename ENDS_WITH "usermod"
-      OR payload.filename ENDS_WITH "adduser"
-      OR (
-        payload.filename ENDS_WITH "gpasswd" AND (
-          payload.argv CONTAINS "-a"
-          OR payload.argv CONTAINS "--add"
-          OR payload.argv CONTAINS "-M"
-          OR payload.argv CONTAINS "--members"
-        )
+  description: Detects attempts to add a user to a privileged group using commands like usermod, adduser, or gpasswd.
+    Adversaries may add a user to a privileged group (e.g., root, sudo, admin) to gain elevated access and maintain persistence on the system.
+  condition: (payload.filename ENDS_WITH "usermod" OR payload.filename ENDS_WITH "adduser")
+    OR (payload.filename ENDS_WITH "gpasswd" 
+      AND (
+        payload.argv CONTAINS "-a"
+        OR payload.argv CONTAINS "--add"
+        OR payload.argv CONTAINS "-M"
+        OR payload.argv CONTAINS "--members"
       )
+    )
     AND (
       payload.argv CONTAINS "root"
       OR payload.argv CONTAINS "admin"

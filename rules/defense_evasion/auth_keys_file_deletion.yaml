@@ -12,7 +12,7 @@
   severity: low
   description: Detects the deletion of the authorized_keys or authorized_keys2 files on Linux systems. These files are used to store public keys for SSH authentication. 
     Adversaries may delete those files for removing access to the system, and may be a precursor to further malicious activity.
-  condition: (payload.filename ENDS_WITH "authorized_keys" OR payload.filename ENDS_WITH "authorized_keys2") AND
-    (header.image IN ["/usr/bin/google_guest_agent", "/usr/bin/dockerd", "/bin/dockerd", "/usr/bin/containerd"] OR
+  condition: (payload.filename ENDS_WITH "authorized_keys" OR payload.filename ENDS_WITH "authorized_keys2") 
+    AND NOT (header.image IN ["/usr/bin/google_guest_agent", "/usr/bin/dockerd", "/bin/dockerd", "/usr/bin/containerd"] OR
       header.image STARTS_WITH "/nix/store/"
     )

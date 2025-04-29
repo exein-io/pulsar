@@ -10,8 +10,10 @@
   type: FileCreated
   category: persistence
   severity: medium
-  description: Detects the creation of or modification to GRUB configuration files. This may indicate attempts to modify the bootloader for persistence.
-  condition: 
+  description: Detects the creation or modification of GRUB configuration files that define boot behavior. 
+    Unauthorized changes to these files can allow attackers to hijack the boot process or gain persistence. 
+    Adversaries may alter GRUB settings to execute malicious payloads before the operating system fully loads.
+  condition: (
     payload.filename STARTS_WITH "/etc/default/grub.d/" OR
     payload.filename STARTS_WITH "/etc/default/grub" OR
     payload.filename STARTS_WITH "/etc/grub.d/" OR
@@ -19,7 +21,7 @@
     payload.filename STARTS_WITH "/boot/grub/grub.cfg" OR
     payload.filename STARTS_WITH "/boot/efi/EFI//grub.cfg" OR
     payload.filename STARTS_WITH "/etc/sysconfig/grub"
-    AND NOT (
+    ) AND NOT (
       header.image IN [
         "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
         "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",

@@ -12,9 +12,8 @@
   severity: low
   description: Detects kernel seeking activity through several built-in Linux utilities. Attackers may use these utilities
     to search the Linux kernel for available symbols, functions, and other information that can be used to exploit the kernel.
-  condition: payload.filename STARTS_WITH "/boot/" OR payload.filename STARTS_WITH "/boot" AND
-    (
-      header.image ENDS_WITH "tail" OR header.image ENDS_WITH "cmp" OR header.image ENDS_WITH "hexdump" OR header.image ENDS_WITH "xxd" OR
-      header.image ENDS_WITH "dd"
+  condition: (payload.filename STARTS_WITH "/boot/" OR payload.filename STARTS_WITH "/proc/kallsyms")
+    AND (
+      header.image ENDS_WITH "tail" OR header.image ENDS_WITH "cmp" OR header.image ENDS_WITH "hexdump" OR
+      header.image ENDS_WITH "xxd" OR header.image ENDS_WITH "dd"
     )
-    

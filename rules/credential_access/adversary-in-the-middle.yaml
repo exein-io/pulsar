@@ -1,4 +1,4 @@
-# Title:
+# Title: DHCP Network Manipulation and Attack Detection
 
 # Creation Date: 2025/04/10
 
@@ -6,44 +6,30 @@
 
 # MITRE ATT&CK Technique: T1580 - Adversary-in-the-middle - https://attack.mitre.org/techniques/T1557/002/
 
-#(payload.destination.ip STARTS_WITH 169,254 AND payload.destination.port == 0)
-- name: ARP Cache Poisoning Detection
-  type: Connect
-  category: credential_access
-  severity: high
-  description: Detects potential ARP cache poisoning attempts where an adversary may position themselves between the communication of networked devices. This is a technique used for man-in-the-middle attacks to enable network sniffing or data manipulation.
-  condition: payload.is_tcp == "false"
-    AND (
-      header.image ENDS_WITH "arpspoof" 
-      OR header.image ENDS_WITH "ettercap" 
-      OR header.image ENDS_WITH "dsniff"
-    )
-
-# review the last 3 rules
-
-
-# DHCP Client Suspicious Usage
-- name: Suspicious DHCP Client Activity
-  type: Exec
-  category: discovery
+- name: DHCP Network Discover
+  type: Send
+  category: impact
   severity: low
-  description: Detects suspicious usage of DHCP and DNS client tools that might indicate reconnaissance before DHCP/DNS spoo>
-  condition: (
-    (payload.filename ENDS_WITH "dhclient" AND (
-      payload.argv CONTAINS "-r" OR
-      payload.argv CONTAINS "-x" OR
-      payload.argv CONTAINS "--release"
-    )) OR
-    (payload.filename ENDS_WITH "nslookup" AND payload.argv CONTAINS "dhcp") OR
-    (payload.argv CONTAINS "-i" AND payload.argv CONTAINS "dhcp")
-    ) AND NOT header.uid == 0
+  description: Detects DHCP starvation attempts by monitoring excessive DISCOVER packets to broadcast addresses. 
+    Adversaries may exhaust the IP address pool by rapidly requesting many leases using spoofed MAC addresses.
+  condition: payload.is_tcp == "false" AND
+    (payload.destination.port == 67 OR payload.destination.port == 547) AND
+    payload.len <= 400 AND
+    payload.destination.ip IN ["255.255.255.255"] 
+    AND NOT header.image IN [
+      "/usr/sbin/dhcpd",
+      "/usr/sbin/dnsmasq", 
+      "/usr/sbin/dhclient",
+      "/usr/sbin/NetworkManager"
+    ]
 
 # DHCP Server Spoofing Detection
 - name: Unauthorized DHCP Server
   type: Bind
   category: credential_access
   severity: medium
-  description: Detects potential DHCP spoofing attempts. Adversaries may act as a malicious DHCP server to redirect network traffic to adversary-owned systems, facilitating credential theft or network traffic manipulation.
+  description: Detects processes binding to DHCP server ports, which may indicate rogue DHCP services. 
+    Adversaries may run malicious DHCP servers to redirect victim network traffic, leading to attacks like man-in-the-middle (MITM) or traffic interception.
   condition: payload.is_tcp == "false" AND 
       (payload.address.port == 67 OR payload.address.port == 68 OR payload.address.port == 546 OR payload.address.port == 547)
     AND NOT header.image IN [
@@ -52,23 +38,9 @@
       "/usr/bin/networkd",
       "/usr/sbin/isc-dhcp-server",
       "/usr/sbin/dhclient",
-      "/usr/sbin/NetworkManager"
-    ]
-
-# DHCP Exhaustion and Network Attacks
-- name: DHCP Network Attack
-  type: Send
-  category: impact
-  severity: high
-  description: Detects potential DHCP attacks including exhaustion attacks where an adversary may generate many broadcast DISCOVER messages to exhaust a network's DHCP allocation pool.
-  condition: payload.is_tcp == "false" AND
-    (payload.destination.port == 67 OR payload.destination.port == 547) AND
-    payload.len <= 400 AND
-    payload.destination.ip IN ["255.255.255.255"] AND
-    NOT header.image IN [
-      "/usr/sbin/dhcpd",
-      "/usr/sbin/dnsmasq", 
-      "/usr/sbin/dhclient"
+      "/usr/sbin/NetworkManager",
+      "/usr/sbin/systemd-networkd",
+      "/usr/lib/systemd/systemd-networkd"
     ]
 
 # DHCP Attack Tools Detection
@@ -76,7 +48,7 @@
   type: Exec
   category: credential_access
   severity: high
-  description: Detects execution of known DHCP spoofing tools, suspicious command line arguments, or unusual DHCP client beh>
+  description: Detects execution of known DHCP spoofing tools or suspicious command-line arguments that suggest malicious intent.
   condition: 
     payload.filename ENDS_WITH "ettercap" OR 
     payload.filename ENDS_WITH "bettercap" OR
@@ -91,61 +63,3 @@
       payload.argv CONTAINS "-dhcp" OR
       payload.argv CONTAINS "--dhcp-spoof"
     ))
-
-# DHCP Exploitation Detection (CVE-2018-1111)
-- name: DHCP Exploitation
-  type: Exec
-  category: execution
-  severity: critical
-  description: Detects potential exploitation of DHCP vulnerabilities including command injection via NetworkManager DHCP sc>
-  condition: (
-    header.image == "/usr/libexec/nm-dhcp-helper" OR
-    header.image == "/etc/NetworkManager/dispatcher.d/11-dhclient" OR
-    ((header.image == "/bin/sh" OR header.image == "/bin/bash" OR header.image == "/usr/bin/bash") AND
-    (payload.argv CONTAINS "eval" AND payload.argv CONTAINS "DHCP4_WPAD"))
-    )
-    AND NOT header.image == "/usr/libexec/nm-dispatcher"
-
-# Post-DHCP Configuration Changes
-- name: Suspicious Post-DHCP Changes
-  type: FileOpened
-  category: credential_access
-  severity: medium
-  description: Detects suspicious changes to DNS or network configuration files that could indicate successful DHCP spoofing>
-  condition: (
-    (payload.filename IN ["/etc/resolv.conf", "/etc/hosts"] OR
-    payload.filename STARTS_WITH "/etc/NetworkManager/" OR
-    payload.filename STARTS_WITH "/etc/sysconfig/network") AND
-    (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_TRUNC") AND
-    NOT header.image IN [
-      "/usr/lib64/firefox/firefox",
-      "/usr/sbin/dhcpd",
-      "/usr/sbin/dnsmasq",
-      "/usr/bin/networkd",
-      "/usr/sbin/dhclient",
-      "/usr/sbin/NetworkManager"
-    ]
-    )
-
-# Suspicious Activity by DHCP Processes
-- name: DHCP Process Anomalous Activity
-  type: FileCreated
-  category: execution
-  severity: high
-  description: Detects suspicious file creation or access by DHCP-related processes that might indicate command injection or>
-  condition: (
-    header.image ENDS_WITH "dhclient" OR
-    header.image ENDS_WITH "NetworkManager" OR
-    header.image ENDS_WITH "nm-dispatcher" OR
-    header.image ENDS_WITH "nm-dhcp-helper"
-    ) AND NOT (
-    payload.filename STARTS_WITH "/etc/NetworkManager" OR
-    payload.filename STARTS_WITH "/var/lib/NetworkManager" OR
-    payload.filename STARTS_WITH "/var/run/NetworkManager" OR
-    payload.filename STARTS_WITH "/var/lib/dhcp" OR
-    payload.filename STARTS_WITH "/run/NetworkManager" OR
-    payload.filename == "/etc/resolv.conf" OR
-    payload.filename == "/etc/hosts" OR
-    payload.filename STARTS_WITH "/proc/" OR
-    payload.filename STARTS_WITH "/sys/"
-    )

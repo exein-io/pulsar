@@ -13,6 +13,5 @@
   description: Detects the execution of the systemd-run command by a user with a UID that is larger than the maximum
     allowed UID size (INT_MAX). Some older Linux versions were affected by a bug which allows user accounts with a UID
     greater than INT_MAX to escalate privileges by spawning a shell through systemd-run.
-  condition: payload.filename ENDS_WITH "systemd-run" AND
-    payload.argv CONTAINS "-L" AND payload.argc >= 3 AND
+  condition: payload.filename ENDS_WITH "systemd-run" AND payload.argv CONTAINS "-L" AND payload.argc >= 3 AND
     header.uid >= 1000000000

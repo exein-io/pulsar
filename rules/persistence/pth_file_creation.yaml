@@ -10,21 +10,13 @@
   type: FileCreated
   category: persistence
   severity: low
-  description: detects the creation of .pth files in system-wide and user-specific Python package
-    directories, which can be abused for persistent code execution. .pth files automatically
-    execute Python code when the interpreter starts, making them a stealthy persistence mechanism.
-    Monitoring these paths helps identify unauthorized modifications that could indicate
-    persistence by an attacker or malicious package injection.
+  description: Detects the creation of .pth files in Python package directories. .pth files are used by Python to add directories to its module search path.
+    Adversaries may use this technique to achieve persistence by injecting malicious code that gets executed every time the Python interpreter starts.
   condition: payload.filename ENDS_WITH "pth"
     AND (
-      payload.filename STARTS_WITH "/usr/local/lib/python2/dist-packages/" OR
-      payload.filename STARTS_WITH "/usr/lib/python2/dist-packages/" OR
-      payload.filename STARTS_WITH "/usr/local/lib/python3/dist-packages/" OR
-      payload.filename STARTS_WITH "/usr/lib/python3/dist-packages/" OR
-      payload.filename STARTS_WITH "/usr/local/lib/python/site-packages/" OR
-      payload.filename STARTS_WITH "/usr/lib/python/site-packages/" OR
-      payload.filename ENDS_WITH "/lib/python/site-packages/" OR
-      payload.filename ENDS_WITH "/lib/python/site-packages/"
+      payload.filename STARTS_WITH "/usr/local/lib/python" OR
+      payload.filename STARTS_WITH "/usr/lib/python" OR
+      payload.filename STARTS_WITH "/lib/python" 
     )
     AND NOT (
       header.image IN ["pip", "restic", "pacman", "dockerd", "poetry", "pamac-daemon", "dnf", "pip3", "pip2"]

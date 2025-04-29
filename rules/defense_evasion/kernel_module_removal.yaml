@@ -6,19 +6,24 @@
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
-# elastic has: process.parent.name in ("sudo", "bash", "dash", "ash", "sh", "tcsh", "csh", "zsh", "ksh", "fish") 
-- name: Remove Linux Kernel Module with rmmod
+- name: Remove Linux Kernel Module
   type: Exec
   category: defense_evasion
   severity: medium
-  description: Detects the execution of the rmmod utility to remove a Linux kernel module. Attackers may attempt to remove a kernel 
-    module to evade detection and avoid possible restrictions on their actions and resources.
-  condition: header.image == "/usr/sbin/rmmod"
-
-- name: Remove Linux Kernel Module with modprobe
-  type: Exec
-  category: defense_evasion
-  severity: medium
-  description: Detects the execution of the modprobe utility with the remove flag to remove a Linux kernel module. Attackers may attempt 
+  description: Detects the execution of utility to remove a Linux kernel module. Attackers may attempt 
     to remove a kernel module to evade detection and avoid possible restrictions on their actions and resources.
-  condition: payload.filename == "/usr/sbin/modprobe" AND (payload.argv CONTAINS "--remove" OR payload.argv CONTAINS "-r")
+  condition: (
+      payload.filename ENDS_WITH "/rmmod" OR 
+      (payload.filename ENDS_WITH "/modprobe" AND (payload.argv CONTAINS "--remove" OR payload.argv CONTAINS "-r"))
+    ) AND (
+      header.image ENDS_WITH "/sudo" OR
+      header.image ENDS_WITH "/bash" OR
+      header.image ENDS_WITH "/dash" OR
+      header.image ENDS_WITH "/ash" OR
+      header.image ENDS_WITH "/sh" OR
+      header.image ENDS_WITH "/tcsh" OR
+      header.image ENDS_WITH "/csh" OR
+      header.image ENDS_WITH "/zsh" OR
+      header.image ENDS_WITH "/ksh" OR
+      header.image ENDS_WITH "/fish"
+    ) 

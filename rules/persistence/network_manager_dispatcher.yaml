@@ -4,17 +4,17 @@
 
 # MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
 
-# MITRE ATT&CK Technique: T1543 - reate or Modify System Process - https://attack.mitre.org/techniques/T1543/
+# MITRE ATT&CK Technique: T1543 - Create or Modify System Process - https://attack.mitre.org/techniques/T1543/
 
 - name: NetworkManager Dispatcher Script Creation
-  type: FileCreated
+  type: FileOpened
   category: persistence
   severity: low
-  description: Detects the creation of a NetworkManager dispatcher script on a Linux system. NetworkManager dispatcher
+  description: Detects the creation of a NetworkManager dispatcher script. NetworkManager dispatcher
     scripts are shell scripts that NetworkManager executes when network interfaces change state. Attackers can abuse
     NetworkManager dispatcher scripts to maintain persistence on a system by executing malicious code whenever a network
     event occurs.
-  condition: payload.filename STARTS_WITH "/etc/NetworkManager/dispatcher.d/"
+  condition: payload.filename STARTS_WITH "/etc/NetworkManager/dispatcher.d/" AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_CREAT")
     AND NOT (
       header.image IN [
         "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
@@ -40,5 +40,5 @@
       payload.filename ENDS_WITH ".swpx" OR
       payload.filename ENDS_WITH ".swx" OR
       payload.filename ENDS_WITH ".dpkg-remove" OR
-      (header.image ENDS_WITH "/sed" AND payload.filename STARTS_WITH "sed")
+      (header.image ENDS_WITH "/sed" AND payload.filename ENDS_WITH "sed")
     )

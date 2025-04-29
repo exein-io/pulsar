@@ -22,4 +22,5 @@
     provides access control security policies. Modifications to the SELinux configuration file may indicate an attempt to
     impair defenses by disabling or modifying security tools.
   condition: payload.filename STARTS_WITH "/etc/selinux/config" 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
     AND NOT header.image IN ["dockerd", "platform-python", "/usr/bin/systemd-tmpfiles", "/usr/bin/systemd/systemd-hostnamed"]

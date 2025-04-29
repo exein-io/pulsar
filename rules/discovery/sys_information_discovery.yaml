@@ -6,49 +6,39 @@
 
 # MITRE ATT&CK Technique: T1082 - System Information Discovery - https://attack.mitre.org/techniques/T1082/
 
-# header.image == process.parent.name ?
 - name: Linux module listing utilities execution
   type: Exec
   category: discovery
   severity: medium
-  description: Loadable Kernel Modules (or LKMs) are pieces of code that can be loaded and unloaded into the kernel upon demand. They
-    extend the functionality of the kernel without the need to reboot the system. This identifies attempts to enumerate
-    information about a kernel module.
+  description: Detects the execution of utilities such as lsmod, modinfo, kmod, and depmod, which are used to list and query kernel modules.
+    LKM extend the functionality of the kernel without the need to reboot the system. Adversaries may use these utilities to gather information about 
+    loaded kernel modules, potentially identifying vulnerable modules for exploitation.
   condition: payload.filename IN ["/usr/bin/lsmod", "/usr/sbin/lsmod", "/usr/bin/modinfo", "/usr/sbin/modinfo", "/usr/bin/kmod", "/usr/bin/depmod", "/usr/sbin/depmod"]
-    AND (NOT payload.argv CONTAINS "--all" OR NOT payload.argv CONTAINS "-a" OR payload.argv CONTAINS "list")
-    AND NOT header.image ENDS_WITH "/mkinitramfs" AND NOT header.image ENDS_WITH "/cryptroot" AND NOT header.image ENDS_WITH "/framebuffer" AND NOT header.image ENDS_WITH "/dracut" 
-    AND NOT header.image ENDS_WITH "/jem" AND NOT header.image ENDS_WITH "/thin-provisioning-tools" AND NOT header.image ENDS_WITH "/readykernel" AND NOT header.image ENDS_WITH "/lvm2" 
-    AND NOT header.image ENDS_WITH "/vz-start" AND NOT header.image ENDS_WITH "/iscsi" AND NOT header.image ENDS_WITH "/mdadm"
-
-- name: Kernel Seeking Activity
-  type: FileOpened
-  category: discovery
-  severity: low
-  description: Detects kernel seeking activity through several built-in Linux utilities. Attackers may use these utilities
-    to search the Linux kernel for available symbols, functions, and other information that can be used to exploit the kernel.
-  condition: payload.filename STARTS_WITH "/boot/" OR payload.filename STARTS_WITH "/boot" AND
-    (
-      header.image ENDS_WITH "tail" OR header.image ENDS_WITH "cmp" OR header.image ENDS_WITH "hexdump" OR header.image ENDS_WITH "xxd" OR
-      header.image ENDS_WITH "dd"
-    )
+      AND (NOT payload.argv CONTAINS "--all" OR NOT payload.argv CONTAINS "-a" OR payload.argv CONTAINS "list")
+      AND NOT header.image ENDS_WITH "/mkinitramfs" AND NOT header.image ENDS_WITH "/cryptroot" AND NOT header.image ENDS_WITH "/framebuffer" AND NOT header.image ENDS_WITH "/dracut" 
+      AND NOT header.image ENDS_WITH "/jem" AND NOT header.image ENDS_WITH "/thin-provisioning-tools" AND NOT header.image ENDS_WITH "/readykernel" AND NOT header.image ENDS_WITH "/lvm2" 
+      AND NOT header.image ENDS_WITH "/vz-start" AND NOT header.image ENDS_WITH "/iscsi" AND NOT header.image ENDS_WITH "/mdadm"
 
 - name: Polkit version discovery
   type: Exec
   category: discovery
   severity: low
-  description: Detects Polkit version discovery activity on Linux systems. Polkit version discovery can be an indication of
-    an attacker attempting to exploit misconfigurations or vulnerabilities in the Polkit service.
+  description: Detects attempts to determine the version of the PolicyKit (polkit) component. Polkit is used to manage privileges for 
+    unprivileged processes interacting with system services. Adversaries often query its version to assess whether the system is vulnerable 
+    to known local privilege escalation exploits.
   condition: (
-    (payload.filename ENDS_WITH "dnf" AND payload.argv CONTAINS "info" AND payload.argv CONTAINS "polkit") OR
-    (payload.filename ENDS_WITH "rpm" AND payload.argv CONTAINS "polkit") OR
-    (payload.filename ENDS_WITH "apt" AND payload.argv CONTAINS "show" AND payload.argv CONTAINS "policykit-1") OR
-    (payload.filename ENDS_WITH "pkaction" AND payload.argv CONTAINS "--version")
+      (payload.filename ENDS_WITH "dnf" AND payload.argv CONTAINS "info" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "rpm" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "apt" AND payload.argv CONTAINS "show" AND payload.argv CONTAINS "policykit-1") OR
+      (payload.filename ENDS_WITH "pacman" AND payload.argv CONTAINS "-Qi" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "zypper" AND payload.argv CONTAINS "info" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "pkaction" AND payload.argv CONTAINS "--version")
     )
     
 - name: VM fingerprinting file read
   type: Exec
   category: discovery
-  severity: high
+  severity: medium
   description: Detects read access to known files used for virtual machine fingerprinting, such as product and BIOS information, by non-root users. 
     Adversary may attempt to get detailed information about the operating system and hardware. 
     This behavior has been observed in malware like Pupy RAT and may indicate system reconnaissance.

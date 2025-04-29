@@ -10,10 +10,8 @@
   type: FileCreated
   category: persistence
   severity: low
-  description: Detects the creation of D-Bus service files on Linux systems. -Bus services are defined in service files that are typically located in
-    default directories. The rule looks for the creation of service files that are not associated with known package
-    managers or system services. Attackers may create malicious D-Bus services to establish persistence or escalate
-    privileges on a system.
+  description: Detects the creation of D-Bus service files on Linux systems. D-Bus services are defined in service files that are typically located in
+    default directories. Attackers may create malicious D-Bus services to establish persistence or escalate privileges on a system.
   condition: header.image != "" 
     AND (payload.filename ENDS_WITH"service" OR payload.filename ENDS_WITH "conf") 
     AND (payload.filename STARTS_WITH "/usr/share/dbus-1/system-services/" OR

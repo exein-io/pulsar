@@ -24,4 +24,3 @@
       OR (payload.filename STARTS_WITH "/usr/lib/systemd/systemd-nsresourced")
       OR (payload.filename STARTS_WITH "/usr/lib/systemd/systemd-userdbds")
     )
-    

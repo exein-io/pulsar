@@ -12,21 +12,15 @@
   severity: medium
   description: Detects the execution of the 'find' or 'grep' process with arguments related to private keys or passwords. Adversaries may use 
     this technique to search for, analyze, or manipulate private keys or passwords on the system.
-  condition: (
-    payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "id_rsa" OR payload.argv CONTAINS "id_dsa")
-    ) OR (
-      payload.filename ENDS_WITH "grep" AND (
+  condition: (payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "id_rsa" OR payload.argv CONTAINS "id_dsa")) 
+    OR (payload.filename ENDS_WITH "grep" 
+      AND (
         payload.argv CONTAINS "BEGIN PRIVATE"
-          OR payload.argv CONTAINS "BEGIN RSA PRIVATE"
-          OR payload.argv CONTAINS "BEGIN DSA PRIVATE"
-          OR payload.argv CONTAINS "BEGIN EC PRIVATE"
+        OR payload.argv CONTAINS "BEGIN RSA PRIVATE"
+        OR payload.argv CONTAINS "BEGIN DSA PRIVATE"
+        OR payload.argv CONTAINS "BEGIN EC PRIVATE"
       )
     )
-
-
-# Title: Recursive Credential Harvesting via Grep
-
-# Creation date: 2025/04/17
 
 - name: Grep recursive password search
   type: Exec
@@ -36,3 +30,27 @@
   condition: (header.image ENDS_WITH "grep" OR payload.filename ENDS_WITH "grep")
     AND payload.argv CONTAINS "-r"
     AND payload.argv CONTAINS "password"
+
+# Useful?
+- name: Suspicious Credential or Key File Access
+  type: FileOpened
+  category: credential_access
+  severity: low
+  description: Detects access to files potentially containing credentials or private keys using basic inspection tools. 
+    Adversaries may use commands like `cat`, `less`, or `strings` to extract sensitive data from .pem, .key, .crt, or config files during post-compromise activity.
+  condition: (
+    header.image ENDS_WITH "cat" OR
+    header.image ENDS_WITH "less" OR
+    header.image ENDS_WITH "more" OR
+    header.image ENDS_WITH "strings" OR
+    header.image ENDS_WITH "grep"
+    ) AND (
+      payload.filename CONTAINS ".pem" OR
+      payload.filename CONTAINS ".key" OR
+      payload.filename CONTAINS ".crt" OR
+      payload.filename CONTAINS "password=" OR
+      payload.filename CONTAINS "pass:" OR
+      payload.filename CONTAINS "pwd" OR
+      payload.filename CONTAINS "BEGIN PRIVATE" OR
+      payload.filename CONTAINS "PRIVATE KEY"
+    )

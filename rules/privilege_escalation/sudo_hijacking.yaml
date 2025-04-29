@@ -6,12 +6,12 @@
 
 # MITRE ATT&CK Technique T1574 - Hijack Execution Flow - https://attack.mitre.ORg/techniques/T1574/
 
-
 - name: Potential Sudo Hijacking
   type: FileRename
   category: privilege_escalation
   severity: medium
-  description: Detects creation or renaming of the sudo binary outside of expected package managers OR installers.
+  description: Detects suspicious renaming of the sudo binary outside of expected package managers or installers.
+    Adversaries may replace or hijack the sudo binary to execute malicious code with elevated privileges and maintain persistence
   condition: (payload.destination == "/usr/bin/sudo" OR payload.destination == "/bin/sudo")
     AND NOT (
       payload.source == "/usr/bin/sudo" OR
@@ -22,7 +22,7 @@
         "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic", "/bin/pacman", "/usr/bin/pacman",
         "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk", "/usr/local/sbin/apk", "/usr/bin/apt",
         "/usr/sbin/pacman", "/usr/bin/microdnf", "/usr/local/bin/dockerd", "/usr/local/bin/podman", "/usr/local/bin/dnf",
-        "/kaniko/executOR", "/proc/self/exe", "/usr/bin/apt-get", "/usr/bin/apt-cache", "/usr/bin/apt-mark"
+        "/kaniko/executor", "/proc/self/exe", "/usr/bin/apt-get", "/usr/bin/apt-cache", "/usr/bin/apt-mark"
       ] OR
       payload.source ENDS_WITH ".dpkg-new" OR
       header.image STARTS_WITH "/nix/store/" OR
@@ -35,12 +35,12 @@
       (header.image ENDS_WITH "/sed" AND payload.destination STARTS_WITH "sed")
     )
 
-
 - name: Potential Sudo Hijacking (Created)
   type: FileCreated
   category: privilege_escalation
   severity: medium
-  description: Detects creation of the sudo binary outside of expected package managers or installers.
+  description: Detects suspicious creation of the sudo binary outside of expected package managers or installers.
+    Adversaries may replace or hijack the sudo binary to execute malicious code with elevated privileges and maintain persistence
   condition: (payload.filename == "/usr/bin/sudo" OR payload.filename == "/bin/sudo")
     AND NOT (
       header.image IN [
@@ -61,4 +61,3 @@
       header.image == "" OR
       (header.image ENDS_WITH "/sed" AND payload.filename STARTS_WITH "sed")
     )
-

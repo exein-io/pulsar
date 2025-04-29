@@ -6,7 +6,6 @@
 
 # MITRE ATT&CK Technique: T1560 - Archive via Utility - https://attack.mitre.org/techniques/T1560/001/
 
-# Missing the folders under /home/user/
 - name: Sensitive file compression
   type: Exec
   category: credential_access
@@ -26,7 +25,7 @@
       OR payload.argv CONTAINS "/root/.aws/credentials"
       OR payload.argv CONTAINS "/root/.aws/config"
       OR payload.argv CONTAINS "/root/.docker/config"
-      OR payload.argv CONTAINS "/etc/hosts/"
+      OR payload.argv CONTAINS "/etc/hosts"
       OR payload.argv CONTAINS "/etc/group"
       OR payload.argv CONTAINS "/etc/passwd"
       OR payload.argv CONTAINS "/etc/shadow"

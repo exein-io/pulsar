@@ -11,4 +11,4 @@
   category: persistence
   severity: high
   description: Detects modifications to SSH keys and related files. Adversaries may create or modify files below /.ssh to gain persistent access to a system.
-  condition: payload.filename CONTAINS ".ssh/" AND payload.flags CONTAINS "O_WRONLY"
+  condition: payload.filename CONTAINS ".ssh/" AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")

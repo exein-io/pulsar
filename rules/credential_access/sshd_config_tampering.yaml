@@ -11,9 +11,5 @@
   category: credential_access
   severity: high
   description: Detects changes to /etc/ssh/sshd_config, which may indicate attempts to bypass authentication controls or enable unauthorized access.
-  condition: payload.filename STARTS_WITH "/etc/ssh/sshd_config" AND payload.flags CONTAINS "O_WRONLY"
-
-
-
-
-
+  condition: payload.filename STARTS_WITH "/etc/ssh/sshd_config" 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")

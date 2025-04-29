@@ -11,9 +11,8 @@
   category: defense_evasion
   severity: low
   description: Detects the creation of files in the /var/log/ directory via process executables located in
-    world-writeable locations or via hidden processes. Attackers may attempt to hide their activities by
-    creating files in the /var/log/ directory, which is commonly used for logging system events. This rule
-    specifically targets files without common extension, which may be used to evade standard log rotation tools.
+    world-writeable locations or via hidden processes, and without common extension. Attackers may attempt to hide their activities by
+    creating files in the /var/log/ directory, which is commonly used for logging system events.
   condition: payload.filename STARTS_WITH "/var/log/"
     AND (
       header.image STARTS_WITH "/tmp/" OR header.image STARTS_WITH "/var/tmp" OR 
@@ -26,5 +25,6 @@
       payload.filename ENDS_WITH ".old" OR
       payload.filename ENDS_WITH ".1" OR
       payload.filename ENDS_WITH ".bak" OR
-      payload.filename ENDS_WITH ".xz"
+      payload.filename ENDS_WITH ".xz" OR
+      payload.filename ENDS_WITH ".journal"
     )

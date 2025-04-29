@@ -1,0 +1,23 @@
+# Title: Kernel Logging Evasion via sysctl
+
+# Creation date: 2025/04/11
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
+
+- name: Detecting sysctl disabling kernel log
+  type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of sysctl with flags that disable kernel logging. Attackers may use this to impair defenses by silencing kernel logs.
+  condition: (payload.filename STARTS_WITH "/sbin/sysctl" OR payload.filename STARTS_WITH "/usr/sbin/sysctl") 
+    AND (payload.argv CONTAINS "kernel.printk=0")
+
+- name: Detecting sysctl configuration file modification
+  type: FileOpened
+  category: defense_evasion
+  severity: medium
+  description: Monitors file events on sysctl configuration files. Attackers may tamper the sysctl configuration files to modify kernel parameters, potentially compromising system stability, performance, or security.
+  condition: (payload.filename STARTS_WITH "/etc/sysctl.conf" OR payload.filename STARTS_WITH "/etc/sysctl.d")
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_CREAT")

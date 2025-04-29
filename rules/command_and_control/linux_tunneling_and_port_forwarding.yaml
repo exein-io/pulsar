@@ -111,14 +111,52 @@
   description: This rule monitors for the execution of various tunneling tools. Attackers can exploit these utilities to bypass network 
     defenses, establish hidden communication channels, and gain unauthorized access to internal resources, potentially facilitating data 
     exfiltration, lateral movement, and remote control.
-  condition:
+  condition: (
     payload.filename ENDS_WITH "iodine" OR payload.filename ENDS_WITH "iodined" OR payload.filename ENDS_WITH "dnscat" 
     OR payload.filename ENDS_WITH "hans" OR payload.filename ENDS_WITH "hans-ubuntu" OR payload.filename ENDS_WITH "ptunnel-ng" 
     OR payload.filename ENDS_WITH "ssf" OR payload.filename ENDS_WITH "3proxy" OR payload.filename ENDS_WITH "ngrok"
-    OR payload.filename ENDS_WITH "dnscat2" OR payload.filename ENDS_WITH "dns2tcp" OR payload.filename ENDS_WITH "dnstt"
+    OR payload.filename ENDS_WITH "dns2tcpc" OR payload.filename ENDS_WITH "dnstt-server" OR payload.filename ENDS_WITH "dnstt-client"
+    ) AND (
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
+    )
+
+- name: dnscat2 Ruby execution
+  type: Exec
+  category: command_and_control
+  severity: high
+  description: This rule detects the execution of Ruby with the dnscat2.rb script, commonly used for DNS tunneling C2.
+  condition: header.image ENDS_WITH "ruby" AND payload.argv CONTAINS "./dnscat2.rb"
+
+
+- name: Dante SOCKS server execution
+  type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Dante SOCKS server. Dante is a SOCKS server implementation that 
+    can be used to create proxy servers. Attackers can exploit Dante to establish proxy infrastructure for anonymizing 
+    connections, bypassing network restrictions, and facilitating lateral movement within compromised networks.
+  condition: 
+    (payload.filename ENDS_WITH "/sockd" OR payload.filename ENDS_WITH "dante-server")
     AND (
     header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
     OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
     OR header.image ENDS_WITH "fish"
     )
 
+- name: Redsocks transparent proxy execution
+  type: Exec
+  category: command_and_control
+  severity: medium
+  description: This rule monitors for the execution of Redsocks. Redsocks is a transparent proxy redirector that works with 
+    iptables to transparently redirect TCP connections through SOCKS or HTTPS proxies. Attackers can use Redsocks to bypass 
+    network restrictions and redirect traffic through proxy infrastructure, potentially enabling unauthorized access to 
+    resources and facilitating data exfiltration.
+  condition:
+    payload.filename ENDS_WITH "redsocks" 
+    AND (
+    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
+    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
+    OR header.image ENDS_WITH "fish"
+    )

@@ -5,12 +5,18 @@
 # MITRE ATT&CK Tactic: TA0005- Defense Evasion - https://attack.mitre.org/tactics/TA0005/
 
 # MITRE ATT&CK Technique: T1485 - Data Destruction - https://attack.mitre.org/techniques/T1485/
-#  payload.filename STARTS_WITH "/etc/ssl/certs/" 
+
 - name: SSL Certificate deletion
   type: FileDeleted
   category: defense_evasion
   severity: low
   description: Detects the deletion of SSL certificates on a Linux system. Adversaries may delete SSL certificates to subvert
     trust controls and negatively impact the system.
-  condition: payload.filename STARTS_WITH "/etc/" AND (payload.filename ENDS_WITH ".pem" OR payload.filename ENDS_WITH ".crt")
+  condition: (payload.filename STARTS_WITH "/etc/" OR payload.filename STARTS_WITH "/usr/local/share/ca-certificate")
+    AND (
+      payload.filename ENDS_WITH ".pem" OR payload.filename ENDS_WITH ".crt" OR
+      payload.filename ENDS_WITH ".cer" OR payload.filename ENDS_WITH ".ca-bundle" OR
+      payload.filename ENDS_WITH ".p7b" OR payload.filename ENDS_WITH ".p7c" OR
+      payload.filename ENDS_WITH ".p7s"
+      )
     AND NOT header.image IN ["dockerd", "pacman"]

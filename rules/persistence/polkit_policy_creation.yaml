@@ -10,7 +10,8 @@
   type: FileCreated
   category: persistence
   severity: low
-  description: Detect creation of Polkit rule files, pkla files, and action files which can be modified for malicious purposes.
+  description: Detects the creation of Polkit rule files, .pkla files, or action files. Polkit is used to define policies for controlling system-wide privileges.
+    Adversaries may use this technique to gain administrative privileges for specific commands, allowing execution of privileged operations without the need for administrator intervention
   condition: (payload.filename ENDS_WITH "rules" OR payload.filename ENDS_WITH "pkla" OR payload.filename ENDS_WITH "policy")
     AND (
       payload.filename STARTS_WITH "/etc/polkit-1/rules.d/" OR

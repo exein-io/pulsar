@@ -6,11 +6,11 @@
 
 # MITRE ATT&CK Technique: T1110.004 - Credential Stuffing - https://attack.mitre.org/techniques/T1110/004/
 
-- name: SSH Brute-force using sshpass and username:password file
+- name: SSH Brute-force attempt
   type: Exec
   category: credential_access
   severity: medium
   description: Detects usage of sshpass in loops with credential files to brute-force SSH access, typically indicative of credential stuffing or lateral movement testing.
-  condition: (header.image ENDS_WITH "sshpass")
-    AND (payload.argv CONTAINS "ssh")
-    AND (payload.argv CONTAINS "-p")
+  condition: (header.image ENDS_WITH "sshpass" AND payload.argv CONTAINS "ssh" AND payload.argv CONTAINS "-p")
+    OR (payload.filename ENDS_WITH "/hydra" AND payload.argv CONTAINS "-P")
+

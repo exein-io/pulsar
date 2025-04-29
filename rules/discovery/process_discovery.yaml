@@ -12,6 +12,5 @@
   severity: low
   description: Detects recursive process capability enumeration of the entire filesystem through the getcap command. 
     Adversaries may manipulate identified capabilities to gain root privileges.
-  condition: payload.filename ENDS_WITH "getcap" AND payload.argv CONTAINS "-r" AND payload.argv CONTAINS "/" AND payload.argc == 3
+  condition: payload.filename ENDS_WITH "getcap" AND payload.argv CONTAINS "-r"
     AND header.uid != 0
-

@@ -1,4 +1,4 @@
-# Title: Potential Linux Backdoor User Account Creation"
+# Title: Potential Linux Backdoor User Account Creation
 
 # Creation date: 2025/04/14
 
@@ -6,15 +6,21 @@
 
 # MITRE ATT&CK Technique: T1536 - Create Account - https://attack.mitre.org/techniques/T1136/
 
-- name: Potential Linux Backdoor User Account Creation
+- name: Usermod backdoor account creation
   type: Exec
   category: persistence
   severity: medium
-  description: Detects the attempt to create a new backdoor user by setting the user's UID to 0. Attackers may alter a user's UID to
-    0 to establish persistence on a system.
-  condition: payload.filename ENDS_WITH "usermod"
-    AND (
-      payload.argv CONTAINS "-u" OR
-      payload.argv CONTAINS "0" OR
-      payload.argv CONTAINS "-o"
-    )
+  description: Detects the creation of a backdoor user account by modifying/creating a user's UID to 0, effectively granting root privileges. 
+    Adversaries may use this method to establish persistent and covert access to a compromised system.
+  condition: (payload.filename ENDS_WITH "usermod" OR payload.filename ENDS_WITH "useradd")
+    AND payload.argv CONTAINS "-u" AND payload.argv CONTAINS "0"
+
+- name: Modification of /etc/passwd for root backdoor
+  type: FileOpened
+  category: persistence
+  severity: medium
+  description: Detects unauthorized opening of `/etc/passwd` with write permissions, which may be used to create a root-level backdoor account. 
+    Adversaries may modify this file directly to inject entries with UID 0 and bypass standard user management tools.
+  condition: payload.filename ENDS_WITH "/etc/passwd"
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND NOT header.image IN ["/usr/sbin/useradd", "/usr/sbin/usermod", "/usr/bin/apt", "/usr/bin/yum", "/usr/bin/dnf"]

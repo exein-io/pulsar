@@ -10,62 +10,17 @@
   type: Exec
   category: execution
   severity: high
-  description: Detects when the tc (transmission control) binary is utilized to set a BPF (Berkeley Packet Filter) on a network
-    interface. Tc is used to configure Traffic Control in the Linux kernel. It can shape, schedule, police and drop traffic.
+  description: Detects use of the tc (transmission control) binary to set a BPF on a network interface.
     Adversaries an utilize tc to set a bpf filter on an interface for the purpose of manipulating the incoming traffic.
     This technique is not at all common and should indicate abnormal, suspicious or malicious activity.
-  condition: payload.filename STARTS_WITH "/usr/sbin/tc" AND
+  condition: payload.filename ENDS_WITH "tc" AND
     payload.argv CONTAINS "filter" AND payload.argv CONTAINS "add" AND payload.argv CONTAINS "bpf"
-    AND NOT header.image STARTS_WITH "/usr/sbin/libvirtd"
-
-
-# Title: Suspicious mining process creation events
-
-- name: Suspicious Mining Process Creation Event
-  type: FileCreated
-  category: execution
-  severity: medium
-  description: Detects service creation events of common mining services, possibly indicating the infection of a system with a cryptominer.
-  condition: payload.filename ENDS_WITH "aliyun.service" OR
-    payload.filename ENDS_WITH "moneroocean_miner.service" OR
-    payload.filename ENDS_WITH "c3pool_miner.service" OR
-    payload.filename ENDS_WITH "pnsd.service" OR
-    payload.filename ENDS_WITH "apache4.service" OR
-    payload.filename ENDS_WITH "pastebin.service" OR
-    payload.filename ENDS_WITH "xvf.service"
-
-- name: Netcat Listener Established via rlwrap
-  type: Exec
-  category: execution
-  severity: low
-  description: Monitors for the execution of a netcat listener via rlwrap. rlwrap is a 'readline wrapper', a small utility that uses
-    the GNU Readline library to allow the editing of keyboard input for any command. This utility can be used in conjunction
-    with netcat to gain a more stable reverse shell.
-  condition: payload.filename ENDS_WITH "rlwrap"
-    AND payload.argc >= 4
-    AND (
-      payload.argv CONTAINS "nc" OR
-      payload.argv CONTAINS "ncat" OR
-      payload.argv CONTAINS "netcat" OR
-      payload.argv CONTAINS "nc.openbsd" OR
-      payload.argv CONTAINS "socat"
-    )
-    AND (
-      payload.argv CONTAINS "-l" OR
-      payload.argv CONTAINS "--listen"
-    )
-
-- name: Interactive Terminal Spawned via Perl
-  type: Exec
-  category: execution
-  severity: high
-  description: Identifies when a terminal (tty) is spawned via Perl. Attackers may upgrade a simple reverse shell to a fully
-    interactive tty after obtaining initial access to a host.
-  condition: (header.image ENDS_WITH "perl" OR payload.filename ENDS_WITH "perl")
-    AND (
-      payload.argv CONTAINS "exec \"/bin/sh\";" OR 
-      payload.argv CONTAINS "exec \"/bin/dash\";" OR
-      payload.argv CONTAINS "exec \"/bin/bash\";"
+    AND NOT (
+      header.image STARTS_WITH "/usr/sbin/libvirtd" OR
+      header.image STARTS_WITH "/usr/bin/docker" OR
+      header.image STARTS_WITH "/usr/bin/containerd" OR
+      header.image STARTS_WITH "/usr/bin/podman" OR
+      header.image STARTS_WITH "/usr/bin/systemd-networkd"
     )
 
 - name: Shell spawn with -c option
@@ -73,6 +28,8 @@
   category: defense_evasion
   severity: low
   description: Detects execution of shell commands via `-c`, often used in scripted or fileless attacks.
+    Attackers may use this to run commands directly from memory, avoiding detection and disk forensics. 
+    This behavior is common in obfuscated or chained payloads.
   condition: (
       payload.filename ENDS_WITH "/bash" OR
       payload.filename ENDS_WITH "/sh" OR
@@ -82,6 +39,42 @@
       payload.filename ENDS_WITH "/fish" OR
       payload.filename ENDS_WITH "/csh" OR
       payload.filename ENDS_WITH "/tcsh"
-    ) AND
-    payload.argv CONTAINS "-c"
-    AND NOT header.image ENDS_WITH "/code"
+    ) AND payload.argv CONTAINS "-c"
+    AND header.image IN [
+      "/usr/sbin/nginx",
+      "/usr/bin/python",
+      "/usr/bin/perl",
+      "/usr/bin/php",
+      "/usr/bin/node"
+    ]
+    AND (
+      payload.argv CONTAINS "curl" OR 
+      payload.argv CONTAINS "wget" OR
+      payload.argv CONTAINS "nc " OR
+      payload.argv CONTAINS "ncat " OR
+      payload.argv CONTAINS "netcat" OR
+      payload.argv CONTAINS "base64" OR
+      payload.argv CONTAINS "socat" OR
+      payload.argv CONTAINS "mkfifo" OR
+      payload.argv CONTAINS "mknod" OR
+      payload.argv CONTAINS "|sh" OR
+      payload.argv CONTAINS "|bash" OR
+      payload.argv CONTAINS ">/dev/tcp/" OR
+      payload.argv CONTAINS "</dev/tcp/"
+    )
+
+- name: Stty raw no echo execution
+  type: Exec
+  category: execution
+  severity: low
+  description: Detects the use of stty with raw and -echo arguments to reconfigure terminal behavior. 
+    Attackers may use this to upgrade non-interactive shells into fully interactive TTYs. This is commonly seen post-exploitation in reverse shell scenarios.
+  condition: payload.filename ENDS_WITH "stty" AND payload.argv CONTAINS "raw" AND payload.argv CONTAINS "-echo"
+
+- name: Script execution with no output
+  type: Exec
+  category: execution
+  severity: low
+  description: Detects execution of the script utility with flags to suppress output and redirect to /dev/null. 
+    Attackers may use this to spawn a fully interactive shell in post-exploitation phases. This behavior is typical in TTY upgrade attempts.
+  condition: payload.filename ENDS_WITH "/script" AND (payload.argv CONTAINS "-qc" OR payload.argv CONTAINS "-c") AND payload.argv CONTAINS "/dev/null"

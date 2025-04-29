@@ -6,7 +6,7 @@
 
 # MITRE ATT&CK Technique: T1547.006 - Boot or Logon Autostart Execution: Kernel Modules and Extensions - https://attack.mitre.org/techniques/T1547/006/
 
-- name: Linux Kernel Module Injection Detected
+- name: Linux Kernel Module Injection via insmod
   type: Exec
   category: defense_evasion
   severity: high
@@ -15,7 +15,7 @@
   condition: payload.filename ENDS_WITH "/insmod" 
     AND NOT ( payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
 
-- name: Linux Kernel Module Injection Detected
+- name: Linux Kernel Module Injection via modprobe
   type: Exec
   category: defense_evasion
   severity: high
@@ -24,7 +24,6 @@
   condition: payload.filename ENDS_WITH "/modprobe" 
     AND NOT payload.argv CONTAINS "-r"
 
-# Monitor kmod when used to load modules
 - name: Linux Kernel Module Injection via kmod
   type: Exec
   category: defense_evasion

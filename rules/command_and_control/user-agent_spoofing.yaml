@@ -11,5 +11,6 @@
   category: command_and_control
   severity: medium
   description: Detects curl or wget usage with the -A option to spoof the User-Agent string, which is often used in evasion, fingerprinting, or disguised command and control communications.
-  condition: (header.image ENDS_WITH "curl" OR header.image ENDS_WITH "wget" OR payload.filename ENDS_WITH "curl" OR payload.filename ENDS_WITH "wget")
-    AND (payload.argv CONTAINS "-A")
+  condition: (payload.filename ENDS_WITH "curl" AND (payload.argv CONTAINS "-A" OR payload.argv CONTAINS "--user-agent"))
+    OR (payload.filename ENDS_WITH "wget" AND (payload.argv CONTAINS "-U" OR payload.argv CONTAINS "--user-agent"))
+

@@ -35,4 +35,3 @@
   condition: payload.filename IN ["/usr/bin/base64", "/sbin/base64", "/usr/bin/base64-encode", "/usr/bin/base64-decode", 
     "/usr/bin/base64enc", "/usr/bin/base64dec", "/usr/bin/base64plain", "/usr/bin/base64hex"]
     AND NOT (payload.argv CONTAINS "--help" OR payload.argv CONTAINS "--version")
-

@@ -10,10 +10,14 @@
   type: FileOpened
   category: persistence
   severity: medium
-  description: Detect creation or modification of shell configuration files, which can be used for persistence by adversaries.
-  condition: 
-    (payload.filename ENDS_WITH ".bashrc" OR payload.filename ENDS_WITH ".bash_login" OR payload.filename ENDS_WITH ".bash_logout" OR payload.filename ENDS_WITH ".bash_profile" OR payload.filename ENDS_WITH ".zshrc" OR payload.filename ENDS_WITH ".zprofile" OR payload.filename ENDS_WITH ".cshrc" OR payload.filename ENDS_WITH ".login" OR payload.filename ENDS_WITH ".logout" OR payload.filename ENDS_WITH "config.fish" OR payload.filename ENDS_WITH ".kshrc")
-    AND NOT (
+  description: Detects creation or modification of shell configuration files that may be used by adversaries for persistence.
+    Adversaries may modify these files to execute arbitrary commands or maintain access to the system across sessions.
+  condition: (payload.flags CONTAINS "O_CREAT" OR payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND (payload.filename ENDS_WITH ".bashrc" OR payload.filename ENDS_WITH ".bash_login" OR payload.filename ENDS_WITH ".bash_logout" OR 
+      payload.filename ENDS_WITH ".bash_profile" OR payload.filename ENDS_WITH ".zshrc" OR payload.filename ENDS_WITH ".zprofile" OR 
+      payload.filename ENDS_WITH ".cshrc" OR payload.filename ENDS_WITH ".login" OR payload.filename ENDS_WITH ".logout" OR 
+      payload.filename ENDS_WITH "config.fish" OR payload.filename ENDS_WITH ".kshrc"
+    ) AND NOT (
       header.image IN [
         "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
         "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",

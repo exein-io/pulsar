@@ -12,7 +12,7 @@
   type: Exec
   category: defense_evasion
   severity: medium
-  description: Adversaries may attempt to disable the syslog service in order to disrupt event logging and evade detection by security controls.
+  description: Adversaries may attempt to disable the syslog service (rsyslog, syslog-ng) to stop logging and avoid detection of their activities by security monitoring systems.
   condition: (
     (payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "stop") OR
     (payload.filename ENDS_WITH "chkconfig" AND payload.argv CONTAINS "off") OR

@@ -6,7 +6,6 @@
 
 # MITRE ATT&CK Technique: T1036.005 - Masquerading: Match Legitimate Name or Location - https://attack.mitre.org/techniques/T1036/005/
 
-# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
 - name: Rename any file below binary directories
   type: FileRename
   category: execution
@@ -14,8 +13,11 @@
   description: Detects the renaming of files below binary directories. Adversaries may rename files below binary directories to gain access to 
     information or to escalate privileges.
   condition: payload.source STARTS_WITH "/usr/bin" OR payload.source STARTS_WITH "/usr/sbin" OR payload.source STARTS_WITH "/bin" OR payload.source STARTS_WITH "/sbin"
+    AND NOT (header.image IN [
+      "/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/dnf", "/usr/bin/pacman",
+      "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"
+    ])
 
-# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
 - name: Delete any file/directory below binary directories
   type: FileDeleted
   category: execution
@@ -23,6 +25,10 @@
   description: Detects the deletion of files/directories below binary directories. Adversaries may delete files/directories below binary directories 
     to gain access to information or to escalate privileges.
   condition: payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin"
+    AND NOT (header.image IN [
+      "/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/dnf", "/usr/bin/pacman",
+      "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"
+    ])
 
 - name: Create a directory below binary directories
   type: DirCreated
@@ -40,11 +46,15 @@
     access to information or to escalate privileges.
   condition: payload.dirname STARTS_WITH "/usr/bin" OR payload.dirname STARTS_WITH "/usr/sbin" OR payload.dirname STARTS_WITH "/bin" OR payload.dirname STARTS_WITH "/sbin"
 
-# Add exceptions: e.g. package management binaries (apt, rpm, pacman...)
 - name: Write any file below binary directories
   type: FileOpened
   category: execution
   severity: medium
   description: Detects the write of a file below binary directories. Adversaries may write a file below binary directories to gain access to 
     information or to escalate privileges.
-  condition: (payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+  condition: (payload.filename STARTS_WITH "/usr/bin" OR payload.filename STARTS_WITH "/usr/sbin" OR payload.filename STARTS_WITH "/bin" OR payload.filename STARTS_WITH "/sbin") 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND NOT (header.image IN [
+      "/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/dnf", "/usr/bin/pacman",
+      "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"
+    ])

@@ -10,7 +10,8 @@
   type: FileCreated
   category: persistence
   severity: low
-  description:
+  description: Detects the creation of udev rule files in critical system directories. These files could be used to gain persistence via hijacked system events.
+    Adversaries may use this technique to persistently execute malicious payloads upon hardware events.
   condition: payload.filename ENDS_WITH "rules" 
     AND (
       payload.filename STARTS_WITH "/lib/udev/" OR
@@ -57,7 +58,8 @@
   type: FileRename
   category: persistence
   severity: low
-  description:
+  description: Detects modifications to udev rule files in system directories. These modifications can enable malicious payloads to execute based on hardware events.
+    Adversaries may use this technique to maintain persistence by altering system events.
   condition: payload.destination ENDS_WITH "rules" 
     AND (
       payload.destination STARTS_WITH "/lib/udev/" OR

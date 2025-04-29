@@ -1,4 +1,4 @@
-# Title: Initramfs Unpacking via unmkinitramfs
+# Title: Detection of Malicious Python Customization File Creation
 
 # Creation date: 2025/04/14
 
@@ -6,21 +6,21 @@
 
 # MITRE ATT&CK Technique: T1546 - Event Triggered Execution - https://attack.mitre.org/techniques/T1546/
 
-- name: Python Site or User Customize File Creation
-  type: FileCreated
+- name: Malicious Python Site or User Customize File Creation
+  type: FileOpened
   category: persistence
   severity: low
-  description: Detect creation or renaming of specific Python customization files that could be used for persistence by adversaries, excluding known benign processes.
-  condition:
-    (
-      (payload.filename STARTS_WITH "/usr/lib/python3" AND payload.filename ENDS_WITH "sitecustomize.py")
-      OR (payload.filename STARTS_WITH "/usr/local/lib/python3" AND payload.filename ENDS_WITH "sitecustomize.py")
-      OR (payload.filename STARTS_WITH "/usr/lib/python3" AND payload.filename ENDS_WITH "dist-packages/sitecustomize.py")
-      OR (payload.filename STARTS_WITH "/usr/local/lib/python3" AND payload.filename ENDS_WITH "dist-packages/sitecustomize.py")
-      OR (payload.filename STARTS_WITH "/opt/" AND payload.filename ENDS_WITH "lib/python3/sitecustomize.py")
-      OR (payload.filename STARTS_WITH "/home/" AND payload.filename ENDS_WITH ".local/lib/python3/site-packages/usercustomize.py")
-      OR (payload.filename STARTS_WITH "/home/" AND payload.filename ENDS_WITH ".config/python/usercustomize.py")
-    )
+  description: Detects the creation or renaming of specific Python customization files such as sitecustomize.py and usercustomize.py.
+    Adversaries may use these files to maintain persistence by customizing Python's behavior on a compromised system.
+  condition: (
+    (payload.filename STARTS_WITH "/usr/lib/python3" AND payload.filename ENDS_WITH "sitecustomize.py")
+    OR (payload.filename STARTS_WITH "/usr/local/lib/python" AND payload.filename ENDS_WITH "sitecustomize.py")
+    OR (payload.filename STARTS_WITH "/usr/lib/python" AND payload.filename ENDS_WITH "dist-packages/sitecustomize.py") 
+    OR (payload.filename STARTS_WITH "/usr/local/lib/python" AND payload.filename ENDS_WITH "dist-packages/sitecustomize.py")
+    OR (payload.filename STARTS_WITH "/opt/" AND payload.filename ENDS_WITH "/sitecustomize.py")
+    OR (payload.filename STARTS_WITH "/home/" AND payload.filename ENDS_WITH "/site-packages/usercustomize.py")
+    OR (payload.filename STARTS_WITH "/home/" AND payload.filename ENDS_WITH "usercustomize.py")
+    ) AND (payload.flags CONTAINS "O_CREAT" OR payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
     AND NOT (
       header.image IN [
         "/usr/local/bin/pip2", "/usr/bin/restic", "/usr/bin/pacman", "/usr/bin/dockerd", "/usr/local/bin/pip3",

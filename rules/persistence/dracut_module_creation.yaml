@@ -10,10 +10,8 @@
   type: FileCreated
   category: persistence
   severity: low
-  description: etects the creation of Dracut module files on Linux systems. Dracut is a tool used to generate an initramfs
-    image that is used to boot the system. Dracut modules are scripts that are executed during the initramfs image
-    generation process. Attackers may create malicious Dracut modules to execute arbitrary code at boot time, which can be
-    leveraged to maintain persistence on a Linux system.
+  description: Detects the creation of Dracut module files. Dracut is a tool used to generate an initramfs image that is used to boot the system
+     Adversaries may craft and install Dracut modules to inject malicious code that executes at boot time, enabling stealthy persistence or early-stage compromise of the system.
   condition: payload.filename STARTS_WITH "/lib/dracut/modules.d/" OR
              payload.filename STARTS_WITH "/usr/lib/dracut/modules.d/"
     AND NOT (

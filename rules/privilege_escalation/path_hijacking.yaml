@@ -10,8 +10,15 @@
   type: Exec
   category: privilege_escalation
   severity: medium
-  description: Detects execution of a binary located outside standard system executable directories. Advenrsaries may use a PATH hijack attempt where a malicious binary is placed in an attacker-controlled path.
-  condition: payload.filename STARTS_WITH "/tmp" AND NOT (
+  description: Detects execution of a binary located outside standard system executable directories. 
+    Advenrsaries may use a PATH hijack attempt where a malicious binary is placed in an attacker-controlled path.
+  condition: (
+    payload.filename STARTS_WITH "/tmp/" OR
+    payload.filename STARTS_WITH "/dev/shm/" OR
+    payload.filename STARTS_WITH "/var/tmp/" OR
+    payload.filename STARTS_WITH "/run/"
+    )
+    AND NOT (
       payload.filename STARTS_WITH "/bin/" OR
       payload.filename STARTS_WITH "/sbin/" OR
       payload.filename STARTS_WITH "/usr/bin/" OR

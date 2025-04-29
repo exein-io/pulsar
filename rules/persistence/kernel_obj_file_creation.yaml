@@ -4,21 +4,21 @@
 
 # MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
 
-# MITRE ATT&CK Technique: T1547 - oot or Logon Autostart Execution - https://attack.mitre.org/techniques/T1147/
+# MITRE ATT&CK Technique: T1547 - Boot or Logon Autostart Execution - https://attack.mitre.org/techniques/T1547/
 
+# Check the whitelist, this rule is useless since we already chekcs for insmod/kmod, ecc??
 - name: Kernel Object File Creation
   type: FileCreated
   category: persistence
   severity: low
-  description: Detects the creation of a Linux kernel object file (.ko) on a system. Threat actors may leverage Linux kernel
-    object files to load a rootkit or other type of malware on a system providing them with complete control and the ability
-    to hide from security products.
-  condition: payload.filename ENDS_WITH "ko"
+  description: Detects the creation of Linux kernel object files (.ko), which are used to load modules into the kernel. 
+    Adversaries may create or drop malicious kernel modules to execute code with kernel privileges, enabling stealthy persistence, rootkits, or bypassing security controls.
+  condition: payload.filename ENDS_WITH ".ko"
     AND NOT (
-      (
-        payload.filename STARTS_WITH "var/tmp/mkinitramfs_" OR
-        header.image STARTS_WITH "/snap/" OR
-        header.image ENDS_WITH "cpio"
-      ) OR 
-      payload.filename STARTS_WITH "/tmp/mkinitramfs"
-    ) 
+      payload.filename STARTS_WITH "/tmp/mkinitramfs" OR
+      payload.filename STARTS_WITH "/var/tmp/mkinitramfs_" OR
+      header.image ENDS_WITH "/make" OR
+      header.image ENDS_WITH "/dkms" OR
+      header.image ENDS_WITH "cpio" OR
+      header.image STARTS_WITH "/snap/"
+    )
