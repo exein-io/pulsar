@@ -119,9 +119,16 @@ impl PulsarDaemonStarter {
 
             if is_enabled {
                 log::info!("Starting module {module_name}");
-                if let Err(err_msg) = data.handle.start().await {
-                    log::error!("{err_msg}");
-                };
+                // Start modules asynchronously because some of them maybe need to interact with the PulsarDaemon actor
+                // through the ModuleContext
+                tokio::spawn({
+                    let handle = data.handle.clone();
+                    async move {
+                        if let Err(err_msg) = handle.start().await {
+                            log::error!("{err_msg}");
+                        };
+                    }
+                });
             }
         }
 
