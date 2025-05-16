@@ -1,12 +1,19 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    io::{self, BufRead, BufReader},
+    num::ParseIntError,
+    str::{FromStr, SplitWhitespace},
+};
 
 use bpf_common::{
     Gid, Pid, Uid,
+    aya::{
+        Btf, BtfError, Ebpf,
+        programs::{Iter, ProgramError, links::LinkError},
+    },
     containers::ContainerId,
-    parsing::procfs::{self, ProcfsError},
 };
 use lazy_static::lazy_static;
-use pulsar_core::event::Namespaces;
+use pulsar_core::event::{ContainerEngineKind, EventError, Namespaces};
 use regex::Regex;
 use thiserror::Error;
 
@@ -30,153 +37,142 @@ pub(crate) struct ProcessData {
     pub(crate) container_id: Option<ContainerId>,
 }
 
+/// Takes an element fron the BPF iterator program's output and parses the
+/// given type `T` from it.
+#[inline]
+fn parse_bpf_iter_elem<T>(s: &str, parts: &mut SplitWhitespace) -> Result<T, Error>
+where
+    T: FromStr<Err = ParseIntError>,
+{
+    parts
+        .next()
+        .ok_or_else(|| Error::InvalidIteratorOutputFormat(s.to_owned()))?
+        .parse()
+        .map_err(Error::from)
+}
+
+impl FromStr for ProcessData {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split_whitespace();
+
+        let pid: i32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let pid = Pid::from_raw(pid);
+        let uid: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let uid = Uid::from_raw(uid);
+        let gid: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let gid = Gid::from_raw(gid);
+        let ppid: i32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let parent = Pid::from_raw(ppid);
+
+        let uts: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let ipc: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let mnt: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let pid_ns: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let net: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let time: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let cgroup: u32 = parse_bpf_iter_elem(s, &mut parts)?;
+        let namespaces = Namespaces {
+            uts,
+            ipc,
+            mnt,
+            pid: pid_ns,
+            net,
+            time,
+            cgroup,
+        };
+
+        let image = parts
+            .next()
+            .ok_or_else(|| Error::InvalidIteratorOutputFormat(s.to_owned()))?
+            .to_owned();
+
+        let container_id = match (parts.next(), parts.next()) {
+            (Some(container_engine), Some(container_id)) => {
+                let container_engine: u32 = container_engine.parse()?;
+                let container_engine = ContainerEngineKind::from_raw(container_engine)?;
+                let container_id = container_id.to_owned();
+                let container_id = match container_engine {
+                    ContainerEngineKind::Docker => ContainerId::Docker(container_id),
+                    ContainerEngineKind::Podman => ContainerId::Libpod(container_id),
+                };
+                Some(container_id)
+            }
+            (None, None) => None,
+            _ => return Err(Error::InvalidIteratorOutputFormat(s.to_owned())),
+        };
+
+        Ok(Self {
+            pid,
+            uid,
+            gid,
+            image,
+            parent,
+            namespaces,
+            container_id,
+        })
+    }
+}
+
 #[derive(Debug, Error)]
 pub(crate) enum Error {
     #[error("loading process {pid}: process not found")]
     ProcessNotFound { pid: Pid },
     #[error("loading process {pid}: parent image {ppid} not found")]
     ParentNotFound { pid: Pid, ppid: Pid },
+    #[error("failed to parse BTF from sysfs")]
+    Btf(#[source] BtfError),
+    #[error("could not find the BPF iterator program")]
+    ProgramNotFound,
+    #[error("BPF iterator program has an invalid type")]
+    InvalidProgramType(#[source] ProgramError),
+    #[error("failed to load BPF iterator program")]
+    ProgramLoad(#[source] ProgramError),
+    #[error("failed to attach to BPF iterator program")]
+    ProgramAttach(#[source] ProgramError),
+    #[error("failed to take the link to the BPF iterator program")]
+    ProgramLink(#[source] ProgramError),
+    #[error("failed to open the link to the BPF iterator program")]
+    ProgramLinkOpen(#[source] LinkError),
+    #[error("failed to read the line from the BPF iterator")]
+    LineRead(#[source] io::Error),
+    #[error("invalid format of BPF iterator output, expected 12 or 14 elements, got `{0}`")]
+    InvalidIteratorOutputFormat(String),
+    #[error("failed to parse an integer: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)]
-    Procfs(#[from] ProcfsError),
-    #[error("failed to get the {ns_type} namespace for process {pid}")]
-    Namespace { pid: Pid, ns_type: String },
+    EventError(#[from] EventError),
 }
 
 pub(crate) const PID_0: Pid = Pid::from_raw(0);
-pub(crate) const UID_0: Uid = Uid::from_raw(0);
-pub(crate) const GID_0: Gid = Gid::from_raw(0);
-
-fn get_process_namespace(pid: Pid, ns_type: &str) -> Result<u32, Error> {
-    let path = Path::new("/proc")
-        .join(pid.to_string())
-        .join("ns")
-        .join(ns_type);
-
-    let link_target = fs::read_link(path).map_err(|_| Error::Namespace {
-        pid,
-        ns_type: ns_type.to_owned(),
-    })?;
-    let link_target = link_target.to_string_lossy();
-    let ns: u32 = NAMESPACE_RE
-        .captures(&link_target)
-        .and_then(|cap| cap.get(1))
-        .and_then(|m| m.as_str().parse().ok())
-        .ok_or(Error::Namespace {
-            pid,
-            ns_type: ns_type.to_owned(),
-        })?;
-
-    Ok(ns)
-}
-
-fn get_process_namespace_or_log(pid: Pid, namespace_type: &str) -> u32 {
-    get_process_namespace(pid, namespace_type).unwrap_or_else(|e| {
-        if pid.as_raw() != 0 {
-            log::warn!(
-                "Failed to determine {} namespace for process {:?}: {}",
-                namespace_type,
-                pid,
-                e
-            );
-        }
-        u32::default()
-    })
-}
-
-fn get_process_namespaces(pid: Pid) -> Namespaces {
-    Namespaces {
-        uts: get_process_namespace_or_log(pid, "uts"),
-        ipc: get_process_namespace_or_log(pid, "ipc"),
-        mnt: get_process_namespace_or_log(pid, "mnt"),
-        net: get_process_namespace_or_log(pid, "net"),
-        pid: get_process_namespace_or_log(pid, "pid"),
-        time: get_process_namespace_or_log(pid, "time"),
-        cgroup: get_process_namespace_or_log(pid, "cgroup"),
-    }
-}
 
 impl ProcessTree {
-    /// Construct the `ProcessTree` by reading from `procfs`:
-    /// - process list
-    /// - parent pid
-    /// - image
-    pub(crate) fn load_from_procfs() -> Result<Self, Error> {
-        let mut processes: HashMap<Pid, ProcessData> = HashMap::new();
-        let mut children: HashMap<Pid, Vec<Pid>> = HashMap::new();
-        let mut sorted_processes: Vec<ProcessData> = Vec::new();
+    /// Creates a process tree based on the information returned by the BPF
+    /// iterator program.
+    pub(crate) fn load_from_bpf_iterator(bpf: &mut Ebpf) -> Result<Self, Error> {
+        let btf = Btf::from_sys_fs().map_err(Error::Btf)?;
+        let prog: &mut Iter = bpf
+            .program_mut("iter_task")
+            .ok_or_else(|| Error::ProgramNotFound)?
+            .try_into()
+            .map_err(Error::InvalidProgramType)?;
+        prog.load("task", &btf).map_err(Error::ProgramLoad)?;
 
-        // Get process list
-        for pid in procfs::get_running_processes()? {
-            let uid = procfs::get_process_user_id(pid)?;
-            let gid = procfs::get_process_group_id(pid)?;
+        let link_id = prog.attach().map_err(Error::ProgramAttach)?;
+        let link = prog.take_link(link_id).map_err(Error::ProgramLink)?;
+        let file = link.into_file().map_err(Error::ProgramLinkOpen)?;
+        let reader = BufReader::new(file);
 
-            let image = procfs::get_process_image(pid)
-                .map(|path| path.to_string_lossy().to_string())
-                .unwrap_or_else(|err| {
-                    log::debug!("{}", err);
-                    String::new()
-                });
-            let parent = procfs::get_process_parent_pid(pid).unwrap_or_else(|err| {
-                log::debug!("Error getting parent pid of {pid}: {}", err);
-                Pid::from_raw(1)
-            });
-            let namespaces = get_process_namespaces(pid);
+        let processes = reader
+            .lines()
+            .map(|line_result| {
+                let line = line_result.map_err(Error::LineRead)?;
+                ProcessData::from_str(&line)
+            })
+            .collect::<Result<Vec<ProcessData>, Error>>()?;
 
-            let container_id = procfs::get_process_container_id(pid)?;
-
-            processes.insert(
-                pid,
-                ProcessData {
-                    pid,
-                    uid,
-                    gid,
-                    image,
-                    parent,
-                    namespaces,
-                    container_id,
-                },
-            );
-            children.entry(parent).or_default().push(pid);
-        }
-
-        // Make sure to add PID 0 (which is part of kernel) to map_interest to avoid
-        // warnings about missing entries.
-        let namespaces = get_process_namespaces(PID_0);
-        processes.insert(
-            PID_0,
-            ProcessData {
-                pid: PID_0,
-                uid: UID_0,
-                gid: GID_0,
-                image: String::from("kernel"),
-                parent: PID_0,
-                namespaces,
-                container_id: None,
-            },
-        );
-
-        // Sort process tree by starting by process 0
-        fn add_process_and_children(
-            pid: Pid,
-            processes: &mut HashMap<Pid, ProcessData>,
-            children: &mut HashMap<Pid, Vec<Pid>>,
-            sorted_processes: &mut Vec<ProcessData>,
-        ) {
-            let process = processes.remove(&pid).unwrap();
-            sorted_processes.push(process);
-            for child in children.remove(&pid).unwrap_or_default() {
-                add_process_and_children(child, processes, children, sorted_processes);
-            }
-        }
-        add_process_and_children(PID_0, &mut processes, &mut children, &mut sorted_processes);
-        if !processes.is_empty() {
-            log::warn!("Found processes not starting from root: {:?}", processes);
-            sorted_processes.extend(processes.into_values());
-        }
-
-        Ok(Self {
-            processes: sorted_processes,
-        })
+        Ok(Self { processes })
     }
 
     /// Add a new entry and return its process info.

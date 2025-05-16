@@ -7,7 +7,7 @@ use bpf_common::{
     parsing::{BufferIndex, IndexError},
     program::BpfContext,
 };
-use pulsar_core::event::Namespaces;
+use pulsar_core::event::{ContainerEngineKind, Namespaces};
 use thiserror::Error;
 
 const MODULE_NAME: &str = "process-monitor";
@@ -66,13 +66,6 @@ pub enum COption<T> {
 pub struct CContainerId {
     container_engine: ContainerEngineKind,
     cgroup_id: BufferIndex<str>,
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub enum ContainerEngineKind {
-    Docker,
-    Podman,
 }
 
 // The events sent from eBPF to userspace must be byte by byte

@@ -221,18 +221,18 @@ dependencies = [
 [[package]]
 name = "aya"
 version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d18bc4e506fbb85ab7392ed993a7db4d1a452c71b75a246af4a80ab8c9d2dd50"
+source = "git+https://github.com/aya-rs/aya?rev=fc69a069727475060ee6d9895ac2745b8965237f#fc69a069727475060ee6d9895ac2745b8965237f"
 dependencies = [
  "assert_matches",
  "aya-obj 0.2.1",
  "bitflags 2.6.0",
  "bytes",
+ "hashbrown 0.15.2",
  "libc",
  "log",
  "object 0.36.5",
  "once_cell",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
  "tokio",
 ]
 
@@ -268,15 +268,13 @@ dependencies = [
 [[package]]
 name = "aya-obj"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c51b96c5a8ed8705b40d655273bc4212cbbf38d4e3be2788f36306f154523ec7"
+source = "git+https://github.com/aya-rs/aya?rev=fc69a069727475060ee6d9895ac2745b8965237f#fc69a069727475060ee6d9895ac2745b8965237f"
 dependencies = [
  "bytes",
- "core-error",
  "hashbrown 0.15.2",
  "log",
  "object 0.36.5",
- "thiserror 1.0.69",
+ "thiserror 2.0.9",
 ]
 
 [[package]]

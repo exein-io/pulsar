@@ -8,9 +8,16 @@ use bpf_common::containers::ContainerInfo;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, de::DeserializeOwned, ser};
 use strum::{EnumDiscriminants, EnumString};
+use thiserror::Error;
 use validatron::{Operator, Validatron, ValidatronError};
 
 use crate::{kernel, pdk::ModuleName};
+
+#[derive(Debug, Error)]
+pub enum EventError {
+    #[error("unknown container engine, ID {0}")]
+    UnknownContainerEngine(u32),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 pub struct Event {
@@ -649,6 +656,23 @@ impl fmt::Display for Namespaces {
             "{{ uts: {}, ipc: {}, mnt: {}, pid: {}, net: {}, time: {}, cgroup: {} }}",
             self.uts, self.ipc, self.mnt, self.pid, self.net, self.time, self.cgroup
         )
+    }
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub enum ContainerEngineKind {
+    Docker,
+    Podman,
+}
+
+impl ContainerEngineKind {
+    pub fn from_raw(kind: u32) -> Result<Self, EventError> {
+        match kind {
+            0 => Ok(ContainerEngineKind::Docker),
+            1 => Ok(ContainerEngineKind::Podman),
+            _ => Err(EventError::UnknownContainerEngine(kind)),
+        }
     }
 }
 
