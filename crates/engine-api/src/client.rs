@@ -238,7 +238,7 @@ impl EngineApiClient {
         // The `localhost` domain is simply a placeholder for the url. It's not used because is already present a stream
         let (ws_stream, _) = client_async("ws://localhost/monitor", stream)
             .await
-            .map_err(EngineClientError::from)?;
+            .map_err(|e| EngineClientError::WebSocketError(Box::new(e)))?;
 
         let (_, read_stream) = ws_stream.split();
 

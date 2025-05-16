@@ -33,7 +33,7 @@ impl BpfFeatures {
             feature_codes.push_str("none");
         }
 
-        format!("{}.bpf.o", feature_codes)
+        format!("{feature_codes}.bpf.o")
     }
 
     pub fn build_args(&self) -> Vec<String> {

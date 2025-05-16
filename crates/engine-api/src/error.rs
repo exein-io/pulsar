@@ -73,7 +73,7 @@ pub enum EngineClientError {
 
     /// WebSocket error
     #[error("WebSocket error: {0}")]
-    WebSocketError(#[from] tokio_tungstenite::tungstenite::Error),
+    WebSocketError(#[source] Box<tokio_tungstenite::tungstenite::Error>),
 
     /// Unknown error
     #[error("Unknown error: {0}")]
@@ -84,16 +84,16 @@ impl From<serde_json::Error> for EngineClientError {
     fn from(err: serde_json::Error) -> Self {
         match err.classify() {
             serde_json::error::Category::Io => {
-                Self::SerializeError(format!("IO error during serialization: {}", err))
+                Self::SerializeError(format!("IO error during serialization: {err}"))
             }
             serde_json::error::Category::Syntax => {
-                Self::DeserializeError(format!("JSON syntax error: {}", err))
+                Self::DeserializeError(format!("JSON syntax error: {err}"))
             }
             serde_json::error::Category::Data => {
-                Self::DeserializeError(format!("JSON data error: {}", err))
+                Self::DeserializeError(format!("JSON data error: {err}"))
             }
             serde_json::error::Category::Eof => {
-                Self::DeserializeError(format!("Unexpected end of JSON input: {}", err))
+                Self::DeserializeError(format!("Unexpected end of JSON input: {err}"))
             }
         }
     }

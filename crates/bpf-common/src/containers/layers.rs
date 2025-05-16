@@ -90,7 +90,7 @@ struct Rootfs {
 /// Returns a list of layer paths for the given Docker image ID.
 pub(crate) async fn docker_layers(image_id: &str) -> Result<Vec<PathBuf>, ContainerError> {
     let client: Client<UnixConnector, Full<Bytes>> = Client::unix();
-    let uri = HyperlocalUri::new(DOCKER_SOCKET, &format!("/images/{}/json", image_id));
+    let uri = HyperlocalUri::new(DOCKER_SOCKET, &format!("/images/{image_id}/json"));
     let uri: hyper::Uri = uri.into();
 
     let response =
@@ -99,7 +99,7 @@ pub(crate) async fn docker_layers(image_id: &str) -> Result<Vec<PathBuf>, Contai
             .await
             .map_err(|source| ContainerError::HyperRequest {
                 source,
-                uri: uri.clone(),
+                uri: Box::new(uri.clone()),
             })?;
     let body_bytes = response
         .collect()

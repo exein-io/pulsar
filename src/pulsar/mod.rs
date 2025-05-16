@@ -63,7 +63,7 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
                 match ws_read {
                     Ok(event) => {
                         if *all || event.header().threat.is_some() {
-                            println!("{:#}", event);
+                            println!("{event:#}");
                         }
                     }
                     Err(e) => return Err(e).context("error reading from websocket"),
