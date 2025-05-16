@@ -2,6 +2,7 @@ use std::{
     io::{self, BufRead, BufReader},
     num::ParseIntError,
     str::{FromStr, SplitWhitespace},
+    sync::{Arc, RwLock, Weak},
 };
 
 use bpf_common::{
@@ -21,9 +22,92 @@ lazy_static! {
     static ref NAMESPACE_RE: Regex = Regex::new(r"(\d+)").unwrap();
 }
 
+pub(crate) struct TreeNode<T> {
+    value: T,
+    parent: Option<Weak<TreeNode<T>>>,
+    children: RwLock<Vec<Arc<TreeNode<T>>>>,
+}
+
+impl<T> TreeNode<T> {
+    pub(crate) fn new(value: T) -> Arc<Self> {
+        Arc::new(Self {
+            value,
+            parent: None,
+            children: RwLock::new(Vec::new()),
+        })
+    }
+
+    pub(crate) fn add_child(self: &Arc<Self>, value: T) {
+        let child_node = Arc::new(TreeNode {
+            value,
+            parent: Some(Arc::<Self>::downgrade(&self)),
+            children: RwLock::new(Vec::new()),
+        });
+        self.children.write().unwrap().push(child_node);
+    }
+
+    pub(crate) fn iter(self: &Arc<Self>) -> TreeNodeDFSIter<T> {
+        TreeNodeDFSIter {
+            current: Some(Arc::clone(self)),
+            stack: Vec::new(),
+        }
+    }
+
+    pub(crate) fn parents(self: &Arc<Self>) -> TreeNodeParentIter<T> {
+        TreeNodeParentIter {
+            current: self.parent.as_ref().and_then(|weak| weak.upgrade()),
+        }
+    }
+}
+
+pub(crate) struct TreeNodeDFSIter<T> {
+    current: Option<Arc<TreeNode<T>>>,
+    stack: Vec<Arc<TreeNode<T>>>,
+}
+
+impl<T> Iterator for TreeNodeDFSIter<T> {
+    type Item = Arc<TreeNode<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().map(|node| {
+            {
+                let children = node.children.read().unwrap();
+                let mut children = children.iter();
+                self.current = children.next().map(Arc::clone);
+                self.stack.extend(children.map(Arc::clone));
+            }
+            node
+        })
+    }
+}
+
+pub(crate) struct TreeNodeParentIter<T> {
+    current: Option<Arc<TreeNode<T>>>,
+}
+
+impl<T> Iterator for TreeNodeParentIter<T> {
+    type Item = Arc<TreeNode<T>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().map(|node| {
+            self.current = node.parent.as_ref().and_then(|w| w.upgrade());
+            node
+        })
+    }
+}
+
 /// ProcessTree contains information about all running processes
 pub(crate) struct ProcessTree {
-    processes: Vec<ProcessData>,
+    processes: Arc<TreeNode<ProcessData>>,
+}
+
+impl ProcessTree {
+    pub(crate) fn push(&self, process: ProcessData) {
+        let parent_node = self
+            .processes
+            .iter()
+            .find(|p| p.value.pid == process.parent);
+    }
 }
 
 #[derive(Debug)]
@@ -163,16 +247,29 @@ impl ProcessTree {
         let link = prog.take_link(link_id).map_err(Error::ProgramLink)?;
         let file = link.into_file().map_err(Error::ProgramLinkOpen)?;
         let reader = BufReader::new(file);
+        let mut lines = reader.lines();
 
-        let processes = reader
-            .lines()
-            .map(|line_result| {
-                let line = line_result.map_err(Error::LineRead)?;
-                ProcessData::from_str(&line)
-            })
-            .collect::<Result<Vec<ProcessData>, Error>>()?;
+        let line = lines.next().unwrap().unwrap();
+        let process = ProcessData::from_str(&line)?;
 
-        Ok(Self { processes })
+        let first_node = TreeNode::new(process);
+        let mut last_node = Arc::clone(&first_node);
+
+        for line in lines {
+            let line = line.unwrap();
+            let process = ProcessData::from_str(&line)?;
+            let ppid = process.parent;
+
+            if last_node.value.pid == ppid {
+                last_node.add_child(process);
+            } else {
+                last_node = Arc::clone(&first_node);
+            }
+        }
+
+        Ok(Self {
+            processes: first_node,
+        })
     }
 
     /// Add a new entry and return its process info.
