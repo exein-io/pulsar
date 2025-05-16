@@ -366,9 +366,8 @@ fn load_ebpf() -> Ebpf {
     .unwrap();
     const PIN_PATH: &str = "/sys/fs/bpf/filtering-test";
     let _ = std::fs::create_dir(PIN_PATH);
-    let bpf = EbpfLoader::new()
+    EbpfLoader::new()
         .map_pin_path(PIN_PATH)
         .load(ebpf_program!(&ctx, "filtering_example").as_slice())
-        .unwrap();
-    bpf
+        .unwrap()
 }
