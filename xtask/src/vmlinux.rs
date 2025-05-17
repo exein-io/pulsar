@@ -74,7 +74,7 @@ fn clone_repo(version: &str, destination: &TempDir) -> Result<()> {
         .arg("--depth")
         .arg("1")
         .arg("--branch")
-        .arg(format!("v{}", version))
+        .arg(format!("v{version}"))
         .arg(REPO_URL)
         .arg(destination.into_os_string())
         .stdout(Stdio::inherit())
@@ -98,10 +98,10 @@ where
     let mut cmd = Command::new("make");
     cmd.arg(arg);
     if let Some(arch) = arch {
-        cmd.arg(format!("ARCH={}", arch));
+        cmd.arg(format!("ARCH={arch}"));
     }
     if let Some(cross_compile) = cross_compile {
-        cmd.arg(format!("CROSS_COMPILE={}", cross_compile));
+        cmd.arg(format!("CROSS_COMPILE={cross_compile}"));
     }
 
     cmd.arg(format!("CC={}", options.compiler));
@@ -300,8 +300,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
         None,
         &builddir,
         PathBuf::from(format!(
-            "crates/bpf-builder/include/x86_64/vmlinux_{}.h",
-            sanitized_version
+            "crates/bpf-builder/include/x86_64/vmlinux_{sanitized_version}.h",
         )),
         PathBuf::from("crates/bpf-builder/include/x86_64/vmlinux.h"),
     )?;
@@ -312,8 +311,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
         Some("arm-linux-gnueabi-"),
         &builddir,
         PathBuf::from(format!(
-            "crates/bpf-builder/include/arm/vmlinux_{}.h",
-            sanitized_version
+            "crates/bpf-builder/include/arm/vmlinux_{sanitized_version}.h",
         )),
         PathBuf::from("crates/bpf-builder/include/arm/vmlinux.h"),
     )?;
@@ -324,8 +322,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
         Some("aarch64-linux-gnu-"),
         &builddir,
         PathBuf::from(format!(
-            "crates/bpf-builder/include/aarch64/vmlinux_{}.h",
-            sanitized_version
+            "crates/bpf-builder/include/aarch64/vmlinux_{sanitized_version}.h",
         )),
         PathBuf::from("crates/bpf-builder/include/aarch64/vmlinux.h"),
     )?;
@@ -336,8 +333,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
         Some("riscv64-linux-gnu-"),
         &builddir,
         PathBuf::from(format!(
-            "crates/bpf-builder/include/riscv64/vmlinux_{}.h",
-            sanitized_version
+            "crates/bpf-builder/include/riscv64/vmlinux_{sanitized_version}.h",
         )),
         PathBuf::from("crates/bpf-builder/include/riscv64/vmlinux.h"),
     )?;

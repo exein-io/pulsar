@@ -224,7 +224,7 @@ impl Initializer {
         for cgroup in cgroups {
             let processes = tokio::fs::read_to_string(&cgroup)
                 .await
-                .with_context(|| format!("Error reading processes in cgroup {:?}", cgroup))?;
+                .with_context(|| format!("Error reading processes in cgroup {cgroup:?}"))?;
             for process in processes.lines() {
                 let pid: i32 = process.parse().context("Invalid content")?;
                 self.set_policy(

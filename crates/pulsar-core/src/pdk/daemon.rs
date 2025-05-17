@@ -165,7 +165,7 @@ impl fmt::Display for ModuleStatus {
                 write!(f, "Running([\"{}\"])", warnings.join("\",\""))
             }
             ModuleStatus::Running(_) => write!(f, "Running"),
-            _ => write!(f, "{:?}", self),
+            _ => write!(f, "{self:?}"),
         }
     }
 }

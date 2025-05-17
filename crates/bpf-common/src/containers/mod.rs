@@ -53,7 +53,7 @@ pub enum ContainerError {
     HyperRequest {
         #[source]
         source: hyper_util::client::legacy::Error,
-        uri: hyper::Uri,
+        uri: Box<hyper::Uri>,
     },
     #[error("failed to parse a response from the UNIX socket `{uri:?}`")]
     HyperResponse {

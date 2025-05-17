@@ -98,7 +98,7 @@ pub fn get_valid_rule<T: Validatron + 'static>(
     let first_field =
         get_valid_field_from_class::<T>(class, identifier_path.into(), ExtractorFrom::None)?;
 
-    let vr = match first_field.class.into_kind() {
+    match first_field.class.into_kind() {
         ValidatronClassKind::Primitive(first_field_primitive) => match value {
             RValue::Value(value) => {
                 let compare_fn =
@@ -228,9 +228,7 @@ pub fn get_valid_rule<T: Validatron + 'static>(
             }
         }
         _ => unreachable!("Expected only primitive and collection types"),
-    };
-
-    vr
+    }
 }
 
 fn get_valid_field_from_class<T: Validatron + 'static>(
