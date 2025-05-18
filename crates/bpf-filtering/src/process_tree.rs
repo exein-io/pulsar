@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::{self, BufRead, BufReader},
     num::ParseIntError,
     str::{FromStr, SplitWhitespace},
@@ -13,6 +14,7 @@ use bpf_common::{
     containers::ContainerId,
 };
 use lazy_static::lazy_static;
+use log::warn;
 use pulsar_core::event::{ContainerEngineKind, EventError, Namespaces};
 use regex::Regex;
 use thiserror::Error;
@@ -23,10 +25,10 @@ lazy_static! {
 
 /// ProcessTree contains information about all running processes
 pub(crate) struct ProcessTree {
-    processes: Vec<ProcessData>,
+    processes: HashMap<Pid, ProcessData>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ProcessData {
     pub(crate) pid: Pid,
     pub(crate) uid: Uid,
@@ -166,11 +168,12 @@ impl ProcessTree {
 
         let processes = reader
             .lines()
-            .map(|line_result| {
+            .map(|line_result| -> Result<(Pid, ProcessData), Error> {
                 let line = line_result.map_err(Error::LineRead)?;
-                ProcessData::from_str(&line)
+                let process = ProcessData::from_str(&line)?;
+                Ok((process.pid, process))
             })
-            .collect::<Result<Vec<ProcessData>, Error>>()?;
+            .collect::<Result<HashMap<Pid, ProcessData>, Error>>()?;
 
         Ok(Self { processes })
     }
@@ -187,12 +190,11 @@ impl ProcessTree {
         namespaces: Namespaces,
         container_id: Option<ContainerId>,
     ) -> Result<&ProcessData, Error> {
-        let parent = self.processes.iter().find(|p| p.pid == ppid);
+        let parent = self.processes.get(&ppid);
         match parent {
             Some(parent) => {
                 let image = parent.image.to_string();
-
-                self.processes.push(ProcessData {
+                let process = ProcessData {
                     pid,
                     uid,
                     gid,
@@ -200,18 +202,24 @@ impl ProcessTree {
                     parent: ppid,
                     namespaces,
                     container_id,
-                });
-                Ok(self.processes.last().unwrap())
+                };
+                self.processes.entry(pid).and_modify(|e| {
+                    warn!(
+                        "process tree key {pid} contained the process {e:?}, replacing it with a new process {process:?}"
+                    );
+                    *e = process.clone();
+                }).or_insert(process);
+                Ok(self.processes.get(&pid).unwrap())
             }
             None => Err(Error::ParentNotFound { pid, ppid }),
         }
     }
 
     pub(crate) fn exec(&mut self, pid: Pid, image: &str) -> Result<&ProcessData, Error> {
-        match self.processes.iter().position(|p| p.pid == pid) {
-            Some(i) => {
-                self.processes[i].image = image.to_string();
-                Ok(&self.processes[i])
+        match self.processes.get_mut(&pid) {
+            Some(process) => {
+                process.image = image.to_string();
+                Ok(process)
             }
             None => Err(Error::ProcessNotFound { pid }),
         }
@@ -220,8 +228,8 @@ impl ProcessTree {
 
 impl<'a> IntoIterator for &'a ProcessTree {
     type Item = &'a ProcessData;
-    type IntoIter = std::slice::Iter<'a, ProcessData>;
+    type IntoIter = std::collections::hash_map::Values<'a, Pid, ProcessData>;
     fn into_iter(self) -> Self::IntoIter {
-        self.processes.iter()
+        self.processes.values()
     }
 }
