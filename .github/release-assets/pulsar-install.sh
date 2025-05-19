@@ -255,7 +255,7 @@ get_release_variant() {
 
         riscv64)
             #_cputype=riscv64gc
-            _arch=riscv64gc
+            _arch=-riscv64gc
             ;;
 
         *)
