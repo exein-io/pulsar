@@ -137,6 +137,7 @@ impl ModuleContext {
                 pid: process.as_raw(),
                 timestamp: timestamp.into(),
                 image: String::new(),
+                parent_images: Vec::new(),
                 uid: 0,
                 gid: 0,
                 parent_pid: 0,
@@ -146,6 +147,7 @@ impl ModuleContext {
             match process_tracker.get(process, timestamp).await {
                 Ok(ProcessInfo {
                     image,
+                    parent_images,
                     ppid,
                     fork_time,
                     argv: _,
@@ -155,6 +157,7 @@ impl ModuleContext {
                     gid,
                 }) => {
                     header.image = image;
+                    header.parent_images = parent_images;
                     header.parent_pid = ppid.as_raw();
                     header.fork_time = fork_time.into();
                     header.container = container;

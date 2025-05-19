@@ -93,6 +93,7 @@ pub enum TrackerError {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProcessInfo {
     pub image: String,
+    pub parent_images: Vec<String>,
     pub ppid: Pid,
     pub uid: Uid,
     pub gid: Gid,
@@ -386,6 +387,17 @@ impl ProcessTracker {
             .processes
             .get(&pid)
             .ok_or(TrackerError::ProcessNotFound)?;
+
+        const PID_0: Pid = Pid::from_raw(0);
+        let mut current_process = process;
+        let mut parent_images = Vec::new();
+        while current_process.ppid != PID_0 {
+            let pid = current_process.ppid;
+            current_process = self.processes.get(&pid).unwrap();
+            let image = self.get_image(pid, ts);
+            parent_images.push(image);
+        }
+
         if ts < process.fork_time {
             log::warn!(
                 "{} not forked yet {} < {} ({}ms)",
@@ -404,6 +416,7 @@ impl ProcessTracker {
         }
         Ok(ProcessInfo {
             image: self.get_image(pid, ts),
+            parent_images,
             uid: process.uid,
             gid: process.gid,
             ppid: process.ppid,
@@ -576,6 +589,7 @@ mod tests {
             process_tracker.get(PID_2, 10.into()).await.unwrap(),
             ProcessInfo {
                 image: String::new(),
+                parent_images: Vec::new(),
                 ppid: PID_1,
                 uid: UID_USER,
                 gid: GID_USER,
@@ -589,6 +603,7 @@ mod tests {
             process_tracker.get(PID_2, 15.into()).await.unwrap(),
             ProcessInfo {
                 image: "/bin/after_exec".to_string(),
+                parent_images: Vec::new(),
                 ppid: PID_1,
                 uid: UID_USER,
                 gid: GID_USER,
@@ -640,6 +655,7 @@ mod tests {
             process_tracker.get(PID_2, 13.into()).await,
             Ok(ProcessInfo {
                 image: "".to_string(),
+                parent_images: Vec::new(),
                 ppid: PID_1,
                 uid: UID_USER,
                 gid: GID_USER,
@@ -653,6 +669,7 @@ mod tests {
             process_tracker.get(PID_2, 17.into()).await,
             Ok(ProcessInfo {
                 image: "/bin/after_exec".to_string(),
+                parent_images: Vec::new(),
                 ppid: PID_1,
                 uid: UID_USER,
                 gid: GID_USER,
