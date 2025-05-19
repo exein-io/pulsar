@@ -87,6 +87,7 @@ impl fmt::Display for Event {
 #[derive(Debug, Clone, Serialize, Deserialize, Validatron)]
 pub struct Header {
     pub image: String,
+    pub parent_images: Vec<String>,
     pub pid: i32,
     pub parent_pid: i32,
     pub uid: u32,

@@ -93,6 +93,7 @@ pub enum TrackerError {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProcessInfo {
     pub image: String,
+    pub parent_images: Vec<String>,
     pub ppid: Pid,
     pub uid: Uid,
     pub gid: Gid,
@@ -386,6 +387,17 @@ impl ProcessTracker {
             .processes
             .get(&pid)
             .ok_or(TrackerError::ProcessNotFound)?;
+
+        const PID_0: Pid = Pid::from_raw(0);
+        let mut current_process = process;
+        let mut parent_images = Vec::new();
+        while current_process.ppid != PID_0 {
+            let pid = current_process.ppid;
+            current_process = self.processes.get(&pid).unwrap();
+            let image = self.get_image(pid, ts);
+            parent_images.push(image);
+        }
+
         if ts < process.fork_time {
             log::warn!(
                 "{} not forked yet {} < {} ({}ms)",
@@ -404,6 +416,7 @@ impl ProcessTracker {
         }
         Ok(ProcessInfo {
             image: self.get_image(pid, ts),
+            parent_images,
             uid: process.uid,
             gid: process.gid,
             ppid: process.ppid,
@@ -514,11 +527,24 @@ impl ProcessTracker {
 mod tests {
     use super::*;
 
-    const PID_1: Pid = Pid::from_raw(42);
-    const PID_2: Pid = Pid::from_raw(43);
+    const PID_0: Pid = Pid::from_raw(0);
+    const PID_1: Pid = Pid::from_raw(1);
+    const PID_PROCESS_1: Pid = Pid::from_raw(42);
+    const PID_PROCESS_2: Pid = Pid::from_raw(43);
+    const UID_ROOT: Uid = Uid::from_raw(0);
+    const GID_ROOT: Gid = Gid::from_raw(0);
     const UID_USER: Uid = Uid::from_raw(1000);
     const GID_USER: Gid = Gid::from_raw(1000);
 
+    const NAMESPACES_0: Namespaces = Namespaces {
+        uts: 0,
+        ipc: 0,
+        mnt: 0,
+        pid: 0,
+        net: 0,
+        time: 0,
+        cgroup: 0,
+    };
     const NAMESPACES_1: Namespaces = Namespaces {
         uts: 4026531835,
         ipc: 4026531839,
@@ -529,11 +555,33 @@ mod tests {
         cgroup: 4026531838,
     };
 
+    /// Adds the init process to the tracker.
+    fn track_pid_1(process_tracker: &ProcessTrackerHandle) {
+        process_tracker.update(TrackerUpdate::Fork {
+            ppid: PID_0,
+            pid: PID_1,
+            uid: UID_ROOT,
+            gid: GID_ROOT,
+            timestamp: 0.into(),
+            namespaces: NAMESPACES_0,
+            container_id: None,
+        });
+        process_tracker.update(TrackerUpdate::Exec {
+            pid: PID_1,
+            uid: UID_ROOT,
+            timestamp: 0.into(),
+            image: "/bin/init".to_string(),
+            argv: Vec::new(),
+            namespaces: NAMESPACES_0,
+            container_id: None,
+        });
+    }
+
     #[tokio::test]
     async fn no_processes_by_default() {
         let process_tracker = start_process_tracker();
         assert_eq!(
-            process_tracker.get(PID_1, 0.into()).await,
+            process_tracker.get(PID_PROCESS_1, 0.into()).await,
             Err(TrackerError::ProcessNotFound)
         );
     }
@@ -541,13 +589,14 @@ mod tests {
     #[tokio::test]
     async fn different_response_depending_on_timestamp() {
         let process_tracker = start_process_tracker();
+        track_pid_1(&process_tracker);
         assert_eq!(
-            process_tracker.get(PID_2, 0.into()).await,
+            process_tracker.get(PID_PROCESS_2, 0.into()).await,
             Err(TrackerError::ProcessNotFound)
         );
         process_tracker.update(TrackerUpdate::Fork {
-            ppid: PID_1,
-            pid: PID_2,
+            ppid: PID_PROCESS_1,
+            pid: PID_PROCESS_2,
             uid: UID_USER,
             gid: GID_USER,
             timestamp: 10.into(),
@@ -555,7 +604,7 @@ mod tests {
             container_id: None,
         });
         process_tracker.update(TrackerUpdate::Exec {
-            pid: PID_2,
+            pid: PID_PROCESS_2,
             uid: UID_USER,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
@@ -564,19 +613,20 @@ mod tests {
             container_id: None,
         });
         process_tracker.update(TrackerUpdate::Exit {
-            pid: PID_2,
+            pid: PID_PROCESS_2,
             timestamp: 100.into(),
         });
         time::sleep(time::Duration::from_millis(10)).await;
         assert_eq!(
-            process_tracker.get(PID_2, 0.into()).await,
+            process_tracker.get(PID_PROCESS_2, 0.into()).await,
             Err(TrackerError::ProcessNotStartedYet)
         );
         assert_eq!(
-            process_tracker.get(PID_2, 10.into()).await.unwrap(),
+            process_tracker.get(PID_PROCESS_2, 10.into()).await.unwrap(),
             ProcessInfo {
                 image: String::new(),
-                ppid: PID_1,
+                parent_images: Vec::new(),
+                ppid: PID_PROCESS_1,
                 uid: UID_USER,
                 gid: GID_USER,
                 fork_time: 10.into(),
@@ -586,10 +636,11 @@ mod tests {
             }
         );
         assert_eq!(
-            process_tracker.get(PID_2, 15.into()).await.unwrap(),
+            process_tracker.get(PID_PROCESS_2, 15.into()).await.unwrap(),
             ProcessInfo {
                 image: "/bin/after_exec".to_string(),
-                ppid: PID_1,
+                parent_images: Vec::new(),
+                ppid: PID_PROCESS_1,
                 uid: UID_USER,
                 gid: GID_USER,
                 fork_time: 10.into(),
@@ -600,7 +651,7 @@ mod tests {
         );
         assert_eq!(
             process_tracker
-                .get(PID_2, (101 + EXIT_THRESHOLD).into())
+                .get(PID_PROCESS_2, (101 + EXIT_THRESHOLD).into())
                 .await,
             Err(TrackerError::ProcessExited)
         );
@@ -608,14 +659,15 @@ mod tests {
 
     #[tokio::test]
     async fn pending_events() {
-        // on multi-core machines we could get the exec/exit events before its fork
         let process_tracker = start_process_tracker();
+        track_pid_1(&process_tracker);
+        // on multi-core machines we could get the exec/exit events before its fork
         process_tracker.update(TrackerUpdate::Exit {
-            pid: PID_2,
+            pid: PID_PROCESS_2,
             timestamp: 18.into(),
         });
         process_tracker.update(TrackerUpdate::Exec {
-            pid: PID_2,
+            pid: PID_PROCESS_2,
             uid: UID_USER,
             image: "/bin/after_exec".to_string(),
             timestamp: 15.into(),
@@ -624,8 +676,8 @@ mod tests {
             container_id: None,
         });
         process_tracker.update(TrackerUpdate::Fork {
-            ppid: PID_1,
-            pid: PID_2,
+            ppid: PID_PROCESS_1,
+            pid: PID_PROCESS_2,
             uid: UID_USER,
             gid: GID_USER,
             timestamp: 10.into(),
@@ -633,14 +685,15 @@ mod tests {
             container_id: None,
         });
         assert_eq!(
-            process_tracker.get(PID_2, 9.into()).await,
+            process_tracker.get(PID_PROCESS_2, 9.into()).await,
             Err(TrackerError::ProcessNotStartedYet)
         );
         assert_eq!(
-            process_tracker.get(PID_2, 13.into()).await,
+            process_tracker.get(PID_PROCESS_2, 13.into()).await,
             Ok(ProcessInfo {
                 image: "".to_string(),
-                ppid: PID_1,
+                parent_images: Vec::new(),
+                ppid: PID_PROCESS_1,
                 uid: UID_USER,
                 gid: GID_USER,
                 fork_time: 10.into(),
@@ -650,10 +703,11 @@ mod tests {
             })
         );
         assert_eq!(
-            process_tracker.get(PID_2, 17.into()).await,
+            process_tracker.get(PID_PROCESS_2, 17.into()).await,
             Ok(ProcessInfo {
                 image: "/bin/after_exec".to_string(),
-                ppid: PID_1,
+                parent_images: Vec::new(),
+                ppid: PID_PROCESS_1,
                 uid: UID_USER,
                 gid: GID_USER,
                 fork_time: 10.into(),
@@ -665,7 +719,7 @@ mod tests {
         time::sleep(time::Duration::from_millis(1)).await;
         assert_eq!(
             process_tracker
-                .get(PID_2, (22 + EXIT_THRESHOLD).into())
+                .get(PID_PROCESS_2, (22 + EXIT_THRESHOLD).into())
                 .await,
             Err(TrackerError::ProcessExited)
         );
