@@ -61,8 +61,8 @@ pub async fn setup_events_filter(
             .context("Error inserting in cgroup rule map")?;
     }
 
-    // load process list from procfs
-    let mut process_tree = ProcessTree::load_from_procfs()?;
+    // load process list from BPF iterator
+    let mut process_tree = ProcessTree::load_from_bpf_iterator(bpf)?;
 
     let mut initializer = Initializer::new(bpf, config)?;
     if let Err(err) = initializer.track_target_cgroups().await {
