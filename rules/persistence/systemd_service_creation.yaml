@@ -1,0 +1,81 @@
+# Title: Systemd Service File Creation and Modification
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK T1543 - Create or Modify System Process - https://attack.mitre.org/techniques/T1543/
+
+- name: systemd services modification
+  type: FileOpened
+  category: persistence
+  severity: medium
+  description: Detect creation or modification of systemd service files in /etc or /lib by non-package manager processes. 
+    Adversaries may create or modify systemd services to repeatedly execute malicious payloads as part of persistence.
+  condition: 
+    (payload.filename ENDS_WITH ".service")
+    AND (
+      payload.filename STARTS_WITH "/etc/systemd/system" OR
+      payload.filename STARTS_WITH "/etc/systemd/user" OR
+      payload.filename STARTS_WITH "/lib/systemd/system" OR
+      payload.filename STARTS_WITH "/usr/lib/systemd/system" OR
+      payload.filename STARTS_WITH "/usr/lib/systemd/user" OR
+      payload.filename STARTS_WITH "/usr/local/lib/systemd/system" OR
+      payload.filename STARTS_WITH "/root/.config/systemd/user/" OR
+      payload.filename STARTS_WITH "/root/.local/share/systemd/user" OR
+      payload.filename STARTS_WITH ".config/systemd/" OR
+      payload.filename STARTS_WITH "~/.config/systemd/"
+    )
+    AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet",
+        "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+        "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/*", "/usr/bin/pamac-daemon",
+        "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/local/bin/dockerd", "/usr/bin/crio", "/usr/sbin/crond",
+        "/opt/puppetlabs/puppet/bin/ruby", "/usr/libexec/platform-python", "/kaniko/kaniko-executor",
+        "/usr/local/bin/dockerd", "/usr/bin/podman", "/bin/install", "/proc/self/exe", "/usr/lib/systemd/systemd",
+        "/usr/sbin/sshd", "/usr/bin/gitlab-runner", "/opt/gitlab/embedded/bin/ruby", "/usr/sbin/gdm", "/usr/bin/install",
+        "/usr/local/manageengine/uems_agent/bin/dcregister"
+      ]
+      OR (
+        header.image STARTS_WITH "/nix/store/" OR
+        header.image STARTS_WITH "/var/lib/dpkg/" OR
+        header.image STARTS_WITH "/tmp/vmis.*" OR
+        header.image STARTS_WITH "/snap/" OR
+        header.image STARTS_WITH "/dev/fd/" OR
+        header.image STARTS_WITH "/usr/lib/virtualbox/"
+      )
+      OR (
+        header.image == ""
+      )
+      OR (
+        header.image ENDS_WITH "ssm-agent-worker" OR
+        header.image ENDS_WITH "python*" OR
+        header.image ENDS_WITH "platform-python*" OR
+        header.image ENDS_WITH "dnf_install" OR
+        header.image ENDS_WITH "cloudflared" OR
+        header.image ENDS_WITH "lxc-pve-prestart-hook" OR
+        header.image ENDS_WITH "convert-usrmerge" OR
+        header.image ENDS_WITH "elastic-agent" OR
+        header.image ENDS_WITH "google_metadata_script_runner" OR
+        header.image ENDS_WITH "update-alternatives" OR
+        header.image ENDS_WITH "gitlab-runner" OR
+        header.image ENDS_WITH "install" OR
+        header.image ENDS_WITH "crio" OR
+        header.image ENDS_WITH "apt-get" OR
+        header.image ENDS_WITH "package-cleanup" OR
+        header.image ENDS_WITH "dcservice" OR
+        header.image ENDS_WITH "dcregister" OR
+        header.image ENDS_WITH "jumpcloud-agent" OR
+        header.image ENDS_WITH "executor" OR
+        header.image ENDS_WITH "pacman" OR
+        header.image ENDS_WITH "convert2rhel" OR
+        header.image ENDS_WITH "packagekitd"
+      )
+      OR (header.image ENDS_WITH "sed" AND payload.filename STARTS_WITH "sed") 
+      OR (header.image ENDS_WITH "perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp")
+    )

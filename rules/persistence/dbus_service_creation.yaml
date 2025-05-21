@@ -1,0 +1,57 @@
+# Title: D-Bus Service Created
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1543 - Create or Modify System Process - https://attack.mitre.org/techniques/T1543/
+
+- name: D-Bus Service Created
+  type: FileCreated
+  category: persistence
+  severity: low
+  description: Detects the creation of D-Bus service files on Linux systems. D-Bus services are defined in service files that are typically located in
+    default directories. Attackers may create malicious D-Bus services to establish persistence or escalate privileges on a system.
+  condition: header.image != "" 
+    AND (payload.filename ENDS_WITH"service" OR payload.filename ENDS_WITH "conf") 
+    AND (payload.filename STARTS_WITH "/usr/share/dbus-1/system-services/" OR
+        payload.filename STARTS_WITH "/etc/dbus-1/system.d/" OR
+        payload.filename STARTS_WITH "/lib/dbus-1/system-services/" OR
+        payload.filename STARTS_WITH "/run/dbus/system.d/" OR
+        payload.filename STARTS_WITH "/usr/share/dbus-1/services/" OR
+        payload.filename STARTS_WITH "/etc/dbus-1/session.d/")
+    AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf", 
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum", 
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic", 
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk", 
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet", 
+        "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client", "/bin/autossl_check", 
+        "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/", "/usr/bin/pamac-daemon", "/bin/pamac-daemon", "/usr/lib/snapd/snapd", 
+        "/usr/local/bin/dockerd", "/usr/bin/crio", "/usr/sbin/crond", "/opt/puppetlabs/puppet/bin/ruby", "/usr/libexec/platform-python", 
+        "/kaniko/kaniko-executor", "/usr/local/bin/dockerd", "/usr/bin/podman", "/bin/install", "/proc/self/exe", "/usr/lib/systemd/systemd", 
+        "/usr/sbin/sshd", "/usr/bin/gitlab-runner", "/opt/gitlab/embedded/bin/ruby", "/usr/sbin/gdm", "/usr/bin/install", 
+        "/usr/local/manageengine/uems_agent/bin/dcregister"
+      ] 
+      OR payload.filename STARTS_WITH "/nix/store/" 
+      OR payload.filename STARTS_WITH "/var/lib/dpkg/" 
+      OR payload.filename STARTS_WITH "/tmp/vmis." 
+      OR payload.filename STARTS_WITH "/snap/" 
+      OR payload.filename STARTS_WITH "/dev/fd/" 
+      OR payload.filename STARTS_WITH "/usr/lib/virtualbox/" 
+      OR payload.filename STARTS_WITH "/usr/libexec/platform-python" 
+      OR payload.filename STARTS_WITH "/usr/local/bin/dockerd" 
+      OR payload.filename STARTS_WITH "/usr/bin/crio" 
+      OR payload.filename STARTS_WITH "/usr/sbin/crond" 
+      OR payload.filename STARTS_WITH "/kaniko/kaniko-executor" 
+      OR payload.filename STARTS_WITH "/usr/local/bin/pacman"
+    ) 
+    OR (
+        payload.filename ENDS_WITH "swp" OR
+        payload.filename ENDS_WITH "swpx" OR
+        payload.filename ENDS_WITH "swx" OR
+        payload.filename ENDS_WITH "dpkg-remove"
+      )
+    OR (header.image STARTS_WITH "sed" AND payload.filename ENDS_WITH "sed") 
+    OR (header.image STARTS_WITH "perl" AND payload.filename ENDS_WITH "e2scrub_all.tmp")
