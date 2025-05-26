@@ -21,6 +21,7 @@ impl SimplePulsarModule for SmtpNotifierModule {
 
     const MODULE_NAME: &'static str = "smtp-notifier";
     const DEFAULT_ENABLED: bool = false;
+    const DEPENDS_ON: &'static [&'static str] = &[];
 
     async fn init_state(
         &self,

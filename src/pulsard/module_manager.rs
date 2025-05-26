@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
@@ -9,6 +10,7 @@ use pulsar_core::pdk::{
 };
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
 enum ModuleManagerCommand {
@@ -116,10 +118,24 @@ impl<T: PulsarModule> ModuleManager<T> {
     async fn handle_cmd(&mut self, cmd: ModuleManagerCommand) {
         match cmd {
             ModuleManagerCommand::StartModule { tx_reply } => {
-                // Check if the  module is already running
+                // Check if the module is already running
                 if let ModuleStatus::Running(_) = self.status {
                     let _ = tx_reply.send(Ok(()));
                     return;
+                }
+
+                // Wait for modules that we depend on.
+                for module in T::DEPENDS_ON {
+                    log::debug!("{} depends on: {module}", T::MODULE_NAME);
+                    loop {
+                        if let Ok(status) = self.daemon_handle.status(*module).await {
+                            if matches!(status, ModuleStatus::Running(_)) {
+                                break;
+                            }
+                        }
+                        log::debug!("{}: Waiting for module {module} to run", T::MODULE_NAME);
+                        sleep(Duration::from_millis(10)).await;
+                    }
                 }
 
                 let module_config = match T::Config::try_from(&self.config.borrow()) {
@@ -189,6 +205,8 @@ impl<T: PulsarModule> ModuleManager<T> {
 
                 self.running_task = Some((tx_shutdown, join_handle));
                 self.status = ModuleStatus::Running(Vec::new());
+
+                log::debug!("Started module {}", T::MODULE_NAME);
 
                 // The `let _ =` ignores any errors when sending.
                 //

@@ -13,6 +13,7 @@ impl SimplePulsarModule for MyCustomModule {
 
     const MODULE_NAME: &'static str = "my-custom-module";
     const DEFAULT_ENABLED: bool = true;
+    const DEPENDS_ON: &'static [&'static str] = &[];
 
     async fn init_state(
         &self,
