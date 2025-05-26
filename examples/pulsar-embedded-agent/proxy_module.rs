@@ -11,6 +11,7 @@ impl SimplePulsarModule for ProxyModule {
 
     const MODULE_NAME: &'static str = "proxy-module";
     const DEFAULT_ENABLED: bool = true;
+    const DEPENDS_ON: &'static [&'static str] = &[];
 
     async fn init_state(
         &self,

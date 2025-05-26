@@ -43,8 +43,12 @@ impl PulsarDaemonHandle {
         recv.await.expect("Actor task has been killed")
     }
 
-    pub async fn status(&self, module_name: String) -> Result<ModuleStatus, PulsarDaemonError> {
+    pub async fn status<S>(&self, module_name: S) -> Result<ModuleStatus, PulsarDaemonError>
+    where
+        S: Into<String>,
+    {
         let (send, recv) = oneshot::channel();
+        let module_name = module_name.into();
         let msg = PulsarDaemonCommand::Status {
             tx_reply: send,
             module_name,
