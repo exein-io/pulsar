@@ -225,6 +225,7 @@ pub mod pulsar {
 
         const MODULE_NAME: &'static str = MODULE_NAME;
         const DEFAULT_ENABLED: bool = true;
+        const DEPENDS_ON: &'static [&'static str] = &["process-monitor"];
 
         async fn init_state(
             &self,

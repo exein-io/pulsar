@@ -27,6 +27,7 @@ impl SimplePulsarModule for ThreatLoggerModule {
 
     const MODULE_NAME: &'static str = "threat-logger";
     const DEFAULT_ENABLED: bool = true;
+    const DEPENDS_ON: &'static [&'static str] = &[];
 
     async fn init_state(
         &self,

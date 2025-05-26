@@ -21,6 +21,7 @@ impl SimplePulsarModule for RuleEngineModule {
 
     const MODULE_NAME: &'static str = "rules-engine";
     const DEFAULT_ENABLED: bool = true;
+    const DEPENDS_ON: &'static [&'static str] = &[];
 
     async fn init_state(
         &self,
