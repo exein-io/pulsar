@@ -70,7 +70,7 @@ impl RelationalOperator {
             RelationalOperator::Greater => first > second,
             RelationalOperator::Less => first < second,
             RelationalOperator::GreaterEqual => first >= second,
-            RelationalOperator::LessEqual => first >= second,
+            RelationalOperator::LessEqual => first <= second,
         }
     }
 }
