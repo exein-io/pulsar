@@ -28,6 +28,7 @@ pub trait PulsarModule: Send {
 
     const MODULE_NAME: &'static str;
     const DEFAULT_ENABLED: bool;
+    const DEPENDS_ON: &'static [&'static str];
 
     fn init_state(
         &self,
@@ -79,6 +80,7 @@ pub trait SimplePulsarModule: Send + Sync {
 
     const MODULE_NAME: &'static str;
     const DEFAULT_ENABLED: bool;
+    const DEPENDS_ON: &'static [&'static str];
 
     fn init_state(
         &self,
@@ -124,8 +126,8 @@ where
     type TriggerOutput = ();
 
     const MODULE_NAME: &'static str = Self::MODULE_NAME;
-
     const DEFAULT_ENABLED: bool = Self::DEFAULT_ENABLED;
+    const DEPENDS_ON: &'static [&'static str] = Self::DEPENDS_ON;
 
     async fn init_state(
         &self,

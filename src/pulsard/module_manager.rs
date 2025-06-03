@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
@@ -9,6 +10,10 @@ use pulsar_core::pdk::{
 };
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
+
+const DEPENDENCY_MODULE_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+const DEPENDENCY_MODULE_WAIT_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
 enum ModuleManagerCommand {
@@ -116,10 +121,36 @@ impl<T: PulsarModule> ModuleManager<T> {
     async fn handle_cmd(&mut self, cmd: ModuleManagerCommand) {
         match cmd {
             ModuleManagerCommand::StartModule { tx_reply } => {
-                // Check if the  module is already running
+                // Check if the module is already running
                 if let ModuleStatus::Running(_) = self.status {
                     let _ = tx_reply.send(Ok(()));
                     return;
+                }
+
+                // Wait for modules that we depend on.
+                for module in T::DEPENDS_ON {
+                    log::debug!("{} depends on: {module}", T::MODULE_NAME);
+
+                    if let Err(e) = tokio::time::timeout(DEPENDENCY_MODULE_WAIT_TIMEOUT, async {
+                        loop {
+                            if let Ok(status) = self.daemon_handle.status(*module).await {
+                                if matches!(status, ModuleStatus::Running(_)) {
+                                    break;
+                                }
+                            }
+                            log::debug!("{}: Waiting for module {module} to run", T::MODULE_NAME);
+                            sleep(DEPENDENCY_MODULE_WAIT_INTERVAL).await;
+                        }
+                    })
+                    .await
+                    {
+                        let err_msg = format!(
+                            "{}: Timeout while waiting for module {module} to reach running state: {e}",
+                            T::MODULE_NAME
+                        );
+                        let _ = tx_reply.send(Err(err_msg));
+                        return;
+                    }
                 }
 
                 let module_config = match T::Config::try_from(&self.config.borrow()) {
@@ -189,6 +220,8 @@ impl<T: PulsarModule> ModuleManager<T> {
 
                 self.running_task = Some((tx_shutdown, join_handle));
                 self.status = ModuleStatus::Running(Vec::new());
+
+                log::debug!("Started module {}", T::MODULE_NAME);
 
                 // The `let _ =` ignores any errors when sending.
                 //
