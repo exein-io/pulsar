@@ -1,0 +1,16 @@
+# Title: Linux Suspicious User-Agent Spoofing
+
+# Creation date: 2025/04/17
+
+# MITRE ATT&CK Tactic: TA0011 - Command and Control - https://attack.mitre.org/tactics/TA0011/
+
+# MITRE ATT&CK Technique: T1071.001 - Application Layer Protocol: Web Protocols - https://attack.mitre.org/techniques/T1071/001/
+
+- name: Suspicious curl or wget with spoofed User-Agent
+  type: Exec
+  category: command_and_control
+  severity: medium
+  description: Detects curl or wget usage with the -A option to spoof the User-Agent string, which is often used in evasion, fingerprinting, or disguised command and control communications.
+  condition: (payload.filename ENDS_WITH "curl" AND (payload.argv CONTAINS "-A" OR payload.argv CONTAINS "--user-agent"))
+    OR (payload.filename ENDS_WITH "wget" AND (payload.argv CONTAINS "-U" OR payload.argv CONTAINS "--user-agent"))
+
