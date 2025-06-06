@@ -14,13 +14,8 @@
     enables the creation of a secure tunnel between a local and remote host, facilitating the transfer of data through an encrypted
     channel. Attackers can exploit the Gost to bypass network defenses, establish hidden communication channels, and gain 
     unauthorized access to internal resources, facilitating data exfiltration, lateral movement, and remote control.
-  condition: payload.filename ENDS_WITH "gost"
+  condition: payload.filename ENDS_WITH "/gost"
     AND (payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-C" OR payload.argv CONTAINS "-R")
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
 
 - name: Pivotnacci without parent process
   type: Exec
@@ -30,12 +25,7 @@
     allows you to create a socks server which communicates with HTTP agents. Attackers can exploit the Pivotnacci utility to establish 
     a hidden communication channel, bypass network defenses, and exfiltrate sensitive information, potentially enabling unauthorized 
     access to internal resources and remote control over compromised systems.
-  condition: payload.filename ENDS_WITH "pivotnacci"
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
+  condition: payload.filename ENDS_WITH "/pivotnacci"
 
 - name: SSH with suspicious arguments
   type: Exec
@@ -45,14 +35,9 @@
     with chmod to establish a hidden communication channel, bypass network defenses, and exfiltrate sensitive information, potentially
     enabling unauthorized access to internal resources and remote control over compromised systems.
   condition:
-    (payload.filename ENDS_WITH "/ssh" OR payload.filename ENDS_WITH  "/usr/sbin/sshd")  AND (payload.argv CONTAINS "-R" 
+    (payload.filename ENDS_WITH "/ssh" OR payload.filename ENDS_WITH  "/sshd")  AND (payload.argv CONTAINS "-R" 
     OR payload.argv CONTAINS "-L" OR payload.argv CONTAINS "-D" OR payload.argv CONTAINS "-w") AND payload.argc >= 4 
     AND NOT payload.argv CONTAINS "chmod"
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh"
-    OR header.image ENDS_WITH "fish"
-   )
 
 - name: Sshuttle with suspicious arguments
   type: Exec
@@ -63,13 +48,8 @@
     Attackers can exploit the Sshuttle utility to bypass network defenses, establish hidden communication channels, and gain unauthorized 
     access to internal resources, potentially facilitating data exfiltration, lateral movement, and remote control.
   condition:
-    payload.filename ENDS_WITH "sshuttle" AND (payload.argv CONTAINS "-r" OR payload.argv CONTAINS "--remote" OR payload.argv CONTAINS "-l" 
+    payload.filename ENDS_WITH "/sshuttle" AND (payload.argv CONTAINS "-r" OR payload.argv CONTAINS "--remote" OR payload.argv CONTAINS "-l" 
     OR payload.argv CONTAINS "--listen") AND payload.argc >= 4
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
 
 - name: Socat with suspicious arguments
   type: Exec
@@ -81,12 +61,7 @@
     hidden communication channels, and gain unauthorized access to internal resources, potentially facilitating data exfiltration, lateral 
     movement, and remote control.
   condition:
-    payload.filename ENDS_WITH "socat" AND (payload.argv CONTAINS "TCP4-LISTEN:" OR payload.argv CONTAINS "SOCKS") AND payload.argc >= 3
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
+    payload.filename ENDS_WITH "/socat" AND (payload.argv CONTAINS "TCP4-LISTEN:" OR payload.argv CONTAINS "SOCKS") AND payload.argc >= 3
 
 - name: Chisel client OR server mode
   type: Exec
@@ -96,13 +71,8 @@
     via SSH. It was designed to bypass network restrictions and securely communicate between two endpoints. Attackers can exploit 
     the Chisel utility to bypass network defenses, establish hidden communication channels, and gain unauthorized access to internal 
     resources, potentially facilitating data exfiltration, lateral movement, and remote control.
-  condition:
-    payload.filename ENDS_WITH "chisel" AND (payload.argv CONTAINS "client" OR payload.argv CONTAINS "server")
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
+  condition: payload.filename ENDS_WITH "/chisel" AND (payload.argv CONTAINS "client" OR payload.argv CONTAINS "server")
+    
 
 - name: Tunneling tools execution
   type: Exec
@@ -112,14 +82,10 @@
     defenses, establish hidden communication channels, and gain unauthorized access to internal resources, potentially facilitating data 
     exfiltration, lateral movement, and remote control.
   condition: (
-    payload.filename ENDS_WITH "iodine" OR payload.filename ENDS_WITH "iodined" OR payload.filename ENDS_WITH "dnscat" 
-    OR payload.filename ENDS_WITH "hans" OR payload.filename ENDS_WITH "hans-ubuntu" OR payload.filename ENDS_WITH "ptunnel-ng" 
-    OR payload.filename ENDS_WITH "ssf" OR payload.filename ENDS_WITH "3proxy" OR payload.filename ENDS_WITH "ngrok"
-    OR payload.filename ENDS_WITH "dns2tcpc" OR payload.filename ENDS_WITH "dnstt-server" OR payload.filename ENDS_WITH "dnstt-client"
-    ) AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
+    payload.filename ENDS_WITH "/iodine" OR payload.filename ENDS_WITH "/iodined" OR payload.filename ENDS_WITH "/dnscat" 
+    OR payload.filename ENDS_WITH "/hans" OR payload.filename ENDS_WITH "/hans-ubuntu" OR payload.filename ENDS_WITH "/ptunnel-ng" 
+    OR payload.filename ENDS_WITH "/ssf" OR payload.filename ENDS_WITH "/3proxy" OR payload.filename ENDS_WITH "/ngrok"
+    OR payload.filename ENDS_WITH "/dns2tcpc" OR payload.filename ENDS_WITH "/dnstt-server" OR payload.filename ENDS_WITH "/dnstt-client"
     )
 
 - name: dnscat2 Ruby execution
@@ -127,7 +93,7 @@
   category: command_and_control
   severity: high
   description: This rule detects the execution of Ruby with the dnscat2.rb script, commonly used for DNS tunneling C2.
-  condition: header.image ENDS_WITH "ruby" AND payload.argv CONTAINS "./dnscat2.rb"
+  condition: payload.filename ENDS_WITH "/ruby" AND payload.argv CONTAINS "./dnscat2.rb"
 
 
 - name: Dante SOCKS server execution
@@ -139,11 +105,6 @@
     connections, bypassing network restrictions, and facilitating lateral movement within compromised networks.
   condition: 
     (payload.filename ENDS_WITH "/sockd" OR payload.filename ENDS_WITH "dante-server")
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
 
 - name: Redsocks transparent proxy execution
   type: Exec
@@ -154,9 +115,4 @@
     network restrictions and redirect traffic through proxy infrastructure, potentially enabling unauthorized access to 
     resources and facilitating data exfiltration.
   condition:
-    payload.filename ENDS_WITH "redsocks" 
-    AND (
-    header.image ENDS_WITH "bash" OR header.image ENDS_WITH "dash" OR header.image ENDS_WITH "ash" OR header.image ENDS_WITH "sh" 
-    OR header.image ENDS_WITH "tcsh" OR header.image ENDS_WITH "csh" OR header.image ENDS_WITH "zsh" OR header.image ENDS_WITH "ksh" 
-    OR header.image ENDS_WITH "fish"
-    )
+    payload.filename ENDS_WITH "/redsocks" 

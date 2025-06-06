@@ -15,7 +15,7 @@
   condition: (
     payload.filename STARTS_WITH "/root/.ssh/" OR
     payload.filename STARTS_WITH "/etc/ssh/" OR
-    payload.filename STARTS_WITH "/.ssh/" OR
+    payload.filename ENDS_WITH ".ssh/config" OR
     payload.filename ENDS_WITH "/.ssh/authorized_keys"
     )
     AND NOT header.image IN [

@@ -109,7 +109,10 @@
       payload.filename ENDS_WITH "/containerd" OR
       payload.filename ENDS_WITH "/runc" OR
       payload.filename ENDS_WITH "/systemd" OR
-      payload.filename ENDS_WITH "/crictl"
+      payload.filename ENDS_WITH "/crictl" OR
+      payload.filename ENDS_WITH "/podman" OR
+      payload.filename ENDS_WITH "/crun" OR
+      payload.filename ENDS_WITH "/youki"
     )
 
 - name: SSH Process Launched Inside A Container

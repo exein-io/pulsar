@@ -27,11 +27,9 @@
   category: credential_access
   severity: medium
   description: Detects use of grep to recursively search for the term 'password' across the filesystem.
-  condition: (header.image ENDS_WITH "grep" OR payload.filename ENDS_WITH "grep")
-    AND payload.argv CONTAINS "-r"
-    AND payload.argv CONTAINS "password"
+  condition: (payload.filename ENDS_WITH "/grep" OR payload.filename ENDS_WITH "/rg") 
+    AND (payload.argv CONTAINS "password" OR payload.argv CONTAINS "Password" OR payload.argv CONTAINS "PASSWORD")
 
-# Useful?
 - name: Suspicious Credential or Key File Access
   type: FileOpened
   category: credential_access
@@ -42,15 +40,9 @@
     header.image ENDS_WITH "cat" OR
     header.image ENDS_WITH "less" OR
     header.image ENDS_WITH "more" OR
-    header.image ENDS_WITH "strings" OR
-    header.image ENDS_WITH "grep"
+    header.image ENDS_WITH "strings"    
     ) AND (
       payload.filename CONTAINS ".pem" OR
       payload.filename CONTAINS ".key" OR
-      payload.filename CONTAINS ".crt" OR
-      payload.filename CONTAINS "password=" OR
-      payload.filename CONTAINS "pass:" OR
-      payload.filename CONTAINS "pwd" OR
-      payload.filename CONTAINS "BEGIN PRIVATE" OR
-      payload.filename CONTAINS "PRIVATE KEY"
+      payload.filename CONTAINS ".crt"
     )

@@ -16,7 +16,7 @@
       (payload.destination ENDS_WITH "/etc/shadow" OR
       payload.destination ENDS_WITH "/etc/sudoers" OR
       payload.destination ENDS_WITH "/etc/pam.conf" OR
-      payload.destination ENDS_WITH "etc/security/pwquality.conf")
+      payload.destination ENDS_WITH "/etc/security/pwquality.conf")
     OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
 
 - name: Create sensitive files hardlink
@@ -29,5 +29,5 @@
       (payload.destination ENDS_WITH "/etc/shadow" OR
       payload.destination ENDS_WITH "/etc/sudoers" OR
       payload.destination ENDS_WITH "/etc/pam.conf" OR
-      payload.destination ENDS_WITH "etc/security/pwquality.conf")
+      payload.destination ENDS_WITH "/etc/security/pwquality.conf")
     OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
