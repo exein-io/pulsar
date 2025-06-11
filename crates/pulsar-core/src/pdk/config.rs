@@ -38,19 +38,7 @@ impl ModuleConfig {
         self.inner.get(config_name).map(String::as_str)
     }
 
-    /// Returns a typed configuration value. This method uses anyhow
-    pub fn with_default<T>(&self, config_name: &str, default: T) -> Result<T, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        match self.inner.get(config_name) {
-            None => Ok(default),
-            Some(value) => parse(value, config_name),
-        }
-    }
-
-    /// Returns a typed configuration value. This method uses anyhow
+    /// Returns a typed configuration value.
     pub fn required<T>(&self, config_name: &str) -> Result<T, ConfigError>
     where
         T: FromStr,
@@ -62,6 +50,18 @@ impl ModuleConfig {
             }),
             Some(value) => parse(value, config_name),
         }
+    }
+
+    /// Returns an optional typed configuration value.
+    pub fn optional<T>(&self, config_name: &str) -> Result<Option<T>, ConfigError>
+    where
+        T: FromStr,
+        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+    {
+        self.inner
+            .get(config_name)
+            .map(|value| parse(value, config_name))
+            .transpose()
     }
 
     /// Return a comma separed list of values. Return empty vector if field is missing.

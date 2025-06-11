@@ -34,7 +34,15 @@ impl PulsarDaemonStarter {
         let process_tracker = start_process_tracker();
 
         let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
-        let perf_pages = general_config.with_default("perf_pages", PERF_PAGES_DEFAULT)?;
+        let perf_pages = match general_config.optional("perf_pages") {
+            Ok(value) => value.unwrap_or(PERF_PAGES_DEFAULT),
+            Err(err) => {
+                log::warn!(
+                    "failed to parse `perf_pages` field. fallback to default {PERF_PAGES_DEFAULT}. Err: {err}"
+                );
+                PERF_PAGES_DEFAULT
+            }
+        };
         let bpf_log_level = if cfg!(debug_assertions) {
             if log::max_level() >= log::Level::Debug {
                 BpfLogLevel::Debug
@@ -112,10 +120,16 @@ impl PulsarDaemonStarter {
         // Start modules
         for (module_name, data) in &self.modules {
             let module_config = self.config.get_watched_module_config(module_name);
-            let is_enabled = module_config
-                .borrow()
-                .with_default("enabled", data.enabled_by_default)
-                .unwrap_or(false);
+            let is_enabled = match module_config.borrow().optional("enabled") {
+                Ok(value) => value.unwrap_or(data.enabled_by_default),
+                Err(err) => {
+                    log::warn!(
+                        "failed to parse `enabled` configuration field for module `{module_name}`. fallback to module default `{}`. Err: {err}",
+                        data.enabled_by_default,
+                    );
+                    data.enabled_by_default
+                }
+            };
 
             if is_enabled {
                 log::info!("Starting module {module_name}");
