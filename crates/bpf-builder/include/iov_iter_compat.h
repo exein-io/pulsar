@@ -8,7 +8,7 @@
  * backwards-compatible and impossible to handle just with BTF. This struct
  * is defined to handle the old definition.
  */
-struct iov_iter_compat {
+struct iov_iter___compat {
 	u8 iter_type;
 	bool data_source;
 	size_t iov_offset;
@@ -28,4 +28,4 @@ struct iov_iter_compat {
 		};
 		loff_t xarray_start;
 	};
-};
+} __attribute__((preserve_access_index));;
