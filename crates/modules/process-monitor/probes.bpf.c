@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-#include "bpf/bpf_core_read.h"
 #include "common.bpf.h"
+#include "bpf/bpf_core_read.h"
 #include "strncmp.bpf.h"
 #include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
@@ -9,6 +9,7 @@
 #include "loop.bpf.h"
 #include "output.bpf.h"
 #include "vmlinux.h"
+#include "kernfs_node_compat.h"
 
 char LICENSE[] SEC("license") = "GPL v2";
 
@@ -202,23 +203,51 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   }
 
   struct kernfs_node *kn = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn);
-  const char *name = BPF_CORE_READ(kn, name);
-  if (bpf_probe_read_kernel_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, name) < 0)
+  const char *name;
+
+  // handle kernfs compat if kernel < 6.15
+  if (bpf_core_field_exists(kn->__parent)) {
+    name = BPF_CORE_READ(kn, name);
+  } else {
+    struct kernfs_node___compat *kn_compat = (void *)kn;
+    name = BPF_CORE_READ(kn_compat, name);
+  }
+
+  if (bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, name) < 0)
   {
     LOG_ERROR("failed to get kernfs node name: %s\n", c_id_buf->buf);
     return FAILED_READ_CGROUP_NAME;
   }
 
-  struct kernfs_node *parent_kn = BPF_CORE_READ(kn, parent);
   const char *parent_name = NULL;
-  if (parent_kn != NULL)
-  {
-    parent_name = BPF_CORE_READ(kn, parent, name);
-    if (bpf_probe_read_kernel_str(parent_buf.buf, CONTAINER_ID_MAX_BUF,
-                                  parent_name) < 0)
+
+  // handle kernfs compat if kernel < 6.15
+  if (bpf_core_field_exists(kn->__parent)) {
+    struct kernfs_node *parent_kn = BPF_CORE_READ(kn, __parent);
+
+    if (parent_kn != NULL)
     {
-      LOG_ERROR("failed to get parent kernfs node name: %s\n", parent_buf.buf);
-      return FAILED_READ_PARENT_CGROUP_NAME;
+      parent_name = BPF_CORE_READ(kn, __parent, name);
+      if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF,
+                                    parent_name) < 0)
+      {
+        LOG_ERROR("failed to get parent kernfs node name: %s\n", parent_buf.buf);
+        return FAILED_READ_PARENT_CGROUP_NAME;
+      }
+    }
+  } else {
+    struct kernfs_node___compat *kn_compat = (void *)kn;
+    struct kernfs_node___compat *parent_kn = BPF_CORE_READ(kn_compat, parent);
+
+    if (parent_kn != NULL)
+    {
+      parent_name = BPF_CORE_READ(kn_compat, parent, name);
+      if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF,
+                                    parent_name) < 0)
+      {
+        LOG_ERROR("failed to get parent kernfs node name: %s\n", parent_buf.buf);
+        return FAILED_READ_PARENT_CGROUP_NAME;
+      }
     }
   }
 
@@ -256,7 +285,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   if (STRNCMP(c_id_buf->buf, 9, "container") == 0 && c_id_buf->buf[9] == '\0')
   {
     // Read `parent_name` to the main buffer `buf`.
-    if (parent_name == NULL || bpf_probe_read_kernel_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, parent_name) < 0)
+    if (parent_name == NULL || bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, parent_name) < 0)
     {
       LOG_ERROR("failed to get parent kernfs node name: %s\n", c_id_buf->buf);
       return FAILED_READ_PARENT_CGROUP_NAME;

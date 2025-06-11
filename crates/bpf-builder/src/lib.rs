@@ -17,13 +17,7 @@ static INCLUDE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/include");
 // on. Lack of certain feature will result in using legacy replacements.
 pub fn build(name: &str, source: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={source}");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/common.bpf.h");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/buffer.bpf.h");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/output.bpf.h");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/interest_tracking.bpf.h");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/loop.bpf.h");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/get_path.bpf.h");
-    println!("cargo:rerun-if-changed={INCLUDE_PATH}/task.bpf.h");
+    println!("cargo:rerun-if-changed={INCLUDE_PATH}");
 
     let out_dir = env::var("OUT_DIR").context("OUT_DIR not set")?;
     let out_path = Path::new(&out_dir).join(name);

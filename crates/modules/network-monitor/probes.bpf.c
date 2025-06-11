@@ -407,7 +407,7 @@ static __always_inline void
   }
 
   // Use the <= 6.4 definition, which we represent with `struct iov_iter_compat`.
-  const struct iov_iter_compat *msg_iter_compat = msg_iter;
+  const struct iov_iter___compat *msg_iter_compat = (const void *)msg_iter;
   return BPF_CORE_READ(msg_iter_compat, iov, iov_base);
 }
 
@@ -578,7 +578,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     LOG_DEBUG("ignored unsupported L3 protocol %d", l3_proto);
     goto pass;
   }
-  
+
   // Parse L4 header (ICMP / TCP / UDP).
   switch (l4_proto) {
   case IPPROTO_ICMP:
