@@ -65,7 +65,9 @@ impl TryFrom<&ModuleConfig> for Config {
     type Error = ConfigError;
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let rules_path = config.with_default("rules_path", PathBuf::from(DEFAULT_RULES_PATH))?;
+        let rules_path = config
+            .optional("rules_path")?
+            .unwrap_or(PathBuf::from(DEFAULT_RULES_PATH));
 
         if !rules_path.exists() {
             return Err(ConfigError::InvalidValue {

@@ -114,10 +114,12 @@ impl TryFrom<&ModuleConfig> for Config {
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
         Ok(Self {
-            console: config.with_default("console", true)?,
+            console: config.optional("console")?.unwrap_or(true),
             // file: config.required("file")?,
-            syslog: config.with_default("syslog", true)?,
-            output_format: config.with_default("output_format", OutputFormat::Plaintext)?,
+            syslog: config.optional("syslog")?.unwrap_or(true),
+            output_format: config
+                .optional("output_format")?
+                .unwrap_or(OutputFormat::Plaintext),
         })
     }
 }

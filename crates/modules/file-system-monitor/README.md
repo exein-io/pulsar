@@ -25,7 +25,7 @@ Default configuration:
 ```ini
 [file-system-monitor]
 enabled=true
-elf_check=true
+elf_check=false
 elf_check_whitelist=/proc,/sys,/dev
 ```
 
