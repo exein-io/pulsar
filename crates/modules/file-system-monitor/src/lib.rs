@@ -180,7 +180,7 @@ pub mod pulsar {
 
         fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
             Ok(Config {
-                elf_check: config.with_default("elf_check", true)?,
+                elf_check: config.optional("elf_check")?.unwrap_or(false),
                 elf_check_whitelist: config.get_list_with_default(
                     "elf_check_whitelist",
                     vec![

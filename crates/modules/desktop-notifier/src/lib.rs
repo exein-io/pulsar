@@ -101,14 +101,16 @@ impl TryFrom<&ModuleConfig> for Config {
     type Error = ConfigError;
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let user_id = config.with_default("user_id", 1000)?;
+        let user_id = config.optional("user_id")?.unwrap_or(1000);
         Ok(Self {
             user_id,
-            display: config.with_default("display", ":0".to_string())?,
+            display: config.optional("display")?.unwrap_or(":0".to_string()),
             notify_send_executable: config
-                .with_default("notify_send_executable", "notify-send".to_string())?,
+                .optional("notify_send_executable")?
+                .unwrap_or("notify-send".to_string()),
             bus_address: config
-                .with_default("bus_address", format!("unix:path=/run/user/{user_id}/bus"))?,
+                .optional("bus_address")?
+                .unwrap_or(format!("unix:path=/run/user/{user_id}/bus")),
         })
     }
 }

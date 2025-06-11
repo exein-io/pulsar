@@ -89,8 +89,8 @@ impl TryFrom<&ModuleConfig> for Config {
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
             cgroup_rule_map_name: DEFAULT_CGROUP_RULES.to_string(),
-            track_by_default: config.with_default("track_by_default", true)?,
-            ignore_self: config.with_default("ignore_self", true)?,
+            track_by_default: config.optional("track_by_default")?.unwrap_or(true),
+            ignore_self: config.optional("ignore_self")?.unwrap_or(true),
         })
     }
 }
