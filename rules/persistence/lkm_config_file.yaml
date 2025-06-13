@@ -1,0 +1,60 @@
+# Title: Loadable Kernel Module Configuration File Creation
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1547 - Boot or Logon Autostart Execution - https://attack.mitre.org/techniques/T1547/
+
+- name: Kernel Module Config File Creation or Rename
+  type: FileCreated
+  category: persistence
+  severity: medium
+  description: Detects creation or renaming of kernel module configuration files, which may indicate attempts to load malicious kernel modules or persist configuration changes.
+  condition: 
+    (payload.filename STARTS_WITH "/etc/modules"
+    OR payload.filename STARTS_WITH "/etc/modprobe.d/"
+    OR payload.filename STARTS_WITH "/usr/lib/modprobe.d/"
+    OR payload.filename STARTS_WITH "/etc/modules-load.d/"
+    OR payload.filename STARTS_WITH "/run/modules-load.d/"
+    OR payload.filename STARTS_WITH "/usr/local/lib/modules-load.d/"
+    OR payload.filename STARTS_WITH "/usr/lib/modules-load.d/")
+    AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/usr/bin/puppet", "/bin/puppet",
+        "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client", "/bin/autossl_check",
+        "/usr/bin/autossl_check", "/usr/bin/pamac-daemon", "/bin/pamac-daemon", "/usr/local/bin/dockerd",
+        "/opt/elasticbeanstalk/bin/platform-engine", "/opt/puppetlabs/puppet/bin/ruby",
+        "/usr/libexec/platform-python", "/opt/imunify360/venv/bin/python3", "/opt/eset/efs/lib/utild",
+        "/usr/sbin/anacron", "/usr/bin/podman", "/kaniko/kaniko-executor", "/usr/bin/prime-select"
+      ] OR
+      header.image STARTS_WITH "/nix/store/" OR
+      header.image STARTS_WITH "/var/lib/dpkg/info/kmod.postinst" OR
+      header.image STARTS_WITH "/tmp/vmis" OR
+      header.image STARTS_WITH "/snap/" OR
+      header.image STARTS_WITH "/dev/fd/" OR
+      header.image STARTS_WITH "/usr/libexec/platform-python" OR
+      payload.filename ENDS_WITH ".swp" OR
+      payload.filename ENDS_WITH ".swpx" OR
+      payload.filename ENDS_WITH ".swx" OR
+      payload.filename ENDS_WITH ".dpkg-remove" OR
+      payload.filename ENDS_WITH ".dpkg-new" OR
+      header.image == "" OR
+      header.image ENDS_WITH "/sed" AND payload.filename STARTS_WITH "sed" OR
+      header.image ENDS_WITH "/perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp" OR
+      header.image ENDS_WITH "/crond" OR
+      header.image ENDS_WITH "/executor" OR
+      header.image ENDS_WITH "/puppet" OR
+      header.image ENDS_WITH "/droplet-agent.postinst" OR
+      header.image ENDS_WITH "/cf-agent" OR
+      header.image ENDS_WITH "/schedd" OR
+      header.image ENDS_WITH "/imunify-notifier" OR
+      header.image ENDS_WITH "/jumpcloud-agent" OR
+      header.image ENDS_WITH "/crio" OR
+      header.image ENDS_WITH "/dnf_install" OR
+      header.image ENDS_WITH "/utild"
+    )

@@ -1,0 +1,80 @@
+# Title: BPF Filter applied using TC
+
+# Creation Date: 2025/04/10
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Techinque: T1059 - Command and scripting interpreter - https://attack.mitre.org/techniques/T1059/004/
+
+- name: BPF Filter applied using TC
+  type: Exec
+  category: execution
+  severity: high
+  description: Detects use of the tc (transmission control) binary to set a BPF on a network interface.
+    Adversaries an utilize tc to set a bpf filter on an interface for the purpose of manipulating the incoming traffic.
+    This technique is not at all common and should indicate abnormal, suspicious or malicious activity.
+  condition: payload.filename ENDS_WITH "tc" AND
+    payload.argv CONTAINS "filter" AND payload.argv CONTAINS "add" AND payload.argv CONTAINS "bpf"
+    AND NOT (
+      header.image STARTS_WITH "/usr/sbin/libvirtd" OR
+      header.image STARTS_WITH "/usr/bin/docker" OR
+      header.image STARTS_WITH "/usr/bin/containerd" OR
+      header.image STARTS_WITH "/usr/bin/podman" OR
+      header.image STARTS_WITH "/usr/bin/systemd-networkd"
+    )
+
+- name: Shell spawn with -c option
+  type: Exec
+  category: defense_evasion
+  severity: low
+  description: Detects execution of shell commands via `-c`, often used in scripted or fileless attacks.
+    Attackers may use this to run commands directly from memory, avoiding detection and disk forensics. 
+    This behavior is common in obfuscated or chained payloads.
+  condition: (
+      payload.filename ENDS_WITH "/bash" OR
+      payload.filename ENDS_WITH "/sh" OR
+      payload.filename ENDS_WITH "/dash" OR
+      payload.filename ENDS_WITH "/zsh" OR
+      payload.filename ENDS_WITH "/ksh" OR
+      payload.filename ENDS_WITH "/fish" OR
+      payload.filename ENDS_WITH "/csh" OR
+      payload.filename ENDS_WITH "/tcsh"
+    ) AND payload.argv CONTAINS "-c"
+    AND header.image IN [
+      "/usr/sbin/nginx",
+      "/usr/bin/python",
+      "/usr/bin/perl",
+      "/usr/bin/php",
+      "/usr/bin/node"
+    ]
+    AND (
+      payload.argv CONTAINS "curl" OR 
+      payload.argv CONTAINS "wget" OR
+      payload.argv CONTAINS "nc " OR
+      payload.argv CONTAINS "ncat " OR
+      payload.argv CONTAINS "netcat" OR
+      payload.argv CONTAINS "base64" OR
+      payload.argv CONTAINS "socat" OR
+      payload.argv CONTAINS "mkfifo" OR
+      payload.argv CONTAINS "mknod" OR
+      payload.argv CONTAINS "|sh" OR
+      payload.argv CONTAINS "|bash" OR
+      payload.argv CONTAINS ">/dev/tcp/" OR
+      payload.argv CONTAINS "</dev/tcp/"
+    )
+
+- name: Stty raw no echo execution
+  type: Exec
+  category: execution
+  severity: low
+  description: Detects the use of stty with raw and -echo arguments to reconfigure terminal behavior. 
+    Attackers may use this to upgrade non-interactive shells into fully interactive TTYs. This is commonly seen post-exploitation in reverse shell scenarios.
+  condition: payload.filename ENDS_WITH "stty" AND payload.argv CONTAINS "raw" AND payload.argv CONTAINS "-echo"
+
+- name: Script execution with no output
+  type: Exec
+  category: execution
+  severity: low
+  description: Detects execution of the script utility with flags to suppress output and redirect to /dev/null. 
+    Attackers may use this to spawn a fully interactive shell in post-exploitation phases. This behavior is typical in TTY upgrade attempts.
+  condition: payload.filename ENDS_WITH "/script" AND (payload.argv CONTAINS "-qc" OR payload.argv CONTAINS "-c") AND payload.argv CONTAINS "/dev/null"

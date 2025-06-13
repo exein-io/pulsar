@@ -1,0 +1,48 @@
+# Title: Searching for Private Keys or Passwords
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1552.004 - Unsecured Credentials: Private Keys - https://attack.mitre.org/techniques/T1552/004/
+
+- name: Search for private keys or passwords
+  type: Exec
+  category: credential_access
+  severity: medium
+  description: Detects the execution of the 'find' or 'grep' process with arguments related to private keys or passwords. Adversaries may use 
+    this technique to search for, analyze, or manipulate private keys or passwords on the system.
+  condition: (payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "id_rsa" OR payload.argv CONTAINS "id_dsa")) 
+    OR (payload.filename ENDS_WITH "grep" 
+      AND (
+        payload.argv CONTAINS "BEGIN PRIVATE"
+        OR payload.argv CONTAINS "BEGIN RSA PRIVATE"
+        OR payload.argv CONTAINS "BEGIN DSA PRIVATE"
+        OR payload.argv CONTAINS "BEGIN EC PRIVATE"
+      )
+    )
+
+- name: Grep recursive password search
+  type: Exec
+  category: credential_access
+  severity: medium
+  description: Detects use of grep to recursively search for the term 'password' across the filesystem.
+  condition: (payload.filename ENDS_WITH "/grep" OR payload.filename ENDS_WITH "/rg") 
+    AND (payload.argv CONTAINS "password" OR payload.argv CONTAINS "Password" OR payload.argv CONTAINS "PASSWORD")
+
+- name: Suspicious Credential or Key File Access
+  type: FileOpened
+  category: credential_access
+  severity: low
+  description: Detects access to files potentially containing credentials or private keys using basic inspection tools. 
+    Adversaries may use commands like `cat`, `less`, or `strings` to extract sensitive data from .pem, .key, .crt, or config files during post-compromise activity.
+  condition: (
+    header.image ENDS_WITH "cat" OR
+    header.image ENDS_WITH "less" OR
+    header.image ENDS_WITH "more" OR
+    header.image ENDS_WITH "strings"    
+    ) AND (
+      payload.filename CONTAINS ".pem" OR
+      payload.filename CONTAINS ".key" OR
+      payload.filename CONTAINS ".crt"
+    )
