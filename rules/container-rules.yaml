@@ -74,7 +74,7 @@
     or exploitation, and should be monitored closely within a container.
   condition: header.container.is_some() 
     AND (
-      payload.filename ENDS_WITH "nc.traditional" OR
+      payload.filename ENDS_WITH "/nc.traditional" OR
       payload.filename ENDS_WITH "/nc" OR
       payload.filename ENDS_WITH "/ncat" OR
       payload.filename ENDS_WITH "/netcat" OR
