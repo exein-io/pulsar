@@ -6,10 +6,6 @@
 
 # MITRE ATT&CK Technique: T1560 - Archive via Utility - https://attack.mitre.org/techniques/T1560/001/
 
-
-# [2025-06-06T15:30:49Z THREAT /usr/bin/zip (42032)] [rules-engine - Sensitive file compression] File Opened { filename: /root/.aws/credentials, flags:(O_RDONLY) }
-# [2025-06-06T15:30:49Z THREAT /usr/bin/zip (42032)] [rules-engine - Access to AWS credentials file] File Opened { filename: /root/.aws/credentials, flags:(O_RDONLY) }
-# It can be removed since if the file is sensitive, is already tracked by another rule
 - name: Sensitive file compression
   type: FileOpened
   category: credential_access
