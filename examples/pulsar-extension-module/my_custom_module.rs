@@ -86,7 +86,7 @@ impl TryFrom<&ModuleConfig> for MyModuleConfig {
 
     fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
         Ok(MyModuleConfig {
-            print_events: config.with_default("print_events", false)?,
+            print_events: config.optional("print_events")?.unwrap_or(false),
             forbidden_dns: config.get_raw("forbidden_dns").map(String::from),
         })
     }

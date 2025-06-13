@@ -195,8 +195,8 @@ impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
             username,
             password: config.required::<String>("password")?,
             receivers,
-            port: config.with_default::<u16>("port", 465)?,
-            encryption: config.with_default::<Encryption>("encryption", Default::default())?,
+            port: config.optional("port")?.unwrap_or(465),
+            encryption: config.optional("encryption")?.unwrap_or(Default::default()),
             sender,
         })
     }
