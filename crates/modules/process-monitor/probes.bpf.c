@@ -598,11 +598,12 @@ int BPF_PROG(sched_switch)
   struct ctx_orphan_adopted c;
   pid_t first = 0;
 
+#pragma unroll 5
   for (int i = 0; i < 5; i++)
   {
     if (bpf_map_pop_elem(&orphans_map, &c.pending))
     {
-      return 0;
+      break;
     }
     // Make sure the loop doesn't process the same dead parent multiple times
     if (first == 0)
