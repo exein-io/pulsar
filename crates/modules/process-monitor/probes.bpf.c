@@ -565,7 +565,7 @@ int BPF_PROG(sched_process_exit, struct task_struct *p)
 struct ctx_orphan_adopted
 {
   // eBPF program context used for emitting events
-  void *ctx;
+  u64 ctx;
   // list of pending orphans we should check
   struct pending_dead_process pending;
 };
@@ -586,7 +586,7 @@ static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx)
     return LOOP_STOP;
   event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
   LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
-  output_process_event(c->ctx, event);
+  output_process_event((void *)(c->ctx), event);
   return LOOP_CONTINUE;
 }
 
@@ -629,7 +629,7 @@ int BPF_PROG(sched_switch)
     }
     else
     {
-      c.ctx = ctx;
+      c.ctx = (u64)ctx;
       LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_orphan_adopted, &c);
     }
   }
