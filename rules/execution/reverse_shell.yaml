@@ -1,0 +1,41 @@
+# Title: Reverse shell 
+
+# Creation Date: 2025/04/15
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Techinque: T1059 - Command and Scripting Interpreter: Unix Shell - https://attack.mitre.org/techniques/T1059/004/
+
+- name: Bash Reverse Shell
+  type: Exec
+  category: execution
+  severity: medium
+  description: Detects the execution of Bash commands commonly used for reverse shell attempts like interactive or output redirection.
+    Adversaries may exploit these techniques to establish network connections via /dev/tcp, allowing remote access.
+  condition: (payload.filename ENDS_WITH "/bash" OR payload.filename ENDS_WITH "/sh")
+    AND payload.argv CONTAINS "-i" 
+    AND (
+      payload.argv CONTAINS ">&" OR
+      payload.argv CONTAINS ">&1" OR
+      payload.argv CONTAINS "0>&1" OR
+      payload.argv CONTAINS "2>&1"
+    ) 
+
+- name: Netcat Reverse Shell
+  type: Exec
+  category: execution
+  severity: low
+  description: Detects use of netcat variants to execute a shell over a network connection, commonly used for reverse shells. 
+    Adversaries may use the `-e`, `-c`, or `-l` options with netcat to establish command execution channels for remote access. 
+  condition: (
+    payload.filename ENDS_WITH "nc" OR 
+    payload.filename ENDS_WITH "netcat" OR 
+    payload.filename ENDS_WITH "ncat" OR  
+    payload.filename ENDS_WITH "nc.traditional" OR
+    payload.filename ENDS_WITH "nc.openbsd"
+    )
+    AND (payload.argv CONTAINS "-e" OR payload.argv CONTAINS "-c" OR payload.argv CONTAINS "-l")
+    AND (
+      payload.argv CONTAINS "/bin/bash" OR payload.argv CONTAINS "/bin/sh" OR
+      payload.argv CONTAINS "/bin/dash" OR payload.argv CONTAINS "/bin/zsh"
+    )

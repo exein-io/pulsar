@@ -20,7 +20,17 @@
   severity: low
   description: Monitors for the execution of the iptables utility with the flush flag to flush iptables rules. Attackers may attempt to flush 
     iptables rules to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
-  condition: payload.filename ENDS_WITH "/iptables" AND payload.argv CONTAINS "-F" AND payload.argc == 2
+  condition: payload.filename ENDS_WITH "/iptables" AND payload.argv CONTAINS "-F"
+
+- name: Set iptables default policy to ACCEPT
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects commands that change iptables or ip6tables default policy to ACCEPT. Attackers may use this to weaken the system's firewall posture and allow unrestricted network access.
+  condition: (payload.filename ENDS_WITH "/iptables" OR payload.filename ENDS_WITH "/ip6tables") AND
+    ((payload.argv CONTAINS "-P" OR payload.argv CONTAINS "--policy") AND
+     (payload.argv CONTAINS "INPUT" OR payload.argv CONTAINS "FORWARD" OR payload.argv CONTAINS "OUTPUT") AND
+     payload.argv CONTAINS "ACCEPT")
 
 - name: Stop firewall service with service command
   type: Exec
@@ -37,7 +47,7 @@
   severity: low
   description: Monitors for the execution of the chkconfig utility with the off flag to turn off the firewall service. Attackers may attempt to 
     turn off the firewall service to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
-  condition: payload.filename ENDS_WITH "/sbin/chkconfig" AND payload.argv CONTAINS "off" AND (payload.argv CONTAINS "firewalld" 
+  condition: payload.filename ENDS_WITH "/chkconfig" AND payload.argv CONTAINS "off" AND (payload.argv CONTAINS "firewalld" 
     OR payload.argv CONTAINS "ip6tables" OR payload.argv CONTAINS "iptables")
 
 - name: Disable or stop firewall service with systemctl
@@ -47,5 +57,27 @@
   description: Monitors for the execution of the systemctl utility with the disable, stop, or kill flag to disable or stop the firewall service. 
     Attackers may attempt to disable or stop the firewall service to affect how a host is allowed to receive or send network traffic and evade 
     detection by security controls.
-  condition: payload.filename ENDS_WITH "/bin/systemctl" AND (payload.argv CONTAINS "disable" OR payload.argv CONTAINS "stop" 
+  condition: payload.filename ENDS_WITH "/systemctl" AND (payload.argv CONTAINS "disable" OR payload.argv CONTAINS "stop" 
     OR payload.argv CONTAINS "kill") AND (payload.argv CONTAINS "firewalld" OR payload.argv CONTAINS "ip6tables" OR payload.argv CONTAINS "iptables")
+
+- name: Mask and stop firewalld
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects attempts to permanently disable firewalld by masking the service, which prevents any activation by other services or users.
+  condition: payload.filename ENDS_WITH "/systemctl" AND payload.argv CONTAINS "mask" AND payload.argv CONTAINS "firewalld"
+
+# https://www.shielder.com/it/blog/2024/09/a-journey-from-sudo-iptables-to-local-privilege-escalation/
+- name: Detect iptables modprobe usage
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects the usage of iptables with the --modprobe option. Attackers may attempt to load a malicious kernel module and escalate privileges using this option.
+  condition: payload.filename ENDS_WITH "/iptables" AND payload.argv CONTAINS "--modprobe"
+
+- name: Detect malicious use of iptables-save with comments
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects attempts to inject malicious comments using iptables-save. Attackers may attempt to manipulate iptables rules and overwrite system files like /etc/passwd for privilege escalation.
+  condition: payload.filename ENDS_WITH "/iptables-save" AND payload.argv CONTAINS "--comment"
