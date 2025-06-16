@@ -7,6 +7,6 @@ RUN dpkg --add-architecture arm64 && \
         wget \
         software-properties-common \
         gnupg \
-    && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 19 \
-    && ln -s /usr/bin/clang-19 /usr/bin/clang \
-    && ln -s /usr/bin/llvm-strip-19 /usr/bin/llvm-strip
+    && wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 20 \
+    && ln -s /usr/bin/clang-20 /usr/bin/clang \
+    && ln -s /usr/bin/llvm-strip-20 /usr/bin/llvm-strip
