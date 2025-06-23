@@ -1,0 +1,234 @@
+name: 'lvh-run'
+description: 'Runs LVH VMs for Cilium CI testing'
+inputs:
+  test-name:
+    description: 'Unique test name'
+    required: true
+  image:
+    description: 'LVH image name ("base", "kind", etc)'
+    required: true
+    default: 'kind'
+  image-version:
+    description: 'LVH image version'
+    required: true
+    default: '5.10-main'
+  images-folder-parent:
+    description: 'Parent folder in which to put the downloaded images'
+    required: false
+    default: ''
+  lvh-version:
+    description: 'LVH cli version (Docker tag)'
+    required: true
+    default: 'v0.0.23'
+  cmd:
+    description: 'Commands to run in a VM (any occurance of "$" within "cmd" must be escaped)'
+    required: true
+  ssh-port:
+    description: 'SSH port for VM on a host'
+    required: true
+    default: '2222'
+  ssh-connect-wait-retries:
+    description: 'Number of retries to connect to the SSH server'
+    required: true
+    default: '300'
+  ssh-connect-wait-timeout:
+    description: 'Timeout in seconds between retries to connect to the SSH server'
+    required: true
+    default: '1'
+  host-mount:
+    description: 'Host dir path to mount in /host dir of a VM'
+    required: true
+  provision:
+    description: 'Provision VM (if set to false, only given test cmd is going to be run)'
+    required: true
+    default: 'true'
+  install-dependencies:
+    description: 'Install QEMU dependencies (Debian/Ubuntu)'
+    default: 'false'
+  serial-port:
+    description: 'Serial port to access VM'
+    required: true
+    default: '0'
+  cpu:
+    description: 'CPU count'
+    required: false
+  mem:
+    description: 'RAM size'
+    required: false
+  cpu-kind:
+    description: 'CPU kind to use'
+    required: true
+    default: 'host'
+  kernel:
+    description: 'Path to kernel image to boot with'
+    required: false
+  verbose:
+    description: 'Run in verbose mode'
+    required: true
+    default: 'false'
+  port-forward:
+    description: 'Additional to SSH comma-separated port forwards ($LOCAL:$VM_PORT)'
+    required: false
+  docker-platform:
+    description: 'Docker platform'
+    required: true
+  qemu-arch:
+    description: 'Qemu arch'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Find LVH cli
+      if: ${{ inputs.provision == 'true' }}
+      id: find-lvh-cli
+      shell: bash
+      run: |
+        if command -v lvh 2>&1 >/dev/null; then
+          echo 'skip=true' >> $GITHUB_OUTPUT
+        fi
+        runner_os_id=$(grep VERSION_ID /etc/os-release | cut -d= -f 2 | sed 's/"//g')
+        echo "runner_os_id=${runner_os_id}" >> $GITHUB_OUTPUT
+
+        dependencies="cpu-checker qemu-system-x86 qemu-system-aarch64 libvirt-daemon-system libvirt-clients bridge-utils virtinst virt-manager"
+        echo "dependency_list=${dependencies}" >> $GITHUB_OUTPUT
+
+        dependencies_sha=$(echo ${dependencies} | md5sum)
+        echo "dependency_list_sha=${dependencies_sha}" >> $GITHUB_OUTPUT
+
+    - name: Install LVH cli
+      if: ${{ inputs.provision == 'true' && steps.find-lvh-cli.outputs.skip != 'true' }}
+      shell: bash
+      run: |
+        cid=$(docker create quay.io/lvh-images/lvh:${{ inputs.lvh-version }})
+        docker cp $cid:/usr/bin/lvh /tmp/lvh
+        docker rm $cid
+        chmod +x /tmp/lvh
+        sudo mv /tmp/lvh /bin/lvh
+
+    - name: Load install packages from GitHub cache
+      if: ${{ inputs.provision == 'true' && inputs.install-dependencies == 'true' }}
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      id: package-cache
+      with:
+        path: /tmp/.ubuntu-pkgs
+        key: ${{ runner.os }}-${{ steps.find-lvh-cli.outputs.runner_os_id }}-pkgs-cilium-little-vm-helper-${{ steps.find-lvh-cli.outputs.dependency_list_sha }}
+
+    - name: Download LVH dependencies
+      if: ${{ inputs.provision == 'true' && inputs.install-dependencies == 'true' && steps.package-cache.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        n=0
+        until [ "$n" -ge 5 ]; do
+          success=1
+          sudo apt update && \
+          sudo apt-get clean && \
+          sudo apt-get -d -y --no-install-recommends install ${{steps.find-lvh-cli.outputs.dependency_list}} && \
+          break || success=0
+          n=$((n+1))
+          sleep 1
+        done
+        [ $success -eq 1 ] || exit 42
+        sudo mkdir -p /tmp/.ubuntu-pkgs
+        sudo cp /var/cache/apt/archives/*.deb /tmp/.ubuntu-pkgs
+
+    - name: Install dependencies
+      if: ${{ inputs.provision == 'true' && inputs.install-dependencies == 'true' }}
+      shell: bash
+      run: |
+        # Disable auto update of man-db for every package
+        sudo rm /var/lib/man-db/auto-update
+        sudo cp /tmp/.ubuntu-pkgs/*.deb /var/cache/apt/archives/
+        sudo apt-get -y --no-install-recommends install /tmp/.ubuntu-pkgs/*.deb
+        sudo kvm-ok
+
+    - name: Derive VM image file name
+      if: ${{ inputs.provision == 'true' }}
+      id: derive-image-name
+      shell: bash
+      run: echo "image-name=$(echo ${{ inputs.image }} | sed 's/\-ci//g')_$(echo ${{ inputs.image-version }} | sed 's/^\(.*\)\-[0-9.]*\(\-[^-]*\)*\(@sha256:.*\)*$/\1/g')" >> $GITHUB_OUTPUT
+
+    - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      if: ${{ inputs.provision == 'true' }}
+      id: cache-lvh-image
+      with:
+        path: ${{ inputs.images-folder-parent }}/images/${{ steps.derive-image-name.outputs.image-name }}.qcow2.zst
+        key: lvh-image-${{ inputs.image }}_${{ inputs.image-version }}
+
+    - name: Decompressed cached VM image
+      if: ${{ inputs.provision == 'true' && steps.cache-lvh-image.outputs.cache-hit == 'true' }}
+      shell: bash
+      run: zstd -df ${{ inputs.images-folder-parent }}/images/${{ steps.derive-image-name.outputs.image-name }}.qcow2.zst
+
+    - name: Fetch VM image
+      if: ${{ inputs.provision == 'true' && steps.cache-lvh-image.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        sudo mkdir -p ${{ inputs.images-folder-parent }}/images; sudo chmod 777 ${{ inputs.images-folder-parent }}/images
+        /bin/lvh images pull --platform ${{ inputs.docker-platform }} --cache quay.io/lvh-images/${{ inputs.image }}:${{ inputs.image-version }} --dir "${{ inputs.images-folder-parent }}/"
+        find ${{ inputs.images-folder-parent }}/images -type f -exec sudo chmod 666 {} +
+        find ${{ inputs.images-folder-parent }}/images
+
+    - name: Start VM
+      if: ${{ inputs.provision == 'true' }}
+      shell: bash
+      run: |
+        extraArgs=()
+        if [ ! -z "${{ inputs.kernel }}" ]; then
+          extraArgs+=("--kernel" "${{ inputs.kernel }}")
+        fi
+        if [ "${{ inputs.verbose }}" == "true" ]; then
+          extraArgs+=("--verbose")
+        fi
+        if [ "${{ inputs.port-forward }}" != "" ]; then
+          fwds=($(echo "${{ inputs.port-forward }}" | tr "," "\n"))
+          for fwd in "${fwds[@]}"; do
+            extraArgs+=("-p" "$fwd")
+          done
+        fi
+        sudo touch /tmp/console.log
+        # Determine the amount of cpu and memory to allocate
+        CPU=${{ inputs.cpu }}
+        if [ -z "$CPU" ]; then
+          CPU=$(nproc)
+          echo "cpu unspecified, defaulting to nprocs CPUs: $CPU"
+        fi
+        MEM=${{ inputs.mem }}
+        if [ -z "$MEM" ]; then
+          # Default to 75% of the host memory
+          MEM="$(free -m | awk '/^Mem:/{print int($2 * 0.75)}')M"
+          echo "mem unspecified, defaulting ot 75% of host memory: $MEM"
+        fi
+        sudo /bin/lvh run --host-mount=${{ inputs.host-mount }} --image ${{ inputs.images-folder-parent }}/images/${{ steps.derive-image-name.outputs.image-name }}.qcow2 \
+            --daemonize -p ${{ inputs.ssh-port }}:22 --serial-port ${{ inputs.serial-port }} \
+            --cpu=$CPU --mem=$MEM --cpu-kind ${{ inputs.cpu-kind }} \
+            --console-log-file /tmp/console.log \
+            --qemu-arch ${{ inputs.qemu-arch }} \
+            ${extraArgs[@]}
+
+    - name: Wait for VM's SSH Server
+      if: ${{ inputs.provision == 'true' }}
+      shell: bash
+      run: |
+        n=0
+        success=0
+        until [ "$n" -ge ${{ inputs.ssh-connect-wait-retries }} ]; do
+          if ssh -p ${{ inputs.ssh-port }} -o "StrictHostKeyChecking=no" root@localhost exit; then
+            success=1
+            break
+          fi
+          n=$((n+1))
+          sleep ${{ inputs.ssh-connect-wait-timeout }}
+        done
+        if [ $success -eq 0 ]; then
+          cat /tmp/console.log
+          exit 42
+        fi
+
+    - name: Run test cmd in VM
+      shell: bash
+      run: |
+        ssh -p ${{ inputs.ssh-port }} -o "StrictHostKeyChecking=no" root@localhost << EOF
+        set -eu
+
+        ${{ inputs.cmd }}
+        EOF

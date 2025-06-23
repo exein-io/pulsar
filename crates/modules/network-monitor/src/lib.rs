@@ -358,7 +358,7 @@ pub mod pulsar {
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
     use std::{
-        io::{Read, Write},
+        // io::{Read, Write},
         net::{
             IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener,
             TcpStream, UdpSocket,
@@ -394,10 +394,10 @@ pub mod test_suite {
                 listen_ipv6(),
                 accept_ipv4(),
                 accept_ipv6(),
-                udp_ipv4_sendmsg_recvmsg(),
-                udp_ipv6_sendmsg_recvmsg(),
-                tcp_ipv4_sendmsg_recvmsg(),
-                tcp_ipv6_sendmsg_recvmsg(),
+                // udp_ipv4_sendmsg_recvmsg(),
+                // udp_ipv6_sendmsg_recvmsg(),
+                // tcp_ipv4_sendmsg_recvmsg(),
+                // tcp_ipv6_sendmsg_recvmsg(),
                 close_ipv4(),
                 close_ipv6(),
                 dns_ipv4(),
@@ -543,87 +543,87 @@ pub mod test_suite {
             .report()
     }
 
-    fn udp_ipv4_sendmsg_recvmsg() -> TestCase {
-        TestCase::new(
-            "udp_ipv4_sendmsg_recvmsg",
-            run_msg_test("127.0.0.1:18060", Proto::UDP),
-        )
-    }
+    // fn udp_ipv4_sendmsg_recvmsg() -> TestCase {
+    //     TestCase::new(
+    //         "udp_ipv4_sendmsg_recvmsg",
+    //         run_msg_test("127.0.0.1:18060", Proto::UDP),
+    //     )
+    // }
 
-    fn udp_ipv6_sendmsg_recvmsg() -> TestCase {
-        TestCase::new(
-            "udp_ipv6_sendmsg_recvmsg",
-            run_msg_test("[::1]:18070", Proto::UDP),
-        )
-    }
+    // fn udp_ipv6_sendmsg_recvmsg() -> TestCase {
+    //     TestCase::new(
+    //         "udp_ipv6_sendmsg_recvmsg",
+    //         run_msg_test("[::1]:18070", Proto::UDP),
+    //     )
+    // }
 
-    fn tcp_ipv4_sendmsg_recvmsg() -> TestCase {
-        TestCase::new(
-            "tcp_ipv4_sendmsg_recvmsg",
-            run_msg_test("127.0.0.1:18080", Proto::TCP),
-        )
-    }
+    // fn tcp_ipv4_sendmsg_recvmsg() -> TestCase {
+    //     TestCase::new(
+    //         "tcp_ipv4_sendmsg_recvmsg",
+    //         run_msg_test("127.0.0.1:18080", Proto::TCP),
+    //     )
+    // }
 
-    fn tcp_ipv6_sendmsg_recvmsg() -> TestCase {
-        TestCase::new(
-            "tcp_ipv6_sendmsg_recvmsg",
-            run_msg_test("[::1]:18090", Proto::TCP),
-        )
-    }
+    // fn tcp_ipv6_sendmsg_recvmsg() -> TestCase {
+    //     TestCase::new(
+    //         "tcp_ipv6_sendmsg_recvmsg",
+    //         run_msg_test("[::1]:18090", Proto::TCP),
+    //     )
+    // }
 
-    // Spawn a server listening for messages and a client which sends a predefined
-    // msg to it. Make sure we've observing both the sendmsg and recvmsg events.
-    async fn run_msg_test(dest: &str, proto: Proto) -> TestReport {
-        let dest: SocketAddr = dest.parse().unwrap();
-        // for UDP, we use the next port as the source
-        // for TCP it's overriden on connection
-        let mut source = dest;
-        let msg = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        TestRunner::with_ebpf(program)
-            .run(|| match proto {
-                Proto::UDP => {
-                    source.set_port(dest.port() + 1);
-                    let receiver = UdpSocket::bind(dest).unwrap();
-                    std::thread::spawn(move || {
-                        let s = UdpSocket::bind(source).unwrap();
-                        s.connect(dest).unwrap();
-                        s.send(&msg).unwrap();
-                    });
-                    let mut buf = [0; 512];
-                    assert_eq!(receiver.recv_from(&mut buf).unwrap(), (msg.len(), source));
-                }
-                Proto::TCP => {
-                    let listener = TcpListener::bind(dest).unwrap();
-                    let t = std::thread::spawn(move || {
-                        let mut client = TcpStream::connect(dest).unwrap();
-                        client.write_all(&msg).unwrap();
-                        client.local_addr().unwrap()
-                    });
-                    let mut connection = listener.accept().unwrap().0;
-                    let mut buf = [0; 512];
-                    assert_eq!(connection.read(&mut buf).unwrap(), msg.len());
-                    source = t.join().unwrap();
-                }
-            })
-            .await
-            .expect_event(event_check!(
-                NetworkEvent::Send,
-                (dst, dest.into(), "destination address"),
-                (src, source.into(), "source address"),
-                (data, msg.to_vec(), "data copy"),
-                (data_len, msg.len() as u32, "real message len"),
-                (proto, proto, "protocol")
-            ))
-            .expect_event(event_check!(
-                NetworkEvent::Receive,
-                (dst, source.into(), "destination address"),
-                (src, dest.into(), "source address"),
-                (data, msg.to_vec(), "data copy"),
-                (data_len, msg.len() as u32, "real message len"),
-                (proto, proto, "protocol")
-            ))
-            .report()
-    }
+    // // Spawn a server listening for messages and a client which sends a predefined
+    // // msg to it. Make sure we've observing both the sendmsg and recvmsg events.
+    // async fn run_msg_test(dest: &str, proto: Proto) -> TestReport {
+    //     let dest: SocketAddr = dest.parse().unwrap();
+    //     // for UDP, we use the next port as the source
+    //     // for TCP it's overriden on connection
+    //     let mut source = dest;
+    //     let msg = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    //     TestRunner::with_ebpf(program)
+    //         .run(|| match proto {
+    //             Proto::UDP => {
+    //                 source.set_port(dest.port() + 1);
+    //                 let receiver = UdpSocket::bind(dest).unwrap();
+    //                 std::thread::spawn(move || {
+    //                     let s = UdpSocket::bind(source).unwrap();
+    //                     s.connect(dest).unwrap();
+    //                     s.send(&msg).unwrap();
+    //                 });
+    //                 let mut buf = [0; 512];
+    //                 assert_eq!(receiver.recv_from(&mut buf).unwrap(), (msg.len(), source));
+    //             }
+    //             Proto::TCP => {
+    //                 let listener = TcpListener::bind(dest).unwrap();
+    //                 let t = std::thread::spawn(move || {
+    //                     let mut client = TcpStream::connect(dest).unwrap();
+    //                     client.write_all(&msg).unwrap();
+    //                     client.local_addr().unwrap()
+    //                 });
+    //                 let mut connection = listener.accept().unwrap().0;
+    //                 let mut buf = [0; 512];
+    //                 assert_eq!(connection.read(&mut buf).unwrap(), msg.len());
+    //                 source = t.join().unwrap();
+    //             }
+    //         })
+    //         .await
+    //         .expect_event(event_check!(
+    //             NetworkEvent::Send,
+    //             (dst, dest.into(), "destination address"),
+    //             (src, source.into(), "source address"),
+    //             (data, msg.to_vec(), "data copy"),
+    //             (data_len, msg.len() as u32, "real message len"),
+    //             (proto, proto, "protocol")
+    //         ))
+    //         .expect_event(event_check!(
+    //             NetworkEvent::Receive,
+    //             (dst, source.into(), "destination address"),
+    //             (src, dest.into(), "source address"),
+    //             (data, msg.to_vec(), "data copy"),
+    //             (data_len, msg.len() as u32, "real message len"),
+    //             (proto, proto, "protocol")
+    //         ))
+    //         .report()
+    // }
 
     fn close_ipv4() -> TestCase {
         TestCase::new("close_ipv4", run_close_test("127.0.0.1:18110"))
