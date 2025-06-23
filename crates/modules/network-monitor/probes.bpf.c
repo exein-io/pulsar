@@ -280,14 +280,9 @@ static __always_inline void copy_ipv6_udphdr_dest(struct udphdr *uh,
   addr->v6.sin6_port = uh->dest;
 }
 
-static __always_inline u16 get_sock_protocol(struct sock *sk) {
-  u64 proto = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_protocol);
-  // TODO: clean this up
-  if (proto == IPPROTO_UDP) {
-    return PROTO_UDP;
-  } else {
-    return PROTO_TCP;
-  }
+static __always_inline u8 get_sock_protocol(struct sock *sk) {
+  u8 proto = BPF_CORE_READ_BITFIELD_PROBED(sk, sk_protocol);
+  return proto;
 }
 
 PULSAR_LSM_HOOK(socket_bind, struct socket *, sock, struct sockaddr *, address,
@@ -514,7 +509,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   }
 
   __u32 headers_len;
-  __be16 l3_proto = bpf_htons(skb->protocol);
+  __be16 l3_proto = bpf_ntohs(skb->protocol);
   __u8 l4_proto;
 
   void *data_end = (void *)(long)skb->data_end;
