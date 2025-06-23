@@ -5,24 +5,23 @@ on:
       - "*"
 
 jobs:
-  integration-tests:
-    name: Integration tests
+  architest:
+    name: architest (${{ matrix.profile }}, ${{ matrix.platform.arch }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         profile:
-          - debug
+          # - debug
           - release
 
-        # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
         platform:
-          - target: x86_64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+          - arch: amd64
+            target: x86_64-unknown-linux-musl
             kernel-versions: "5.13,5.15,6.0,6.3,6.6"
 
-          - target: aarch64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+          - arch: arm64
+            target: aarch64-unknown-linux-musl
             kernel-versions: "5.15,6.2,6.6"
 
     steps:
@@ -51,3 +50,87 @@ jobs:
                 --target=${{ matrix.platform.target }} \
                 --kernel-versions=${{ matrix.platform.kernel-versions }} \
                 --features all-vendored --features tls-rustls
+
+  lvh:
+    name: lvh (${{ matrix.profile.name }}, ${{ matrix.platform.arch }}, ${{ matrix.kernel.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          #   - name: debug
+          #     cargo-profile: dev
+          #     out-dir: debug
+          - name: release
+            cargo-profile: release
+            out-dir: release
+
+        kernel:
+          - version: "6.12"
+            build:
+              date: "20250630.013259"
+          - version: "6.6"
+            build:
+              date: "20250630.013259"
+          - version: "6.1"
+            build:
+              date: "20250630.013259"
+          - version: "5.15"
+            build:
+              date: "20250630.013259"
+
+        platform:
+          - target: x86_64-unknown-linux-musl
+            arch: "amd64"
+            cpu-kind: host
+
+          - target: aarch64-unknown-linux-musl
+            arch: "arm64"
+            cpu-kind: cortex-a57
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.platform.target }}
+
+      - name: Install cross
+        uses: ./.github/actions/install-cross
+
+      - name: Build test suite
+        run: |
+          cross build \
+            --target=${{ matrix.platform.target }} \
+            --profile ${{ matrix.profile['cargo-profile'] }} \
+            --workspace \
+            --bin test-suite \
+            --features all-vendored --features tls-rustls
+
+      - name: Run test suite
+        uses: cilium/little-vm-helper@9c1f3a549af06e213863d034c13ba1c5d1e3c667 # v0.0.26
+        with:
+          test-name: test-suite-run
+          image: "kind"
+          image-version: ${{ matrix.kernel.version }}-${{ matrix.kernel.build.date }}
+          kernel-version: ${{ matrix.kernel.version }}-${{ matrix.kernel.build.date }}
+          host-mount: .
+          install-dependencies: "true"
+          arch: ${{ matrix.platform.arch }}
+          cpu-kind: ${{ matrix.platform['cpu-kind'] }}
+          ssh-connect-wait-retries: '10'
+          verbose: true
+          cmd: |
+            # print kernel version
+            echo "Kernel Version: "
+            uname -a
+
+            # run test suite
+            sudo /host/target/${{ matrix.platform.target }}/${{ matrix.profile['out-dir'] }}/test-suite

@@ -152,10 +152,16 @@ impl fmt::Display for Addr {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Proto {
-    TCP = 0,
-    UDP = 1,
+#[repr(transparent)]
+pub struct Proto(u8);
+
+impl Proto {
+    pub const TCP: Self = Self(6);
+    pub const UDP: Self = Self(17);
+
+    pub fn is_tcp(&self) -> bool {
+        self.0 == 6
+    }
 }
 
 impl fmt::Display for NetworkEvent {
@@ -284,14 +290,14 @@ pub mod pulsar {
             Ok(match data.payload {
                 NetworkEvent::Bind { addr, proto } => Payload::Bind {
                     address: addr.into(),
-                    is_tcp: matches!(proto, Proto::TCP),
+                    is_tcp: proto.is_tcp(),
                 },
                 NetworkEvent::Listen { addr } => Payload::Listen {
                     address: addr.into(),
                 },
                 NetworkEvent::Connect { dst, proto } => Payload::Connect {
                     destination: dst.into(),
-                    is_tcp: matches!(proto, Proto::TCP),
+                    is_tcp: proto.is_tcp(),
                 },
                 NetworkEvent::Accept { src, dst } => Payload::Accept {
                     source: src.into(),
@@ -307,7 +313,7 @@ pub mod pulsar {
                     source: src.into(),
                     destination: dst.into(),
                     len: data_len as usize,
-                    is_tcp: matches!(proto, Proto::TCP),
+                    is_tcp: proto.is_tcp(),
                 },
                 NetworkEvent::Receive {
                     src,
@@ -319,7 +325,7 @@ pub mod pulsar {
                     source: src.into(),
                     destination: dst.into(),
                     len: data_len as usize,
-                    is_tcp: matches!(proto, Proto::TCP),
+                    is_tcp: proto.is_tcp(),
                 },
                 NetworkEvent::Close {
                     src,
@@ -603,6 +609,9 @@ pub mod test_suite {
                     let mut buf = [0; 512];
                     assert_eq!(connection.read(&mut buf).unwrap(), msg.len());
                     source = t.join().unwrap();
+                }
+                _ => {
+                    // skip
                 }
             })
             .await
