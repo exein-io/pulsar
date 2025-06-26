@@ -39,6 +39,7 @@
       "/usr/sbin/isc-dhcp-server",
       "/usr/sbin/dhclient",
       "/usr/sbin/NetworkManager",
+      "/usr/bin/NetworkManager",
       "/usr/sbin/systemd-networkd",
       "/usr/lib/systemd/systemd-networkd"
     ]

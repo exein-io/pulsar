@@ -6,54 +6,43 @@
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
-- name: Disable AppArmor service
-  type: Exec
-  category: defense_evasion
-  severity: low
-  description: Monitors for attenot to disable the AppArmor service. Attackers may attempt to disable the AppArmor service 
-    to evade detection and avoid possible restrictions on their actions and resources.
-  condition: (
-    (payload.filename STARTS_WITH "/usr/bin/systemctl" AND payload.argv CONTAINS "disable" AND (payload.argv CONTAINS "apparmor" OR payload.argv CONTAINS "apparmor.service")) OR
-    (payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "apparmor" AND payload.argv CONTAINS "stop") OR
-    (payload.filename ENDS_WITH "chkconfig" AND payload.argv CONTAINS "apparmor" AND payload.argv CONTAINS "off")
-    )
-    
-- name: Move or symlink AppArmor profile to disable
-  type: Exec
-  category: defense_evasion
-  severity: low
-  description: Monitors for the use of ln or mv to relocate AppArmor profiles into the disable directory, which prevents them from being loaded. 
-    Attackers may attempt to disable AppArmor profiles without fully uninstalling them.
-  condition: (payload.filename STARTS_WITH "/usr/bin/ln" AND payload.argv CONTAINS "/etc/apparmor.d/" AND payload.argv CONTAINS "/etc/apparmor.d/disable/")
-    OR (payload.filename STARTS_WITH "/usr/bin/mv" AND payload.argv CONTAINS "/etc/apparmor.d/" AND payload.argv CONTAINS "/etc/apparmor.d/disable/")
-
-- name: AppArmor configuration file modification
+- name: AppArmor sensitive file modification
   type: FileOpened
   category: defense_evasion
-  severity: low
-  description: Detects attempts to modify AppArmor configuration files which could indicate an attacker trying to disable or weaken AppArmor protections.
+  severity: medium
+  description: Detects modification of AppArmor files. Every tool under the hood use this files.
+  condition: payload.filename STARTS_WITH "/sys/kernel/security/apparmor/" 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+
+- name: AppArmor configuration files modification
+  type: FileOpened
+  category: defense_evasion
+  severity: medium
+  description: Detects modification of AppArmor profiles or configurations.
   condition: (
-      payload.filename STARTS_WITH "/etc/apparmor" OR
+      payload.filename STARTS_WITH "/etc/apparmor/" OR
       payload.filename STARTS_WITH "/etc/apparmor.d/" OR
       payload.filename STARTS_WITH "/etc/apparmor.conf"
     )
-    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR") 
-    
-- name: AppArmor kernel parameter modification
-  type: Exec
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+
+- name: AppArmor daemon substitution
+  type: FileRename
   category: defense_evasion
-  severity: low
-  description: Detects attempts to modify kernel parameters related to AppArmor which could disable its protections.
-  condition: payload.filename STARTS_WITH "/usr/sbin/sysctl" AND 
-    (payload.argv CONTAINS "apparmor=0" OR payload.argv CONTAINS "kernel.apparmor.enabled=0" OR payload.argv CONTAINS "security=none")
-    
-- name: AppArmor teardown or profile removal
-  type: Exec
+  severity: medium
+  description: Detects rename or move operations that replace or relocate AppArmor profile files.
+  condition: payload.source STARTS_WITH "/etc/apparmor.d/"
+
+- name: AppArmor daemon deletion
+  type: FileDeleted
   category: defense_evasion
-  severity: low
-  description: Detects use of AppArmor utilities to unload profiles or tear down AppArmor protection.
-  condition: (
-    (payload.filename ENDS_WITH "apparmor_parser" AND (payload.argv CONTAINS "-R" OR payload.argv CONTAINS "--remove")) OR
-    (payload.filename ENDS_WITH "aa-teardown") OR
-    (payload.filename ENDS_WITH "aa-disable")
-    )
+  severity: medium
+  description: Detects deletion of AppArmor profile files.
+  condition: payload.filename STARTS_WITH "/etc/apparmor.d/"
+
+- name: AppArmor symlink to disable
+  type: FileLink
+  category: defense_evasion
+  severity: medium
+  description: Detects symlinks created in /etc/apparmor.d/disable/ that persistently disable a profile (e.g., aa-disable, apparmor_parser -R commands)
+  condition: payload.destination STARTS_WITH "/etc/apparmor.d/disable/"
