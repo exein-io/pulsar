@@ -1,14 +1,36 @@
-[target.aarch64-unknown-linux-gnu]
-dockerfile = ".cross/aarch64-unknown-linux-gnu.Dockerfile"
+# Cross containers
+#
+# These containers are used in conjunction with [cross](https://github.com/cross-rs/cross) to build Pulsar in a reproducible way without worrying about system dependencies.
+#
+# Containers are based on the default [cross containers](https://github.com/orgs/cross-rs/packages) built from `Ubuntu 20.04 LTS`, with the addition of:
+#
+# -   `Clang/LLVM 20`
+# -   `libssl-dev` speficic for the target architecture, example `libssl-dev:arm64`
+# -   `libsqlite3-dev` speficic for the target architecture, example `libsqlite3-dev:arm64`
 
-[target.aarch64-unknown-linux-musl]
-dockerfile = ".cross/aarch64-unknown-linux-musl.Dockerfile"
+[build.env]
+passthrough = ["DEBIAN_FRONTEND=noninteractive", "TZ=Etc/UTC"]
 
-[target.riscv64gc-unknown-linux-gnu]
-dockerfile = ".cross/riscv64gc-unknown-linux-gnu.Dockerfile"
+[build]
+pre-build = [
+    # give tzdata the file it expects
+    "echo $TZ > /etc/timezone && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime",
+    # "printenv",
 
-[target.x86_64-unknown-linux-gnu]
-dockerfile = ".cross/x86_64-unknown-linux-gnu.Dockerfile"
+    # enable the right foreign architecture (safe even when it's the host arch)
+    "echo $CROSS_CMAKE_CRT | grep -qv musl && dpkg --add-architecture $CROSS_DEB_ARCH",
 
-[target.x86_64-unknown-linux-musl]
-dockerfile = ".cross/x86_64-unknown-linux-musl.Dockerfile"
+    # update package lists
+    "apt-get update",
+
+    # common tooling + dev libraries
+    "apt-get install -y --no-install-recommends lsb-release wget software-properties-common gnupg",
+
+    # pre acrh dep (safe musl not found)
+    "echo $CROSS_CMAKE_CRT | grep -qv musl && apt-get install -y --no-install-recommends libssl-dev:$CROSS_DEB_ARCH libsqlite3-dev:$CROSS_DEB_ARCH",
+
+    # install LLVM/Clang 20 exactly once
+    "wget -q https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 20",
+    "ln -sf /usr/bin/clang-20      /usr/bin/clang",
+    "ln -sf /usr/bin/llvm-strip-20 /usr/bin/llvm-strip",
+]
