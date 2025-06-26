@@ -7,12 +7,7 @@ runs:
     - name: Install cross
       shell: bash
       run: |
-        cross_release_archive=cross-x86_64-unknown-linux-musl.tar.gz
-        wget https://github.com/cross-rs/cross/releases/latest/download/${cross_release_archive}
-        tar -xf ${cross_release_archive}
-        rm ${cross_release_archive}
-        mkdir -p /home/runner/.local/bin
-        mv cross* /home/runner/.local/bin
+        cargo install cross --git https://github.com/cross-rs/cross
 
     - run: cross --version --verbose
       shell: bash
