@@ -33,6 +33,10 @@ jobs:
           - target: riscv64gc-unknown-linux-gnu
             args: "--features full"
 
+          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
+          - target: riscv64gc-unknown-linux-musl
+            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
@@ -46,11 +50,11 @@ jobs:
         uses: ./.github/actions/install-cross
 
       - name: Build Debug
-        if: ${{ matrix.profile == 'debug' }} 
+        if: ${{ matrix.profile == 'debug' }}
         run: cross build --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
 
       - name: Build Release
-        if: ${{ matrix.profile == 'release' }} 
+        if: ${{ matrix.profile == 'release' }}
         run: cross build --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} --release
 
       - name: Check build did not modify any files
