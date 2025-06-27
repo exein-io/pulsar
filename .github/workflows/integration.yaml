@@ -4,33 +4,48 @@ on:
     branches:
       - "*"
 
+env:
+  KERNEL_DATE: "20250616.013250"
+
 jobs:
   integration-tests:
-    name: Integration tests
+    name: Test suite (${{ matrix.profile.name }}, ${{ matrix.platform['kernel-tag'] }}, ${{ matrix.kernel }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         profile:
-          - debug
-          - release
+          #   - name: debug
+          #     cargo-profile: dev
+          #     out-dir: debug
+          - name: release
+            cargo-profile: release
+            out-dir: release
+        kernel:
+          - "6.12"
+          - "6.6"
+          # - "6.1"
+          - "5.15"
 
         # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
         platform:
           - target: x86_64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-            kernel-versions: "5.13,5.15,6.0,6.3,6.6"
+            # args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+            kernel-tag: "amd64"
+            docker_platform: linux/amd64
+            cpu-kind: host
 
           - target: aarch64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-            kernel-versions: "5.15,6.2,6.6"
+            # args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+            kernel-tag: "arm64"
+            docker_platform: linux/arm64
+            cpu-kind: max
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        if: endsWith(matrix.platform.target, 'musl')
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system
@@ -43,11 +58,37 @@ jobs:
       - name: Install cross
         uses: ./.github/actions/install-cross
 
-      - name: Integration tests
-        if: endsWith(matrix.platform.target, 'musl')
+      - name: Build test suite
         run: |
-            cargo xtask test-suite \
-                --force-architest \
-                --target=${{ matrix.platform.target }} \
-                --kernel-versions=${{ matrix.platform.kernel-versions }} \
-                --features all-vendored --features tls-rustls
+          cross build \
+            --target=${{ matrix.platform.target }} \
+            --profile ${{ matrix.profile['cargo-profile'] }} \
+            --workspace \
+            --bin test-suite \
+            --features all-vendored --features tls-rustls
+
+      - name: Run test suite
+        uses: ./.github/actions/lvh
+        with:
+          test-name: test-suite-run
+          image: "kind"
+          image-version: ${{ matrix.kernel }}-${{ env.KERNEL_DATE }}-${{ matrix.platform['kernel-tag'] }}
+          host-mount: .
+          install-dependencies: "true"
+          docker-platform: ${{ matrix.platform.docker_platform }}
+          qemu-arch: ${{ matrix.platform['kernel-tag'] }}
+          cpu-kind: ${{ matrix.platform['cpu-kind'] }}
+          ssh-connect-wait-retries: '10'
+          verbose: true
+          cmd: |
+            # print kernel version
+            echo "Kernel Version: "
+            uname -a
+
+            # goto where host is mounted
+            echo ""
+            cd /host
+            ls -lah
+
+            echo ""
+            sudo ./target/${{ matrix.platform.target }}/${{ matrix.profile['out-dir'] }}/test-suite
