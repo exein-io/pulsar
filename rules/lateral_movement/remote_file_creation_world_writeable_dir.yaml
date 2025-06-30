@@ -1,0 +1,28 @@
+# Title: Remote File Creation in World Writeable Directory
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK TACTICS: TA0008 - Lateral Movement - https://attack.mitre.org/tactics/TA0008/
+
+#MITRE ATT&CK TECHNIQUE: T1021 - Remote Services - https://attack.mitre.org/techniques/T1021/
+
+- name: Remote File Creation in World Writeable Directory
+  type: FileCreated
+  category: lateral_movement
+  severity: medium
+  description: Detects the creation of files within world-writable directories using remote file transfer services.
+    Attackers often use these methods to move files to shared or insecure locations within the network for lateral movement, persistence, or further exploitation.
+  condition: (
+      header.image ENDS_WITH "/scp" OR
+      header.image ENDS_WITH "/sshd" OR
+      header.image ENDS_WITH "/ssh" OR
+      header.image ENDS_WITH "/ftp" OR
+      header.image ENDS_WITH "/sftp" OR
+      header.image ENDS_WITH "/vsftpd" OR
+      header.image ENDS_WITH "/sftp-server" OR
+      header.image ENDS_WITH "/rsync")
+    AND (
+      payload.filename STARTS_WITH "/tmp" OR
+      payload.filename STARTS_WITH "/var/tmp" OR
+      payload.filename STARTS_WITH "/dev/shm" OR
+      payload.filename STARTS_WITH "/home")

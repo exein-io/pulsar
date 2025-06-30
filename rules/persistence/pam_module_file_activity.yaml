@@ -1,0 +1,89 @@
+# Title: Pluggable Authentication Module
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1543 - Create or Modify System Process - https://attack.mitre.org/techniques/T1543/
+
+- name: .so file creation in unusual or system directory
+  type: FileCreated
+  category: persistence
+  severity: low
+  description: Detects the creation of Pluggable Authentication Module (PAM) shared object files in unusual directories.
+    Attackers may compile PAM shared object files in temporary directories, to move them to system directories later,
+    potentially allowing them to maintain persistence on a compromised system, or harvest account credentials.
+  condition: payload.filename ENDS_WITH ".so"
+    AND (
+      payload.filename STARTS_WITH "/dev/shm/" OR
+      payload.filename STARTS_WITH "/usr/lib/" OR
+      payload.filename STARTS_WITH "/lib/" OR
+      payload.filename STARTS_WITH "/lib64/" OR
+      payload.filename STARTS_WITH "/usr/lib64/" OR
+      payload.filename STARTS_WITH "/usr/local/lib/" OR
+      payload.filename STARTS_WITH "/usr/local/lib64/" OR
+      payload.filename STARTS_WITH "/tmp/" OR
+      payload.filename STARTS_WITH "/var/tmp/" OR
+      payload.filename STARTS_WITH "/run/shm/" OR
+      payload.filename STARTS_WITH "/opt/" OR
+      payload.filename STARTS_WITH "/home/"
+    )AND NOT (
+      header.image IN ["dockerd", "containerd", "steam", "buildkitd", "unsquashfs", "pacman"] 
+      OR (
+        payload.filename STARTS_WITH "/build/rootImage/nix/store/"
+        OR payload.filename STARTS_WITH "/home/"
+        OR payload.filename STARTS_WITH "/nix/store/"
+        OR payload.filename STARTS_WITH "/var/lib/containerd/"
+        OR payload.filename STARTS_WITH "/var/snap/"
+        OR payload.filename STARTS_WITH "/usr/share/nix/nix/store/"
+        OR payload.filename STARTS_WITH "/tmp/cura/squashfs-root/"
+        OR payload.filename STARTS_WITH "/tmp/containerd"
+      )
+    )
+      
+- name: PAM-related .so File Creation or Modification
+  type: FileOpened
+  category: persistence
+  severity: medium
+  description: Detects creation or modification of PAM modules or configuration files, which may indicate attempts at persistence or credential manipulation.
+  condition: (payload.flags CONTAINS "O_CREAT" OR payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND (
+      payload.filename ENDS_WITH ".so" 
+      AND (
+        payload.filename STARTS_WITH "/lib/security/" OR
+        payload.filename STARTS_WITH "/lib64/security/" OR
+        payload.filename STARTS_WITH "/usr/lib/security/" OR
+        payload.filename STARTS_WITH "/usr/lib64/security/" OR
+        payload.filename STARTS_WITH "/lib/x86_64-linux-gnu/security/" OR
+        payload.filename STARTS_WITH "/usr/lib/x86_64-linux-gnu/security/"
+      )
+      OR (payload.filename STARTS_WITH "/etc/pam.d/" AND NOT payload.filename ENDS_WITH ".so")
+      OR (payload.filename STARTS_WITH "/etc/security/pam_" OR payload.filename == "/etc/pam.conf")
+    )AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/usr/bin/puppet", "/bin/puppet",
+        "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client", "/bin/autossl_check",
+        "/usr/bin/autossl_check", "/usr/bin/pamac-daemon", "/bin/pamac-daemon", "/usr/lib/snapd/snapd",
+        "/usr/local/bin/dockerd", "/usr/sbin/pam-auth-update", "/usr/lib/systemd/systemd",
+        "/usr/libexec/packagekitd", "/usr/bin/bsdtar", "/sbin/pam-auth-update", "/usr/lib/virtualbox/*",
+        "/usr/libexec/packagekitd"
+      ] OR
+      header.image STARTS_WITH "/nix/store/" OR
+      header.image STARTS_WITH "/var/lib/dpkg/" OR
+      header.image STARTS_WITH "/snap/" OR
+      header.image STARTS_WITH "/dev/fd/" OR
+      payload.filename STARTS_WITH "/tmp/snap.rootfs_/" OR
+      payload.filename STARTS_WITH "/tmp/newroot/lib/" OR
+      payload.filename STARTS_WITH "/tmp/newroot/usr/lib64/security/" OR
+      payload.filename ENDS_WITH ".swp" OR
+      payload.filename ENDS_WITH ".swpx" OR
+      payload.filename ENDS_WITH ".swx" OR
+      payload.filename ENDS_WITH ".dpkg-remove" OR
+      payload.filename ENDS_WITH ".dpkg-new" OR
+      (header.image ENDS_WITH "/sed" AND payload.filename STARTS_WITH "sed") OR
+      (header.image ENDS_WITH "/perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp")
+    )

@@ -12,7 +12,7 @@
   severity: medium
   description: Detects modification of the dynamic linker preload shared object (ld.so.preload). Adversaries may execute malicious 
     payloads by hijacking the dynamic linker used to load libraries.
-  condition: payload.filename == "/etc/ld.so.preload" AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+  condition: payload.filename == "/etc/ld.so.preload" AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_TRUNC")
 
 - name: File renamed in sensitive path
   type: FileRename
@@ -21,3 +21,10 @@
   description: Detects renaming of the dynamic linker preload shared object (ld.so.preload). Adversaries may execute malicious payloads 
     by hijacking the dynamic linker used to load libraries.
   condition: payload.source == "/etc/ld.so.preload"
+
+- name: File removed in sensitive path
+  type: FileDeleted
+  category: privilege_escalation
+  severity: medium
+  description: Detects deletion of the dynamic linked preload shared object. 
+  condition: payload.filename == "/etc/ld.so.preload"

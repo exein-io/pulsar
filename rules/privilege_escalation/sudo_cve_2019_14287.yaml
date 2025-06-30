@@ -1,0 +1,17 @@
+# Title: Exploitation of sudo vulnerability (CVE-2019-14287)
+
+# Creation Date: 2025/04/14
+
+# MITRE ATT&CK Tactics TA0004 - Privilege Escalation - ttps://attack.mitre.org/tactics/TA0004/
+
+# MITRE ATT&CK Techinque T1068 - Command and scripting interpreter - https://attack.mitre.org/techniques/T1068/
+
+- name: Potential Sudo Privilege Escalation via CVE-2019-14287
+  type: Exec
+  category: privilege_escalation
+  severity: medium
+  description: Detects suspicious use of the sudo -u#-1 command, which may indicate an attempt to exploit CVE-2019-14287 for privilege escalation.
+    Adversaries may leverage this flaw in older versions of sudo (< v1.28) to translates to an ID of 0, executing commands as root.
+  condition: payload.filename ENDS_WITH "sudo" AND payload.argv CONTAINS "-u#-1"
+
+

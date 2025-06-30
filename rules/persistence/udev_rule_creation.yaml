@@ -1,0 +1,106 @@
+# Title: Systemd-udevd Rule File Creation
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1574 - Hijack Execution Flow - https://attack.mitre.org/techniques/T1574/
+
+- name: Systemd-udevd Rule File Creation
+  type: FileCreated
+  category: persistence
+  severity: low
+  description: Detects the creation of udev rule files in critical system directories. These files could be used to gain persistence via hijacked system events.
+    Adversaries may use this technique to persistently execute malicious payloads upon hardware events.
+  condition: payload.filename ENDS_WITH "rules" 
+    AND (
+      payload.filename STARTS_WITH "/lib/udev/" OR
+      payload.filename STARTS_WITH "/etc/udev/rules.d/" OR
+      payload.filename STARTS_WITH "/usr/lib/udev/rules.d/" OR
+      payload.filename STARTS_WITH "/run/udev/rules.d/" OR
+      payload.filename STARTS_WITH "/usr/local/lib/udev/rules.d/"
+    )
+    AND NOT (
+      header.image IN ["bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+      "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+      "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+      "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+      "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet",
+      "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+      "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/*",  "/usr/bin/pamac-daemon",
+      "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/local/bin/dockerd", "/usr/libexec/netplan/generate",
+      "/lib/systemd/system-generators/netplan", "/lib/systemd/systemd", "/usr/bin/containerd", "/usr/sbin/sshd",
+      "/kaniko/executor"]
+      OR (
+        header.image STARTS_WITH "/nix/store/" OR
+        header.image STARTS_WITH "/var/lib/dpkg/" OR
+        header.image STARTS_WITH "/snap/" OR
+        header.image STARTS_WITH "/dev/fd/" OR
+        header.image STARTS_WITH "/usr/lib/" OR
+        header.image STARTS_WITH "/usr/libexec/"
+      )
+      OR (
+        header.image ENDS_WITH "systemd" OR
+        header.image ENDS_WITH "netplan" OR
+        header.image ENDS_WITH "apt-get" OR
+        header.image ENDS_WITH "vmware-config-tools.pl" OR
+        header.image ENDS_WITH "systemd-hwdb" OR
+        header.image ENDS_WITH "ssm-agent-worker" OR
+        header.image ENDS_WITH "crio" OR
+        header.image ENDS_WITH "cloud-init" OR
+        header.image ENDS_WITH "convert2rhel"
+      )
+      OR (header.image ENDS_WITH "sed" AND payload.filename STARTS_WITH "sed") 
+      OR (header.image ENDS_WITH "perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp")
+    )
+
+- name: Systemd-udevd Rule File Modification
+  type: FileRename
+  category: persistence
+  severity: low
+  description: Detects modifications to udev rule files in system directories. These modifications can enable malicious payloads to execute based on hardware events.
+    Adversaries may use this technique to maintain persistence by altering system events.
+  condition: payload.destination ENDS_WITH "rules" 
+    AND (
+      payload.destination STARTS_WITH "/lib/udev/" OR
+      payload.destination STARTS_WITH "/etc/udev/rules.d/" OR
+      payload.destination STARTS_WITH "/usr/lib/udev/rules.d/" OR
+      payload.destination STARTS_WITH "/run/udev/rules.d/" OR
+      payload.destination STARTS_WITH "/usr/local/lib/udev/rules.d/"
+    )
+    AND NOT (
+      header.image IN ["bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+      "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+      "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+      "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+      "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet",
+      "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+      "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/*",  "/usr/bin/pamac-daemon",
+      "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/local/bin/dockerd", "/usr/libexec/netplan/generate",
+      "/lib/systemd/system-generators/netplan", "/lib/systemd/systemd", "/usr/bin/containerd", "/usr/sbin/sshd",
+      "/kaniko/executor"]
+      OR (
+        payload.source ENDS_WITH "dpkg-new"  
+      )
+      OR (
+        header.image STARTS_WITH "/nix/store/" OR
+        header.image STARTS_WITH "/var/lib/dpkg/" OR
+        header.image STARTS_WITH "/snap/" OR
+        header.image STARTS_WITH "/dev/fd/" OR
+        header.image STARTS_WITH "/usr/lib/" OR
+        header.image STARTS_WITH "/usr/libexec/"
+      )
+      OR (
+        header.image ENDS_WITH "systemd" OR
+        header.image ENDS_WITH "netplan" OR
+        header.image ENDS_WITH "apt-get" OR
+        header.image ENDS_WITH "vmware-config-tools.pl" OR
+        header.image ENDS_WITH "systemd-hwdb" OR
+        header.image ENDS_WITH "ssm-agent-worker" OR
+        header.image ENDS_WITH "crio" OR
+        header.image ENDS_WITH "cloud-init" OR
+        header.image ENDS_WITH "convert2rhel"
+      )
+      OR (header.image ENDS_WITH "sed" AND payload.destination STARTS_WITH "sed") 
+      OR (header.image ENDS_WITH "perl" AND payload.destination STARTS_WITH "e2scrub_all.tmp")
+    )

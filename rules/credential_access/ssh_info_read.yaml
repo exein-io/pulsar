@@ -1,0 +1,32 @@
+# Title: Unauthorized Access to SSH Credentials
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1552.004 - Unsecured Credentials: Private Keys - https://attack.mitre.org/techniques/T1552/004/
+
+- name: Read SSH information
+  type: FileOpened
+  category: execution
+  severity: medium
+  description: Detects the read of SSH information. Adversaries may read SSH information to gather information about the system or to use in later 
+    stages of an attack.
+  condition: (
+    payload.filename STARTS_WITH "/root/.ssh/" OR
+    payload.filename STARTS_WITH "/etc/ssh/" OR
+    payload.filename ENDS_WITH ".ssh/config" OR
+    payload.filename ENDS_WITH "/.ssh/authorized_keys"
+    )
+    AND NOT header.image IN [
+    "/usr/sbin/sshd",
+    "/usr/bin/sftp-server",
+    "/usr/bin/ssh-agent", 
+    "/usr/bin/ssh",
+    "/usr/bin/scp",
+    "/usr/bin/sftp",
+    "/usr/bin/ssh-keygen",
+    "/usr/bin/ssh-keysign",
+    "/usr/bin/ssh-keyscan",
+    "/usr/bin/ssh-add"
+    ]

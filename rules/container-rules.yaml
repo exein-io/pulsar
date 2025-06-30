@@ -53,3 +53,87 @@
   condition: |
     header.container.is_some() AND
     payload.filename ENDS_WITH "/dmesg"
+
+- name: Docker socket enumeration
+  type: Exec
+  category: discovery
+  severity: low
+  description: Detects potential Docker socket enumeration activity. Adversaries may abuse Docker socket enumeration to gain unauthorized access to the host system, escalate privileges, or
+    move laterally within the environment.
+  condition: (payload.filename ENDS_WITH "curl" OR payload.filename ENDS_WITH "socat" 
+      OR payload.filename ENDS_WITH "nc" OR payload.filename ENDS_WITH "netcat"
+      OR payload.filename ENDS_WITH "ncat" OR payload.filename ENDS_WITH "nc.traditional")
+    AND (payload.argv CONTAINS "/var/run/docker.sock" OR payload.argv CONTAINS "/run/docker.sock")
+
+- name: Suspicious Network Tool Launched in Container
+  type: Exec
+  category: execution
+  severity: low
+  description: Deetects commonly abused network utilities running inside a container. Network utilities like nc, nmap, dig,
+    tcpdump, ngrep, telnet, mitmproxy, zmap can be used for malicious purposes such as network reconnaissance, monitoring,
+    or exploitation, and should be monitored closely within a container.
+  condition: header.container.is_some() 
+    AND (
+      payload.filename ENDS_WITH "/nc.traditional" OR
+      payload.filename ENDS_WITH "/nc" OR
+      payload.filename ENDS_WITH "/ncat" OR
+      payload.filename ENDS_WITH "/netcat" OR
+      payload.filename ENDS_WITH "/nmap" OR
+      payload.filename ENDS_WITH "/dig" OR
+      payload.filename ENDS_WITH "/nslookup" OR
+      payload.filename ENDS_WITH "/tcpdump" OR
+      payload.filename ENDS_WITH "/tshark" OR
+      payload.filename ENDS_WITH "/ngrep" OR
+      payload.filename ENDS_WITH "/telnet" OR
+      payload.filename ENDS_WITH "/mitmproxy" OR
+      payload.filename ENDS_WITH "/socat" OR
+      payload.filename ENDS_WITH "/zmap" OR
+      payload.filename ENDS_WITH "/masscan" OR
+      payload.filename ENDS_WITH "/zgrab"
+    )
+
+- name: Container Management Utility Run Inside A Container
+  type: Exec
+  category: execution
+  severity: low
+  description: Detects when a container management binary is run from inside a container. These binaries are critical
+    components of many containerized environments, and their presence and execution in unauthorized containers could
+    indicate compromise or a misconfiguration.
+  condition: header.container.is_some() 
+    AND (
+      payload.filename ENDS_WITH "/dockerd" OR
+      payload.filename ENDS_WITH "/docker" OR
+      payload.filename ENDS_WITH "/kubelet" OR
+      payload.filename ENDS_WITH "/kube-proxy" OR
+      payload.filename ENDS_WITH "/kubectl" OR
+      payload.filename ENDS_WITH "/containerd" OR
+      payload.filename ENDS_WITH "/runc" OR
+      payload.filename ENDS_WITH "/systemd" OR
+      payload.filename ENDS_WITH "/crictl" OR
+      payload.filename ENDS_WITH "/podman" OR
+      payload.filename ENDS_WITH "/crun" OR
+      payload.filename ENDS_WITH "/youki"
+    )
+
+- name: SSH Process Launched Inside A Container
+  type: Exec
+  category: lateral_movement
+  severity: medium
+  description: Detects the execution of SSH processes inside a container. Attackers may use SSH to establish remote access to 
+    compromised systems, allowing them to move laterally within the environment. With valid credentials an attacker may move laterally 
+    to other containers or to the underlying host through container breakout.
+  condition: header.container.is_some() 
+    AND (
+      payload.filename ENDS_WITH "/ssh" OR
+      payload.filename ENDS_WITH "/sshd" OR
+      payload.filename ENDS_WITH "/autossh"
+    ) 
+
+- name: Mount Launched Inside a Container
+  type: Exec
+  category: privilege_escalation
+  severity: medium
+  description: Detects the use of the mount utility from inside a container. When launched inside a privileged container 
+    an attacker can access sensitive host level files which could be used for further privilege escalation and container escapes to the host machine.
+  condition: header.container.is_some() AND
+    payload.filename ENDS_WITH "mount"

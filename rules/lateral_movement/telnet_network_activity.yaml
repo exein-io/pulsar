@@ -5,7 +5,6 @@
 # False Positives: Telnet can be used for both benign or malicious purposes. Telnet is included by default in some Linux distributions, so its presence is not inherently suspicious. 
 # The use of Telnet to manage devices remotely has declined in recent years in favor of more secure protocols such as SSH. Telnet usage by non-automated tools or frameworks may be suspicious.
 
-
 # MITRE ATT&CK Tactic: TA0008 - Lateral Movement - https://attack.mitre.org/tactics/TA0008/
 
 # MITRE ATT&CK Technique: T1021 - Remote Services - https://attack.mitre.org/techniques/T1021/
@@ -13,13 +12,17 @@
 - name: Telnet execution
   type: Exec
   category: lateral_movement
-  severity: medium
-  description: Detects the execution of the Telnet utility. Attackers may use Telnet to establish a remote connection to a device or server.
-  condition: header.image == "/usr/bin/telnet"
+  severity: low
+  description: Detects the execution of the Telnet utility on the system. 
+    Attackers may use Telnet to interact with remote devices, especially where Telnet is often left enabled by default or poorly secured. 
+    This technique is commonly used in botnet infections like Mirai to spread across vulnerable devices using weak or default credentials.
+  condition: payload.filename ENDS_WITH "telnet"
 
-- name: Telnet network activity - Connect
+- name: Telnet connection to external network
   type: Connect
   category: lateral_movement
-  severity: medium
-  description: Detects Telnet network activity. Attackers may use Telnet to establish a remote connection to a device or server.
-  condition: header.image == "/usr/bin/telnet"
+  severity: low
+  description: Detects Telnet network activity from the device to an external IP address. 
+    Adversaries or malware may use Telnet to exfiltrate data or pivot to other devices within or outside the network. 
+    This behavior is typical of IoT malware families that scan and infect new hosts via the Telnet protocol.
+  condition: header.image ENDS_WITH "telnet" 

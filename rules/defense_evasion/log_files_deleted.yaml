@@ -12,6 +12,28 @@
   severity: medium
   description: Detects the deletion of sensitive Linux system logs. This may indicate an attempt to evade detection or destroy forensic 
     evidence on a system.
-  condition: payload.filename IN ["/var/run/utmp", "/var/log/wtmp", "/var/log/btmp", "/var/log/lastlog", "/var/log/faillog", 
-    "/var/log/syslog", "/var/log/messages", "/var/log/secure", "/var/log/auth.log", "/var/log/boot.log", "/var/log/kern.log"]
-    AND NOT header.image IN ["/usr/bin/gzip", "/usr/bin/executor", "/usr/bin/dockerd"]
+  condition: (
+      payload.filename ENDS_WITH "/var/run/utmp" OR
+      payload.filename ENDS_WITH "/var/log/wtmp" OR
+      payload.filename ENDS_WITH "/var/log/btmp" OR
+      payload.filename ENDS_WITH "/var/log/lastlog" OR
+      payload.filename ENDS_WITH "/var/log/faillog" OR
+      payload.filename ENDS_WITH "/var/log/syslog" OR
+      payload.filename ENDS_WITH "/var/log/messages" OR
+      payload.filename ENDS_WITH "/var/log/secure" OR
+      payload.filename ENDS_WITH "/var/log/auth.log" OR
+      payload.filename ENDS_WITH "/var/log/boot.log" OR
+      payload.filename ENDS_WITH "/var/log/kern.log"
+    )
+    AND NOT header.image IN [
+      "/usr/bin/gzip", "/usr/bin/bzip2", "/usr/bin/xz", "/usr/bin/journalctl", 
+      "/usr/bin/logrotate", "/usr/bin/dockerd", "/usr/bin/executor"
+    ]
+
+- name: Truncate log files
+  type: FileOpened
+  category: execution
+  severity: medium
+  description: Detects the truncation of log files. Adversaries may truncate log files to remove evidence of their activities on the system.
+  condition: (payload.filename STARTS_WITH "/var/log" OR payload.filename STARTS_WITH "/dev/log") 
+    AND payload.flags CONTAINS "O_TRUNC"

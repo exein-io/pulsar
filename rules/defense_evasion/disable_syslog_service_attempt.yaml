@@ -1,0 +1,21 @@
+# Title: Attempt To Disable Syslog Service
+
+# Creation date: 2020/04/27
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
+
+# Merged all the rules into one generic.
+# Elastic rules has also: and not process.parent.name == "rsyslog-rotate"
+- name: Attempt to disable syslog service
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Adversaries may attempt to disable the syslog service (rsyslog, syslog-ng) to stop logging and avoid detection of their activities by security monitoring systems.
+  condition: (
+    (payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "stop") OR
+    (payload.filename ENDS_WITH "chkconfig" AND payload.argv CONTAINS "off") OR
+    (payload.filename ENDS_WITH "systemctl" AND (payload.argv CONTAINS "disable" OR payload.argv CONTAINS "stop" OR payload.argv CONTAINS "kill"))
+    ) AND (payload.argv CONTAINS "syslog" OR  payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng" OR
+      payload.argv CONTAINS "syslog.service" OR payload.argv CONTAINS "rsyslog.service" OR payload.argv CONTAINS"syslog-ng.service")

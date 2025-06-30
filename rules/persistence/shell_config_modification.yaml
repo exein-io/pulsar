@@ -1,0 +1,57 @@
+# Title: Modification of shell configuration files
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1546 - Event Triggered Execution - https://attack.mitre.org/techniques/T1546/
+
+- name: Shell Configuration Creation or Modification
+  type: FileOpened
+  category: persistence
+  severity: medium
+  description: Detects creation or modification of shell configuration files that may be used by adversaries for persistence.
+    Adversaries may modify these files to execute arbitrary commands or maintain access to the system across sessions.
+  condition: (payload.flags CONTAINS "O_CREAT" OR payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND (payload.filename ENDS_WITH ".bashrc" OR payload.filename ENDS_WITH ".bash_login" OR payload.filename ENDS_WITH ".bash_logout" OR 
+      payload.filename ENDS_WITH ".bash_profile" OR payload.filename ENDS_WITH ".zshrc" OR payload.filename ENDS_WITH ".zprofile" OR 
+      payload.filename ENDS_WITH ".cshrc" OR payload.filename ENDS_WITH ".login" OR payload.filename ENDS_WITH ".logout" OR 
+      payload.filename ENDS_WITH "config.fish" OR payload.filename ENDS_WITH ".kshrc"
+    ) AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet",
+        "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+        "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/*",  "/usr/bin/pamac-daemon",
+        "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/sbin/adduser", "/usr/sbin/useradd", "/usr/local/bin/dockerd",
+        "/usr/sbin/gdm", "/usr/bin/unzip", "/usr/bin/gnome-shell", "/sbin/mkhomedir_helper", "/usr/sbin/sshd",
+        "/opt/puppetlabs/puppet/bin/ruby", "/usr/bin/xfce4-session", "/usr/libexec/oddjob/mkhomedir", "/sbin/useradd",
+        "/usr/lib/systemd/systemd", "/usr/sbin/crond", "/usr/bin/pamac-daemon", "/usr/sbin/mkhomedir_helper",
+        "/opt/pbis/sbin/lwsmd", "/usr/sbin/oddjobd"
+      ]
+      OR (
+        payload.filename ENDS_WITH "swp" OR payload.filename ENDS_WITH "swpx" OR payload.filename ENDS_WITH "swx" OR payload.filename ENDS_WITH "dpkg-remove"
+      )
+      OR (
+        payload.filename ENDS_WITH "dpkg-new"
+      )
+      OR (
+        header.image STARTS_WITH "/nix/store/" OR
+        header.image STARTS_WITH "/var/lib/dpkg/" OR
+        header.image STARTS_WITH "/tmp/vmis" OR
+        header.image STARTS_WITH "/snap/" OR
+        header.image STARTS_WITH "/dev/fd/" OR
+        header.image STARTS_WITH "/usr/lib/virtualbox/"
+      )
+      OR header.image == ""
+      OR header.image IN ["adclient", "mkhomedir_helper", "teleport", "mkhomedir", "adduser", "desktopDaemon", "executor", "crio"]
+      OR (
+        header.image ENDS_WITH "sed" AND payload.filename STARTS_WITH "sed"
+      )
+      OR (
+        header.image ENDS_WITH "perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp"
+      )
+    )

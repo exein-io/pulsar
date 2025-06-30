@@ -1,0 +1,72 @@
+# Title: System V Init Script Created
+
+# Creation date: 2025/04/14
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1037 - Boot or Logon Initialization Scripts - https://attack.mitre.org/techniques/T1037/
+
+- name: System V Init Script Created
+  type: FileCreated
+  category: persistence
+  severity: medium
+  description: Detects creation or renaming of System V init scripts under /etc/init.d/. Adversaries may abuse init scripts to achieve persistence 
+    by executing malicious payloads during system startup. This technique enables execution of malicious payloads with elevated privileges early in the boot process.
+  condition: (payload.filename STARTS_WITH "/etc/init.d/" OR payload.filename STARTS_WITH "/etc/rc.d/") 
+    AND NOT (
+      header.image IN [
+        "/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd",
+        "/bin/microdnf", "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd",
+        "/bin/yum", "/usr/bin/yum", "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman",
+        "/bin/dnf-automatic", "/usr/bin/dnf-automatic", "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert",
+        "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk", "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman",
+        "/usr/bin/puppet", "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client",
+        "/bin/chef-client", "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/",
+        "/usr/bin/pamac-daemon", "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/local/bin/dockerd"
+      ] OR
+      payload.filename STARTS_WITH "/etc/init.d/beat" OR
+      payload.filename STARTS_WITH "/etc/init.d/elastic-agent" OR
+      payload.filename STARTS_WITH "/nix/store/" OR
+      payload.filename STARTS_WITH "/var/lib/dpkg/" OR
+      payload.filename STARTS_WITH "/snap/" OR
+      payload.filename STARTS_WITH "/dev/fd/" OR
+      payload.filename STARTS_WITH "/usr/lib/virtualbox/" OR
+      payload.filename ENDS_WITH "swp" OR
+      payload.filename ENDS_WITH "swpx" OR
+      payload.filename ENDS_WITH "swx" OR
+      payload.filename ENDS_WITH "dpkg-remove" OR
+      payload.filename ENDS_WITH "dpkg-new" OR
+      header.image IN ["docker-init", "jumpcloud-agent", "crio"] OR
+      payload.filename IN [
+        "executor", "univention-config-registry", "install",
+        "dockerd-entrypoint.sh", "platform-python", "ssm-agent-worker"
+      ] OR
+      (header.image STARTS_WITH "ln" AND payload.filename STARTS_WITH "/etc/init.d/rc.d/") OR
+      (header.image STARTS_WITH "sed" AND payload.filename STARTS_WITH "sed") OR
+      (header.image STARTS_WITH "perl" AND payload.filename STARTS_WITH "e2scrub_all.tmp")
+    )
+
+- name: rc.local/rc.common File Creation
+  type: FileCreated
+  category: persistence
+  severity: medium
+  description: Detect the creation or alteration of rc.local/rc.common files.
+    Adversaries may alter rc.local/rc.common to execute malicious code at start-up, and gain persistence onto the system.
+  condition: (payload.filename STARTS_WITH "/etc/rc.local" OR payload.filename STARTS_WITH "/etc/rc.common")
+    AND NOT (
+      header.image IN ["/bin/dpkg", "/usr/bin/dpkg", "/bin/dockerd", "/usr/bin/dockerd", "/usr/sbin/dockerd", "/bin/microdnf",
+        "/usr/bin/microdnf", "/bin/rpm", "/usr/bin/rpm", "/bin/snapd", "/usr/bin/snapd", "/bin/yum", "/usr/bin/yum",
+        "/bin/dnf", "/usr/bin/dnf", "/bin/podman", "/usr/bin/podman", "/bin/dnf-automatic", "/usr/bin/dnf-automatic",
+        "/bin/pacman", "/usr/bin/pacman", "/usr/bin/dpkg-divert", "/bin/dpkg-divert", "/sbin/apk", "/usr/sbin/apk",
+        "/usr/local/sbin/apk", "/usr/bin/apt", "/usr/sbin/pacman", "/bin/podman", "/usr/bin/podman", "/usr/bin/puppet",
+        "/bin/puppet", "/opt/puppetlabs/puppet/bin/puppet", "/usr/bin/chef-client", "/bin/chef-client",
+        "/bin/autossl_check", "/usr/bin/autossl_check", "/proc/self/exe", "/dev/fd/*",  "/usr/bin/pamac-daemon",
+        "/bin/pamac-daemon", "/usr/lib/snapd/snapd", "/usr/local/bin/dockerd", "/usr/libexec/platform-python"
+    ]
+    OR (
+      header.image STARTS_WITH "/nix/store/" OR
+      header.image STARTS_WITH "/var/lib/dpkg/" OR
+      header.image STARTS_WITH "/snap/" OR
+      header.image STARTS_WITH "/dev/fd/" OR
+      header.image STARTS_WITH "/usr/lib/virtualbox")
+    )

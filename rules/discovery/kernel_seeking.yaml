@@ -1,0 +1,19 @@
+# Title: Kernel Seeking
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK Tactic: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK Technique: T1082 - System Information Discovery - https://attack.mitre.org/techniques/T1082/
+
+- name: Kernel Seeking Activity
+  type: FileOpened
+  category: discovery
+  severity: low
+  description: Detects kernel seeking activity through several built-in Linux utilities. Attackers may use these utilities
+    to search the Linux kernel for available symbols, functions, and other information that can be used to exploit the kernel.
+  condition: (payload.filename STARTS_WITH "/boot/" OR payload.filename STARTS_WITH "/proc/kallsyms")
+    AND (
+      header.image ENDS_WITH "tail" OR header.image ENDS_WITH "cmp" OR header.image ENDS_WITH "hexdump" OR
+      header.image ENDS_WITH "xxd" OR header.image ENDS_WITH "dd"
+    )
