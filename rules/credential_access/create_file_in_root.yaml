@@ -1,27 +1,39 @@
-# Title: Create files under /root
+# Title: Creation of Suspicious Files in Restricted Directories
 
-# Creation date: 2024/04/18
+# Creation Date: 2022/10/21
 
 # MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
 
-# MITRE ATT&CK Technique: T1552.001 - Credentials in Files - https://attack.mitre.org/techniques/T1552/001/
+# MITRE ATT&CK Technique: TT1552 - Unsecured Credentials - https://attack.mitre.org/techniques/T1552/
 
 - name: Create files below /root
   type: FileCreated
   category: credential_access
-  severity: medium
+  severity: low
   description: Detects the creation of files below /root. Adversaries may create files below /root to gain access to information or to escalate 
     privileges.
-  condition: payload.filename STARTS_WITH "/root" AND NOT payload.filename IN [
-    "/root/.auth_tokens",
-    "/root/.bash_history",
-    "/root/.ash_history", 
-    "/root/.aws/credentials",
-    "/root/.viminfo.tmp",
-    "/root/.lesshst",
-    "/root/.bzr.log",
-    "/root/.gitconfig.lock",
-    "/root/.babel.json",
-    "/root/.localstack", 
-    "/root/.wget-hsts"
-    ]
+  condition: payload.filename STARTS_WITH "/root" 
+    AND NOT (payload.filename IN [
+      "/root/.auth_tokens",
+      "/root/.bash_history",
+      "/root/.ash_history", 
+      "/root/.aws/credentials",
+      "/root/.viminfo.tmp",
+      "/root/.lesshst",
+      "/root/.bzr.log",
+      "/root/.gitconfig.lock",
+      "/root/.babel.json",
+      "/root/.localstack", 
+      "/root/.wget-hsts",
+      "/root/.vimrc",
+      "/root/.bashrc",
+      "/root/.profile",
+      "/root/.ssh/authorized_keys", 
+      "/root/.ssh/known_hosts",
+      ] 
+      OR (
+        payload.filename STARTS_WITH "/root/.config/" OR
+        payload.filename STARTS_WITH "/root/.cache/" OR
+        payload.filename STARTS_WITH "/root/.docker/") 
+    )
+    AND NOT (header.image IN ["/usr/bin/apt", "/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/dnf"] )
