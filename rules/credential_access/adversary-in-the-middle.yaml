@@ -16,12 +16,14 @@
     (payload.destination.port == 67 OR payload.destination.port == 547) AND
     payload.len <= 400 AND
     payload.destination.ip IN ["255.255.255.255"] 
-    AND NOT header.image IN [
-      "/usr/sbin/dhcpd",
-      "/usr/sbin/dnsmasq", 
-      "/usr/sbin/dhclient",
-      "/usr/sbin/NetworkManager"
-    ]
+    AND NOT (
+      header.image ENDS_WITH "/dhcpd" OR
+      header.image ENDS_WITH "/dhclient" OR
+      header.image ENDS_WITH "/dnsmasq" OR
+      header.image ENDS_WITH "/isc-dhcp-server" OR
+      header.image ENDS_WITH "/NetworkManager" OR
+      header.image ENDS_WITH "/systemd-networkd"
+    )
 
 # DHCP Server Spoofing Detection
 - name: Unauthorized DHCP Server
@@ -32,17 +34,14 @@
     Adversaries may run malicious DHCP servers to redirect victim network traffic, leading to attacks like man-in-the-middle (MITM) or traffic interception.
   condition: payload.is_tcp == "false" AND 
       (payload.address.port == 67 OR payload.address.port == 68 OR payload.address.port == 546 OR payload.address.port == 547)
-    AND NOT header.image IN [
-      "/usr/sbin/dhcpd",
-      "/usr/sbin/dnsmasq",
-      "/usr/bin/networkd",
-      "/usr/sbin/isc-dhcp-server",
-      "/usr/sbin/dhclient",
-      "/usr/sbin/NetworkManager",
-      "/usr/bin/NetworkManager",
-      "/usr/sbin/systemd-networkd",
-      "/usr/lib/systemd/systemd-networkd"
-    ]
+    AND NOT (
+      header.image ENDS_WITH "/dhcpd" OR
+      header.image ENDS_WITH "/dhclient" OR
+      header.image ENDS_WITH "/dnsmasq" OR
+      header.image ENDS_WITH "/isc-dhcp-server" OR
+      header.image ENDS_WITH "/NetworkManager" OR
+      header.image ENDS_WITH "/systemd-networkd"
+    )
 
 # DHCP Attack Tools Detection
 - name: DHCP Attack Tools
