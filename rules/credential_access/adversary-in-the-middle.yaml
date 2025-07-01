@@ -1,0 +1,66 @@
+# Title: DHCP Network Manipulation and Attack Detection
+
+# Creation Date: 2025/04/10
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1580 - Adversary-in-the-middle - https://attack.mitre.org/techniques/T1557/002/
+
+- name: DHCP Network Discover
+  type: Send
+  category: impact
+  severity: low
+  description: Detects DHCP starvation attempts by monitoring excessive DISCOVER packets to broadcast addresses. 
+    Adversaries may exhaust the IP address pool by rapidly requesting many leases using spoofed MAC addresses.
+  condition: payload.is_tcp == "false" AND
+    (payload.destination.port == 67 OR payload.destination.port == 547) AND
+    payload.len <= 400 AND
+    payload.destination.ip IN ["255.255.255.255"] 
+    AND NOT header.image IN [
+      "/usr/sbin/dhcpd",
+      "/usr/sbin/dnsmasq", 
+      "/usr/sbin/dhclient",
+      "/usr/sbin/NetworkManager"
+    ]
+
+# DHCP Server Spoofing Detection
+- name: Unauthorized DHCP Server
+  type: Bind
+  category: credential_access
+  severity: medium
+  description: Detects processes binding to DHCP server ports, which may indicate rogue DHCP services. 
+    Adversaries may run malicious DHCP servers to redirect victim network traffic, leading to attacks like man-in-the-middle (MITM) or traffic interception.
+  condition: payload.is_tcp == "false" AND 
+      (payload.address.port == 67 OR payload.address.port == 68 OR payload.address.port == 546 OR payload.address.port == 547)
+    AND NOT header.image IN [
+      "/usr/sbin/dhcpd",
+      "/usr/sbin/dnsmasq",
+      "/usr/bin/networkd",
+      "/usr/sbin/isc-dhcp-server",
+      "/usr/sbin/dhclient",
+      "/usr/sbin/NetworkManager",
+      "/usr/bin/NetworkManager",
+      "/usr/sbin/systemd-networkd",
+      "/usr/lib/systemd/systemd-networkd"
+    ]
+
+# DHCP Attack Tools Detection
+- name: DHCP Attack Tools
+  type: Exec
+  category: credential_access
+  severity: high
+  description: Detects execution of known DHCP spoofing tools or suspicious command-line arguments that suggest malicious intent.
+  condition: 
+    payload.filename ENDS_WITH "ettercap" OR 
+    payload.filename ENDS_WITH "bettercap" OR
+    payload.filename ENDS_WITH "yersinia" OR
+    payload.filename ENDS_WITH "responder" OR
+    payload.filename ENDS_WITH "mitmf" OR 
+    (payload.argv CONTAINS "dhcp" AND (
+      payload.argv CONTAINS "spoof" OR
+      payload.argv CONTAINS "poison" OR
+      payload.argv CONTAINS "hijack" OR
+      payload.argv CONTAINS "--dhcp" OR
+      payload.argv CONTAINS "-dhcp" OR
+      payload.argv CONTAINS "--dhcp-spoof"
+    ))
