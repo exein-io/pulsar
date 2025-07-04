@@ -34,7 +34,7 @@
       header.image ENDS_WITH "/rmmod" OR
       header.image ENDS_WITH "/systemd" OR
       header.image ENDS_WITH "/udevd" OR
-      header.image STARTS_WITH "usr/bin/apt" OR
+      header.image STARTS_WITH "/usr/bin/apt" OR
       header.image STARTS_WITH "/usr/bin/dnf" OR
       header.image ENDS_WITH "/dpkg" OR
       header.image ENDS_WITH "/yum" OR
