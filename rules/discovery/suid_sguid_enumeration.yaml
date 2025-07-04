@@ -1,0 +1,26 @@
+# Title: Abuse Elevation Control Mechanism
+
+# Creation Date: 2025/04/09
+
+# MITRE ATT&CK Tactics: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK Technique: T1548 - Abuse Elevation Control Mechanism: Setuid and Setgit - https://attack.mitre.org/techniques/T1548/001/
+
+- name: Search for SetUID/SetGID files
+  type: Exec
+  category: discovery
+  severity: low
+  description: Detects execution of the 'find' command to search for SetUID or SetGID files, which is commonly used by attackers during reconnaissance.
+  condition: payload.filename ENDS_WITH "/find" AND payload.argv CONTAINS "-perm" 
+    AND (
+      payload.argv CONTAINS "/6000" OR payload.argv CONTAINS "6000" OR payload.argv CONTAINS "-6000" OR payload.argv CONTAINS "06000" OR
+      payload.argv CONTAINS "/4000" OR payload.argv CONTAINS "4000" OR payload.argv CONTAINS "-4000" OR payload.argv CONTAINS "04000" OR
+      payload.argv CONTAINS "/2000" OR payload.argv CONTAINS "2000" OR payload.argv CONTAINS "-2000" OR payload.argv CONTAINS "02000" OR
+      payload.argv CONTAINS "/u=s" OR payload.argv CONTAINS "-u=s" OR
+      payload.argv CONTAINS "/g=s" OR payload.argv CONTAINS "-g=s" OR
+      payload.argv CONTAINS "/u=s,g=s" OR payload.argv CONTAINS "/g=s,u=s"
+    )
+    AND NOT (
+      (header.uid == 0 OR header.gid == 0) OR
+      (payload.argv CONTAINS "/usr/bin/pkexec" AND payload.argv CONTAINS "-xdev" AND payload.argc == 7)
+    )
