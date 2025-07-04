@@ -1,0 +1,26 @@
+# Title: Kernel Logging Evasion via sysctl
+
+# Creation date: 2025/04/11
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
+
+- name: Detecting direct kernel printk modification
+  type: FileOpened
+  category: defense_evasion
+  severity: low
+  description: Detects direct write operations to the /proc/sys/kernel/printk file. This is how the sysctl utility, and other programs, modify the kernel.printk parameter under the hood to control console logging levels. 
+    Adversaries may use this to silence kernel logs and impair defenses.  
+  condition: payload.filename ENDS_WITH "/proc/sys/kernel/printk" 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_TRUNC")
+
+- name: Detecting sysctl configuration file modification
+  type: FileOpened
+  category: defense_evasion
+  severity: medium
+  description: Monitors file events on sysctl configuration files. Attackers may tamper the sysctl configuration files to modify kernel parameters, potentially compromising system stability, performance, or security.
+  condition: (payload.filename ENDS_WITH "/sysctl.conf" OR payload.filename ENDS_WITH "/sysctl.d" ) 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_CREAT")
+    AND NOT (header.image ENDS_WITH "/dockerd")
+
