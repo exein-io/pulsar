@@ -6,7 +6,6 @@
 
 # MITRE ATT&CK Technique: T1036.005 - Masquerading: Match Legitimate Name or Location - https://attack.mitre.org/techniques/T1036/005/
 
-
 - name: Delete any file/directory below binary directories
   type: FileDeleted
   category: execution

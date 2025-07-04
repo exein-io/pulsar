@@ -20,4 +20,5 @@
   severity: low
   description: Detects the modification of the Doas configuration file. Adversaries may create or
     modify the Doas configuration file to elevate privileges and execute commands as other users while attempting to evade detection.
-  condition: payload.filename STARTS_WITH "/etc/doas.conf"
+  condition: payload.filename STARTS_WITH "/etc/doas.conf" 
+    AND (payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_TRUNC")

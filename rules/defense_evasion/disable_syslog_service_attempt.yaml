@@ -15,7 +15,7 @@
     (payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "stop") OR
     (payload.filename ENDS_WITH "systemctl" AND (payload.argv CONTAINS "stop" OR payload.argv CONTAINS "kill"))
     ) AND (payload.argv CONTAINS "syslog" OR  payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng" OR
-      payload.argv CONTAINS "syslog.service" OR payload.argv CONTAINS "rsyslog.service" OR payload.argv CONTAINS"syslog-ng.service")
+      payload.argv CONTAINS "syslog.service" OR payload.argv CONTAINS "rsyslog.service" OR payload.argv CONTAINS "syslog-ng.service")
 
 - name: Syslog systemd disable (symlink removed)
   type: FileDeleted
