@@ -20,10 +20,7 @@
   category: defense_evasion
   severity: medium
   description: Monitors file events on sysctl configuration files. Attackers may tamper the sysctl configuration files to modify kernel parameters, potentially compromising system stability, performance, or security.
-  condition: (
-    payload.filename STARTS_WITH "/etc/sysctl.conf" OR payload.filename STARTS_WITH "/etc/sysctl.d" OR
-    payload.filename STARTS_WITH "/lib/sysctl.d" OR payload.filename STARTS_WITH "/usr/lib/sysctl.d" OR
-    payload.filename STARTS_WITH "/usr/local/lib/sysctl.d"
-    ) AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_CREAT")
+  condition: (payload.filename ENDS_WITH "/sysctl.conf" OR payload.filename ENDS_WITH "/sysctl.d" ) 
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_CREAT")
     AND NOT (header.image ENDS_WITH "/dockerd")
 
