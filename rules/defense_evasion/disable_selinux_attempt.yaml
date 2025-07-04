@@ -6,10 +6,21 @@
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
-- name: Set enforce mode to permissive
-  type: Exec
+- name: SELinux set enforce mode to permissive
+  type: FileOpened
   category: defense_evasion
   severity: medium
-  description: Identifies potential attempts to disable Security-Enhanced Linux (SELinux), which is a Linux kernel security feature to
+  description: Detects potential attempts to disable Security-Enhanced Linux (SELinux), which is a Linux kernel security feature to
     support access control policies. Adversaries may disable security tools to avoid possible detection of their tools and activities.
-  condition: payload.filename == "/usr/sbin/setenforce" AND payload.argv CONTAINS "0"
+  condition: payload.filename STARTS_WITH "/sys/fs/selinux/enforce" 
+    AND (payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_WRONLY")
+
+- name: SELinux configuration modification
+  type: FileOpened
+  category: defense_evasion
+  severity: low
+  description: Detects the creation or renaming of the SELinux configuration file. SELinux is a security module that
+    provides access control security policies. Modifications to the SELinux configuration file may indicate an attempt to
+    impair defenses by disabling or modifying security tools.
+  condition: payload.filename STARTS_WITH "/etc/selinux/config" 
+    AND NOT payload.flags CONTAINS "O_RDONLY"

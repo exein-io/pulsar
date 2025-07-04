@@ -13,4 +13,4 @@
   description: Detects the creation of a hidden shared object (.so) file. Users can mark specific files as hidden simply by putting a "." 
     as the first character in the file or folder name. Adversaries can use this to their advantage to hide files and folders on the system 
     for persistence and defense evasion.
-  condition: payload.filename ENDS_WITH ".so" AND payload.filename STARTS_WITH "."
+  condition: payload.filename ENDS_WITH ".so" AND payload.filename STARTS_WITH "." 
