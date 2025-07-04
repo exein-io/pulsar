@@ -1,0 +1,49 @@
+# Title: Attempt To Disable Syslog Service
+
+# Creation date: 2020/04/27
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
+
+- name: Attempt to disable syslog service
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Adversaries may attempt to stop the syslog service (rsyslog, syslog-ng) to stop logging and avoid detection of their activities by security monitoring systems.
+  condition: (
+    (payload.filename ENDS_WITH "service" AND payload.argv CONTAINS "stop") OR
+    (payload.filename ENDS_WITH "systemctl" AND (payload.argv CONTAINS "stop" OR payload.argv CONTAINS "kill"))
+    ) AND (payload.argv CONTAINS "syslog" OR  payload.argv CONTAINS "rsyslog" OR payload.argv CONTAINS "syslog-ng" OR
+      payload.argv CONTAINS "syslog.service" OR payload.argv CONTAINS "rsyslog.service" OR payload.argv CONTAINS"syslog-ng.service")
+
+- name: Syslog systemd disable (symlink removed)
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects removal of the symlink that auto-starts syslog. This behaviour may indicate an attacker trying to disable the service with commands like 'systemctl disable syslog'.
+    Adversaries can prevent syslog from starting at boot, ensuring future activity is not logged.
+  condition: (
+      payload.filename STARTS_WITH "/etc/systemd/system/" OR
+      payload.filename STARTS_WITH "/run/systemd/system/"
+      ) AND (
+      payload.filename ENDS_WITH "/rsyslog.service" OR
+      payload.filename ENDS_WITH "/syslog-ng.service"
+      )
+
+- name: Syslog systemd mask 
+  type: FileLink
+  category: defense_evasion
+  severity: high
+  description: Detects creation of a masking symlink that disables the syslog service. The link is created by the command 'systemctl mask syslog'.
+    Adversaries can render the syslog unit unusable by redirecting it to /dev/null, completely suppressing logging.
+  condition: (payload.source STARTS_WITH "/etc/systemd/system/syslog.service" OR
+              payload.source STARTS_WITH "/lib/systemd/system/syslog.service" )
+            AND payload.destination STARTS_WITH "/dev/null"
+
+- name: Syslog stopped (PID file removed)
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects deletion of /run/rsyslog.pid, produced by 'systemctl stop syslog'. Adversaries may stop the syslog to avoid detection.
+  condition: payload.filename STARTS_WITH "/run/rsyslog.pid"

@@ -1,0 +1,23 @@
+# Title: Doas configuration creation or rename
+
+# Creation Date: 2025/04/10
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1548 - Abuse Elevation Control Mechanism - https://attack.mitre.org/techniques/T1548/003/
+
+- name: Does configuration file creation
+  type: FileCreated
+  category: defense_evasion
+  severity: low
+  description: Detects the creation of the Doas configuration file. Adversaries may create the `doas.conf` file to configure privilege escalation 
+    mechanisms, allowing them to execute commands as other users or elevate privileges, often to evade detection and avoid security controls.
+  condition: payload.filename STARTS_WITH "/etc/doas.conf"
+
+- name: Does configuration file modification
+  type: FileOpened
+  category: defense_evasion
+  severity: low
+  description: Detects the modification of the Doas configuration file. Adversaries may create or
+    modify the Doas configuration file to elevate privileges and execute commands as other users while attempting to evade detection.
+  condition: payload.filename STARTS_WITH "/etc/doas.conf"

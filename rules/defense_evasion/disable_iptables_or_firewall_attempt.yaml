@@ -1,0 +1,124 @@
+# Title: Attempt To Disable Iptables Or Firewall
+
+# Creation date: 2023/02/22
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
+
+- name: UFW configuration file modification
+  type: FileOpened
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the ufw utility with the disable flag to disable the firewall. Adversaries may attempt to disable 
+    the firewall to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
+  condition: payload.filename STARTS_WITH "/etc/ufw/" AND
+    (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+
+- name: UFW Systemd service disable
+  type: FileDeleted
+  category: defense_evasion
+  severity: low
+  description: Detects the removal of UFW's systemd unit symlinks, indicating an attempt to disable the firewall service from starting automatically.
+    Adversaries may use this to get an host that allows unrestricted inbound and outbound traffic.
+  condition: (payload.filename STARTS_WITH "/etc/systemd/system/sysinit.target.wants/ufw.service" OR
+              payload.filename STARTS_WITH "/etc/systemd/system/multi-user.target.wants/ufw.service")
+
+- name: Flush iptables rules
+  type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the iptables utility with the flush flag to flush iptables rules. Adversaries may attempt to flush 
+    iptables rules to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
+  condition: payload.filename ENDS_WITH "/iptables" AND payload.argv CONTAINS "-F"
+
+- name: Set iptables default policy to ACCEPT
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects commands that change iptables or ip6tables default policy to ACCEPT. Adversaries may use this to weaken the system's firewall posture and allow unrestricted network access.
+  condition: (payload.filename ENDS_WITH "/iptables" OR payload.filename ENDS_WITH "/ip6tables") AND
+    ((payload.argv CONTAINS "-P" OR payload.argv CONTAINS "--policy") AND
+     (payload.argv CONTAINS "INPUT" OR payload.argv CONTAINS "FORWARD" OR payload.argv CONTAINS "OUTPUT") AND
+     payload.argv CONTAINS "ACCEPT")
+
+- name: Firewalld systemd mask 
+  type: FileLink
+  category: defense_evasion
+  severity: high
+  description: Detects creation of a masking symlink that disables the firewalld service. 
+    The link is created by the command 'systemctl mask firewalld'.
+  condition: (payload.source STARTS_WITH "/etc/systemd/system/firewalld.service" OR
+              payload.source STARTS_WITH "/lib/systemd/system/firewalld.service" )
+            AND payload.destination STARTS_WITH "/dev/null"
+
+- name: Firewall service stopped
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects deletion of legacy SysV “subsystem lock” files, indicating that the firewall service was stopped.
+  condition: payload.filename IN [
+      "/var/lock/subsys/firewalld",
+      "/var/lock/subsys/iptables",
+      "/var/lock/subsys/ip6tables"
+      ]
+
+- name: Firewalld systemd disable (symlink removed)
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects removal of the symlink that auto-starts firewalld. 
+    This behaviour may indicate an attacker trying to disable the service with commands like 'systemctl disable firewalld'.
+      Adversaries can ensure any future reboot leaves the firewall inactive, maintaining long-term unrestricted access.
+  condition: (
+      payload.filename STARTS_WITH "/etc/systemd/system/" OR
+      payload.filename STARTS_WITH "/run/systemd/system/"
+      ) AND (
+      payload.filename ENDS_WITH "/firewalld.service" OR
+      payload.filename ENDS_WITH "/netfilter-persistent.service" OR
+      payload.filename ENDS_WITH "/iptables.service" OR
+      payload.filename ENDS_WITH "/ip6tables.service"
+      )
+
+- name: Firewalld stopped (PID file removed)
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects deletion of /run/firewalld.pid, produced by 'systemctl stop firewalld'. 
+    Adversaries may stop the firewall to clear live filtering rules.
+  condition: payload.filename STARTS_WITH "/run/firewalld.pid"
+
+- name: Stop firewall service with service command
+  type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the service utility with the stop flag to stop the firewall service. Attackers may attempt to stop 
+    the firewall service to affect how a host is allowed to receive or send network traffic and evade detection by security controls.
+  condition: payload.filename ENDS_WITH "/service" AND payload.argv CONTAINS "stop" AND (payload.argv CONTAINS "firewalld" 
+    OR payload.argv CONTAINS "ip6tables" OR payload.argv CONTAINS "iptables")
+
+- name: Stop firewall service with systemctl
+  type: Exec
+  category: defense_evasion
+  severity: low
+  description: Monitors for the execution of the systemctl utility with the disable, stop, or kill flag to disable or stop the firewall service. 
+    Attackers may attempt to disable or stop the firewall service to affect how a host is allowed to receive or send network traffic and evade 
+    detection by security controls.
+  condition: payload.filename ENDS_WITH "/systemctl" AND (payload.argv CONTAINS "stop" OR payload.argv CONTAINS "kill") 
+    AND (payload.argv CONTAINS "firewalld" OR payload.argv CONTAINS "firewalld.service" OR
+      payload.argv CONTAINS "netfilter-persistent" OR payload.argv CONTAINS "netfilter-persistent.service")
+
+# https://www.shielder.com/it/blog/2024/09/a-journey-from-sudo-iptables-to-local-privilege-escalation/
+- name: Detect iptables rule with comment
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects the usage of iptables with the --modprobe option. Attackers may attempt to load a malicious kernel module and escalate privileges using this option.
+  condition: payload.filename ENDS_WITH "/iptables" AND payload.argv CONTAINS "--comment"
+
+- name: Detect iptables-save to sensitive location
+  type: Exec
+  category: defense_evasion
+  severity: medium
+  description: Detects attempts to inject malicious comments using iptables-save. Attackers may attempt to manipulate iptables rules and overwrite system files like /etc/passwd for privilege escalation.
+  condition: payload.filename ENDS_WITH "/iptables-save" AND payload.argv CONTAINS "-f"

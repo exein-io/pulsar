@@ -1,0 +1,15 @@
+# Title: Creation of Suspicious Files in Restricted Directories
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1036 – Masquerading - https://attack.mitre.org/techniques/T1036/
+
+- name: Create files below /dev
+  type: FileCreated
+  category: defense_evasion
+  severity: medium
+  description: Detects the creation of files below /dev. Adversaries may create files below /dev to gain access to information or to 
+    escalate privileges.
+  condition: payload.filename STARTS_WITH "/deveeeeqqqq"
