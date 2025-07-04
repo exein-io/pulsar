@@ -10,9 +10,8 @@
   type: FileRename
   category: defense_evasion
   severity: medium
-  description: Detects the renaming of VMware-related files, such as those with extensions like ".vmdk", ".vmx", ".vmxf", ".vmsd", ".vmsn",
-   ".vswp", ".vmss", ".nvram", and ".vmem", on a Linux system. Adversaries may use this technique to hide files on the system for persistence
-   and defense evasion.
-  condition: (payload.source ENDS_WITH ".vmdk" OR payload.source ENDS_WITH ".vmx" OR payload.source ENDS_WITH ".vmxf" 
-    OR payload.source ENDS_WITH ".vmsd" OR payload.source ENDS_WITH ".vmsn" OR payload.source ENDS_WITH ".vswp" OR payload.source ENDS_WITH ".vmss" 
-    OR payload.source ENDS_WITH ".nvram" OR payload.source ENDS_WITH ".vmem")
+  description: Detects the renaming of critical VMware virtual machine files. Adversaries may rename these files to disrupt virtual machine operations, 
+    hide malicious components, or impede incident response efforts, achieving defense evasion and potentially denial of service.
+  condition: payload.source ENDS_WITH ".vmdk" OR payload.source ENDS_WITH ".vmx" OR payload.source ENDS_WITH ".vmxf" 
+    OR payload.source ENDS_WITH ".vmsd" OR payload.source ENDS_WITH ".vmsn" OR payload.source ENDS_WITH ".vswp" 
+    OR payload.source ENDS_WITH ".vmss" OR payload.source ENDS_WITH ".nvram" OR payload.source ENDS_WITH ".vmem"

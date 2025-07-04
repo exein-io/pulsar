@@ -1,0 +1,23 @@
+# Title: SSL certificate deletion
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK Tactic: TA0005- Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1485 - Data Destruction - https://attack.mitre.org/techniques/T1485/
+
+- name: SSL Certificate deletion
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects the deletion of SSL certificates on a Linux system. Adversaries may delete SSL certificates to subvert
+    trust controls and negatively impact the system.
+  condition: (
+    payload.filename STARTS_WITH "/etc/ssl/" OR payload.filename STARTS_WITH "/etc/pki/" OR 
+    payload.filename STARTS_WITH "/usr/local/share/" 
+    ) AND (
+      payload.filename ENDS_WITH ".pem" OR payload.filename ENDS_WITH ".crt" OR
+      payload.filename ENDS_WITH ".cer" OR payload.filename ENDS_WITH ".ca-bundle" OR
+      payload.filename ENDS_WITH ".p7b" OR payload.filename ENDS_WITH ".p7c" OR
+      payload.filename ENDS_WITH ".p7s"
+      )
