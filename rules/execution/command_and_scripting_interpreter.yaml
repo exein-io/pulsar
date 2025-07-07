@@ -1,0 +1,36 @@
+# Title: Shell spawn with -c
+
+# Creation Date: 2025/04/10
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Techinque: T1059 - Command and scripting interpreter - https://attack.mitre.org/techniques/T1059/004/
+
+- name: Shell spawn with -c option
+  type: Exec
+  category: execution
+  severity: medium
+  description: Detects execution of shell commands via `-c`OR often used in scripted or fileless attacks.
+    Attackers may use this to run commands directly from memoryOR avoiding detection and disk forensics. 
+    This behavior is common in obfuscated or chained payloads.
+  condition: (
+      payload.filename ENDS_WITH "/bash" OR
+      payload.filename ENDS_WITH "/sh" OR
+      payload.filename ENDS_WITH "/dash" OR
+      payload.filename ENDS_WITH "/zsh" OR
+      payload.filename ENDS_WITH "/ksh" OR
+      payload.filename ENDS_WITH "/fish" OR
+      payload.filename ENDS_WITH "/csh" OR
+      payload.filename ENDS_WITH "/tcsh"
+    ) AND payload.argv CONTAINS "-c"
+    AND (
+      header.image ENDS_WITH "/nginx" OR
+      header.image ENDS_WITH "/python" OR
+      header.image ENDS_WITH "/python3" OR
+      header.image ENDS_WITH "/perl" OR
+      header.image ENDS_WITH "/php" OR
+      header.image ENDS_WITH "/node" OR
+      header.image ENDS_WITH "/ruby" OR
+      header.image ENDS_WITH "/env"
+    )
+

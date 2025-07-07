@@ -1,0 +1,31 @@
+# Title: Privileged Docker Container Creation
+
+# Creation Date: 2025/04/17
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Techinque: T1609 - Container Administration Command - https://attack.mitre.org/techniques/T1609/
+
+- name: Privileged Docker Container Creation
+  type: Exec
+  category: privilege_escalation
+  severity: medium
+  description: Detects Docker container launches with the --privileged flag, which can allow attackers to escalate privileges or escape containers.
+  condition: (payload.filename ENDS_WITH "/docker" OR payload.filename ENDS_WITH "/podman") AND
+    payload.argv CONTAINS "run" AND
+    payload.argv CONTAINS "--privileged"
+
+- name: Container dangerous flags
+  type: Exec
+  category: execution
+  severity: medium
+  description: Detects container launched with flags that expose host resources or grant extensive capabilities. 
+    Adversaries may use these flags to escape the container environment, escalate privileges on the host, or gain deeper access to host resources.
+  condition: (payload.filename ENDS_WITH "/docker" OR payload.filename ENDS_WITH "/podman") AND (
+    payload.argv CONTAINS "--net=host" OR
+    payload.argv CONTAINS "--pid=host" OR
+    payload.argv CONTAINS "--ipc=host" OR
+    payload.argv CONTAINS "--cap-add=SYS_ADMIN" OR
+    payload.argv CONTAINS "--security-opt apparmor=unconfined" OR
+    payload.argv CONTAINS "--security-opt seccomp=unconfined"
+    )
