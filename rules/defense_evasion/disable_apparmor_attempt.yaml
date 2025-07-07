@@ -23,6 +23,12 @@
     Adversaries can edit profile rules to relax or disable restrictions, allowing targeted applications to access normally protected resources for persistence or lateral movement.
   condition: payload.filename STARTS_WITH "/etc/apparmor"
     AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND NOT (
+      header.image IN [
+        "/usr/bin/apt", "/usr/bin/apt-get","/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/opkg",
+        "/usr/bin/pacman", "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"]
+      OR header.image STARTS_WITH "/usr/bin/dnf"
+    )
 
 - name: AppArmor profile file rename
   type: FileRename
@@ -31,6 +37,12 @@
   description: attempts to rename or move AppArmor profile files from their standard locations.
     Adversaries can relocate profiles so they are skipped on reload.
   condition: payload.source STARTS_WITH "/etc/apparmor.d/"
+    AND NOT (
+      header.image IN [
+        "/usr/bin/apt", "/usr/bin/apt-get","/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/opkg",
+        "/usr/bin/pacman", "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"]
+      OR header.image STARTS_WITH "/usr/bin/dnf"
+    )
 
 - name: AppArmor profile deletion
   type: FileDeleted
