@@ -1,0 +1,18 @@
+# Title: Authorized keys file deletion
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1070 - File Deletion - https://attack.mitre.org/techniques/T1070/004/
+
+- name: SSH Authorized Keys File Deletion
+  type: FileDeleted
+  category: defense_evasion
+  severity: low
+  description: Detects the deletion of the authorized_keys or authorized_keys2 files on Linux systems. These files are used to store public keys for SSH authentication. 
+    Adversaries may delete those files for removing access to the system, and may be a precursor to further malicious activity.
+  condition: (payload.filename ENDS_WITH "authorized_keys" OR payload.filename ENDS_WITH "authorized_keys2") 
+    AND NOT (header.image IN ["/usr/bin/google_guest_agent", "/usr/bin/dockerd", "/bin/dockerd", "/usr/bin/containerd"] OR
+      header.image STARTS_WITH "/nix/store/"
+    )

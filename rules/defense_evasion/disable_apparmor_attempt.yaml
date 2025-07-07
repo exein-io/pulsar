@@ -6,18 +6,75 @@
 
 # MITRE ATT&CK Technique: T1562 - Impair Defenses - https://attack.mitre.org/techniques/T1562/
 
-- name: Disable AppArmor service
-  type: Exec
+- name: AppArmor kernel profile unload
+  type: FileOpened
   category: defense_evasion
-  severity: low
-  description: Monitors for the execution of the systemctl utility with the disable flag to disable the AppArmor service. Attackers may 
-    attempt to disable the AppArmor service to evade detection and avoid possible restrictions on their actions and resources.
-  condition: payload.filename == "/usr/bin/systemctl" AND payload.argv CONTAINS "disable" AND payload.argv CONTAINS "apparmor"
+  severity: medium
+  description: Detects opens of AppArmor control file .remove, which unloads a profile from the running kernel.
+    Adversaries can unload specific profiles to let malware run completely outside AppArmor confinement, gaining unrestricted file and process access.
+  condition: payload.filename STARTS_WITH "/sys/kernel/security/apparmor/.remove"
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
 
-- name: Create symlink to disable AppArmor
+- name: AppArmor configuration files modification
+  type: FileOpened
+  category: defense_evasion
+  severity: medium
+  description: Detects modification of AppArmor profiles or configurations.
+    Adversaries can edit profile rules to relax or disable restrictions, allowing targeted applications to access normally protected resources for persistence or lateral movement.
+  condition: payload.filename STARTS_WITH "/etc/apparmor"
+    AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
+    AND NOT (
+      header.image IN [
+        "/usr/bin/apt", "/usr/bin/apt-get","/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/opkg",
+        "/usr/bin/pacman", "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"]
+      OR header.image STARTS_WITH "/usr/bin/dnf"
+    )
+
+- name: AppArmor profile file rename
+  type: FileRename
+  category: defense_evasion
+  severity: medium
+  description: attempts to rename or move AppArmor profile files from their standard locations.
+    Adversaries can relocate profiles so they are skipped on reload.
+  condition: payload.source STARTS_WITH "/etc/apparmor.d/"
+    AND NOT (
+      header.image IN [
+        "/usr/bin/apt", "/usr/bin/apt-get","/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/opkg",
+        "/usr/bin/pacman", "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"]
+      OR header.image STARTS_WITH "/usr/bin/dnf"
+    )
+
+- name: AppArmor profile deletion
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects deletion of AppArmor profile files.
+  condition: payload.filename STARTS_WITH "/etc/apparmor.d/"
+
+- name: AppArmor symlink to disable profile
+  type: FileLink
+  category: defense_evasion
+  severity: medium
+  description: Detects the creation of symlinks in /etc/apparmor.d/disable/ that persistently disable a profile (e.g., aa-disable command)
+    Adversaries can persistently disable a profile across reboots, ensuring the associated program always runs without AppArmor restrictions.
+  condition: payload.source STARTS_WITH "/etc/apparmor.d/disable/"
+
+- name: AppArmor systemd disable (symlink removal)
+  type: FileDeleted
+  category: defense_evasion
+  severity: medium
+  description: Detects the removal of AppArmor's systemd unit symlinks, which disables the service from starting automatically.
+    Adversaries can stop AppArmor from loading at boot, leaving the host without mandatory access controls after every reboot.
+  condition: (
+    payload.filename STARTS_WITH "/etc/systemd/system" OR
+    payload.filename STARTS_WITH "/run/systemd/system" 
+    ) AND 
+    payload.filename ENDS_WITH "/apparmor.service" 
+
+- name: Stop apparmor service with systemctl
   type: Exec
   category: defense_evasion
   severity: low
-  description: Monitors for the execution of the ln utility to create a symlink to disable AppArmor. Attackers may attempt to create a 
-    symlink to disable AppArmor to evade detection and avoid possible restrictions on their actions and resources.
-  condition: payload.filename == "/usr/bin/ln" AND payload.argv CONTAINS "/etc/apparmor.d/" AND payload.argv CONTAINS "/etc/apparmor.d/disable/"
+  description: Monitors for the execution of the systemctl utility with the disable, stop, or kill flag to disable or stop the apparmor service. 
+  condition: payload.filename ENDS_WITH "/systemctl" AND (payload.argv CONTAINS "stop" OR payload.argv CONTAINS "kill") 
+    AND (payload.argv CONTAINS "apparmor" OR payload.argv CONTAINS "apparmor.service")
