@@ -13,5 +13,11 @@
   description: Detects the execution of the curl or wget utilities with specific arguments. Attackers may use these utilities to download 
     the SSH-IT worm, which intercepts outgoing SSH connections every time a user uses ssh.
   condition: (payload.filename ENDS_WITH "/curl" OR payload.filename ENDS_WITH "/wget")
-   AND (payload.argv CONTAINS "https://thc.org/ssh-it/x" OR payload.argv CONTAINS "http://nossl.segfault.net/ssh-it-deploy.sh" 
-   OR payload.argv CONTAINS "https://gsocket.io/x" OR payload.argv CONTAINS "https://thc.org/ssh-it/bs" OR payload.argv CONTAINS "http://nossl.segfault.net/bs")
+    AND (
+      payload.argv CONTAINS "https://thc.org/ssh-it/x" OR
+      payload.argv CONTAINS "http://nossl.segfault.net/ssh-it-deploy.sh" OR 
+      payload.argv CONTAINS "https://gsocket.io/x" OR
+      payload.argv CONTAINS "https://thc.org/ssh-it/bs" OR
+      payload.argv CONTAINS "http://nossl.segfault.net/bs" OR
+      payload.argv CONTAINS "https://raw.githubusercontent.com/MegaManSec/SSH-Snake/main/Snake.nocomments.sh"
+    )
