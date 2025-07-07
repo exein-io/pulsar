@@ -1,0 +1,26 @@
+# Title: BPF Filter applied using TC
+
+# Creation Date: 2025/04/10
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Techinque: T1059 - Command and scripting interpreter - https://attack.mitre.org/techniques/T1059/004/
+
+- name: BPF Filter applied using TC
+  type: Exec
+  category: execution
+  severity: high
+  description: Detects use of the tc (transmission control) binary to set a BPF on a network interface.
+    Adversaries an utilize tc to set a bpf filter on an interface for the purpose of manipulating the incoming traffic.
+    This technique is not at all common and should indicate abnormal, suspicious or malicious activity.
+  condition: payload.filename ENDS_WITH "/tc" AND
+    payload.argv CONTAINS "filter" AND payload.argv CONTAINS "add" AND payload.argv CONTAINS "bpf"
+    AND NOT (
+      header.image ENDS_WITH "/libvirtd" OR
+      header.image ENDS_WITH "/docker" OR
+      header.image ENDS_WITH "/containerd" OR
+      header.image ENDS_WITH "/podman" OR
+      header.image ENDS_WITH "/systemd-networkd" OR
+      header.image ENDS_WITH "/kubelet" OR
+      header.image ENDS_WITH "/kube-proxy"
+    )

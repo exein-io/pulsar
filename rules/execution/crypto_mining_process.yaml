@@ -1,0 +1,44 @@
+# Title: Cryptomining Operations
+
+# Creation Date: 2025/04/10
+
+# MITRE ATT&CK Tactic: TA0002 - Execution - https://attack.mitre.org/tactics/TA0002/
+
+# MITRE ATT&CK Technique: T1496 - Resource Hijacking - https://attack.mitre.org/techniques/T1496/
+
+- name: Suspicious Mining Process Creation Event
+  type: FileCreated
+  category: execution
+  severity: medium
+  description: Detects creation of systemd service files linked to known cryptomining operations. 
+    Attackers may use custom .service files to maintain persistence and ensure mining processes are restarted. 
+    This technique abuses system-level service management for stealthy resource exploitation.
+  condition: 
+    payload.filename ENDS_WITH "/aliyun.service" OR
+    payload.filename ENDS_WITH "/moneroocean_miner.service" OR
+    payload.filename ENDS_WITH "/c3pool_miner.service" OR
+    payload.filename ENDS_WITH "/pnsd.service" OR
+    payload.filename ENDS_WITH "/apache4.service" OR
+    payload.filename ENDS_WITH "/pastebin.service" OR
+    payload.filename ENDS_WITH "/xvf.service" OR 
+    payload.filename ENDS_WITH "/xmrig.service" OR
+    payload.filename ENDS_WITH "/nbminer.service"
+
+- name: Cryptomining Binary Execution
+  type: Exec
+  category: execution
+  severity: medium
+  description: Detects execution of known cryptocurrency mining software. 
+    Adversaries may hijack resources for unauthorized mining.
+  condition:
+    payload.filename ENDS_WITH "/xmrig" OR
+    payload.filename ENDS_WITH "/ccminer" OR
+    payload.filename ENDS_WITH "/cgminer" OR
+    payload.filename ENDS_WITH "/nbminer" OR
+    payload.filename ENDS_WITH "/cpuminer" OR
+    payload.filename ENDS_WITH "/ethminer" OR
+    payload.filename ENDS_WITH "/t-rex" OR
+    payload.filename ENDS_WITH "/nanominer" OR
+    payload.filename ENDS_WITH "/teamredminer" OR
+    payload.filename ENDS_WITH "/gminer" OR
+    payload.filename ENDS_WITH "/nsfminer"
