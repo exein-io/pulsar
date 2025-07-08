@@ -1,0 +1,26 @@
+# Title: Read SSH information
+
+# Creation date: 2024/03/20
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1552 - Unsecured Credentials - https://attack.mitre.org/techniques/T1552/
+
+- name: Read SSH information
+  type: FileOpened
+  category: credential_access
+  severity: medium
+  description: Detects the read of SSH information. Adversaries may read SSH information to gather information about the system or to use in later 
+    stages of an attack.
+  condition: payload.filename STARTS_WITH "/root/.ssh/" AND NOT header.image IN [
+    "/usr/sbin/sshd",
+    "/usr/bin/sftp-server",
+    "/usr/bin/ssh-agent", 
+    "/usr/bin/ssh",
+    "/usr/bin/scp",
+    "/usr/bin/sftp",
+    "/usr/bin/ssh-keygen",
+    "/usr/bin/ssh-keysign",
+    "/usr/bin/ssh-keyscan",
+    "/usr/bin/ssh-add"
+  ]

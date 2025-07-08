@@ -1,0 +1,23 @@
+# Title: Linux kernel module injection detected
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1547 - Boot or Logon Autostart Execution - https://attack.mitre.org/techniques/T1547/
+
+- name: Linux Kernel Module Injection Detected (insmod)
+  type: Exec
+  category: execution
+  severity: high
+  description: Detects the execution of the insmod utility to inject a Linux kernel module. Adversaries may inject a kernel module to gain access 
+    to information or to maintain persistence.
+  condition: payload.filename ENDS_WITH "/insmod" AND NOT (payload.argv CONTAINS "rfkill" OR payload.argv CONTAINS "cryptd")
+
+- name: Linux Kernel Module Injection Detected (modprobe)
+  type: Exec
+  category: execution
+  severity: high
+  description: Detects the execution of the modprobe utility to inject a Linux kernel module. Adversaries may inject a kernel module to gain access 
+    to information or to maintain persistence.
+  condition: payload.filename ENDS_WITH "/modprobe" AND NOT payload.argv CONTAINS "-r"

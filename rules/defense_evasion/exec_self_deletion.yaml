@@ -1,0 +1,15 @@
+# Title: Executable self-deletion
+
+# Creation date: 2024/03/20
+
+# MITRE ATT&CK Tactic: TA0005 - Defense Evasion - https://attack.mitre.org/tactics/TA0005/
+
+# MITRE ATT&CK Technique: T1070 - Indicator Removal on Host - https://attack.mitre.org/techniques/T1070/
+
+- name: Executable deleted itself
+  type: FileDeleted
+  category: execution
+  severity: high
+  description: Detects the deletion of an executable file. Adversaries may delete an executable file to remove evidence of their activities on the 
+    system.
+  condition: payload.filename == header.image

@@ -1,0 +1,16 @@
+# Title: Connection to C2 IP
+
+# Creation date: 2022/10/21
+
+# MITRE ATT&CK Tactic: TA0011 - Command and Control - https://attack.mitre.org/tactics/TA0011/
+
+# MITRE ATT&CK Technique: T1071 - Application Layer Protocol - https://attack.mitre.org/techniques/T1071/
+
+# https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt
+- name: Connection to C2 IPs
+  type: Connect
+  category: execution
+  severity: high
+  description: Detects connections to known C2 IPs. Adversaries may use these IPs to communicate with their command and control servers.
+  condition: payload.destination.ip IN ["1.234.21.73", "103.109.247.10", "103.124.107.109", "103.173.121.17", "103.224.241.74", "103.253.145.28"]
+

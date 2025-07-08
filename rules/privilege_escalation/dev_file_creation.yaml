@@ -1,0 +1,15 @@
+# Title: File creation in /dev
+
+# Creation date: 2024/03/20
+
+# MITRE ATT&CK Tactic: TA0004 - Privilege Escalation - https://attack.mitre.org/tactics/TA0004/
+
+# MITRE ATT&CK Technique: T1068 - Exploitation for Privilege Escalation - https://attack.mitre.org/techniques/T1068/
+
+- name: Create files below /dev
+  type: FileCreated
+  category: execution
+  severity: medium
+  description: Detects the creation of files below /dev. Adversaries may create files below /dev to gain access to information or to 
+    escalate privileges.
+  condition: payload.filename STARTS_WITH "/dev"

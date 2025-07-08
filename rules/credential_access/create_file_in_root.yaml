@@ -1,0 +1,27 @@
+# Title: Create files under /root
+
+# Creation date: 2024/04/18
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1552.001 - Credentials in Files - https://attack.mitre.org/techniques/T1552/001/
+
+- name: Create files below /root
+  type: FileCreated
+  category: credential_access
+  severity: medium
+  description: Detects the creation of files below /root. Adversaries may create files below /root to gain access to information or to escalate 
+    privileges.
+  condition: payload.filename STARTS_WITH "/root" AND NOT payload.filename IN [
+    "/root/.auth_tokens",
+    "/root/.bash_history",
+    "/root/.ash_history", 
+    "/root/.aws/credentials",
+    "/root/.viminfo.tmp",
+    "/root/.lesshst",
+    "/root/.bzr.log",
+    "/root/.gitconfig.lock",
+    "/root/.babel.json",
+    "/root/.localstack", 
+    "/root/.wget-hsts"
+    ]

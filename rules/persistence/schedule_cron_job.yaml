@@ -1,0 +1,14 @@
+# Title: Schedule Cron job
+
+# Creation date: 2024/03/20
+
+# MITRE ATT&CK Tactic: TA0003 - Persistence - https://attack.mitre.org/tactics/TA0003/
+
+# MITRE ATT&CK Technique: T1053 - Scheduled Task/Job - https://attack.mitre.org/techniques/T1053/
+
+- name: Schedule a Cron job
+  type: FileOpened
+  category: execution
+  severity: low
+  description: Detects the scheduling of a Cron job. Adversaries may schedule a Cron job to gain access to information or to escalate privileges.
+  condition: (payload.filename STARTS_WITH "/etc/cron" OR header.image ENDS_WITH "crontab") AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR")
