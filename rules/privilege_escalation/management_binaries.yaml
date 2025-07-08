@@ -1,0 +1,15 @@
+# Title: Activities of management binaries
+
+# Creation date: 2024/03/20
+
+# MITRE ATT&CK Tactic: TA0004 - Privilege Escalation - https://attack.mitre.org/tactics/TA0004/
+
+# MITRE ATT&CK Technique: T1548 - Abuse Elevation Control Mechanism - https://attack.mitre.org/techniques/T1548/
+
+- name: Activities of management binaries
+  type: Exec
+  category: execution
+  severity: medium
+  description: Detects activities of management binaries. Adversaries may use management binaries to gain control of the system or to escalate 
+    privileges.
+  condition: payload.filename IN ["/usr/bin/su", "/usr/bin/sudo", "/usr/bin/lastlog", "/usr/bin/nologin", "/usr/bin/unix_chkpwd"]
