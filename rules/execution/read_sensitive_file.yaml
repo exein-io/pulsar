@@ -6,7 +6,7 @@
 
 # MITRE ATT&CK Technique: T1005 - Data from Local System - https://attack.mitre.org/techniques/T1005/
 
-- name: Read sensitive file
+- name: Open sensitive file
   type: FileOpened
   category: execution
   severity: medium
@@ -16,6 +16,4 @@
     payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"]
       OR payload.filename STARTS_WITH "/etc/sudoers.d/"
         OR payload.filename STARTS_WITH "/etc/pam.d/"
-    ) AND (payload.flags CONTAINS "O_RDONLY" OR payload.flags CONTAINS "O_RDWR")
-    AND
-      NOT header.image IN ["/usr/sbin/cron", "/usr/sbin/crond"]
+    ) AND NOT header.image IN ["/usr/sbin/cron", "/usr/sbin/crond"]
