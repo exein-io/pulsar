@@ -4,7 +4,7 @@
 
 # MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
 
-# MITRE ATT&CK Technique: T1552.004 - Unsecured Credentials: Private Keys - https://attack.mitre.org/techniques/T1552/004/
+# MITRE ATT&CK Technique: T1552.001 - Credentials in Files - https://attack.mitre.org/techniques/T1552/001/
 
 - name: Search for private keys or passwords
   type: Exec
@@ -12,14 +12,13 @@
   severity: medium
   description: Detects the execution of the 'find' or 'grep' process with arguments related to private keys or passwords. Adversaries may use 
     this technique to search for, analyze, or manipulate private keys or passwords on the system.
-  condition: (
-    payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "id_rsa" OR payload.argv CONTAINS "id_dsa")
-    ) OR (
-      payload.filename ENDS_WITH "grep" AND (
-        payload.argv CONTAINS "BEGIN PRIVATE"
-          OR payload.argv CONTAINS "BEGIN RSA PRIVATE"
-          OR payload.argv CONTAINS "BEGIN DSA PRIVATE"
-          OR payload.argv CONTAINS "BEGIN EC PRIVATE"
+  condition: (payload.filename ENDS_WITH "/find" AND (payload.argv CONTAINS "id_rsa" OR payload.argv CONTAINS "id_dsa")) 
+    OR (payload.filename ENDS_WITH "grep" 
+      AND (
+          payload.argv CONTAINS "BEGIN PRIVATE" OR
+          payload.argv CONTAINS "BEGIN RSA PRIVATE" OR
+          payload.argv CONTAINS "BEGIN DSA PRIVATE" OR
+          payload.argv CONTAINS "BEGIN EC PRIVATE"
       )
     )
 
