@@ -1,10 +1,10 @@
-# Title: Link to sensitive file
+# Title: Creation of Links to Sensitive Files
 
 # Creation date: 2022/10/21
 
 # MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
 
-# MITRE ATT&CK Technique: T1003 - OS Credential Dumping - https://attack.mitre.org/techniques/T1003
+# MITRE ATT&CK Technique: T1552 - Unsecured Credentials - https://attack.mitre.org/techniques/T1552/
 
 - name: Create sensitive files symlink
   type: FileLink
@@ -12,7 +12,12 @@
   severity: medium
   description: Detects the creation of sensitive files as a symlink. Adversaries may create symlinks to sensitive files to gain access to 
     information or to escalate privileges.
-  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
+  condition: (
+      (payload.destination ENDS_WITH "/etc/shadow" OR
+      payload.destination ENDS_WITH "/etc/sudoers" OR
+      payload.destination ENDS_WITH "/etc/pam.conf" OR
+      payload.destination ENDS_WITH "/etc/security/pwquality.conf")
+    OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
 
 - name: Create sensitive files hardlink
   type: FileLink
@@ -20,4 +25,9 @@
   severity: medium
   description: Detects the creation of sensitive files as a hardlink. Adversaries may create hardlinks to sensitive files to gain access to 
     information or to escalate privileges.
-  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
+  condition: (
+      (payload.destination ENDS_WITH "/etc/shadow" OR
+      payload.destination ENDS_WITH "/etc/sudoers" OR
+      payload.destination ENDS_WITH "/etc/pam.conf" OR
+      payload.destination ENDS_WITH "/etc/security/pwquality.conf")
+    OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "true"
