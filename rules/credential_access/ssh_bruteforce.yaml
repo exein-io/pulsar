@@ -1,0 +1,16 @@
+# Title: SSH Brute-force via sshpass and credential file
+
+# Creation date: 2025/04/17
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1110.004 - Credential Stuffing - https://attack.mitre.org/techniques/T1110/004/
+
+- name: SSH Brute-force attempt
+  type: Exec
+  category: credential_access
+  severity: medium
+  description: Detects usage of sshpass in loops with credential files to brute-force SSH access, typically indicative of credential stuffing or lateral movement testing.
+  condition: (header.image ENDS_WITH "sshpass" AND payload.argv CONTAINS "ssh" AND payload.argv CONTAINS "-p")
+    OR (payload.filename ENDS_WITH "/hydra" AND payload.argv CONTAINS "-P")
+

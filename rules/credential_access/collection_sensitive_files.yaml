@@ -1,0 +1,28 @@
+# Title: Archive Collected Data, Archive via Utility
+
+# Creation date: 2025/04/09
+
+# MITRE ATT&CK Tactic: TA0006 - Credential Access - https://attack.mitre.org/tactics/TA0006/
+
+# MITRE ATT&CK Technique: T1560 - Archive via Utility - https://attack.mitre.org/techniques/T1560/001/
+
+- name: Sensitive file compression
+  type: FileOpened
+  category: credential_access
+  severity: medium
+  description: Identifies the use of a compression utility to collect known files containing sensitive information, such as credentials
+    and system configurations.
+  condition: (header.image ENDS_WITH "/zip" OR header.image ENDS_WITH "/tar" OR header.image ENDS_WITH "/gzip"
+      OR header.image ENDS_WITH "/hdiutil" OR header.image ENDS_WITH "/7z" OR header.image ENDS_WITH "/pigz" 
+      OR header.image ENDS_WITH "/xz" OR header.image ENDS_WITH "/bzip2")
+    AND (
+        payload.filename STARTS_WITH "/root/.ssh/"
+        OR payload.filename STARTS_WITH "/root/.bash_history"
+        OR payload.filename STARTS_WITH "/root/.aws/"
+        OR payload.filename STARTS_WITH "/root/.docker/config"
+        OR payload.filename STARTS_WITH "/etc/hosts"
+        OR payload.filename STARTS_WITH "/etc/group"
+        OR payload.filename STARTS_WITH "/etc/passwd"
+        OR payload.filename STARTS_WITH "/etc/shadow"
+        OR payload.filename STARTS_WITH "/etc/gshadow"
+    )
