@@ -8,7 +8,7 @@
 
 - name: DHCP Network Discover
   type: Send
-  category: impact
+  category: credential_access
   severity: low
   description: Detects DHCP starvation attempts by monitoring excessive DISCOVER packets to broadcast addresses. 
     Adversaries may exhaust the IP address pool by rapidly requesting many leases using spoofed MAC addresses.

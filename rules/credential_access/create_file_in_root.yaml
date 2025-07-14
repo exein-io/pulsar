@@ -36,7 +36,6 @@
         payload.filename STARTS_WITH "/root/.config/" OR
         payload.filename STARTS_WITH "/root/.cache/" OR
         payload.filename STARTS_WITH "/root/.docker/") 
-    )
       OR (header.image IN [
         "/usr/bin/apt", "/usr/bin/apt-get","/usr/bin/dpkg", "/usr/bin/yum", "/usr/bin/opkg",
         "/usr/bin/pacman", "/usr/bin/rpm", "/usr/bin/zypper", "/usr/bin/emerge", "/usr/bin/nix-env"]

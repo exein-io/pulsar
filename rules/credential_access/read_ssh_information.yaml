@@ -8,7 +8,7 @@
 
 - name: Read SSH information
   type: FileOpened
-  category: execution
+  category: credential_access
   severity: medium
   description: Detects the read of SSH information. Adversaries may read SSH information to gather information about the system or to use in later 
     stages of an attack.
