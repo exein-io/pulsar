@@ -1,7 +1,8 @@
 # Exclude everything
 **
 
-# # Include essential files
-!target/*/release/pulsar-exec
+# Include essential files
+!target/*/release/pulsard
+!target/*/release/pulsar
 !.github/docker/pulsar.ini
 !rules

@@ -5,14 +5,12 @@ use bpf_common::{
     containers::ContainerId,
     parsing::procfs::{self, ProcfsError},
 };
-use lazy_static::lazy_static;
 use pulsar_core::event::Namespaces;
 use regex::Regex;
+use std::sync::LazyLock;
 use thiserror::Error;
 
-lazy_static! {
-    static ref NAMESPACE_RE: Regex = Regex::new(r"(\d+)").unwrap();
-}
+static NAMESPACE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d+)").unwrap());
 
 /// ProcessTree contains information about all running processes
 pub(crate) struct ProcessTree {

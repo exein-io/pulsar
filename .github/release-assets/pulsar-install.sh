@@ -96,8 +96,9 @@ main() {
 
     printf '%s\n' 'info: downloading files' 1>&2
 
-    # Download pulsar-exec
-    ensure downloader "https://github.com/exein-io/pulsar/releases/download/${PULSAR_VERSION}/pulsar-exec${_arch}" "${_dir}/pulsar-exec"
+    # Download pulsard and pulsar
+    ensure downloader "https://github.com/exein-io/pulsar/releases/download/${PULSAR_VERSION}/pulsard${_arch}" "${_dir}/pulsard"
+    ensure downloader "https://github.com/exein-io/pulsar/releases/download/${PULSAR_VERSION}/pulsar${_arch}" "${_dir}/pulsar"
 
     # Download release archive
     local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/tags/${PULSAR_VERSION} | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
@@ -121,12 +122,9 @@ main() {
 
     # ensure $_install -d ${_bindir}
 
-    # Install pulsar-exec
-    ensure $_install -m 755 "${_dir}/pulsar-exec" ${_bindir}
-
-    # Install scripts
-    ensure $_install -m 755 "${_tmp_pulsar_src}/scripts/pulsar" ${_bindir}
-    ensure $_install -m 755 "${_tmp_pulsar_src}/scripts/pulsard" ${_bindir}
+    # Install pulsard and pulsar
+    ensure $_install -m 755 "${_dir}/pulsard" ${_bindir}
+    ensure $_install -m 755 "${_dir}/pulsar" ${_bindir}
 
     printf '%s\n' 'info: generating configuration' 1>&2
 

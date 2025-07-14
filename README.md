@@ -14,7 +14,7 @@
   </p>
 </div>
 
-Pulsar is a security tool for monitoring the activity of Linux devices at runtime, powered by [eBPF](https://ebpf.io/). 
+Pulsar is a security tool for monitoring the activity of Linux devices at runtime, powered by [eBPF](https://ebpf.io/).
 
 The Pulsar core modules use eBPF probes to collect events from the kernel in a safe and efficient way. Pulsar events can be categorized in the four main following areas:
 
@@ -26,7 +26,7 @@ Pulsar is built with a modular design that makes it easy to adapt the core archi
 
 ## Quickstart
 
-> **Warning**  
+> **Warning**
 > A kernel 5.5 or higher with BPF and BTF enabled is required. Visit the official Pulsar website for the full [requirements](https://pulsar.sh/docs/faq/kernel-requirements/) and [installation options](https://pulsar.sh/docs/getting-started/installation) available.
 
 To download and install Pulsar, run the following in your terminal:
@@ -75,7 +75,7 @@ The recommended approach to getting started with Pulsar is by using the official
 
 ### Use Pre-built Binaries
 
-Another approach to install Pulsar is by using a pre-built binary. Binaries are available for the [latest release](https://github.com/exein-io/pulsar/releases/latest). Use `pulsar-exec` for x86-64 (`pulsar-exec-static` for a static build) or `pulsar-exec-static-aarch64` for AArch64 platform. Using there approach you also need to download and setup the [helper scripts](./scripts) to have a more convenient way to start in daemon/cli mode.
+Another approach to install Pulsar is by using pre-built binaries. Binaries are available for the [latest release](https://github.com/exein-io/pulsar/releases/latest). Download the two executables for your architecture: `pulsard` (daemon) and `pulsar` (CLI). Static builds may be published with a `-static` suffix where available.
 
 ### Build from source
 

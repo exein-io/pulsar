@@ -1,11 +1,10 @@
 use anyhow::{Result, ensure};
 use bpf_common::bpf_fs;
+use clap::Args;
 use engine_api::server::{self, EngineAPIContext};
 use nix::unistd::geteuid;
 use pulsar_core::bus::Bus;
 use tokio::signal::unix::{SignalKind, signal};
-
-use crate::cli::pulsard::PulsarDaemonOpts;
 
 mod config;
 mod daemon;
@@ -14,6 +13,15 @@ mod module_manager;
 pub use config::PulsarConfig;
 pub use daemon::PulsarDaemonStarter;
 pub use module_manager::{ModuleManager, ModuleManagerHandle};
+
+#[derive(Args, Debug, Clone)]
+// #[clap(name = "pulsard")]
+// #[clap(about = "Pulsar daemon")]
+// #[clap(version = pulsar_clap_version())]
+pub struct PulsarDaemonOpts {
+    #[clap(long)]
+    pub config_file: Option<String>,
+}
 
 /// General configuration section for settings shared by all modules.
 const GENERAL_CONFIG: &str = "pulsar";

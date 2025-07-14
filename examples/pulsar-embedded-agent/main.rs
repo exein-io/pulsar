@@ -1,5 +1,5 @@
 use anyhow::Result;
-use pulsar::cli;
+use pulsar::{pulsard, utils};
 use tokio::sync::mpsc::{self};
 
 mod proxy_module;
@@ -10,10 +10,10 @@ async fn main() -> Result<()> {
     // of the application.
     let (tx_proxy, mut rx_proxy) = mpsc::channel(100);
 
-    let options = cli::pulsard::PulsarDaemonOpts { config_file: None };
+    let options = pulsard::PulsarDaemonOpts { config_file: None };
 
     tokio::spawn(async move {
-        // Run pulsar-exec with crate provided modules
+        // Run pulsard with crate-provided modules
         #[allow(clippy::blocks_in_conditions)]
         match pulsar::pulsard::pulsar_daemon_run(&options, move |starter| {
             starter.add_module(proxy_module::ProxyModule { tx_proxy })?;
@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
         {
             Ok(_) => std::process::exit(0),
             Err(e) => {
-                cli::report_error(&e);
+                utils::report_error(&e);
                 std::process::exit(1);
             }
         }
