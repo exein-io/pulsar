@@ -55,12 +55,8 @@
 //!   dns events.
 //! - `file-system-monitor`: Enables a monitor on file system events, example file open, delete, ecc.
 //! - `rules-engine`: Enables the rule engine module to process events and detect threats.
-
-use std::env;
-
 use anyhow::Result;
 use pulsard::PulsarDaemonStarter;
-use std::sync::OnceLock;
 
 use cli::PulsarExecOpts;
 
@@ -68,15 +64,13 @@ pub mod cli;
 pub mod pulsar;
 pub mod pulsard;
 
-pub(crate) fn version() -> &'static str {
-    static VERSION: OnceLock<String> = OnceLock::new();
-    #[cfg(debug_assertions)]
-    let v = VERSION.get_or_init(|| format!("{}+dev", env!("CARGO_PKG_VERSION")));
+pub mod metadata {
+    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+    pub const GIT_SHA: &str = env!("VERGEN_GIT_SHA");
 
-    #[cfg(not(debug_assertions))]
-    let v = VERSION.get_or_init(|| env!("CARGO_PKG_VERSION").to_string());
-
-    v
+    // `env!("VERGEN_GIT_DIRTY")` is either "true" or "false".
+    // We can’t use == in a const, but we can look at the length (4 vs 5).
+    pub(crate) const GIT_DIRTY: bool = env!("VERGEN_GIT_DIRTY").len() == 4;
 }
 
 /// Init logger. We log from info level and above, hide timestamp

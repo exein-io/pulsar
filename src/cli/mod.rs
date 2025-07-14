@@ -1,4 +1,4 @@
-use std::{env, ffi::OsString};
+use std::{env, ffi::OsString, sync::OnceLock};
 
 use clap::{Arg, ArgAction, Command, CommandFactory, FromArgMatches};
 
@@ -47,8 +47,35 @@ where
     let daemon_app = pulsard::PulsarDaemonOpts::command().help_template(daemon_template);
     let cli_app = pulsar::PulsarCliOpts::command().help_template(cli_template);
 
+    #[cfg(debug_assertions)]
+    pub const PROFILE: &str = "debug";
+    #[cfg(not(debug_assertions))]
+    pub const PROFILE: &str = "release";
+
+    // needed because clap expects a static str
+    fn pulsar_clap_version() -> &'static str {
+        static CLAP_VERSION: OnceLock<String> = OnceLock::new();
+
+        let v = CLAP_VERSION.get_or_init(|| {
+            const DIRTY_SUFFIX: &str = if crate::metadata::GIT_DIRTY {
+                "+dirty"
+            } else {
+                ""
+            };
+
+            format!(
+                "{}\ncommit: {}{}\nprofile: {PROFILE}",
+                crate::metadata::VERSION,
+                crate::metadata::GIT_SHA,
+                DIRTY_SUFFIX
+            )
+        });
+
+        v
+    }
+
     let matches = Command::new("pulsar-exec")
-        .version(crate::version())
+        .version(pulsar_clap_version())
         .about("Pulsar executables launcher")
         .propagate_version(true)
         .subcommand_required(true)

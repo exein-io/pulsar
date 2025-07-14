@@ -39,6 +39,10 @@ serde = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 
+[build-dependencies]
+anyhow = { workspace = true }
+vergen-gitcl = { workspace = true }
+
 [features]
 default = ["full", "tls-openssl"]
 full = ["core", "extra"]
@@ -78,7 +82,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.9.0"
+version = "0.9.0-alpha.1"
 license = "Apache-2.0 WITH BPF probes exception under GPL-2.0"
 edition = "2024"
 repository = "https://github.com/exein-io/pulsar"
@@ -192,6 +196,7 @@ tokio-tungstenite = "0.26.1"
 uuid = { version = "1.6.1", features = ["v4"] }
 which = "5.0.0"
 xshell = "0.2.5"
+vergen-gitcl = "1.0.8"
 
 [profile.release]
 lto = true
