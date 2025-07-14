@@ -5,18 +5,16 @@
 //!   and it's responsible for managing the state of [modules](#modules) that come with Pulsar
 //! - a [cli](crate::cli::pulsar) to interact with the daemon to do administration operations
 //!
-//! Both components are embedded in a single binary application and are executed through subcommands of the
-//! main application `pulsar-exec`. Example:
+//! The two components are provided as separate binaries: `pulsard` (daemon) and `pulsar` (CLI).
+//! Example:
 //!
 //! ```sh
 //! # Execute the daemon
-//! pulsar-exec pulsard
+//! pulsard
 //!
 //! # Execute the cli
-//! pulsar-exec pulsar
+//! pulsar
 //! ```
-//!
-//! **Note**: Simple scripts are provided in the repository for an easy access.
 //!
 //! ## Modules
 //!
@@ -56,66 +54,25 @@
 //! - `file-system-monitor`: Enables a monitor on file system events, example file open, delete, ecc.
 //! - `rules-engine`: Enables the rule engine module to process events and detect threats.
 
-use std::env;
-
-use anyhow::Result;
-use pulsard::PulsarDaemonStarter;
-use std::sync::OnceLock;
-
-use cli::PulsarExecOpts;
-
-pub mod cli;
 pub mod pulsar;
 pub mod pulsard;
+pub mod utils;
 
-pub(crate) fn version() -> &'static str {
-    static VERSION: OnceLock<String> = OnceLock::new();
-    #[cfg(debug_assertions)]
-    let v = VERSION.get_or_init(|| format!("{}+dev", env!("CARGO_PKG_VERSION")));
-
-    #[cfg(not(debug_assertions))]
-    let v = VERSION.get_or_init(|| env!("CARGO_PKG_VERSION").to_string());
-
-    v
+pub mod metadata {
+    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+    pub const GIT_SHA: &str = env!("VERGEN_GIT_SHA");
 }
 
 /// Init logger. We log from info level and above, hide timestamp
 /// and module path.
 /// If RUST_LOG is set, we assume the user wants to debug something
 /// and use env_logger default behaviour.
-pub fn init_logger(override_log_level: log::Level) {
+pub fn init_logger(override_log_level: Option<log::LevelFilter>) {
     if std::env::var_os("RUST_LOG").is_some() {
         env_logger::init();
     } else {
-        let default_level = log::Level::Info;
-        let level = if override_log_level > default_level {
-            override_log_level
-        } else {
-            default_level
-        };
-        env_logger::builder()
-            .filter_level(level.to_level_filter())
-            .init();
-    }
-}
+        let level_filter = override_log_level.unwrap_or(log::LevelFilter::Info);
 
-/// Main pulsar entrypoint
-pub async fn run_pulsar_exec(options: &PulsarExecOpts) -> Result<()> {
-    match &options.mode {
-        cli::Mode::PulsarCli(options) => pulsar::pulsar_cli_run(options).await,
-        cli::Mode::PulsarDaemon(options) => pulsard::pulsar_daemon_run(options, |_| Ok(())).await,
-    }
-}
-
-/// Customizable pulsar entrypoint
-pub async fn run_pulsar_exec_custom(
-    options: &PulsarExecOpts,
-    customize_starter: impl FnOnce(&mut PulsarDaemonStarter) -> Result<()>,
-) -> Result<()> {
-    match &options.mode {
-        cli::Mode::PulsarCli(options) => pulsar::pulsar_cli_run(options).await,
-        cli::Mode::PulsarDaemon(options) => {
-            pulsard::pulsar_daemon_run(options, customize_starter).await
-        }
+        env_logger::builder().filter_level(level_filter).init();
     }
 }

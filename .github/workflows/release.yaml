@@ -93,7 +93,9 @@ jobs:
         uses: ./.github/actions/install-cross
 
       - name: Build Release
-        run: cross build --locked --target=${{ matrix.platform.target }} --bin pulsar-exec ${{ matrix.platform.args }} --release
+        run: |
+          cross build --locked --target=${{ matrix.platform.target }} --bin pulsard ${{ matrix.platform.args }} --release
+          cross build --locked --target=${{ matrix.platform.target }} --bin pulsar ${{ matrix.platform.args }} --release
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -140,16 +142,26 @@ jobs:
           IFS='-' read -a arch <<< ${{ matrix.platform.target }}
           suffix=""
           if [[ "${{ matrix.platform.target }}" == *"musl"* ]]; then suffix="-static"; fi
-          binary_name=./target/${{ matrix.platform.target }}/release/pulsar-exec-${arch}${suffix}
-          mv ./target/${{ matrix.platform.target }}/release/pulsar-exec ${binary_name}
-          echo "binary_name=${binary_name}" >> $GITHUB_OUTPUT
+          daemon_binary=./target/${{ matrix.platform.target }}/release/pulsard-${arch}${suffix}
+          cli_binary=./target/${{ matrix.platform.target }}/release/pulsar-${arch}${suffix}
+          mv ./target/${{ matrix.platform.target }}/release/pulsard ${daemon_binary}
+          mv ./target/${{ matrix.platform.target }}/release/pulsar ${cli_binary}
+          echo "daemon_binary=${daemon_binary}" >> $GITHUB_OUTPUT
+          echo "cli_binary=${cli_binary}" >> $GITHUB_OUTPUT
 
       # Again, ensure artifact names are unique per target
-      - name: Upload binary
+      - name: Upload daemon binary
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
-          path: ${{ steps.rename_binary.outputs.binary_name }}
+          name: binary-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}-pulsard
+          path: ${{ steps.rename_binary.outputs.daemon_binary }}
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload cli binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}-pulsar
+          path: ${{ steps.rename_binary.outputs.cli_binary }}
           if-no-files-found: error
           retention-days: 1
 
@@ -161,11 +173,17 @@ jobs:
       - build
     steps:
       # We ONLY want the binaries (all targets) and vendored archive, so we do:
-      - name: Download binaries
+      - name: Download pulsard binaries
         uses: actions/download-artifact@v4
         with:
-          # This matches all binary artifacts from every matrix job
-          pattern: "binary-${{ env.REGISTRY_TAG }}-*"
+          pattern: "binary-${{ env.REGISTRY_TAG }}-*-pulsard"
+          merge-multiple: true
+          path: /tmp/binaries
+
+      - name: Download pulsar binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "binary-${{ env.REGISTRY_TAG }}-*-pulsar"
           merge-multiple: true
           path: /tmp/binaries
 

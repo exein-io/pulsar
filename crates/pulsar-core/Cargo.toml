@@ -9,7 +9,7 @@ repository.workspace = true
 bpf-common = { path = "../bpf-common" }
 validatron = { path = "../validatron" }
 serde = { workspace = true, features = ["derive"] }
-toml_edit = { workspace = true, features = ["easy"] }
+toml = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
 log = { workspace = true }

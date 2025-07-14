@@ -34,7 +34,6 @@ hyperlocal = { workspace = true }
 hyper-util = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-lazy_static = { workspace = true }
 regex = { workspace = true }
 diesel = { workspace = true }
 rust-ini = { workspace = true }

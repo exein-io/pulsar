@@ -150,7 +150,7 @@ impl From<PulsarDaemonError> for EngineApiError {
             PulsarDaemonError::StartError(_) => Self::BadRequest(error.to_string()),
             PulsarDaemonError::StopError(_) => Self::BadRequest(error.to_string()),
             PulsarDaemonError::ConfigurationUpdateError(_) => {
-                log::error!("Unexpected Error {}", error.to_string());
+                log::error!("Unexpected Error {error}");
                 Self::InternalServerError
             }
         }

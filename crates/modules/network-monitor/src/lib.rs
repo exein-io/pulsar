@@ -1,7 +1,4 @@
-use std::{
-    fmt,
-    net::{Ipv4Addr, SocketAddr},
-};
+use std::{fmt, net::SocketAddr};
 
 use bpf_common::{
     BpfSender, Pid, Program, ProgramBuilder, ProgramError, ebpf_program, parsing::BufferIndex,
@@ -260,20 +257,10 @@ pub mod pulsar {
     impl From<Addr> for Host {
         fn from(value: Addr) -> Self {
             match value {
-                Addr::V4(v) => {
-                    let bits = v.ip();
-                    let octects = [
-                        (bits >> 24) as u8,
-                        (bits >> 16) as u8,
-                        (bits >> 8) as u8,
-                        bits as u8,
-                    ];
-
-                    Host {
-                        ip: Ipv4Addr::from(octects).into(),
-                        port: v.port(),
-                    }
-                }
+                Addr::V4(v) => Host {
+                    ip: v.ip().into(),
+                    port: v.port(),
+                },
 
                 Addr::V6(v) => Host {
                     ip: v.ip().into(),
@@ -377,7 +364,8 @@ pub mod test_suite {
         test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };
     use dns_mock_server::Server;
-    use hickory_resolver::{TokioAsyncResolver, config::*};
+    use hickory_resolver::{Resolver, config::*, name_server::TokioConnectionProvider};
+
     use nix::{
         libc::kill,
         unistd::{ForkResult, fork},
@@ -728,8 +716,18 @@ pub mod test_suite {
 
                 // DNS requests.
                 let mut config = ResolverConfig::new();
-                config.add_name_server(NameServerConfig::new(local_addr, Protocol::Udp));
-                let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
+                for ns in NameServerConfigGroup::from_ips_clear(
+                    &[local_addr.ip()],
+                    local_addr.port(),
+                    false,
+                )
+                .into_inner()
+                {
+                    config.add_name_server(ns);
+                }
+                let resolver =
+                    Resolver::builder_with_config(config, TokioConnectionProvider::default())
+                        .build();
                 resolver.lookup_ip(&dns_server_domain).await.unwrap();
             })
             .await

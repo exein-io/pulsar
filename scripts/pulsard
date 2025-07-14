@@ -1,3 +1,0 @@
-#! /usr/bin/env sh
-
-MASK_LAUNCHER=1 /usr/bin/pulsar-exec pulsard $@

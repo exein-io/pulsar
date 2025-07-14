@@ -1,9 +1,9 @@
 //! Utility functions used to extract data from procfs
 
 use glob::glob;
-use lazy_static::lazy_static;
 use nix::unistd::{Gid, Pid, Uid};
 use regex::Regex;
+use std::sync::LazyLock;
 use std::{
     fs::{self, File},
     io::{self, BufReader, prelude::*},
@@ -16,12 +16,12 @@ use crate::containers::ContainerId;
 // Special value used to indicate openat should use the current working directory.
 const AT_FDCWD: i32 = -100;
 
-lazy_static! {
-    /// Pattern for matching cgroups created by Docker.
-    static ref RE_CGROUP_DOCKER: Regex = Regex::new(r"docker-(?P<id>[0-9a-f]{64})").unwrap();
-    /// Pattern for matching cgroups created by libpod/podman.
-    static ref RE_CGROUP_LIBPOD: Regex = Regex::new(r"libpod-(?P<id>[0-9a-f]{64})").unwrap();
-}
+/// Pattern for matching cgroups created by Docker.
+static RE_CGROUP_DOCKER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"docker-(?P<id>[0-9a-f]{64})").unwrap());
+/// Pattern for matching cgroups created by libpod/podman.
+static RE_CGROUP_LIBPOD: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"libpod-(?P<id>[0-9a-f]{64})").unwrap());
 
 #[derive(Error, Debug)]
 pub enum ProcfsError {
