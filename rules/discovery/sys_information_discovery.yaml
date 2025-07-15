@@ -1,0 +1,129 @@
+# Title: Kernel Module Enumeration
+
+# Creation date: 2020/04/23
+
+# MITRE ATT&CK Tactic: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK Technique: T1082 - System Information Discovery - https://attack.mitre.org/techniques/T1082/
+
+- name: Kernel Seeking Activity
+  type: FileOpened
+  category: discovery
+  severity: low
+  description: Detects kernel seeking activity through several built-in Linux utilities. Attackers may use these utilities
+    to search the Linux kernel for available symbols, functions, and other information that can be used to exploit the kernel.
+  condition: (payload.filename STARTS_WITH "/boot/" OR payload.filename STARTS_WITH "/proc/kallsyms")
+    AND (
+      header.image ENDS_WITH "/tail" OR header.image ENDS_WITH "/cmp" OR header.image ENDS_WITH "/hexdump" OR
+      header.image ENDS_WITH "/xxd" OR header.image ENDS_WITH "/dd"
+    )
+
+- name: Linux module listing utilities execution
+  type: Exec
+  category: discovery
+  severity: low
+  description: Detects the execution of utilities such as lsmod, modinfo, kmod, and systool which are used to list and query kernel modules.
+    Adversaries may use these utilities to gather information about loaded kernel modules, potentially identifying vulnerable modules for exploitation.
+  condition: (
+      payload.filename ENDS_WITH "/lsmod" OR payload.filename ENDS_WITH "/modinfo" OR
+      (payload.filename ENDS_WITH "/kmod" AND payload.argv CONTAINS "list") OR
+      (payload.filename ENDS_WITH "/systool" AND payload.argv CONTAINS "-m")
+    ) AND NOT (
+      header.image ENDS_WITH "/modprobe" OR
+      header.image ENDS_WITH "/insmod" OR
+      header.image ENDS_WITH "/rmmod" OR
+      header.image ENDS_WITH "/systemd" OR
+      header.image ENDS_WITH "/udevd" OR
+      header.image STARTS_WITH "/usr/bin/apt" OR
+      header.image STARTS_WITH "/usr/bin/dnf" OR
+      header.image ENDS_WITH "/dpkg" OR
+      header.image ENDS_WITH "/yum" OR
+      header.image ENDS_WITH "/rpm" OR
+      header.image ENDS_WITH "/pacman" OR 
+      header.image ENDS_WITH "/zypper" OR
+      header.image ENDS_WITH "/emerge" OR
+      header.image ENDS_WITH "/nix-env" OR
+      header.image ENDS_WITH "/opkg" OR
+      header.image ENDS_WITH "/mkinitramfs" OR
+      header.image ENDS_WITH "/update-initramfs" OR
+      header.image ENDS_WITH "/dracut" OR
+      header.image ENDS_WITH "/update-grub" OR
+      header.image ENDS_WITH "/cryptroot" OR
+      header.image ENDS_WITH "/framebuffer" OR
+      header.image ENDS_WITH "/readykernel" OR
+      header.image ENDS_WITH "/lvm2" OR
+      header.image ENDS_WITH "/mdadm"
+    )
+  
+- name: Linux Kernel Module File Access
+  type: FileOpened
+  category: discovery
+  severity: medium
+  description: Detects the reading of critical files and directories related to Linux kernel modules.
+    Adversaries may read these files to enumerate loaded modules, module dependencies,
+    or configuration, as part of system information discovery.
+  condition: (
+      payload.filename STARTS_WITH "/proc/modules" OR
+      payload.filename STARTS_WITH "/lib/modules/" OR
+      payload.filename STARTS_WITH "/sys/module/" OR
+      payload.filename STARTS_WITH "/etc/depmod.d/" OR
+      payload.filename STARTS_WITH "/run/depmod.d/" OR
+      payload.filename STARTS_WITH "/usr/lib/depmod.d/" OR
+      payload.filename STARTS_WITH "/usr/local/lib/depmod.d/"
+    ) AND NOT (
+      header.image ENDS_WITH "/modprobe" OR
+      header.image ENDS_WITH "/insmod" OR
+      header.image ENDS_WITH "/rmmod" OR
+      header.image ENDS_WITH "/modinfo" OR
+      header.image ENDS_WITH "/systemd" OR
+      header.image ENDS_WITH "/systemd-udevd" OR
+      header.image ENDS_WITH "/udevd" OR
+      header.image ENDS_WITH "/udevadm" OR
+      header.image STARTS_WITH "/usr/bin/apt" OR
+      header.image STARTS_WITH "/usr/bin/dnf" OR
+      header.image ENDS_WITH "/dpkg" OR
+      header.image ENDS_WITH "/yum" OR
+      header.image ENDS_WITH "/rpm" OR
+      header.image ENDS_WITH "/pacman" OR 
+      header.image ENDS_WITH "/zypper" OR
+      header.image ENDS_WITH "/emerge" OR
+      header.image ENDS_WITH "/nix-env" OR
+      header.image ENDS_WITH "/opkg" OR
+      header.image ENDS_WITH "/mkinitramfs" OR
+      header.image ENDS_WITH "/update-initramfs" OR
+      header.image ENDS_WITH "/dracut" OR
+      header.image ENDS_WITH "/dracut-install" OR
+      header.image ENDS_WITH "/update-grub"
+    )
+
+- name: Polkit version discovery
+  type: Exec
+  category: discovery
+  severity: low
+  description: Detects attempts to determine the version of the PolicyKit (polkit) component. Polkit is used to manage privileges for 
+    unprivileged processes interacting with system services. Adversaries often query its version to assess whether the system is vulnerable 
+    to known local privilege escalation exploits.
+  condition: (
+      (payload.filename STARTS_WITH "/usr/bin/dnf" AND payload.argv CONTAINS "info" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "/rpm" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename STARTS_WITH "/usr/bin/apt" AND payload.argv CONTAINS "show" AND payload.argv CONTAINS "policykit-1") OR
+      (payload.filename ENDS_WITH "/pacman" AND payload.argv CONTAINS "-Qi" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "/zypper" AND payload.argv CONTAINS "info" AND payload.argv CONTAINS "polkit") OR
+      (payload.filename ENDS_WITH "/pkaction" AND payload.argv CONTAINS "--version")
+    )
+    
+- name: VM fingerprinting file read
+  type: Exec
+  category: discovery
+  severity: low
+  description: Detects read access to known files used for virtual machine fingerprinting, such as product and BIOS information, by non-root users. 
+    Adversary may attempt to get detailed information about the operating system and hardware. 
+    This behavior has been observed in malware like Pupy RAT and may indicate system reconnaissance.
+  condition: (
+      payload.argv CONTAINS "/sys/class/dmi/id/bios_version" OR 
+      payload.argv CONTAINS "/sys/class/dmi/id/product_name" OR
+      payload.argv CONTAINS "/sys/class/dmi/id/chassis_vendor" OR
+      payload.argv CONTAINS "/proc/scsi/scsi" OR
+      payload.argv CONTAINS "/proc/ide/hd0/model"
+    )
+    AND NOT header.uid == 0
