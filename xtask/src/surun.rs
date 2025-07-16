@@ -1,6 +1,12 @@
+use std::process::{Command, Stdio};
+
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use xshell::{Shell, cmd};
+use libc::SIGHUP;
+use signal_hook::{
+    consts::{SIGINT, SIGQUIT, SIGTERM},
+    iterator::Signals,
+};
 
 #[derive(Debug, Parser)]
 pub struct SuRunCommand {
@@ -53,13 +59,35 @@ impl SuRunCommand {
 
         log::debug!("Overriding env variable: {target_triple_env_runner}");
 
-        let sh = Shell::new()?;
+        let mut child = Command::new(cargo)
+            .arg("run")
+            .args(&self.run_args)
+            .env(target_triple_env_runner, "sudo -E")
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .context("failed to spawn cargo run")?;
 
-        sh.set_var(target_triple_env_runner, "sudo -E");
+        let child_pid = child.id() as i32;
 
-        let args = &self.run_args;
+        std::thread::spawn(move || {
+            let mut signals = Signals::new([SIGINT, SIGTERM, SIGHUP, SIGQUIT])
+                .expect("failed to install signal handlers");
 
-        cmd!(sh, "{cargo} run {args...}").run()?;
+            for signal in &mut signals {
+                // SIGINT is always forwarded
+                if signal != SIGINT {
+                    unsafe { libc::kill(child_pid, signal) };
+                }
+            }
+        });
+
+        let status = child.wait().context("failed to wait cargo run command")?;
+
+        if !status.success() {
+            bail!("cargo run exited with status {status}");
+        };
 
         Ok(())
     }
