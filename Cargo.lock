@@ -4064,6 +4064,7 @@ dependencies = [
  "env_logger",
  "flate2",
  "indicatif",
+ "libc",
  "log",
  "num_cpus",
  "reqwest",
