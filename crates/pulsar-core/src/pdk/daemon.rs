@@ -153,6 +153,7 @@ impl PulsarDaemonHandle {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ModuleStatus {
     Created,
+    Starting,
     Running(Vec<String>),
     Failed(String),
     Stopped,

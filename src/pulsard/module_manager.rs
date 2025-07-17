@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
@@ -17,6 +18,7 @@ enum ModuleManagerCommand {
     },
     StopModule {
         tx_reply: oneshot::Sender<Result<(), String>>,
+        timeout: Duration,
     },
     GetStatus {
         tx_reply: oneshot::Sender<ModuleStatus>,
@@ -122,6 +124,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     return;
                 }
 
+                // Quickly parse the configuration, then put the module in starting status
                 let module_config = match T::Config::try_from(&self.config.borrow()) {
                     Ok(mc) => mc,
                     Err(err) => {
@@ -134,6 +137,12 @@ impl<T: PulsarModule> ModuleManager<T> {
                         return;
                     }
                 };
+
+                // Put the module in starting status and respond to the command sender
+                self.status = ModuleStatus::Starting;
+                let _ = tx_reply.send(Ok(()));
+
+                // Continue starting the module asynchronously
 
                 let (tx_stop_cfg_recv, rx_stop_cfg_recv) = mpsc::channel(1);
                 let (tx_stop_event_recv, rx_stop_event_recv) = mpsc::channel(1);
@@ -149,17 +158,49 @@ impl<T: PulsarModule> ModuleManager<T> {
                     tx_stop_event_recv,
                 );
 
-                let (state, extension) = match self.module.init_state(&module_config, &ctx).await {
-                    Ok(s) => s,
-                    Err(err) => {
-                        self.status =
-                            ModuleStatus::Failed(format!("State initializing error: {err}"));
-                        let err_msg = format!(
-                            "Starting module {} failed, error initializing the state: {err}",
-                            T::MODULE_NAME
-                        );
-                        let _ = tx_reply.send(Err(err_msg));
-                        return;
+                // Init state function could be potentially very long so we listen even for external commands
+                // in paralled. If a stop command arrives we want to block the initialization
+                let catch_stop_cmd = async {
+                    loop {
+                        let Some(cmd) = self.rx_cmd.recv().await else {
+                            std::future::pending().await
+                        };
+
+                        match cmd {
+                            ModuleManagerCommand::StopModule { tx_reply, .. } => {
+                                let _ = tx_reply.send(Ok(()));
+                                break;
+                            }
+                            ModuleManagerCommand::StartModule { tx_reply } => {
+                                let _ = tx_reply.send(Err("already starting".to_string()));
+                            }
+                            ModuleManagerCommand::GetStatus { tx_reply } => {
+                                let _ = tx_reply.send(ModuleStatus::Starting);
+                            }
+                        }
+                    }
+                };
+
+                let (state, extension) = tokio::select! {
+                    init_res = self.module.init_state(&module_config, &ctx) => {
+                        match init_res {
+                           Ok(s) => s,
+                           Err(err)=> {
+                               self.status =
+                                   ModuleStatus::Failed(format!("State initializing error: {err}"));
+                               let err_msg = format!(
+                                   "Starting module {} failed, error initializing the state: {err}",
+                                   T::MODULE_NAME
+                               );
+                               self.status = ModuleStatus::Failed(err_msg);
+                               return;
+                           }
+
+                        }
+                    },
+                    _ = catch_stop_cmd => {
+                        self.status = ModuleStatus::Stopped;
+                        return ;
                     }
                 };
 
@@ -189,37 +230,50 @@ impl<T: PulsarModule> ModuleManager<T> {
 
                 self.running_task = Some((tx_shutdown, join_handle));
                 self.status = ModuleStatus::Running(Vec::new());
-
-                // The `let _ =` ignores any errors when sending.
-                //
-                // This can happen if the `select!` macro is used
-                // to cancel waiting for the response.
-                let _ = tx_reply.send(Ok(()));
             }
-            ModuleManagerCommand::StopModule { tx_reply } => {
+            ModuleManagerCommand::StopModule { tx_reply, timeout } => {
                 let result = match self.status {
+                    ModuleStatus::Starting => {
+                        // While starting external commands are masked
+                        // this should never happen
+                        Err("internal error: module busy".to_string())
+                    }
                     ModuleStatus::Created | ModuleStatus::Stopped => Ok(()),
                     ModuleStatus::Running(_) => {
                         let (tx_shutdown, task) = self.running_task.take().unwrap();
                         tx_shutdown.send_signal();
-                        let result = task.await;
-                        match result {
-                            Ok(()) => {
-                                log::info!("Module {} exited", T::MODULE_NAME);
+
+                        let task_abort_handle = task.abort_handle();
+
+                        tokio::select! {
+                            _ = tokio::time::sleep(timeout) => {
+                                log::warn!("Module {} stopping reached timeout", T::MODULE_NAME);
+                                task_abort_handle.abort();
 
                                 self.status = ModuleStatus::Stopped;
 
-                                Ok(())
-                            }
-                            Err(err) => {
-                                let err_msg =
-                                    format!("Module {} exit failure: {err}", T::MODULE_NAME);
+                                Err("forced cancelled".to_string())
+                            },
+                            result = task => {
+                                match result {
+                                    Ok(()) => {
+                                        log::info!("Module {} exited", T::MODULE_NAME);
 
-                                log::warn!("{err_msg}");
+                                        self.status = ModuleStatus::Stopped;
 
-                                self.status = ModuleStatus::Failed(err.to_string());
+                                        Ok(())
+                                    }
+                                    Err(err) => {
+                                        let err_msg =
+                                            format!("Module {} exit failure: {err}", T::MODULE_NAME);
 
-                                Err(err.to_string())
+                                        log::warn!("{err_msg}");
+
+                                        self.status = ModuleStatus::Failed(err.to_string());
+
+                                        Err(err.to_string())
+                                    }
+                                }
                             }
                         }
                     }
@@ -301,7 +355,10 @@ impl ModuleManagerHandle {
     /// Stop the module
     pub async fn stop(&self) -> Result<(), String> {
         let (send, recv) = oneshot::channel();
-        let msg = ModuleManagerCommand::StopModule { tx_reply: send };
+        let msg = ModuleManagerCommand::StopModule {
+            tx_reply: send,
+            timeout: Duration::from_secs(5),
+        };
 
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
