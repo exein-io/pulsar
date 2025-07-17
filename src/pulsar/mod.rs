@@ -24,11 +24,11 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
         Commands::Status => engine_api_client.list_modules().await?.term_print(),
         Commands::Start { module_name } => {
             engine_api_client.start(module_name).await?;
-            "Module started".to_string().term_print()
+            "Module starting".to_string().term_print()
         }
         Commands::Restart { module_name } => {
             engine_api_client.restart(module_name).await?;
-            "Module restarted".to_string().term_print()
+            "Module restarting".to_string().term_print()
         }
         Commands::Stop { module_name } => {
             engine_api_client.stop(module_name).await?;

@@ -35,6 +35,7 @@ impl TermPrintable for Vec<ModuleOverview> {
         for module in sorted {
             let status_color = match module.status {
                 ModuleStatus::Created => Color::White,
+                ModuleStatus::Starting => Color::Yellow,
                 ModuleStatus::Running(ref warnings) if warnings.is_empty() => Color::Green,
                 ModuleStatus::Running(_) => Color::Yellow,
                 ModuleStatus::Failed(_) => Color::Red,
