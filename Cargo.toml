@@ -119,7 +119,6 @@ aya-ebpf-bindings = "0.1.0"
 aya-obj = "0.1.0"
 axum = { version = "0.8.1", features = ["ws"] }
 bytes = "1.5.0"
-cgroups-rs = { version = "0.3.4" }
 chrono = { version = "0.4.31" }
 clap = { version = "4.4.11", features = ["derive"] }
 comfy-table = "7.1.0"

@@ -21,7 +21,6 @@ struct bpf_map_def_aya {
 // test suite)
 
 #define MAX_IMAGE_LEN 100
-#define MAX_CGROUP_LEN 300
 
 // Define a map containing the rules for deciding what is of interest.
 // > map_rules["/usr/bin/process"] = <RULE BITMAP>
@@ -39,15 +38,6 @@ struct bpf_map_def_aya {
     __type(value, u8);                                                         \
     __uint(max_entries, 100);                                                  \
   } map_rules SEC(".maps");
-
-// Map of cgroups to target
-#define MAP_CGROUP_RULES(map_cgroup_rules)                                     \
-  struct {                                                                     \
-    __uint(type, BPF_MAP_TYPE_HASH);                                           \
-    __type(key, char[MAX_CGROUP_LEN]);                                         \
-    __type(value, u8);                                                         \
-    __uint(max_entries, 100);                                                  \
-  } map_cgroup_rules SEC(".maps");
 
 // Define a map containing the interest for each process on the system.
 // > map_interest[<process pid>] = <INTEREST BITMAP>
@@ -147,21 +137,6 @@ static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
     LOG_ERROR("updating interest for %d (%d)", tgid, res);
   }
   return 0;
-}
-
-// Check if the cgroup_path is contained in the rules hashmap. If it is,
-// insert the given process inside the interest tracker.
-static __always_inline void
-tracker_check_cgroup_rules(struct bpf_map_def_aya *tracker, void *rules,
-                           struct task_struct *p, const char *cgroup_path) {
-  char path[MAX_CGROUP_LEN];
-  __builtin_memset(path, 0, MAX_CGROUP_LEN);
-  bpf_core_read_str(path, MAX_CGROUP_LEN, cgroup_path);
-  if (bpf_map_lookup_elem(rules, path)) {
-    pid_t tgid = BPF_CORE_READ(p, tgid);
-    u8 policy = INTEREST_TRACK_SELF | INTEREST_TRACK_CHILDREN;
-    long res = bpf_map_update_elem(tracker, &tgid, &policy, BPF_ANY);
-  }
 }
 
 // Returns true if an element was removed from the map.

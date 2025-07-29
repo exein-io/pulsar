@@ -17,10 +17,7 @@ char LICENSE[] SEC("license") = "GPL v2";
 #define EVENT_EXEC 1
 #define EVENT_EXIT 2
 #define EVENT_CHANGE_PARENT 3
-#define EVENT_CGROUP_MKDIR 4
-#define EVENT_CGROUP_RMDIR 5
-#define EVENT_CGROUP_ATTACH 6
-#define EVENT_CREDS_CHANGE 7
+#define EVENT_CREDS_CHANGE 4
 
 #define MAX_ORPHANS 45
 #define MAX_ORPHANS_UNROLL 30
@@ -39,8 +36,7 @@ char LICENSE[] SEC("license") = "GPL v2";
 #define FAILED_READ_PARENT_CGROUP_NAME -4
 #define FAILED_PARSE_LIBPOD_CGROUP_NAME -5
 
-struct namespaces
-{
+struct namespaces {
   unsigned int uts;
   unsigned int ipc;
   unsigned int mnt;
@@ -53,87 +49,60 @@ struct namespaces
 #define OPTION_NONE 0
 #define OPTION_SOME 1
 
-struct fork_event
-{
+struct fork_event {
   uid_t uid;
   gid_t gid;
   pid_t ppid;
   struct namespaces namespaces;
-  struct
-  {
+  struct {
     u32 discriminant;
-    struct
-    {
+    struct {
       u32 container_engine;
       struct buffer_index cgroup_id;
     } container_id;
   } option_index;
 };
 
-struct exec_event
-{
+struct exec_event {
   uid_t uid;
   struct buffer_index filename;
   int argc;
   struct buffer_index argv;
   struct namespaces namespaces;
-  struct
-  {
+  struct {
     u32 discriminant;
-    struct
-    {
+    struct {
       int container_engine;
       struct buffer_index cgroup_id;
     } container_id;
   } option_index;
 };
 
-struct exit_event
-{
+struct exit_event {
   u32 exit_code;
 };
 
-struct change_parent_event
-{
+struct change_parent_event {
   pid_t ppid;
 };
 
-struct cgroup_event
-{
-  struct buffer_index path;
-  u64 id;
-};
-
-struct cgroup_attach_event
-{
-  pid_t pid;
-  struct buffer_index path;
-  u64 id;
-};
-
-struct creds_change_event
-{
+struct creds_change_event {
   u32 uid;
   u32 gid;
 };
 
 GLOBAL_INTEREST_MAP_DECLARATION;
 MAP_RULES(m_rules);
-MAP_CGROUP_RULES(m_cgroup_rules);
 
 OUTPUT_MAP(process_event, {
   struct fork_event fork;
   struct exec_event exec;
   struct exit_event exit;
   struct change_parent_event change_parent;
-  struct cgroup_event cgroup_mkdir;
-  struct cgroup_event cgroup_rmdir;
-  struct cgroup_attach_event cgroup_attach;
   struct creds_change_event creds_change;
 });
 
-struct pending_dead_process
-{
+struct pending_dead_process {
   // Pid of the dead process who left orphans
   pid_t dead_parent;
   // Timestamp of the death of parent
@@ -145,18 +114,17 @@ struct pending_dead_process
 // Temporary map used to communicate the list of orphaned processes from
 // `sched_process_exit` to `sched_switch`. There we'll be able to read
 // the new parent of the orphans and emit an EVENT_CHANGE_PARENT.
-struct
-{
+struct {
   __uint(type, BPF_MAP_TYPE_QUEUE);
   __type(value, struct pending_dead_process);
   __uint(max_entries, MAX_PENDING_DEAD_PARENTS);
 } orphans_map SEC(".maps");
 
 /*
-Buffer for reading container id of a process. The Container ID is located at `buf[offset]`
+Buffer for reading container id of a process. The Container ID is located at
+`buf[offset]`
  */
-struct container_id_buffer
-{
+struct container_id_buffer {
   char buf[CONTAINER_ID_MAX_BUF];
   size_t offset;
 };
@@ -188,21 +156,22 @@ from its `task_struct` into a given `container_id_buffer`.
               of the process after a successful parse of a `container`
               cgroup name for the given process
 */
-static __always_inline int get_container_info(struct task_struct *cur_tsk,
-                                              struct container_id_buffer *c_id_buf)
-{
+static __always_inline int
+get_container_info(struct task_struct *cur_tsk,
+                   struct container_id_buffer *c_id_buf) {
   int cgrp_id;
   struct container_id_buffer parent_buf;
 
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
     cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
-  else
-  {
-    LOG_ERROR("failed to read memory cgroup id. make sure `CONFIG_MEMCG` is enabled in the kernel configuration\n");
+  else {
+    LOG_ERROR("failed to read memory cgroup id. make sure `CONFIG_MEMCG` is "
+              "enabled in the kernel configuration\n");
     return FAILED_READ_MEMORY_CGROUP_ID;
   }
 
-  struct kernfs_node *kn = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn);
+  struct kernfs_node *kn =
+      BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn);
   const char *name;
 
   // handle kernfs compat if kernel < 6.15
@@ -213,8 +182,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
     name = BPF_CORE_READ(kn_compat, name);
   }
 
-  if (bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, name) < 0)
-  {
+  if (bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, name) < 0) {
     LOG_ERROR("failed to get kernfs node name: %s\n", c_id_buf->buf);
     return FAILED_READ_CGROUP_NAME;
   }
@@ -225,13 +193,12 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   if (bpf_core_field_exists(kn->__parent)) {
     struct kernfs_node *parent_kn = BPF_CORE_READ(kn, __parent);
 
-    if (parent_kn != NULL)
-    {
+    if (parent_kn != NULL) {
       parent_name = BPF_CORE_READ(kn, __parent, name);
-      if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF,
-                                    parent_name) < 0)
-      {
-        LOG_ERROR("failed to get parent kernfs node name: %s\n", parent_buf.buf);
+      if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF, parent_name) <
+          0) {
+        LOG_ERROR("failed to get parent kernfs node name: %s\n",
+                  parent_buf.buf);
         return FAILED_READ_PARENT_CGROUP_NAME;
       }
     }
@@ -239,13 +206,12 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
     struct kernfs_node___compat *kn_compat = (void *)kn;
     struct kernfs_node___compat *parent_kn = BPF_CORE_READ(kn_compat, parent);
 
-    if (parent_kn != NULL)
-    {
+    if (parent_kn != NULL) {
       parent_name = BPF_CORE_READ(kn_compat, parent, name);
-      if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF,
-                                    parent_name) < 0)
-      {
-        LOG_ERROR("failed to get parent kernfs node name: %s\n", parent_buf.buf);
+      if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF, parent_name) <
+          0) {
+        LOG_ERROR("failed to get parent kernfs node name: %s\n",
+                  parent_buf.buf);
         return FAILED_READ_PARENT_CGROUP_NAME;
       }
     }
@@ -253,16 +219,17 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
 
   // For Docker containers, there are two cgroup path formats:
   //
-  // 1. `0::/system.slice/docker-d4ea646fc22c701dbb146e52db4e9125dcca2eebb2f5552f90fedbb28a0f0716.scope`
+  // 1.
+  // `0::/system.slice/docker-d4ea646fc22c701dbb146e52db4e9125dcca2eebb2f5552f90fedbb28a0f0716.scope`
   //    This is typical for systemd cgroup driver. In this case, the last
   //    node contains the `docker-` prefix followed by the container ID.
-  // 2. `0::/docker/2cf2e0be458a80acb354c953f7bb03de5d2d277dfcb8ebaa6575f95668a0c15f`
+  // 2.
+  // `0::/docker/2cf2e0be458a80acb354c953f7bb03de5d2d277dfcb8ebaa6575f95668a0c15f`
   //    This is typical for cgroupfs driver. In this case, the parent node is
   //    `docker` and the child node contains the container ID.
 
   // Case 1.
-  if (STRNCMP(c_id_buf->buf, 7, "docker-") == 0)
-  {
+  if (STRNCMP(c_id_buf->buf, 7, "docker-") == 0) {
     c_id_buf->offset = 7;
     return DOCKER_CONTAINER_ENGINE;
   }
@@ -271,8 +238,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   //
   // The check for NULL character is needed to make sure it is the full kernfs
   // node name.
-  if (STRNCMP(parent_buf.buf, 6, "docker") == 0 && parent_buf.buf[6] == '\0')
-  {
+  if (STRNCMP(parent_buf.buf, 6, "docker") == 0 && parent_buf.buf[6] == '\0') {
     // The last node is unprefixed, it contains just container ID.
     c_id_buf->offset = 0;
     return DOCKER_CONTAINER_ENGINE;
@@ -282,17 +248,16 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   //
   // the check for NULL character is needed to avoid collisions with
   // `containerd-` prefixed cgroup name
-  if (STRNCMP(c_id_buf->buf, 9, "container") == 0 && c_id_buf->buf[9] == '\0')
-  {
+  if (STRNCMP(c_id_buf->buf, 9, "container") == 0 && c_id_buf->buf[9] == '\0') {
     // Read `parent_name` to the main buffer `buf`.
-    if (parent_name == NULL || bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, parent_name) < 0)
-    {
+    if (parent_name == NULL ||
+        bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, parent_name) <
+            0) {
       LOG_ERROR("failed to get parent kernfs node name: %s\n", c_id_buf->buf);
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
-    if (STRNCMP(c_id_buf->buf, 7, "libpod-") == 0)
-    {
+    if (STRNCMP(c_id_buf->buf, 7, "libpod-") == 0) {
       c_id_buf->offset = 7;
       return PODMAN_CONTAINER_ENGINE;
     }
@@ -303,7 +268,8 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
   }
 
   // No container or unknown container engine
-  LOG_DEBUG("no container or unknown container engine. id: %s\n", c_id_buf->buf);
+  LOG_DEBUG("no container or unknown container engine. id: %s\n",
+            c_id_buf->buf);
   return UNKNOWN_CONTAINER_ENGINE;
 }
 
@@ -311,8 +277,7 @@ static __always_inline int get_container_info(struct task_struct *cur_tsk,
 // from the parent and emits a fork event.
 SEC("raw_tracepoint/sched_process_fork")
 int BPF_PROG(sched_process_fork, struct task_struct *parent,
-             struct task_struct *child)
-{
+             struct task_struct *child) {
   pid_t parent_tgid = BPF_CORE_READ(parent, tgid);
   pid_t child_tgid = BPF_CORE_READ(child, tgid);
 
@@ -320,8 +285,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
 
   // if parent process group matches the child one, we're forking a thread
   // and we ignore the event.
-  if (parent_tgid == child_tgid)
-  {
+  if (parent_tgid == child_tgid) {
     return 0;
   }
   // Propagate whitelist to child
@@ -340,29 +304,31 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   event->fork.namespaces.uts = BPF_CORE_READ(child, nsproxy, uts_ns, ns.inum);
   event->fork.namespaces.ipc = BPF_CORE_READ(child, nsproxy, ipc_ns, ns.inum);
   event->fork.namespaces.mnt = BPF_CORE_READ(child, nsproxy, mnt_ns, ns.inum);
-  event->fork.namespaces.pid = BPF_CORE_READ(child, nsproxy, pid_ns_for_children, ns.inum);
+  event->fork.namespaces.pid =
+      BPF_CORE_READ(child, nsproxy, pid_ns_for_children, ns.inum);
   event->fork.namespaces.net = BPF_CORE_READ(child, nsproxy, net_ns, ns.inum);
   event->fork.namespaces.time = BPF_CORE_READ(child, nsproxy, time_ns, ns.inum);
-  event->fork.namespaces.cgroup = BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
+  event->fork.namespaces.cgroup =
+      BPF_CORE_READ(child, nsproxy, cgroup_ns, ns.inum);
 
   int container_engine = get_container_info(child, &c_id_buf);
-  if (container_engine < 0)
-  {
+  if (container_engine < 0) {
     // TODO: print error ??
     event->fork.option_index.discriminant = OPTION_NONE;
     event->fork.option_index.container_id.container_engine = container_engine;
     event->fork.option_index.container_id.cgroup_id.start = 0;
     event->fork.option_index.container_id.cgroup_id.len = 0;
-  }
-  else
-  {
+  } else {
     event->fork.option_index.discriminant = OPTION_SOME;
     event->fork.option_index.container_id.container_engine = container_engine;
-    buffer_index_init(&event->buffer, &event->fork.option_index.container_id.cgroup_id);
-    buffer_append_str(&event->buffer, &event->fork.option_index.container_id.cgroup_id,
+    buffer_index_init(&event->buffer,
+                      &event->fork.option_index.container_id.cgroup_id);
+    buffer_append_str(&event->buffer,
+                      &event->fork.option_index.container_id.cgroup_id,
                       c_id_buf.buf, CONTAINER_ID_MAX_BUF, c_id_buf.offset);
 
-    LOG_DEBUG("fork - detected container with id: %s", c_id_buf.buf + c_id_buf.offset);
+    LOG_DEBUG("fork - detected container with id: %s",
+              c_id_buf.buf + c_id_buf.offset);
   }
 
   output_process_event(ctx, event);
@@ -371,8 +337,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
 
 SEC("raw_tracepoint/sched_process_exec")
 int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
-             struct linux_binprm *bprm)
-{
+             struct linux_binprm *bprm) {
   pid_t tgid = bpf_get_current_pid_tgid() >> 32;
 
   struct container_id_buffer c_id_buf;
@@ -388,27 +353,28 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   event->exec.namespaces.uts = BPF_CORE_READ(p, nsproxy, uts_ns, ns.inum);
   event->exec.namespaces.ipc = BPF_CORE_READ(p, nsproxy, ipc_ns, ns.inum);
   event->exec.namespaces.mnt = BPF_CORE_READ(p, nsproxy, mnt_ns, ns.inum);
-  event->exec.namespaces.pid = BPF_CORE_READ(p, nsproxy, pid_ns_for_children, ns.inum);
+  event->exec.namespaces.pid =
+      BPF_CORE_READ(p, nsproxy, pid_ns_for_children, ns.inum);
   event->exec.namespaces.net = BPF_CORE_READ(p, nsproxy, net_ns, ns.inum);
   event->exec.namespaces.time = BPF_CORE_READ(p, nsproxy, time_ns, ns.inum);
   event->exec.namespaces.cgroup = BPF_CORE_READ(p, nsproxy, cgroup_ns, ns.inum);
 
   int container_engine = get_container_info(p, &c_id_buf);
-  if (container_engine < 0)
-  {
+  if (container_engine < 0) {
     event->exec.option_index.discriminant = OPTION_NONE;
     event->exec.option_index.container_id.cgroup_id.start = 0;
     event->exec.option_index.container_id.cgroup_id.len = 0;
-  }
-  else
-  {
+  } else {
     event->exec.option_index.discriminant = OPTION_SOME;
     event->exec.option_index.container_id.container_engine = container_engine;
-    buffer_index_init(&event->buffer, &event->exec.option_index.container_id.cgroup_id);
-    buffer_append_str(&event->buffer, &event->exec.option_index.container_id.cgroup_id,
+    buffer_index_init(&event->buffer,
+                      &event->exec.option_index.container_id.cgroup_id);
+    buffer_append_str(&event->buffer,
+                      &event->exec.option_index.container_id.cgroup_id,
                       c_id_buf.buf, CONTAINER_ID_MAX_BUF, c_id_buf.offset);
 
-    LOG_DEBUG("exec - detected container with id: %s", c_id_buf.buf + c_id_buf.offset);
+    LOG_DEBUG("exec - detected container with id: %s",
+              c_id_buf.buf + c_id_buf.offset);
   }
 
   // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
@@ -416,8 +382,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   // would make the search fail.
   u32 len_b = event->buffer.len;
 
-  if (len_b > CONTAINER_ID_MAX_BUF)
-  {
+  if (len_b > CONTAINER_ID_MAX_BUF) {
     LOG_ERROR("unexpected: container id buffer is too long");
     return 0;
   }
@@ -433,14 +398,11 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   const char *bprm_filename = BPF_CORE_READ(bprm, filename);
   char first_character = 0;
   bpf_core_read(&first_character, 1, bprm_filename);
-  if (first_character == '/')
-  {
+  if (first_character == '/') {
     buffer_index_init(&event->buffer, &event->exec.filename);
     buffer_append_str(&event->buffer, &event->exec.filename, bprm_filename,
                       BUFFER_MAX, 0);
-  }
-  else
-  {
+  } else {
     struct path path = BPF_CORE_READ(bprm, file, f_path);
     get_path_str(&path, &event->buffer, &event->exec.filename);
   }
@@ -465,8 +427,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 }
 
 // Context for loop_collect_orphan
-struct ctx_collect_orphan
-{
+struct ctx_collect_orphan {
   // Next process to check
   struct list_head *next;
   // End of list
@@ -477,13 +438,11 @@ struct ctx_collect_orphan
 
 // Used to iterate over the children of a dead process and collect them
 // into a `struct pending_dead_process`. Used in the collect_orphans loop.
-static __always_inline long loop_collect_orphan(u32 i, void *callback_ctx)
-{
+static __always_inline long loop_collect_orphan(u32 i, void *callback_ctx) {
   struct ctx_collect_orphan *c = callback_ctx;
   // Once we find the same element we started at, we know we've
   // iterated all children and we can exit the loop.
-  if (c->next == c->last)
-  {
+  if (c->next == c->last) {
     return LOOP_STOP;
   }
   struct task_struct *task = container_of(c->next, struct task_struct, sibling);
@@ -497,8 +456,7 @@ static __always_inline long loop_collect_orphan(u32 i, void *callback_ctx)
 // When a process exits, we have to add all its children to orphans_map. This
 // will be checked as soon as possibile (the scheduler iteration which happens
 // immediately after an exit syscall) for changes to a process parent.
-static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p)
-{
+static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   LOG_DEBUG("%d is DEAD ", tgid);
 
   // Collect orphans by iterating the dead process children
@@ -511,35 +469,30 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p)
 
   LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_collect_orphan, &c);
   // Log a warning if we couln't process all children
-  if (c.next != c.last)
-  {
+  if (c.next != c.last) {
     LOG_ERROR("Couldn't iterate all children. Too many of them");
   }
   u64 r = bpf_map_push_elem(&orphans_map, &c.pending, 0);
-  if (r)
-  {
+  if (r) {
     LOG_ERROR("Pushing to orphans_map failed: %d", r);
   }
 }
 
 // This is attached to tracepoint:sched:sched_process_exit
 SEC("raw_tracepoint/sched_process_exit")
-int BPF_PROG(sched_process_exit, struct task_struct *p)
-{
+int BPF_PROG(sched_process_exit, struct task_struct *p) {
   pid_t tgid = BPF_CORE_READ(p, group_leader, pid);
 
   // We want to ignore threads and focus on whole processes, so we have
   // to wait for the whole process group to exit. Unfortunately, checking
   // if the current task's pid matches its tgid is not enough because
   // the main thread could exit before the child one.
-  if (BPF_CORE_READ(p, signal, live.counter) > 0)
-  {
+  if (BPF_CORE_READ(p, signal, live.counter) > 0) {
     return 0;
   }
 
   // cleanup resources from map_interest
-  if (!tracker_remove(&GLOBAL_INTEREST_MAP, p))
-  {
+  if (!tracker_remove(&GLOBAL_INTEREST_MAP, p)) {
     LOG_DEBUG("%d not found in map_interest during exit", tgid);
     // Multiple threads may exit at the same time, causing the check above
     // to pass multiple times. Since we want to generate only one event,
@@ -562,8 +515,7 @@ int BPF_PROG(sched_process_exit, struct task_struct *p)
 }
 
 // Context for loop_orphan_adopted
-struct ctx_orphan_adopted
-{
+struct ctx_orphan_adopted {
   // eBPF program context used for emitting events
   void *ctx;
   // list of pending orphans we should check
@@ -572,8 +524,7 @@ struct ctx_orphan_adopted
 
 // Used to iterate over all the orphans left by a dead process and
 // emit an event with their new parent. Used in the sched_switch loop.
-static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx)
-{
+static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx) {
   struct ctx_orphan_adopted *c = callback_ctx;
   if (i >= MAX_ORPHANS) // satisfy verifier (never true)
     return LOOP_STOP;
@@ -593,25 +544,19 @@ static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx)
 /// On task switch, check if there are pending orphans and signal
 /// their parent changed.
 SEC("raw_tracepoint/sched_switch")
-int BPF_PROG(sched_switch)
-{
+int BPF_PROG(sched_switch) {
   struct ctx_orphan_adopted c;
   pid_t first = 0;
 
 #pragma unroll 5
-  for (int i = 0; i < 5; i++)
-  {
-    if (bpf_map_pop_elem(&orphans_map, &c.pending))
-    {
+  for (int i = 0; i < 5; i++) {
+    if (bpf_map_pop_elem(&orphans_map, &c.pending)) {
       break;
     }
     // Make sure the loop doesn't process the same dead parent multiple times
-    if (first == 0)
-    {
+    if (first == 0) {
       first = c.pending.dead_parent;
-    }
-    else if (first == c.pending.dead_parent)
-    {
+    } else if (first == c.pending.dead_parent) {
       // push the item back
       bpf_map_push_elem(&orphans_map, &c.pending, 0);
       break;
@@ -621,15 +566,12 @@ int BPF_PROG(sched_switch)
     // of the child is set.
     struct task_struct *first_orphan = c.pending.orphans[0];
     pid_t first_new_parent = BPF_CORE_READ(first_orphan, parent, pid);
-    if (c.pending.dead_parent == first_new_parent)
-    {
+    if (c.pending.dead_parent == first_new_parent) {
       LOG_DEBUG("No new parent set yet for children of dead %d",
                 c.pending.dead_parent);
       // push the item back
       bpf_map_push_elem(&orphans_map, &c.pending, 0);
-    }
-    else
-    {
+    } else {
       c.ctx = ctx;
       LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_orphan_adopted, &c);
     }
@@ -637,65 +579,7 @@ int BPF_PROG(sched_switch)
   return 0;
 }
 
-SEC("raw_tracepoint/cgroup_mkdir")
-int BPF_PROG(cgroup_mkdir, struct cgroup *cgrp, const char *path)
-{
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return 0;
-  struct process_event *event = init_process_event(EVENT_CGROUP_MKDIR, tgid);
-  if (!event)
-    return 0;
-  event->buffer.len = 0;
-  event->cgroup_mkdir.id = BPF_CORE_READ(cgrp, kn, id);
-  buffer_index_init(&event->buffer, &event->cgroup_mkdir.path);
-  buffer_append_str(&event->buffer, &event->cgroup_mkdir.path, path,
-                    BUFFER_MAX, 0);
-  output_process_event(ctx, event);
-  return 0;
-}
-
-SEC("raw_tracepoint/cgroup_rmdir")
-int BPF_PROG(cgroup_rmdir, struct cgroup *cgrp, const char *path)
-{
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return 0;
-  struct process_event *event = init_process_event(EVENT_CGROUP_RMDIR, tgid);
-  if (!event)
-    return 0;
-  event->cgroup_rmdir.id = BPF_CORE_READ(cgrp, kn, id);
-  buffer_index_init(&event->buffer, &event->cgroup_rmdir.path);
-  buffer_append_str(&event->buffer, &event->cgroup_rmdir.path, path,
-                    BUFFER_MAX, 0);
-  output_process_event(ctx, event);
-  return 0;
-}
-
-SEC("raw_tracepoint/cgroup_attach_task")
-int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
-             struct task_struct *task)
-{
-  tracker_check_cgroup_rules(&GLOBAL_INTEREST_MAP, &m_cgroup_rules, task, path);
-
-  // If the event is of interest, emit it as usual
-  pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
-  if (tgid < 0)
-    return 0;
-  struct process_event *event = init_process_event(EVENT_CGROUP_ATTACH, tgid);
-  if (!event)
-    return 0;
-  event->cgroup_attach.id = BPF_CORE_READ(cgrp, kn, id);
-  event->cgroup_attach.pid = BPF_CORE_READ(task, tgid);
-  buffer_index_init(&event->buffer, &event->cgroup_attach.path);
-  buffer_append_str(&event->buffer, &event->cgroup_attach.path, path,
-                    BUFFER_MAX, 0);
-  output_process_event(ctx, event);
-  return 0;
-}
-
-static __always_inline void on_creds_change(void *ctx, struct cred *new)
-{
+static __always_inline void on_creds_change(void *ctx, struct cred *new) {
   pid_t tgid = tracker_interesting_tgid(&GLOBAL_INTEREST_MAP);
   if (tgid < 0)
     return;
@@ -711,22 +595,19 @@ static __always_inline void on_creds_change(void *ctx, struct cred *new)
 PULSAR_LSM_HOOK(task_fix_setuid, struct cred *, new, struct cred *, old, int,
                 flags);
 static __always_inline void on_task_fix_setuid(void *ctx, struct cred *new,
-                                               struct cred *old, int flags)
-{
+                                               struct cred *old, int flags) {
   on_creds_change(ctx, new);
 }
 
 PULSAR_LSM_HOOK(task_fix_setgid, struct cred *, new, struct cred *, old, int,
                 flags);
 static __always_inline void on_task_fix_setgid(void *ctx, struct cred *new,
-                                               struct cred *old, int flags)
-{
+                                               struct cred *old, int flags) {
   on_creds_change(ctx, new);
 }
 
 SEC("kprobe/commit_creds")
-int BPF_KPROBE(commit_creds, struct cred *new)
-{
+int BPF_KPROBE(commit_creds, struct cred *new) {
   on_creds_change(ctx, new);
   return 0;
 }

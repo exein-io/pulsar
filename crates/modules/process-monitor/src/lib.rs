@@ -24,10 +24,7 @@ pub async fn program(
         .raw_tracepoint("sched_process_exec")
         .raw_tracepoint("sched_process_exit")
         .raw_tracepoint("sched_process_fork")
-        .raw_tracepoint("sched_switch")
-        .raw_tracepoint("cgroup_mkdir")
-        .raw_tracepoint("cgroup_rmdir")
-        .raw_tracepoint("cgroup_attach_task");
+        .raw_tracepoint("sched_switch");
     if attach_to_lsm {
         builder = builder.lsm("task_fix_setuid").lsm("task_fix_setgid");
     } else if has_cred_specific_functions {
@@ -101,19 +98,6 @@ pub enum ProcessEvent {
     },
     ChangeParent {
         ppid: Pid,
-    },
-    CgroupMkdir {
-        path: BufferIndex<str>,
-        id: u64,
-    },
-    CgroupRmdir {
-        path: BufferIndex<str>,
-        id: u64,
-    },
-    CgroupAttach {
-        pid: Pid,
-        path: BufferIndex<str>,
-        id: u64,
     },
     CredentialsChange {
         uid: Uid,
@@ -315,19 +299,6 @@ pub mod pulsar {
                 ProcessEvent::ChangeParent { ppid } => Payload::ChangeParent {
                     ppid: ppid.as_raw(),
                 },
-                ProcessEvent::CgroupMkdir { path, id } => Payload::CgroupCreated {
-                    cgroup_path: path.string(&buffer)?,
-                    cgroup_id: id,
-                },
-                ProcessEvent::CgroupRmdir { path, id } => Payload::CgroupDeleted {
-                    cgroup_path: path.string(&buffer)?,
-                    cgroup_id: id,
-                },
-                ProcessEvent::CgroupAttach { pid, path, id } => Payload::CgroupAttach {
-                    cgroup_path: path.string(&buffer)?,
-                    cgroup_id: id,
-                    attached_pid: pid.as_raw(),
-                },
                 ProcessEvent::CredentialsChange { uid, gid } => Payload::CredentialsChange {
                     uid: uid.as_raw(),
                     gid: gid.as_raw(),
@@ -340,8 +311,7 @@ pub mod pulsar {
 #[cfg(feature = "test-suite")]
 pub mod test_suite {
     use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
-    use bpf_common::test_utils::cgroup::{fork_in_temp_cgroup, temp_cgroup};
-    use bpf_common::test_utils::{find_executable, random_name_with_prefix};
+    use bpf_common::test_utils::find_executable;
     use bpf_common::{event_check, program::BpfEvent, test_runner::TestRunner};
     use nix::libc::{PR_SET_CHILD_SUBREAPER, prctl};
     use nix::unistd::{ForkResult, fork, getgid, getuid, setgid, setuid};
@@ -362,9 +332,6 @@ pub mod test_suite {
                 exit_event(),
                 exit_event_no_thread(),
                 parent_change(),
-                cgroup_mkdir(),
-                cgroup_rmdir(),
-                cgroup_attach(),
                 credentials_change_uid(),
                 credentials_change_gid(),
             ],
@@ -559,62 +526,6 @@ pub mod test_suite {
                     pid_c,
                     event_check!(ProcessEvent::ChangeParent, (ppid, pid_a, "parent pid")),
                 )
-                .report()
-        })
-    }
-
-    fn cgroup_mkdir() -> TestCase {
-        TestCase::new("cgroup_mkdir", async {
-            let name = random_name_with_prefix("pulsar_cgroup_mkdir");
-            let path = format!("/{name}");
-            let mut id = 0;
-
-            test_runner()
-                .run(|| id = temp_cgroup(name))
-                .await
-                .expect_event(event_check!(
-                    ProcessEvent::CgroupMkdir,
-                    (id, id, "cgroup id"),
-                    (path, path, "cgroup path")
-                ))
-                .report()
-        })
-    }
-
-    fn cgroup_rmdir() -> TestCase {
-        TestCase::new("cgroup_rmdir", async {
-            let name = random_name_with_prefix("pulsar_cgroup_rmdir");
-            let cg_path = format!("/{name}");
-            let mut id = 0;
-
-            test_runner()
-                .run(|| id = temp_cgroup(name))
-                .await
-                .expect_event(event_check!(
-                    ProcessEvent::CgroupRmdir,
-                    (id, id, "cgroup id"),
-                    (path, cg_path, "cgroup path")
-                ))
-                .report()
-        })
-    }
-
-    fn cgroup_attach() -> TestCase {
-        TestCase::new("cgroup_attach", async {
-            let name = random_name_with_prefix("pulsar_cgroup_attach");
-            let cg_path = format!("/{name}");
-            let mut id = 0;
-            let mut child_pid = Pid::from_raw(0);
-
-            test_runner()
-                .run(|| (child_pid, id) = fork_in_temp_cgroup(&name))
-                .await
-                .expect_event(event_check!(
-                    ProcessEvent::CgroupAttach,
-                    (id, id, "cgroup id"),
-                    (pid, child_pid, "attached process"),
-                    (path, cg_path, "cgroup path")
-                ))
                 .report()
         })
     }

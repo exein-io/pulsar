@@ -226,7 +226,7 @@ checksum = "d18bc4e506fbb85ab7392ed993a7db4d1a452c71b75a246af4a80ab8c9d2dd50"
 dependencies = [
  "assert_matches",
  "aya-obj 0.2.1",
- "bitflags 2.6.0",
+ "bitflags",
  "bytes",
  "libc",
  "log",
@@ -317,12 +317,6 @@ checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 
 [[package]]
 name = "bitflags"
-version = "1.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
-
-[[package]]
-name = "bitflags"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
@@ -354,7 +348,6 @@ dependencies = [
  "bpf-features",
  "bpf-features-macros",
  "bytes",
- "cgroups-rs",
  "diesel",
  "glob",
  "hex",
@@ -366,7 +359,7 @@ dependencies = [
  "libc",
  "libsqlite3-sys",
  "log",
- "nix 0.27.1",
+ "nix",
  "nut",
  "procfs",
  "rand",
@@ -394,7 +387,7 @@ dependencies = [
  "bpf-features",
  "libc",
  "log",
- "nix 0.27.1",
+ "nix",
  "thiserror 2.0.9",
 ]
 
@@ -408,7 +401,7 @@ dependencies = [
  "aya-obj 0.1.0",
  "libc",
  "log",
- "nix 0.27.1",
+ "nix",
  "proc-macro2",
  "quote",
  "thiserror 2.0.9",
@@ -431,10 +424,9 @@ dependencies = [
  "anyhow",
  "bpf-builder",
  "bpf-common",
- "cgroups-rs",
  "lazy_static",
  "log",
- "nix 0.27.1",
+ "nix",
  "pulsar-core",
  "regex",
  "thiserror 2.0.9",
@@ -480,19 +472,6 @@ name = "cfg_aliases"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
-
-[[package]]
-name = "cgroups-rs"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db7c2f5545da4c12c5701455d9471da5f07db52e49b9cccb4f5512226dd0836"
-dependencies = [
- "libc",
- "log",
- "nix 0.25.1",
- "regex",
- "thiserror 1.0.69",
-]
 
 [[package]]
 name = "chrono"
@@ -668,7 +647,7 @@ version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "crossterm_winapi",
  "parking_lot",
  "rustix",
@@ -992,7 +971,7 @@ dependencies = [
  "bpf-builder",
  "bpf-common",
  "log",
- "nix 0.27.1",
+ "nix",
  "pulsar-core",
  "tokio",
 ]
@@ -1842,7 +1821,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "libc",
  "redox_syscall",
 ]
@@ -2030,7 +2009,7 @@ dependencies = [
  "dns-parser",
  "hickory-resolver",
  "log",
- "nix 0.27.1",
+ "nix",
  "pulsar-core",
  "tokio",
 ]
@@ -2043,23 +2022,11 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nix"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
-dependencies = [
- "autocfg",
- "bitflags 1.3.2",
- "cfg-if",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "cfg-if",
  "libc",
  "memoffset",
@@ -2113,7 +2080,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b30ee78b595d9b4e6d315c76ea49c1811b342aced9564afc9a3ac897e762eb4"
 dependencies = [
  "ansi_term",
- "bitflags 2.6.0",
+ "bitflags",
  "clap",
  "either",
  "fnv",
@@ -2161,7 +2128,7 @@ version = "0.10.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6174bc48f102d208783c2c84bf931bb75927a617866870de8a4ea85597f871f5"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "cfg-if",
  "foreign-types",
  "libc",
@@ -2352,7 +2319,7 @@ dependencies = [
  "bpf-common",
  "bpf-filtering",
  "log",
- "nix 0.27.1",
+ "nix",
  "pulsar-core",
  "thiserror 2.0.9",
  "tokio",
@@ -2365,7 +2332,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "731e0d9356b0c25f16f33b5be79b1c57b562f141ebfcdb0ad8ac2c13a24293b4"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "hex",
  "lazy_static",
  "procfs-core",
@@ -2378,7 +2345,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d3554923a69f4ce04c4a754260c338f505ce22642d3830e049a399fc2059a29"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "hex",
 ]
 
@@ -2406,7 +2373,7 @@ dependencies = [
  "futures-util",
  "log",
  "network-monitor",
- "nix 0.27.1",
+ "nix",
  "process-monitor",
  "pulsar-core",
  "rules-engine",
@@ -2426,7 +2393,7 @@ dependencies = [
  "bpf-common",
  "chrono",
  "log",
- "nix 0.27.1",
+ "nix",
  "serde",
  "strum 0.25.0",
  "thiserror 2.0.9",
@@ -2544,7 +2511,7 @@ version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
 ]
 
 [[package]]
@@ -2700,7 +2667,7 @@ version = "0.38.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f93dc38ecbab2eb790ff964bb77fa94faf256fd3e73285fd7ba0903b76bedb85"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -2825,7 +2792,7 @@ version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897b2245f0b511c87893af39b033e5ca9cce68824c4d7e7630b5a1d339658d02"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "core-foundation",
  "core-foundation-sys",
  "libc",
@@ -3139,7 +3106,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65a290d26aaf4d91fc55cf2afde5079c14e5e4ebffebe8f847234b0dc0df8742"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "libc",
  "smart-default",
  "thiserror 1.0.69",
@@ -3201,7 +3168,7 @@ dependencies = [
  "libtest-mimic",
  "log",
  "network-monitor",
- "nix 0.27.1",
+ "nix",
  "process-monitor",
  "tokio",
 ]

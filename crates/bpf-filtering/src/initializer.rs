@@ -8,8 +8,6 @@ use pulsar_core::{
 };
 use tokio::sync::mpsc;
 
-use crate::maps::{Cgroup, Map};
-
 use super::{
     config::{Config, Rule},
     maps::InterestMap,
@@ -50,24 +48,11 @@ pub async fn setup_events_filter(
     target_map.clear()?;
     target_map.install(&config.rules)?;
 
-    // setup cgroup rule map
-    let mut cgroups_map = Map::<Cgroup, u8>::load(bpf, &config.cgroup_rule_map_name)?;
-    cgroups_map.clear()?;
-    for cgroup in &config.cgroup_targets {
-        let cgroup: Cgroup = cgroup.parse().context("Invalid target cgroup")?;
-        cgroups_map
-            .map
-            .insert(cgroup, 0, 0)
-            .context("Error inserting in cgroup rule map")?;
-    }
-
     // load process list from procfs
     let mut process_tree = ProcessTree::load_from_procfs()?;
 
     let mut initializer = Initializer::new(bpf, config)?;
-    if let Err(err) = initializer.track_target_cgroups().await {
-        log::warn!("Error loading cgroup information: {err:?}");
-    }
+
     for process in &process_tree {
         initializer.update(process)?;
         process_tracker.update(TrackerUpdate::Fork {
@@ -211,32 +196,6 @@ impl Initializer {
         log::trace!("Set policy for {}: {}", pid, policy.as_raw());
         self.cache.insert(pid, policy);
         self.interest_map.set(pid, policy)
-    }
-
-    async fn track_target_cgroups(&mut self) -> Result<()> {
-        let cgroups: Vec<String> = self
-            .config
-            .cgroup_targets
-            .iter()
-            // the cgroup.procfs file contains the list of pids belonging to this cgroup
-            .map(|cgroup| format!("/sys/fs/cgroup{cgroup}/cgroup.procs"))
-            .collect();
-        for cgroup in cgroups {
-            let processes = tokio::fs::read_to_string(&cgroup)
-                .await
-                .with_context(|| format!("Error reading processes in cgroup {cgroup:?}"))?;
-            for process in processes.lines() {
-                let pid: i32 = process.parse().context("Invalid content")?;
-                self.set_policy(
-                    Pid::from_raw(pid),
-                    PolicyDecision {
-                        interesting: true,
-                        children_interesting: true,
-                    },
-                )?;
-            }
-        }
-        Ok(())
     }
 }
 

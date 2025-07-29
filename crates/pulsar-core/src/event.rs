@@ -227,19 +227,6 @@ pub enum Payload {
         uid: u32,
         gid: u32,
     },
-    CgroupCreated {
-        cgroup_path: String,
-        cgroup_id: u64,
-    },
-    CgroupDeleted {
-        cgroup_path: String,
-        cgroup_id: u64,
-    },
-    CgroupAttach {
-        cgroup_path: String,
-        cgroup_id: u64,
-        attached_pid: i32,
-    },
     Bind {
         address: Host,
         is_tcp: bool,
@@ -339,28 +326,6 @@ impl fmt::Display for Payload {
             Payload::CredentialsChange { uid, gid } => {
                 write!(f, "Credentials changed {{ uid: {uid} gid: {gid} }}")
             }
-            Payload::CgroupCreated {
-                cgroup_path,
-                cgroup_id,
-            } => write!(
-                f,
-                "Cgroup created {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"
-            ),
-            Payload::CgroupDeleted {
-                cgroup_path,
-                cgroup_id,
-            } => write!(
-                f,
-                "Cgroup deleted {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id} }}"
-            ),
-            Payload::CgroupAttach {
-                cgroup_path,
-                cgroup_id,
-                attached_pid,
-            } => write!(
-                f,
-                "Process attached to cgroup {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id}, attached_pid {attached_pid} }}"
-            ),
             Payload::Bind { address, is_tcp } => {
                 write!(f, "Bind {{ address: {address}, is_tcp: {is_tcp} }}")
             }

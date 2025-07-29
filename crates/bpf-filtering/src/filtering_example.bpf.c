@@ -1,8 +1,6 @@
-#include "common.bpf.h"
 #include "interest_tracking.bpf.h"
 
 MAP_RULES(m_rules);
-MAP_CGROUP_RULES(m_cgroup_rules);
 MAP_INTEREST(m_interest, PINNING_DISABLED);
 
 SEC("raw_tracepoint/sched_process_fork")
@@ -22,13 +20,6 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 SEC("raw_tracepoint/sched_process_exit")
 int BPF_PROG(sched_process_exit, struct task_struct *p) {
   tracker_remove(&m_interest, p);
-  return 0;
-}
-
-SEC("raw_tracepoint/cgroup_attach_task")
-int BPF_PROG(cgroup_attach_task, struct cgroup *cgrp, const char *path,
-             struct task_struct *task) {
-  tracker_check_cgroup_rules(&GLOBAL_INTEREST_MAP, &m_cgroup_rules, task, path);
   return 0;
 }
 

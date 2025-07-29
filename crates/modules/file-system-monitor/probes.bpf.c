@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 #include "vmlinux.h"
-
+#include "common.bpf.h"
 #include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
-#include "common.bpf.h"
 #include "get_path.bpf.h"
 #include "interest_tracking.bpf.h"
 char LICENSE[] SEC("license") = "GPL v2";
