@@ -1,11 +1,9 @@
 use crate::config::Rule;
-use crate::maps::{Cgroup, InterestMap, Map, PolicyDecision, RuleMap};
+use crate::maps::{InterestMap, PolicyDecision, RuleMap};
 use bpf_common::aya::programs::RawTracePoint;
 use bpf_common::aya::{self, Ebpf, EbpfLoader};
 use bpf_common::program::BpfContext;
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
-use bpf_common::test_utils::cgroup::fork_in_temp_cgroup;
-use bpf_common::test_utils::random_name_with_prefix;
 use bpf_common::{Pid, ProgramError, ebpf_program};
 use nix::unistd::execv;
 use nix::unistd::{ForkResult, fork};
@@ -24,7 +22,6 @@ pub fn tests() -> TestSuite {
             threads_are_ignored(),
             exit_cleans_up_resources(),
             uninteresting_processes_ignored(),
-            cgroups_tracked(),
         ],
     }
 }
@@ -184,10 +181,10 @@ fn exec_updates_interest() -> TestCase {
     })
 }
 
-const INTERESTING: PolicyDecision = PolicyDecision {
-    interesting: true,
-    children_interesting: true,
-};
+// const INTERESTING: PolicyDecision = PolicyDecision {
+//     interesting: true,
+//     children_interesting: true,
+// };
 const NOT_INTERESTING: PolicyDecision = PolicyDecision {
     interesting: false,
     children_interesting: false,
@@ -235,44 +232,6 @@ fn uninteresting_processes_ignored() -> TestCase {
                 .push("✗ event for uninteresting process not skipped".to_string());
             report.success = false;
         }
-        report
-    })
-}
-
-// Make sure that when a process is attached to a target cgroup, it gets full interest
-fn cgroups_tracked() -> TestCase {
-    TestCase::new("cgroups_tracked", async {
-        let mut report = TestReport {
-            success: true,
-            lines: vec![],
-        };
-        let mut bpf = load_ebpf();
-        attach_raw_tracepoint(&mut bpf, "cgroup_attach_task");
-
-        let mut interest_map = InterestMap::load(&mut bpf, INTEREST_MAP_NAME).unwrap();
-        interest_map.clear().unwrap();
-
-        let pid = std::process::id() as i32;
-        interest_map
-            .set(Pid::from_raw(pid), NOT_INTERESTING)
-            .unwrap();
-
-        let mut target_cgroup_map = Map::<Cgroup, u8>::load(&mut bpf, "m_cgroup_rules").unwrap();
-        let cgroup = random_name_with_prefix("/cgroups_tracked");
-        let cgroup_path: Cgroup = cgroup.parse().unwrap();
-        target_cgroup_map.map.insert(cgroup_path, 0, 0).unwrap();
-
-        // Spawn a process inside the targetted cgroup
-        let (child_pid, _id) = fork_in_temp_cgroup(&cgroup[1..]);
-
-        if interest_map.0.map.get(&child_pid.as_raw(), 0).unwrap() != INTERESTING.as_raw() {
-            report.lines.push(
-                "✗ process attached to target cgroup is still marked as not interesting"
-                    .to_string(),
-            );
-            report.success = false;
-        }
-
         report
     })
 }

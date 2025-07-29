@@ -1,7 +1,7 @@
 use bpf_common::Pid;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 
-use crate::maps::{DEFAULT_CGROUP_RULES, DEFAULT_INTEREST, DEFAULT_RULES};
+use crate::maps::{DEFAULT_INTEREST, DEFAULT_RULES};
 
 use super::maps::Image;
 
@@ -13,15 +13,10 @@ pub struct Config {
     pub pid_targets: Vec<PidRule>,
     /// List of image-based rules
     pub rules: Vec<Rule>,
-    /// List of cgroup paths to target.
-    /// Processes belonging to these cgroups are considered of interest,
-    /// despite what `pid_targets` and `rules` say.
-    pub cgroup_targets: Vec<String>,
     /// Map name of the interest map
     pub interest_map_name: String,
     /// Map name of the rules map
     pub rule_map_name: String,
-    pub cgroup_rule_map_name: String,
     /// Sets the default tracking status for Pid 1 and when finding missing entries.
     pub track_by_default: bool,
     /// Whitelist the current process
@@ -47,7 +42,6 @@ pub struct PidRule {
 }
 
 pub const MAX_IMAGE_LEN: usize = 100;
-pub const MAX_CGROUP_LEN: usize = 300;
 
 /// Extract Config from configuration file
 impl TryFrom<&ModuleConfig> for Config {
@@ -85,10 +79,8 @@ impl TryFrom<&ModuleConfig> for Config {
         Ok(Config {
             pid_targets,
             rules,
-            cgroup_targets: config.get_list("cgroup_targets")?,
             interest_map_name: DEFAULT_INTEREST.to_string(),
             rule_map_name: DEFAULT_RULES.to_string(),
-            cgroup_rule_map_name: DEFAULT_CGROUP_RULES.to_string(),
             track_by_default: config.optional("track_by_default")?.unwrap_or(true),
             ignore_self: config.optional("ignore_self")?.unwrap_or(true),
         })
