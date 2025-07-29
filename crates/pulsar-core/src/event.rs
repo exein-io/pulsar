@@ -240,10 +240,6 @@ pub enum Payload {
         cgroup_id: u64,
         attached_pid: i32,
     },
-    SyscallActivity {
-        #[validatron(skip)]
-        histogram: Vec<u64>,
-    },
     Bind {
         address: Host,
         is_tcp: bool,
@@ -365,7 +361,6 @@ impl fmt::Display for Payload {
                 f,
                 "Process attached to cgroup {{ cgroup_path: {cgroup_path}, cgroup_id: {cgroup_id}, attached_pid {attached_pid} }}"
             ),
-            Payload::SyscallActivity { .. } => write!(f, "Syscall Activity"),
             Payload::Bind { address, is_tcp } => {
                 write!(f, "Bind {{ address: {address}, is_tcp: {is_tcp} }}")
             }
