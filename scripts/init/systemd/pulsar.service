@@ -1,0 +1,21 @@
+[Unit]
+Description=Pulsar security agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pulsard
+RestartSec=2
+Restart=always
+TimeoutStopSec=20
+
+# The service runs as the root user to load eBPF probes
+User=root
+
+# Log to syslog
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+# Start the service in multi-user mode (runlevels 2, 3, 4, and 5)
+WantedBy=multi-user.target
