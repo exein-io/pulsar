@@ -105,8 +105,9 @@ impl<T: Debug> TestRunner<T> {
 
         static BPF_CONTEXT: OnceLock<BpfContext> = OnceLock::new();
 
-        let ctx = BPF_CONTEXT
-            .get_or_init(|| BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Debug).unwrap());
+        let ctx = BPF_CONTEXT.get_or_init(|| {
+            BpfContext::new(Pinning::Disabled, 512, None, BpfLogLevel::Debug).unwrap()
+        });
 
         Self {
             rx,

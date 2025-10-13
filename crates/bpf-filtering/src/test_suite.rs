@@ -320,6 +320,7 @@ fn load_ebpf() -> Ebpf {
     let ctx = BpfContext::new(
         bpf_common::program::Pinning::Disabled,
         bpf_common::program::PERF_PAGES_DEFAULT,
+        None,
         bpf_common::program::BpfLogLevel::Debug,
     )
     .unwrap();

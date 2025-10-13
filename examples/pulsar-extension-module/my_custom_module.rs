@@ -44,21 +44,21 @@ impl SimplePulsarModule for MyCustomModule {
         }
 
         // Identify events as threats:
-        if let Some(forbidden_dns) = &config.forbidden_dns {
-            if let Payload::DnsQuery { questions } = event.payload() {
-                // Update the state
-                state.dns_query_count += 1;
+        if let Some(forbidden_dns) = &config.forbidden_dns
+            && let Payload::DnsQuery { questions } = event.payload()
+        {
+            // Update the state
+            state.dns_query_count += 1;
 
-                if questions
-                    .iter()
-                    .any(|question| &question.name == forbidden_dns)
-                {
-                    let desc = "Forbidden DNS query".to_string();
-                    let mut extra = HashMap::new();
-                    extra.insert("anomaly_score".to_string(), "1.0".to_string());
+            if questions
+                .iter()
+                .any(|question| &question.name == forbidden_dns)
+            {
+                let desc = "Forbidden DNS query".to_string();
+                let mut extra = HashMap::new();
+                extra.insert("anomaly_score".to_string(), "1.0".to_string());
 
-                    ctx.send_threat_derived(event, desc, Some(extra.into()));
-                }
+                ctx.send_threat_derived(event, desc, Some(extra.into()));
             }
         }
 

@@ -396,11 +396,11 @@ impl ProcessTracker {
             );
             return Err(TrackerError::ProcessNotStartedYet);
         }
-        if let Some(exit_time) = process.exit_time {
-            if exit_time + EXIT_THRESHOLD < ts {
-                log::warn!("{} exited {} < {}", pid, exit_time, ts);
-                return Err(TrackerError::ProcessExited);
-            }
+        if let Some(exit_time) = process.exit_time
+            && exit_time + EXIT_THRESHOLD < ts
+        {
+            log::warn!("{} exited {} < {}", pid, exit_time, ts);
+            return Err(TrackerError::ProcessExited);
         }
         Ok(ProcessInfo {
             image: self.get_image(pid, ts),

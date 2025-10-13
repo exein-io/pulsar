@@ -180,10 +180,10 @@ where
         let compare_fn = (self.handle_op_fn)(op)?;
 
         Ok(Box::new(move |first, second| {
-            if let Some(first) = first.downcast_ref() {
-                if let Some(second) = second.downcast_ref() {
-                    return Some(compare_fn(first, second));
-                }
+            if let Some(first) = first.downcast_ref()
+                && let Some(second) = second.downcast_ref()
+            {
+                return Some(compare_fn(first, second));
             }
 
             None

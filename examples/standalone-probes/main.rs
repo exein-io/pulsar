@@ -68,7 +68,7 @@ where
     } else {
         BpfLogLevel::Error
     };
-    let ctx = BpfContext::new(Pinning::Disabled, 512, log_level).unwrap();
+    let ctx = BpfContext::new(Pinning::Disabled, 512, None, log_level).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");
     loop {
         tokio::select!(
