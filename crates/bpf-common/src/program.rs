@@ -8,7 +8,7 @@ use std::{
 };
 
 use aya::{
-    Btf, BtfError, Ebpf, EbpfLoader, Pod,
+    Btf, BtfError, Ebpf, EbpfLoader, Endianness, Pod,
     maps::{
         Array, HashMap, Map, MapData,
         perf::{AsyncPerfEventArray, PerfBufferError},
@@ -77,9 +77,15 @@ impl BpfContext {
     pub fn new(
         pinning: Pinning,
         mut perf_pages: usize,
+        btf_path: Option<PathBuf>,
         log_level: BpfLogLevel,
     ) -> Result<Self, ProgramError> {
-        let btf = Btf::from_sys_fs()?;
+        let btf = if let Some(btf_path) = btf_path {
+            Btf::parse_file(btf_path, Endianness::default())?
+        } else {
+            Btf::from_sys_fs()?
+        };
+
         if perf_pages == 0 || (perf_pages & (perf_pages - 1) != 0) {
             log::warn!("Invalid value ({perf_pages}) for perf_pages, which must be a power of 2.");
             log::warn!("The default value {PERF_PAGES_DEFAULT} will be used.");

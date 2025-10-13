@@ -300,13 +300,13 @@ fn find_overlay_dir<P: AsRef<Path>>(uid: Uid, user_home: P) -> Option<PathBuf> {
 fn find_subdirs<P: AsRef<Path>>(parent_path: P) -> Vec<PathBuf> {
     let mut subdirectories = Vec::new();
 
-    if parent_path.as_ref().is_dir() {
-        if let Ok(entries) = fs::read_dir(parent_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    subdirectories.push(path);
-                }
+    if parent_path.as_ref().is_dir()
+        && let Ok(entries) = fs::read_dir(parent_path)
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                subdirectories.push(path);
             }
         }
     }

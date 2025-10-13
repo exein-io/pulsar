@@ -353,10 +353,10 @@ impl LibpodDatabaseBackend {
                 .join("containers")
                 .join("containers.conf");
 
-            if user_container_conf.exists() {
-                if let Some(db_backend) = Self::from_config(user_container_conf)? {
-                    return Ok(db_backend);
-                }
+            if user_container_conf.exists()
+                && let Some(db_backend) = Self::from_config(user_container_conf)?
+            {
+                return Ok(db_backend);
             }
         }
 
@@ -364,10 +364,10 @@ impl LibpodDatabaseBackend {
 
         let etc_container_conf = Path::new(ETC_CONTAINER_CONF);
 
-        if etc_container_conf.exists() {
-            if let Some(db_backend) = Self::from_config(etc_container_conf)? {
-                return Ok(db_backend);
-            }
+        if etc_container_conf.exists()
+            && let Some(db_backend) = Self::from_config(etc_container_conf)?
+        {
+            return Ok(db_backend);
         }
 
         const USR_CONTAINER_CONF: &str = "/usr/share/containers/containers.conf";

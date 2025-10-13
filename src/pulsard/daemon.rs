@@ -43,6 +43,15 @@ impl PulsarDaemonStarter {
                 PERF_PAGES_DEFAULT
             }
         };
+        let btf_path = match general_config.optional("btf_path") {
+            Ok(path) => path,
+            Err(err) => {
+                log::warn!(
+                    "failed to parse `btf_path` field. fallback to default /proc provider. Err: {err}"
+                );
+                None
+            }
+        };
         let bpf_log_level = if cfg!(debug_assertions) {
             if log::max_level() >= log::Level::Debug {
                 BpfLogLevel::Debug
@@ -52,7 +61,7 @@ impl PulsarDaemonStarter {
         } else {
             BpfLogLevel::Disabled
         };
-        let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, bpf_log_level)?;
+        let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, btf_path, bpf_log_level)?;
 
         Ok(Self {
             bus,
