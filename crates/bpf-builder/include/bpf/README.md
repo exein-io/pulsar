@@ -1,4 +1,4 @@
-Vendored headers from libbpf `v1.2.2`
+Vendored headers from libbpf `v1.6.2`
 
 - `bpf_helper_defs.h`: linux bpf helpers
 - `bpf_helpers.h`: extra helper functions, like bpf_printk
