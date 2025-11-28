@@ -22,7 +22,7 @@
   severity: low
   description: Monitors for the execution of utilities related to Base32 encoding or decoding. Attackers may attempt to encode or decode data 
     using Base32 to evade detection by host- or network-based security controls.
-  condition: payload.filename IN ["/usr/bin/base32", "/sbin/base32", "/usr/bin/base32-encode", "/usr/bin/base32-decode", 
+  condition: payload.filename IN ["/usr/bin/base32", "/sbin/base32", "/bin/base32", "/usr/bin/base32-encode", "/usr/bin/base32-decode", 
     "/usr/bin/base32enc", "/usr/bin/base32dec", "/usr/bin/base32plain", "/usr/bin/base32hex"]
 
 - name: Base64 execution
@@ -31,6 +31,6 @@
   severity: low
   description: Monitors for the execution of utilities related to Base64 encoding or decoding. Attackers may attempt to encode or decode data 
     using Base64 to evade detection by host- or network-based security controls.
-  condition: payload.filename IN ["/usr/bin/base64", "/sbin/base64", "/usr/bin/base64-encode", "/usr/bin/base64-decode", 
+  condition: payload.filename IN ["/usr/bin/base64", "/sbin/base64", "/bin/base64", "/usr/bin/base64-encode", "/usr/bin/base64-decode", 
     "/usr/bin/base64enc", "/usr/bin/base64dec", "/usr/bin/base64plain", "/usr/bin/base64hex"]
 
