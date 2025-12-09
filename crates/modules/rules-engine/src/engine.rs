@@ -166,14 +166,10 @@ fn parse_rule(
                 category: user_rule.category,
                 description: user_rule.description,
                 severity: user_rule.severity,
+                condition: user_rule.condition,
             },
         },
     ))
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RuleEngineData {
-    pub rule_name: String,
 }
 
 struct RuleEngineInternal {
@@ -199,11 +195,12 @@ impl RuleFile {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metadata {
     pub category: Category,
     pub description: String,
     pub severity: Severity,
+    pub condition: String,
 }
 /// An enriched rule with description and other fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -289,6 +286,7 @@ mod tests {
                     category: Category::Generic,
                     description: "A rule to detect the use of netcat".to_string(),
                     severity: Severity::Medium,
+                    condition: r#"payload.filename == "/usr/bin/nc""#.to_string(),
                 },
             },
         );

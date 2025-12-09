@@ -9,7 +9,7 @@ mod dsl;
 mod engine;
 mod ruleset;
 
-pub use engine::RuleEngineData;
+pub use engine::{Category, Metadata, Severity};
 
 const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
 

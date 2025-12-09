@@ -1,64 +1,110 @@
-//! This module includes all the necessary to build module for Pulsar
+//! This module includes all the necessary to build modules for Pulsar
 //!
-//! A module should expose a function that returns a [`PulsarModule`].
-//! This struct consists of basic module informations:
-//! - the module name
-//! - additional details in [`ModuleDetails`] struct
+//! Modules implement either [`PulsarModule`] (full control) or [`SimplePulsarModule`] (simpler API).
+//! The trait-based API defines:
+//! - associated types for configuration and state (and optionally an extension and trigger output)
+//! - constants `MODULE_NAME` and `DEFAULT_ENABLED`
+//! - async lifecycle methods: `init_state`, `on_event`, `on_config_change`, optional `trigger`/`action`, and `graceful_stop`
 //!
-//! and a [function](module::ModuleStartFn) to initialize the task of the module.
+//! The [`ModuleContext`] is the entrypoint to the agent features. It lets a module:
+//! - send events via `ModuleContext::send` and `send_derived`
+//! - emit threats via `send_threat` and `send_threat_derived`
+//! - interact with the process tracker and BPF context
+//! - raise warnings and errors to the daemon
 //!
-//! This functions is the `main` function of the module and must return an implementation of [`PulsarModuleTask`].
-//! The concrete type must implement an handler fot [`ShutdownSignal`] if some parts of the task need a graceful
-//! shutdown or if the task have some asynchronous jobs running.
+//! Configuration updates and events are delivered by the runtime to the trait methods.
 //!
-//! The [`ModuleContext`] is the entrypoint to access all the functions available to the module. It provides instances of:
-//! - [`ModuleSender`] to send events
-//! - [`ModuleReceiver`] to receive events
-//! - [`ModuleSignal`] to send signals, ex. raise unrecoverable errors, add warnings
-//! - [`tokio::sync::watch::Receiver`] to get the configuration
-//!
-//! Check specific structs for more informations.
+//! Check specific structs and traits for more informations.
 //!
 //! # Example
+//!
+//! In this example, a module prints the process pid if the image equals "/usr/bin/cat" inside `on_event`.
+//!
+//! ```
+//! use pulsar_core::pdk::{Event, ModuleContext, ModuleError, SimplePulsarModule, NoConfig};
+//!
+//! pub struct PrintCatPid;
+//!
+//! impl SimplePulsarModule for PrintCatPid {
+//!     type Config = NoConfig;
+//!     type State = ();
+//!
+//!     const MODULE_NAME: &'static str = "print-cat-pid";
+//!     const DEFAULT_ENABLED: bool = true;
+//!
+//!     async fn init_state(
+//!         &self,
+//!         _config: &Self::Config,
+//!         _ctx: &ModuleContext,
+//!     ) -> Result<Self::State, ModuleError> {
+//!         Ok(())
+//!     }
+//!
+//!     async fn on_event(
+//!         event: &Event,
+//!         _config: &Self::Config,
+//!         _state: &mut Self::State,
+//!         _ctx: &ModuleContext,
+//!     ) -> Result<(), ModuleError> {
+//!         if event.header().image == "/usr/bin/cat" {
+//!             println!("cat executed with pid {}", event.header().pid);
+//!         }
+//!         Ok(())
+//!     }
+//! }
+//! ```
+//!
+//!
+//! ## Another example
 //!
 //! In this following lines an implementation of a modules emitting a fake event.
 //!
 //! ```
-//! use pulsar_core::pdk::{
-//!     ModuleContext, Payload, PulsarModule, PulsarModuleTask, Version, CleanExit,
-//!     ShutdownSignal, ModuleError, ModuleSignal,
-//! };
-//! use tokio::time::{sleep, Duration};
+//! use pulsar_core::pdk::{ModuleContext, ModuleError, Payload, PulsarModule, NoConfig};
+//! use tokio::time::{self, Duration};
 //!
-//! pub fn my_module() -> PulsarModule {
-//!     PulsarModule::new(
-//!         "my-module",
-//!         Version::parse(env!("CARGO_PKG_VERSION")).unwrap(),
-//!         true,
-//!         my_module_task,
-//!     )
-//! }
+//! pub struct MyModule;
 //!
-//! async fn my_module_task(
-//!     ctx: ModuleContext,
-//!     mut shutdown: ShutdownSignal
-//! ) -> Result<CleanExit, ModuleError> {
-//!     let bus_sender = ctx.get_sender();
-//!     loop {
-//!         tokio::select! {
-//!             r = shutdown.recv() => return r,
-//!             _ = sleep(Duration::from_secs(1)) => {
-//!                 let pid = bpf_common::Pid::from_raw(1999);
-//!                 let timestamp = 1312987.into();
-//!                     bus_sender.send(pid, timestamp, Payload::Exit { exit_code: 0 });
-//!             }
-//!         }
+//! impl PulsarModule for MyModule {
+//!     type Config = NoConfig;
+//!     type State = ();
+//!     type Extension = time::Interval;
+//!     type TriggerOutput = ();
+//!
+//!     const MODULE_NAME: &'static str = "my-module";
+//!     const DEFAULT_ENABLED: bool = true;
+//!
+//!     async fn init_state(
+//!         &self,
+//!         _config: &Self::Config,
+//!         _ctx: &ModuleContext,
+//!     ) -> Result<(Self::State, Self::Extension), ModuleError> {
+//!         let interval = time::interval(Duration::from_secs(1));
+//!         Ok(((), interval))
+//!     }
+//!
+//!     async fn trigger(
+//!         extension: &mut Self::Extension,
+//!     ) -> Result<Self::TriggerOutput, ModuleError> {
+//!         extension.tick().await;
+//!         Ok(())
+//!     }
+//!
+//!     async fn action(
+//!         _trigger_output: &Self::TriggerOutput,
+//!         _config: &Self::Config,
+//!         _state: &mut Self::State,
+//!         ctx: &ModuleContext,
+//!     ) -> Result<(), ModuleError> {
+//!         let pid = bpf_common::Pid::from_raw(1999);
+//!         let timestamp = 1_312_987.into();
+//!         ctx.send(pid, timestamp, Payload::Exit { exit_code: 0 });
+//!         Ok(())
 //!     }
 //! }
-//!  ```
+//! ```
 //!
-//!
-//! [^note]: For the correct type signature check [`PulsarModule::new`]
+//! [^note]: For the complete API see the [`PulsarModule`] trait.
 
 mod config;
 mod daemon;
