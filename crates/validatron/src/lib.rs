@@ -30,14 +30,14 @@
 //! On top of this it's possible to write complex rules, assembling conditions with logical operators (AND, OR, NOT). Example:
 //!
 //! ```
-//! use validatron::{Ruleset, Rule, Validatron, Operator, RelationalOperator, Condition, Identifier, RValue, Field, SimpleField};
+//! use validatron::{Rule, Validatron, Operator, RelationalOperator, Condition, Identifier, RValue, Field, SimpleField};
 //!
 //! #[derive(Validatron)]
 //! struct MyStruct {
 //!     my_value: i32,
 //! }
 //!
-//! let ruleset: Ruleset<MyStruct> = Ruleset::from_rules(vec![
+//! let rules: Vec<Rule> = vec![
 //!     Rule {
 //!         name: "my_value equal to 3 or 5".to_string(),
 //!         condition: Condition::Or {
@@ -67,14 +67,18 @@
 //!             r: RValue::Value("100".to_string()),
 //!         },
 //!     },
-//! ])
-//! .unwrap();
+//! ];
+//!
+//! let compiled_rules: Vec<_> = rules
+//!     .into_iter()
+//!     .map(|r| r.compile().unwrap())
+//!     .collect();
 //!
 //! let test = MyStruct {
 //!     my_value: 42
 //! };
 //!
-//! for rule in ruleset.matches(&test) {
+//! for rule in compiled_rules.iter().filter(|r| r.is_match(&test)) {
 //!     println!("Matched rule {}", rule.name)
 //! }
 //! ```
