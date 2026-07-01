@@ -11,6 +11,7 @@ severity = "low"
 description = "Identifies a Secure Shell (SSH) client or server process creating or writing to a known SSH backdoor log file. Adversaries may modify SSH related binaries for persistence or credential access via patching sensitive functions to enable unauthorized access or to log SSH credentials for exfiltration."
 condition = '''
 (header.image IN ["/usr/sbin/sshd", "/usr/bin/ssh"])
+ AND (payload.flags CONTAINS "O_WRONLY" OR payload.flags CONTAINS "O_RDWR" OR payload.flags CONTAINS "O_CREAT")
  AND (
  ((payload.filename STARTS_WITH "~" OR payload.filename STARTS_WITH "." OR payload.filename ENDS_WITH "~")
  AND NOT payload.filename IN [".cache", ".viminfo", ".bash_history", ".google_authenticator", ".jelenv", ".csvignore", ".rtreport"]
