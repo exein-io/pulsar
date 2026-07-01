@@ -8,11 +8,11 @@ name = "Open sensitive file"
 type = "FileOpened"
 category = "execution"
 severity = "medium"
-description = "Detects the read of sensitive files with the exception of cron (cron for Debian like and cronie for RedHat like and SLES). Adversaries may read sensitive files to gather information about the system or to use in later stages of an attack."
+description = "Detects the read of sensitive files with the exception of cron (cron for Debian like and cronie for RedHat like and SLES) and the standard PAM-based login stack (sshd, login, su, sudo), which legitimately reads these files on every authentication. Adversaries may read sensitive files to gather information about the system or to use in later stages of an attack."
 condition = '''
 (
 payload.filename IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"]
   OR payload.filename STARTS_WITH "/etc/sudoers.d/"
     OR payload.filename STARTS_WITH "/etc/pam.d/"
-) AND NOT header.image IN ["/usr/sbin/cron", "/usr/sbin/crond"]
+) AND NOT header.image IN ["/usr/sbin/cron", "/usr/sbin/crond", "/usr/sbin/sshd", "/usr/bin/login", "/bin/su", "/usr/bin/su", "/usr/bin/sudo"]
 '''
