@@ -142,11 +142,11 @@ static __always_inline int buffer_append_skb_bytes(struct buffer *buffer,
     return -1;
   }
 
-  // * The `< 0` case is impossible to reproduce (otherwise it would mean
-  //   `skb->len` is somehow lower than the size of packet headers we already
-  //   consumed from that SKB).
-  //   It's here only to appease the eBPF verifier (using `u32` and checking
-  //   just for `0` doesn't work).
+  // * The `< 0` case means `offset` (the packet headers already consumed by
+  //   the caller) is larger than `skb->len`. Callers are expected to validate
+  //   header lengths coming from the wire (e.g. the TCP data offset) before
+  //   getting here, so this is a defensive check. Using `s32` (instead of
+  //   `u32` and checking just for `0`) also appeases the eBPF verifier.
   // * The `= 0` case usually applies to SYN, SYN-ACK, ACK or any other packets
   //   which don't contain any payload after L4 headers.
   //   Therefore, we don't return any error here.

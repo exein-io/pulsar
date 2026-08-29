@@ -201,6 +201,11 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
+static __always_inline __u32 ip_hdrlen(const struct iphdr *ih)
+{
+  return ih->ihl << 2;
+}
+
 static __always_inline __u32 tcp_hdrlen(const struct tcphdr *th)
 {
   return th->doff << 2;
@@ -540,7 +545,16 @@ __always_inline int process_skb(struct __sk_buff *skb,
     }
 
     msg_event->proto = l4_proto;
-    headers_len = sizeof(struct iphdr);
+
+    // `ihl` is attacker controlled and, unlike the fixed `sizeof(struct
+    // iphdr)`, accounts for IP options: validate it so that the L4 header is
+    // parsed at the right offset and never past the end of the packet.
+    __u32 ip_len = ip_hdrlen(ih);
+    if (ip_len < sizeof(struct iphdr) || data + ip_len > data_end) {
+      LOG_ERROR("found an IPv4 packet with an invalid header length");
+      goto pass;
+    }
+    headers_len = ip_len;
 
     break;
   }
@@ -577,6 +591,11 @@ __always_inline int process_skb(struct __sk_buff *skb,
   // Parse L4 header (ICMP / TCP / UDP).
   switch (l4_proto) {
   case IPPROTO_ICMP:
+    if (data + headers_len + sizeof(struct icmphdr) > data_end) {
+      LOG_ERROR("found an ICMP packet too small to fit an ICMP header");
+      goto pass;
+    }
+
     headers_len += sizeof(struct icmphdr);
     break;
   case IPPROTO_TCP: {
@@ -586,7 +605,18 @@ __always_inline int process_skb(struct __sk_buff *skb,
     }
 
     struct tcphdr *th = data + headers_len;
-    headers_len += tcp_hdrlen(th);
+
+    // `doff` is attacker controlled: the packet could claim a header larger
+    // than the packet itself (or smaller than the minimum TCP header).
+    // Without this check `skb->len - headers_len` underflows below and we
+    // would emit an event with a bogus `data_len` of ~4GB.
+    __u32 tcp_len = tcp_hdrlen(th);
+    if (tcp_len < sizeof(struct tcphdr) ||
+        data + headers_len + tcp_len > data_end) {
+      LOG_ERROR("found a TCP packet with an invalid data offset");
+      goto pass;
+    }
+    headers_len += tcp_len;
 
     switch (l3_proto) {
     case ETH_P_IPV4:
@@ -655,6 +685,14 @@ __always_inline int process_skb(struct __sk_buff *skb,
   default:
     LOG_DEBUG("ignored unsupported L4 protocol %d", l4_proto);
     goto send_event;
+  }
+
+  // Last line of defense before computing the payload length: the headers
+  // must never exceed the total packet length.
+  if (headers_len > skb->len) {
+    LOG_ERROR("packet headers (%u) exceed packet length (%u)", headers_len,
+              skb->len);
+    goto pass;
   }
 
   if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
