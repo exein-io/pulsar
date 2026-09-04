@@ -30,11 +30,10 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          target: ${{ matrix.platform.target }}
-          components: rustfmt
+      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.platform.target }}
 
       - name: Formatting (rustfmt)
         run: cargo fmt -- --check
@@ -71,11 +70,10 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          target: ${{ matrix.platform.target }}
-          components: clippy
+      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.platform.target }}
 
       - name: Install cross
         uses: ./.github/actions/install-cross

@@ -2,35 +2,43 @@
 #
 # These containers are used in conjunction with [cross](https://github.com/cross-rs/cross) to build Pulsar in a reproducible way without worrying about system dependencies.
 #
-# Containers are based on the default [cross containers](https://github.com/orgs/cross-rs/packages) built from `Ubuntu 20.04 LTS`, with the addition of:
+# Containers are based on the default [cross containers](https://github.com/orgs/cross-rs/packages), with the addition of:
 #
 # -   `Clang/LLVM 20`
 # -   `libssl-dev` speficic for the target architecture, example `libssl-dev:arm64`
 # -   `libsqlite3-dev` speficic for the target architecture, example `libsqlite3-dev:arm64`
+#
+# NOTE: cross joins every `pre-build` entry into a single `RUN eval "..."`, so
+# without `set -e` a failing install is ignored and the image is published
+# broken. `-u` is not used: TZ and CROSS_CMAKE_CRT are not set on every image.
 
 [build.env]
 passthrough = ["DEBIAN_FRONTEND=noninteractive", "TZ=Etc/UTC"]
 
 [build]
 pre-build = [
-    # give tzdata the file it expects
-    "echo $TZ > /etc/timezone && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime",
-    # "printenv",
+    "set -ex",
 
-    # enable the right foreign architecture (safe even when it's the host arch)
-    "echo $CROSS_CMAKE_CRT | grep -qv musl && dpkg --add-architecture $CROSS_DEB_ARCH",
+    # give tzdata the file it expects
+    "TZ=\"${TZ:-Etc/UTC}\"; echo \"$TZ\" > /etc/timezone; ln -snf \"/usr/share/zoneinfo/$TZ\" /etc/localtime",
+
+    # enable the right foreign architecture (CROSS_CMAKE_CRT is only set on the musl images).
+    # Everything but amd64/i386 lives on ports.ubuntu.com, whose stanza only lists arm64 and armhf.
+    "if ! echo \"${CROSS_CMAKE_CRT:-}\" | grep -q musl; then dpkg --add-architecture \"$CROSS_DEB_ARCH\"; case \"$CROSS_DEB_ARCH\" in amd64 | i386) ;; *) sed -i \"/ports.ubuntu.com/,/^$/ s/^Architectures: .*/& $CROSS_DEB_ARCH/\" /etc/apt/sources.list.d/ubuntu.sources ;; esac; fi",
 
     # update package lists
     "apt-get update",
 
-    # common tooling + dev libraries
-    "apt-get install -y --no-install-recommends lsb-release wget software-properties-common gnupg",
+    # eBPF toolchain
+    "apt-get install -y --no-install-recommends clang-20 lld-20 llvm-20",
 
-    # pre acrh dep (safe musl not found)
-    "echo $CROSS_CMAKE_CRT | grep -qv musl && apt-get install -y --no-install-recommends libssl-dev:$CROSS_DEB_ARCH libsqlite3-dev:$CROSS_DEB_ARCH",
+    # pre arch dep (safe musl not found)
+    "if ! echo \"${CROSS_CMAKE_CRT:-}\" | grep -q musl; then apt-get install -y --no-install-recommends \"libssl-dev:$CROSS_DEB_ARCH\" \"libsqlite3-dev:$CROSS_DEB_ARCH\"; fi",
 
-    # install LLVM/Clang 20 exactly once
-    "wget -q https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 20",
     "ln -sf /usr/bin/clang-20      /usr/bin/clang",
     "ln -sf /usr/bin/llvm-strip-20 /usr/bin/llvm-strip",
+
+    # fail here rather than mid-build if the symlinks above dangle
+    "clang --version",
+    "llvm-strip --version",
 ]

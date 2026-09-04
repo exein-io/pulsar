@@ -2,9 +2,11 @@ use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
+    process::{Command, Stdio},
+    time::{Duration, Instant},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use flate2::read::GzDecoder;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -31,7 +33,12 @@ pub(crate) struct Options {
     release: bool,
 
     /// Space or comma separated list of features to activate.
-    #[clap(short, long, value_delimiter = ',')]
+    #[clap(
+        short,
+        long,
+        value_delimiter = ',',
+        default_value = "all-vendored,tls-rustls"
+    )]
     features: Vec<String>,
 
     /// Use architest/QEMU even for a native target.
@@ -105,6 +112,44 @@ fn download_and_unpack_architest(tempdir: &TempDir, architest_tarball: &str) -> 
     Ok(())
 }
 
+/// Poll until the VM accepts ssh connections.
+///
+/// QEMU's user-mode forward accepts on 3366 as soon as QEMU starts, well before
+/// the guest sshd listens, so a TCP probe would succeed too early and the
+/// following scp would fail with `kex_exchange_identification`.
+fn wait_for_ssh() -> Result<()> {
+    let deadline = Instant::now() + Duration::from_secs(180);
+
+    loop {
+        let status = Command::new("ssh")
+            .args([
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                "ConnectTimeout=5",
+                "-p",
+                "3366",
+                "root@localhost",
+                "true",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .context("Failed to execute ssh")?;
+
+        if status.success() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            bail!("timed out waiting for the test VM to accept ssh connections");
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+}
+
 fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> {
     let Options {
         target,
@@ -172,13 +217,13 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         cmd!(sh, "sudo resize2fs rootfs.ext2").run()?;
 
         // Run qemu
-        let mut qemu_process = std::process::Command::new(qemu_cmd)
+        let mut qemu_process = Command::new(qemu_cmd)
             .args(qemu_args)
             .current_dir(&tempdir)
             .spawn()
             .context("Failed to run QEMU")?;
-        // Give QEMU some time to start
-        std::thread::sleep(std::time::Duration::from_secs(12));
+
+        wait_for_ssh()?;
 
         cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
         let test_args = test_args.clone();

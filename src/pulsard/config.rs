@@ -153,7 +153,7 @@ struct ModuleConfigUpdate<'a> {
 /// Open configuration ini file, update the given config and save it to disk
 fn update_file_config(config_file: &PathBuf, updates: &[ModuleConfigUpdate]) -> Result<()> {
     let mut conf = ini::Ini::load_from_file(config_file)
-        .with_context(|| format!("Error loading configuration from {:?}", &config_file))?;
+        .with_context(|| format!("Error loading configuration from {config_file:?}"))?;
 
     for ModuleConfigUpdate { module, key, value } in updates {
         conf.with_section(Some(*module)).set(*key, *value);
@@ -161,7 +161,7 @@ fn update_file_config(config_file: &PathBuf, updates: &[ModuleConfigUpdate]) -> 
     }
 
     conf.write_to_file(config_file)
-        .with_context(|| format!("Error writing to {:?}", &config_file))?;
+        .with_context(|| format!("Error writing to {config_file:?}"))?;
 
     Ok(())
 }
