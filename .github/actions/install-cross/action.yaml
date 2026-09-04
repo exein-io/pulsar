@@ -1,13 +1,17 @@
 name: 'Install cross'
-description: 'Install cross-rs from its latest release'
+description: 'Install cross-rs from a pinned revision'
 
 runs:
   using: composite
   steps:
+    # Pinned to a `main` revision: the last release (v0.2.5) still ships
+    # Ubuntu 16.04 images, where Clang/LLVM 20 is not available.
     - name: Install cross
       shell: bash
+      env:
+        CROSS_REV: 8c1a8aa4b661711f4b7b6ac07c2e8929ce2f7d27
       run: |
-        cargo install cross --git https://github.com/cross-rs/cross
+        cargo install cross --locked --git https://github.com/cross-rs/cross --rev "$CROSS_REV"
 
     - run: cross --version --verbose
       shell: bash
