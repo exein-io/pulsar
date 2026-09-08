@@ -6,56 +6,31 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build (${{ matrix.profile }}, ${{ matrix.target }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         profile:
-          - debug
+          - dev
           - release
-
-        platform:
-          - target: x86_64-unknown-linux-gnu
-            args: "--features full"
-
-          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
-          - target: x86_64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-
-          - target: aarch64-unknown-linux-gnu
-            args: "--features full"
-
-          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
-          - target: aarch64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-
-          - target: riscv64gc-unknown-linux-gnu
-            args: "--features full"
-
-          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
-          - target: riscv64gc-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - riscv64gc-unknown-linux-gnu
+          - riscv64gc-unknown-linux-musl
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
-      - name: Install cross
-        uses: ./.github/actions/install-cross
-
-      - name: Build Debug
-        if: ${{ matrix.profile == 'debug' }}
-        run: cross build --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
-
-      - name: Build Release
-        if: ${{ matrix.profile == 'release' }}
-        run: cross build --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} --release
+      - name: Build
+        run: nix develop --command just build ${{ matrix.target }} ${{ matrix.profile }}
 
       - name: Check build did not modify any files
         run: |
@@ -67,4 +42,4 @@ jobs:
           test -z "$CHANGES"
 
       - name: Unit tests
-        run: cross test --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }}
+        run: nix develop --command just test ${{ matrix.target }}
