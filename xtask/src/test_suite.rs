@@ -23,8 +23,7 @@ pub(crate) struct Options {
     #[clap(long, default_value = "x86_64-unknown-linux-musl")]
     target: String,
 
-    /// Preserve the temporary directory with architest artifacts (relevant
-    /// only for cross builds).
+    /// Preserve the temporary directory with architest artifacts.
     #[arg(long)]
     preserve_tempdir: bool,
 
@@ -123,6 +122,10 @@ fn wait_for_ssh() -> Result<()> {
     loop {
         let status = Command::new("ssh")
             .args([
+                // Ignore system/user ssh config: it can pull in options this
+                // ssh build does not know, which makes it exit 255.
+                "-F",
+                "/dev/null",
                 "-o",
                 "StrictHostKeyChecking=no",
                 "-o",
@@ -214,7 +217,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         download_and_unpack_architest(&tempdir, &architest_tarball)?;
 
         cmd!(sh, "truncate -s +200M rootfs.ext2").run()?;
-        cmd!(sh, "sudo resize2fs rootfs.ext2").run()?;
+        cmd!(sh, "resize2fs rootfs.ext2").run()?;
 
         // Run qemu
         let mut qemu_process = Command::new(qemu_cmd)
@@ -225,9 +228,9 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
 
         wait_for_ssh()?;
 
-        cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
+        cmd!(sh, "scp -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
         let test_args = test_args.clone();
-        cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite {test_args...}").run()?;
+        cmd!(sh, "ssh -F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite {test_args...}").run()?;
 
         qemu_process.kill()?;
         qemu_process.wait()?;
@@ -263,7 +266,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
     }
     let build_type = if *release { "release" } else { "debug" };
     let binary_file = format!(
-        "{}/target/cross/{target}/{build_type}/test-suite",
+        "{}/target/{target}/{build_type}/test-suite",
         std::env::current_dir()?.display()
     );
 
@@ -271,7 +274,7 @@ pub(crate) fn run(options: Options) -> Result<()> {
 
     cmd!(
         sh,
-        "cross build --target {target} --target-dir target/cross --workspace --bin test-suite {args...}"
+        "cargo build --target {target} --workspace --bin test-suite {args...}"
     )
     .run()?;
 
