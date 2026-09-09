@@ -47,15 +47,6 @@ pub trait PulsarModule: Send {
     ) -> impl Future<Output = Result<(), ModuleError>> + Send;
 
     #[allow(unused_variables)]
-    fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        ctx.stop_cfg_recv()
-    }
-
-    #[allow(unused_variables)]
     fn on_event(
         event: &Event,
         config: &Self::Config,
@@ -85,15 +76,6 @@ pub trait SimplePulsarModule: Send + Sync {
         config: &Self::Config,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<Self::State, ModuleError>> + Send;
-
-    #[allow(unused_variables)]
-    fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        ctx.stop_cfg_recv()
-    }
 
     #[allow(unused_variables)]
     fn on_event(
@@ -148,14 +130,6 @@ where
         _ctx: &ModuleContext,
     ) -> Result<(), ModuleError> {
         Ok(())
-    }
-
-    async fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> Result<(), ModuleError> {
-        <Self as SimplePulsarModule>::on_config_change(new_config, state, ctx).await
     }
 
     async fn on_event(

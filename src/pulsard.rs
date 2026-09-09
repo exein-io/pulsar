@@ -71,7 +71,7 @@ pub async fn pulsar_daemon_run(
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();
 
-        let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
+        let general_config = config.get_module_config(GENERAL_CONFIG);
         let custom_socket_path = general_config.get_raw("api_socket_path");
 
         server::run_api_server(EngineAPIContext { bus, pulsar_daemon }, custom_socket_path)?

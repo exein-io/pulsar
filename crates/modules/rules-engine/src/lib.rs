@@ -32,15 +32,6 @@ impl SimplePulsarModule for RuleEngineModule {
         })
     }
 
-    async fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> Result<(), ModuleError> {
-        state.engine = RuleEngine::new(&new_config.rules_path, ctx.clone())?;
-        Ok(())
-    }
-
     async fn on_event(
         event: &Event,
         _config: &Self::Config,
