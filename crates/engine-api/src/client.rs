@@ -10,10 +10,7 @@ use pulsar_core::pdk::{Event, ModuleOverview};
 use serde::de::DeserializeOwned;
 use tokio_tungstenite::{client_async, tungstenite::Message};
 
-use crate::{
-    dto::{ConfigKV, ModuleConfigKVs},
-    error::{EngineClientError, WebsocketError},
-};
+use crate::error::{EngineClientError, WebsocketError};
 
 #[derive(Debug, Clone)]
 pub struct EngineApiClient {
@@ -122,11 +119,6 @@ impl EngineApiClient {
         self.get(url).await
     }
 
-    pub async fn get_configs(&self) -> Result<Vec<ModuleConfigKVs>, EngineClientError> {
-        let url = self.uri("/configs");
-        self.get(url).await
-    }
-
     pub async fn start(&self, module_name: &str) -> Result<(), EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/start"));
         self.empty_post(url).await
@@ -140,60 +132,6 @@ impl EngineApiClient {
     pub async fn restart(&self, module_name: &str) -> Result<(), EngineClientError> {
         let url = self.uri(format!("/modules/{module_name}/restart"));
         self.empty_post(url).await
-    }
-
-    pub async fn get_module_config(
-        &self,
-        module_name: &str,
-    ) -> Result<Vec<ConfigKV>, EngineClientError> {
-        let url = self.uri(format!("/modules/{module_name}/config"));
-        self.get(url).await
-    }
-
-    pub async fn set_module_config(
-        &self,
-        module_name: &str,
-        config_key: String,
-        config_value: String,
-    ) -> Result<(), EngineClientError> {
-        let url = self.uri(format!("/modules/{module_name}/config"));
-
-        let body_string = serde_json::to_string(&ConfigKV {
-            key: config_key,
-            value: config_value,
-        })
-        .map_err(|err| EngineClientError::SerializeError(err.to_string()))?;
-
-        let req = Request::builder()
-            .method(Method::PATCH)
-            .uri(url)
-            .header("content-type", "application/json")
-            .body(Either::Left(Full::from(body_string)))
-            .map_err(EngineClientError::RequestBuilderError)?;
-
-        let res = self
-            .client
-            .request(req)
-            .await
-            .map_err(EngineClientError::HyperError)?;
-
-        let status = res.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let error = res
-                    .collect()
-                    .await
-                    .map_err(EngineClientError::CollectResponseError)?
-                    .to_bytes();
-
-                let error_str =
-                    std::str::from_utf8(&error).map_err(EngineClientError::Utf8Error)?;
-
-                Err(EngineClientError::UnexpectedResponse(error_str.to_string()))
-            }
-        }
     }
 
     async fn empty_post(&self, uri: Uri) -> Result<(), EngineClientError> {

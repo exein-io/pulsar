@@ -8,7 +8,7 @@ use pulsar_core::pdk::{
     CleanExit, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
     PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
 };
-use tokio::sync::{broadcast, mpsc, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
@@ -38,7 +38,7 @@ pub struct ModuleManager<T: PulsarModule> {
     process_tracker: ProcessTrackerHandle,
     bus: Bus,
     module: T,
-    config: watch::Receiver<ModuleConfig>,
+    config: ModuleConfig,
     status: ModuleStatus,
     running_task: Option<(ShutdownSender, JoinHandle<()>)>,
     bpf_context: BpfContext,
@@ -50,7 +50,7 @@ impl<T: PulsarModule> ModuleManager<T> {
         rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
         module: T,
         bus: Bus,
-        config: watch::Receiver<ModuleConfig>,
+        config: ModuleConfig,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
@@ -125,7 +125,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                 }
 
                 // Quickly parse the configuration, then put the module in starting status
-                let module_config = match T::Config::try_from(&self.config.borrow()) {
+                let module_config = match T::Config::try_from(&self.config) {
                     Ok(mc) => mc,
                     Err(err) => {
                         self.status = ModuleStatus::Failed(format!("Configuration error: {err}"));
@@ -144,7 +144,6 @@ impl<T: PulsarModule> ModuleManager<T> {
 
                 // Continue starting the module asynchronously
 
-                let (tx_stop_cfg_recv, rx_stop_cfg_recv) = mpsc::channel(1);
                 let (tx_stop_event_recv, rx_stop_event_recv) = mpsc::channel(1);
 
                 let mut ctx = ModuleContext::new(
@@ -154,7 +153,6 @@ impl<T: PulsarModule> ModuleManager<T> {
                     self.daemon_handle.clone(),
                     self.process_tracker.clone(),
                     self.bpf_context.clone(),
-                    tx_stop_cfg_recv,
                     tx_stop_event_recv,
                 );
 
@@ -204,7 +202,6 @@ impl<T: PulsarModule> ModuleManager<T> {
                     }
                 };
 
-                let rx_config = self.config.clone();
                 let rx_event = self.bus.get_receiver();
                 let (tx_shutdown, rx_shutdown) = ShutdownSignal::new();
 
@@ -216,10 +213,8 @@ impl<T: PulsarModule> ModuleManager<T> {
                         module_config,
                         state,
                         extension,
-                        rx_config,
                         rx_event,
                         rx_shutdown,
-                        rx_stop_cfg_recv,
                         rx_stop_event_recv,
                         &mut ctx,
                     );
@@ -376,7 +371,7 @@ pub fn create_module_manager<T: PulsarModule + 'static>(
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     module: T,
-    config: watch::Receiver<ModuleConfig>,
+    config: ModuleConfig,
     bpf_context: BpfContext,
 ) -> ModuleManagerHandle {
     // Create command channel used in the ModuleManagerHandle to send commands to the running ModuleManager actor
@@ -415,22 +410,18 @@ async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) 
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn run_module_loop<T: PulsarModule>(
-    mut config: T::Config,
+    config: T::Config,
     mut state: T::State,
     mut extension: T::Extension,
-    rx_config: watch::Receiver<ModuleConfig>,
     rx_event: broadcast::Receiver<Arc<Event>>,
     mut rx_shutdown: ShutdownSignal,
-    mut rx_stop_cfg_recv: mpsc::Receiver<()>,
     mut rx_stop_event_recv: mpsc::Receiver<()>,
     ctx: &mut ModuleContext,
 ) -> Result<CleanExit, ModuleError> {
-    // Make Configuration and Event Receivers optional allowing to be dropped
-    // in case we receive the corresponding signals from the default implementation
-    // of the [`pulsar_core::pdk::PulsarModule`] trait
-    let mut rx_config = Some(rx_config);
+    // Make the Event Receiver optional allowing to be dropped in case we receive
+    // the corresponding signal from the default implementation of the
+    // [`pulsar_core::pdk::PulsarModule`] trait
     let mut rx_event = Some(rx_event);
 
     loop {
@@ -447,31 +438,10 @@ async fn run_module_loop<T: PulsarModule>(
                 // Drop the Event Receiver and replace it with None
                 rx_event = None
             }
-            // Stop config receiver
-            _ = rx_stop_cfg_recv.recv() => {
-                // Drop the Configuration Receiver and replace it with None
-                rx_config = None
-            }
             // Extra action
             t_output = T::trigger(&mut extension) => {
                 let t_output = t_output?;
                 T::action(&t_output, &config, &mut state, ctx).await?
-            }
-            // New config
-            rx_config = async {
-                match &mut rx_config {
-                    Some(rx_config) => {
-                        let change = rx_config.changed().await;
-                        // This can't fail because the sender half of this channel is never dropped.
-                        // Its lifetime is bound to PulsarConfig in `pulsar::pulsard::pulsar_daemon_run`
-                        change.expect("Config sender dropped");
-                        rx_config
-                    },
-                    None => std::future::pending().await,
-                }
-            } => {
-                config = T::Config::try_from(&rx_config.borrow())?;
-                T::on_config_change(&config, &mut state, ctx).await?;
             }
             // Incoming event
             event = async {

@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
-use super::ModuleConfig;
-
 /// Error happening during daemon administration.
 #[derive(Error, Debug)]
 pub enum PulsarDaemonError {
@@ -15,8 +13,6 @@ pub enum PulsarDaemonError {
     StartError(String),
     #[error("{0}")]
     StopError(String),
-    #[error("error updating the configuration")]
-    ConfigurationUpdateError(#[from] anyhow::Error),
 }
 
 /// Handle to a running PulsarDaemon.
@@ -98,55 +94,6 @@ impl PulsarDaemonHandle {
         let _ = self.tx_cmd.send(msg).await;
         recv.await.expect("Actor task has been killed")
     }
-
-    pub async fn get_configuration(
-        &self,
-        module_name: String,
-    ) -> Result<ModuleConfig, PulsarDaemonError> {
-        let (send, recv) = oneshot::channel();
-        let msg = PulsarDaemonCommand::GetConfiguration {
-            tx_reply: send,
-            module_name,
-        };
-
-        // Ignore send errors. If this send fails, so does the
-        // recv.await below. There's no reason to check the
-        // failure twice.
-        let _ = self.tx_cmd.send(msg).await;
-        recv.await.expect("Actor task has been killed")
-    }
-
-    pub async fn update_configuration(
-        &self,
-        module_name: String,
-        key: String,
-        value: String,
-    ) -> Result<(), PulsarDaemonError> {
-        let (send, recv) = oneshot::channel();
-        let msg = PulsarDaemonCommand::SetConfiguration {
-            tx_reply: send,
-            module_name,
-            key,
-            value,
-        };
-
-        // Ignore send errors. If this send fails, so does the
-        // recv.await below. There's no reason to check the
-        // failure twice.
-        let _ = self.tx_cmd.send(msg).await;
-        recv.await.expect("Actor task has been killed")
-    }
-
-    pub async fn get_configurations(&self) -> Vec<(String, ModuleConfig)> {
-        let (send, recv) = oneshot::channel();
-        let msg = PulsarDaemonCommand::Configs { tx_reply: send };
-
-        // Ignore send errors. If this send fails, so does the
-        // recv.await below. There's no reason to check the
-        // failure twice.
-        let _ = self.tx_cmd.send(msg).await;
-        recv.await.expect("Actor task has been killed")
-    }
 }
 
 /// Status of loaded module.
@@ -191,19 +138,6 @@ pub enum PulsarDaemonCommand {
     StopModule {
         tx_reply: oneshot::Sender<Result<(), PulsarDaemonError>>,
         module_name: String,
-    },
-    GetConfiguration {
-        tx_reply: oneshot::Sender<Result<ModuleConfig, PulsarDaemonError>>,
-        module_name: String,
-    },
-    SetConfiguration {
-        tx_reply: oneshot::Sender<Result<(), PulsarDaemonError>>,
-        module_name: String,
-        key: String,
-        value: String,
-    },
-    Configs {
-        tx_reply: oneshot::Sender<Vec<(String, ModuleConfig)>>,
     },
 }
 

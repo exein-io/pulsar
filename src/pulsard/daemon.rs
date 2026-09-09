@@ -6,8 +6,8 @@ use bpf_common::program::{BpfContext, BpfLogLevel, PERF_PAGES_DEFAULT, Pinning};
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        ModuleConfig, ModuleOverview, ModuleStatus, PulsarDaemonCommand, PulsarDaemonError,
-        PulsarDaemonHandle, PulsarModule,
+        ModuleOverview, ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle,
+        PulsarModule,
         process_tracker::{ProcessTrackerHandle, start_process_tracker},
     },
 };
@@ -33,7 +33,7 @@ impl PulsarDaemonStarter {
 
         let process_tracker = start_process_tracker();
 
-        let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
+        let general_config = config.get_module_config(GENERAL_CONFIG);
         let perf_pages = match general_config.optional("perf_pages") {
             Ok(value) => value.unwrap_or(PERF_PAGES_DEFAULT),
             Err(err) => {
@@ -81,7 +81,7 @@ impl PulsarDaemonStarter {
 
         let module_name = T::MODULE_NAME.to_owned();
 
-        let config = self.config.get_watched_module_config(&module_name);
+        let config = self.config.get_module_config(&module_name);
 
         let module_handle = create_module_manager(
             self.bus.clone(),
@@ -128,8 +128,8 @@ impl PulsarDaemonStarter {
 
         // Start modules
         for (module_name, data) in &self.modules {
-            let module_config = self.config.get_watched_module_config(module_name);
-            let is_enabled = match module_config.borrow().optional("enabled") {
+            let module_config = self.config.get_module_config(module_name);
+            let is_enabled = match module_config.optional("enabled") {
                 Ok(value) => value.unwrap_or(data.enabled_by_default),
                 Err(err) => {
                     log::warn!(
@@ -157,7 +157,6 @@ impl PulsarDaemonStarter {
 
         let daemon = PulsarDaemon {
             modules: self.modules,
-            config: self.config,
             rx_cmd: self.rx_modules_cmd,
             #[cfg(debug_assertions)]
             trace_pipe_handle,
@@ -178,10 +177,8 @@ impl PulsarDaemonStarter {
 ///
 /// [`PulsarDaemon`] can:
 /// - administrate loaded modules using the relative [`ModuleManagerHandle`]
-/// - manage module configurations using [`PulsarConfig`]
 pub struct PulsarDaemon {
     modules: HashMap<String, ModuleData>,
-    config: PulsarConfig,
     rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     #[cfg(debug_assertions)]
     #[allow(unused)]
@@ -220,30 +217,7 @@ impl PulsarDaemon {
             } => {
                 let _ = tx_reply.send(self.stop(&module_name).await);
             }
-            PulsarDaemonCommand::GetConfiguration {
-                tx_reply,
-                module_name,
-            } => {
-                let _ = tx_reply.send(self.get_module_config(&module_name));
-            }
-            PulsarDaemonCommand::SetConfiguration {
-                tx_reply,
-                module_name,
-                key,
-
-                value,
-            } => {
-                let _ = tx_reply.send(self.update_config(&module_name, &key, &value));
-            }
-            PulsarDaemonCommand::Configs { tx_reply } => {
-                let _ = tx_reply.send(self.get_configs());
-            }
         }
-    }
-
-    /// Helper function to check if a module exists in the loaded modules list.
-    fn contains_module(&self, module_name: &str) -> bool {
-        self.modules.contains_key(module_name) || module_name == GENERAL_CONFIG
     }
 
     /// Get module status.
@@ -308,40 +282,6 @@ impl PulsarDaemon {
             })
         }
         v
-    }
-
-    /// Get module configuration.
-    fn get_module_config(&self, module_name: &str) -> Result<ModuleConfig, PulsarDaemonError> {
-        if !self.contains_module(module_name) {
-            return Err(PulsarDaemonError::ModuleNotFound(module_name.to_string()));
-        }
-
-        self.config.get_module_config(module_name).ok_or_else(|| {
-            log::error!("Module found in task manager but configuration not found");
-
-            PulsarDaemonError::ModuleNotFound(module_name.to_string())
-        })
-    }
-
-    /// Get all configurations.
-    fn get_configs(&self) -> Vec<(String, ModuleConfig)> {
-        self.config.get_configs()
-    }
-
-    /// Update module configuration. It takes a key and value.
-    fn update_config(
-        &self,
-        module_name: &str,
-        key: &str,
-        value: &str,
-    ) -> Result<(), PulsarDaemonError> {
-        if !self.contains_module(module_name) {
-            return Err(PulsarDaemonError::ModuleNotFound(module_name.to_string()));
-        }
-
-        self.config
-            .update_config(module_name, key, value)
-            .map_err(PulsarDaemonError::ConfigurationUpdateError)
     }
 }
 

@@ -45,22 +45,6 @@ impl SimplePulsarModule for ThreatLoggerModule {
         Ok(ThreatLoggerState { logger })
     }
 
-    async fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> Result<(), ModuleError> {
-        state.logger = match ThreatLogger::from_config(new_config) {
-            Ok(logr) => logr,
-            Err(logr) => {
-                ctx.raise_warning("Failed to connect to syslog".into())
-                    .await;
-                logr
-            }
-        };
-        Ok(())
-    }
-
     async fn on_event(
         event: &Event,
         _config: &Self::Config,

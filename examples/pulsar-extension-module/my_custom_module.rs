@@ -22,16 +22,6 @@ impl SimplePulsarModule for MyCustomModule {
         Ok(Self::State { dns_query_count: 0 })
     }
 
-    // Handle configuration changes:
-    async fn on_config_change(
-        new_config: &Self::Config,
-        _state: &mut Self::State,
-        _ctx: &ModuleContext,
-    ) -> Result<(), ModuleError> {
-        println!("Configuration changed: {new_config:?}");
-        Ok(())
-    }
-
     async fn on_event(
         event: &Event,
         config: &Self::Config,
