@@ -21,13 +21,11 @@ pub struct ModuleContext {
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     bpf_context: BpfContext,
-    tx_stop_cfg_recv: tokio::sync::mpsc::Sender<()>,
     tx_stop_event_recv: tokio::sync::mpsc::Sender<()>,
 }
 
 impl ModuleContext {
     /// Constructs a new [ModuleContext]`
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bus: Bus,
         module_name: ModuleName,
@@ -35,7 +33,6 @@ impl ModuleContext {
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
-        tx_stop_cfg_recv: tokio::sync::mpsc::Sender<()>,
         tx_stop_event_recv: tokio::sync::mpsc::Sender<()>,
     ) -> Self {
         Self {
@@ -45,7 +42,6 @@ impl ModuleContext {
             daemon_handle,
             process_tracker,
             bpf_context,
-            tx_stop_cfg_recv,
             tx_stop_event_recv,
         }
     }
@@ -192,15 +188,6 @@ impl ModuleContext {
             .signal_sender
             .send(ModuleSignal::Warning(warning))
             .await;
-    }
-
-    pub(super) async fn stop_cfg_recv(&self) -> Result<(), ModuleError> {
-        self.tx_stop_cfg_recv
-            .send(())
-            .await
-            .context("cannot send sig stop cfg recv")?;
-
-        Ok(())
     }
 
     pub(super) async fn stop_event_recv(&self) -> Result<(), ModuleError> {

@@ -6,7 +6,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::Response,
-    routing::{get, patch, post},
+    routing::{get, post},
 };
 use pulsar_core::{
     bus::Bus,
@@ -14,10 +14,7 @@ use pulsar_core::{
 };
 use tokio::{net::UnixListener, sync::oneshot, task::JoinHandle};
 
-use crate::{
-    dto::{ConfigKV, ModuleConfigKVs},
-    error::EngineApiError,
-};
+use crate::error::EngineApiError;
 
 pub struct ServerHandle {
     tx_shutdown: oneshot::Sender<()>,
@@ -45,13 +42,10 @@ pub fn run_api_server(
         .route("/", get(modules))
         .route("/{module_name}/start", post(module_start))
         .route("/{module_name}/restart", post(module_restart))
-        .route("/{module_name}/stop", post(module_stop))
-        .route("/{module_name}/config", get(get_module_cfg))
-        .route("/{module_name}/config", patch(update_module_cfg));
+        .route("/{module_name}/stop", post(module_stop));
 
     let app = Router::new()
         .nest("/modules", modules)
-        .route("/configs", get(configs))
         .route("/monitor", get(event_monitor_handler))
         .with_state(engine_api_ctx);
 
@@ -110,49 +104,6 @@ async fn module_stop(
 
 async fn modules(State(ctx): State<EngineAPIContext>) -> Json<Vec<ModuleOverview>> {
     Json(ctx.pulsar_daemon.modules().await)
-}
-
-async fn configs(State(ctx): State<EngineAPIContext>) -> Json<Vec<ModuleConfigKVs>> {
-    let cfgs = ctx.pulsar_daemon.get_configurations().await;
-
-    let cfgs_key_value: Vec<_> = cfgs
-        .into_iter()
-        .map(|(module, cfg)| {
-            let config: Vec<_> = cfg
-                .into_iter()
-                .map(|(key, value)| ConfigKV { key, value })
-                .collect();
-
-            ModuleConfigKVs { module, config }
-        })
-        .collect();
-
-    Json(cfgs_key_value)
-}
-
-async fn get_module_cfg(
-    State(ctx): State<EngineAPIContext>,
-    Path(module_name): Path<String>,
-) -> Result<Json<Vec<ConfigKV>>, EngineApiError> {
-    let cfg = ctx.pulsar_daemon.get_configuration(module_name).await?;
-
-    let cfg_key_value: Vec<_> = cfg
-        .into_iter()
-        .map(|(key, value)| ConfigKV { key, value })
-        .collect();
-
-    Ok(Json(cfg_key_value))
-}
-
-async fn update_module_cfg(
-    State(ctx): State<EngineAPIContext>,
-    Path(module_name): Path<String>,
-    Json(config_kv): Json<ConfigKV>,
-) -> Result<(), EngineApiError> {
-    ctx.pulsar_daemon
-        .update_configuration(module_name, config_kv.key, config_kv.value)
-        .await?;
-    Ok(())
 }
 
 async fn event_monitor_handler(

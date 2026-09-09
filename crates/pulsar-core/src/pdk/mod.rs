@@ -4,7 +4,7 @@
 //! The trait-based API defines:
 //! - associated types for configuration and state (and optionally an extension and trigger output)
 //! - constants `MODULE_NAME` and `DEFAULT_ENABLED`
-//! - async lifecycle methods: `init_state`, `on_event`, `on_config_change`, optional `trigger`/`action`, and `graceful_stop`
+//! - async lifecycle methods: `init_state`, `on_event`, optional `trigger`/`action`, and `graceful_stop`
 //!
 //! The [`ModuleContext`] is the entrypoint to the agent features. It lets a module:
 //! - send events via `ModuleContext::send` and `send_derived`
@@ -12,7 +12,7 @@
 //! - interact with the process tracker and BPF context
 //! - raise warnings and errors to the daemon
 //!
-//! Configuration updates and events are delivered by the runtime to the trait methods.
+//! Events are delivered by the runtime to the trait methods.
 //!
 //! Check specific structs and traits for more informations.
 //!
