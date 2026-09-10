@@ -134,10 +134,11 @@ main() {
     ensure $_install -d ${_pulsar_config_dir}
     ensure $_install -d ${_pulsar_rules_dir}
 
-    # Generate and install configuration
-    local _temp_config_file="${_dir}/pulsar.ini"
-    ensure generate_basic_config "${_temp_config_file}"
-    ensure $_install -m 644 ${_temp_config_file} "${_pulsar_config_dir}/pulsar.ini"
+    # Install the default configuration, keeping an existing one untouched
+    local _pulsar_config_file="${_pulsar_config_dir}/pulsar.toml"
+    if [ ! -f "${_pulsar_config_file}" ]; then
+        ensure $_install -m 644 "${_tmp_pulsar_src}/src/pulsard/pulsar.toml.template" "${_pulsar_config_file}"
+    fi
 
     # Install rules from release archive 
     printf '%s\n' 'info: installing rules' 1>&2
@@ -149,10 +150,6 @@ main() {
 
     printf '%s\n' 'info: installation complete' 1>&2
 
-}
-
-generate_basic_config() {
-    touch $1
 }
 
 check_proc() {
