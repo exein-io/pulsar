@@ -11,7 +11,13 @@ use validatron::{Rule, ValidatronError};
 
 use crate::{dsl, ruleset::Ruleset};
 
-const RULE_EXTENSION: &str = "yaml";
+const RULE_EXTENSION: &str = "toml";
+
+/// Content of a rule file: an array of tables under a single `rules` key.
+#[derive(Debug, Deserialize)]
+struct RuleDocument {
+    rules: Vec<UserRule>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct UserRule {
@@ -39,7 +45,7 @@ pub enum RuleEngineError {
     RuleParsing {
         filename: String,
         #[source]
-        error: serde_yaml::Error,
+        error: toml::de::Error,
     },
     #[error("Error validating dsl '{0}': {1}")]
     DslError(String, String),
@@ -114,12 +120,12 @@ fn load_user_rules_from_dir(rules_path: &Path) -> Result<Vec<UserRule>, RuleEngi
     let rules = rule_files
         .into_iter()
         .map(|rule_file| {
-            serde_yaml::from_str::<Vec<UserRule>>(&rule_file.body).map_err(|error| {
-                RuleEngineError::RuleParsing {
+            toml::from_str::<RuleDocument>(&rule_file.body)
+                .map(|document| document.rules)
+                .map_err(|error| RuleEngineError::RuleParsing {
                     filename: rule_file.path,
                     error,
-                }
-            })
+                })
         })
         .collect::<Result<Vec<Vec<UserRule>>, RuleEngineError>>()?;
 
@@ -247,8 +253,33 @@ mod tests {
 
     use crate::{
         dsl,
-        engine::{Category, Metadata, RuleWithMetadata, Severity, UserRule, parse_rule},
+        engine::{
+            Category, Metadata, RuleDocument, RuleWithMetadata, Severity, UserRule,
+            load_user_rules_from_dir, parse_rule, parse_rules,
+        },
     };
+
+    /// Every rule shipped with Pulsar must load and compile.
+    #[test]
+    fn shipped_rules_are_valid() {
+        let rules_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../rules");
+        let rules = load_user_rules_from_dir(&rules_path).unwrap();
+        assert!(
+            !rules.is_empty(),
+            "no rule found in {}",
+            rules_path.display()
+        );
+        parse_rules(rules).unwrap();
+    }
+
+    #[test]
+    fn example_rules_are_valid() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("example_rules1.toml");
+        let body = std::fs::read_to_string(path).unwrap();
+        let document: RuleDocument = toml::from_str(&body).unwrap();
+        assert_eq!(document.rules.len(), 2);
+        parse_rules(document.rules).unwrap();
+    }
 
     #[test]
     fn test_rule_parse() {
