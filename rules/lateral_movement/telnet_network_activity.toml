@@ -1,0 +1,22 @@
+# Title: Telnet Network Activity External
+# Creation date: 2020/04/23
+# False Positives: Telnet can be used for both benign or malicious purposes. Telnet is included by default in some Linux distributions, so its presence is not inherently suspicious.
+# The use of Telnet to manage devices remotely has declined in recent years in favor of more secure protocols such as SSH. Telnet usage by non-automated tools or frameworks may be suspicious.
+# MITRE ATT&CK Tactic: TA0008 - Lateral Movement - https://attack.mitre.org/tactics/TA0008/
+# MITRE ATT&CK Technique: T1021 - Remote Services - https://attack.mitre.org/techniques/T1021/
+
+[[rules]]
+name = "Telnet execution"
+type = "Exec"
+category = "lateral_movement"
+severity = "medium"
+description = "Detects the execution of the Telnet utility. Attackers may use Telnet to establish a remote connection to a device or server."
+condition = 'header.image == "/usr/bin/telnet"'
+
+[[rules]]
+name = "Telnet network activity - Connect"
+type = "Connect"
+category = "lateral_movement"
+severity = "medium"
+description = "Detects Telnet network activity. Attackers may use Telnet to establish a remote connection to a device or server."
+condition = 'header.image == "/usr/bin/telnet"'
