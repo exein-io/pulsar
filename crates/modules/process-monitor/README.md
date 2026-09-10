@@ -16,33 +16,36 @@ all other modules.
 
 |Config|Type|Description|
 |------|----|-----------|
-|`pid_targets`|pid list|List of PIDs to track|
-|`pid_targets_children`|pid list|List of PIDs to track (extended to children)|
-|`targets`|image list|List of processes to track|
-|`targets_children`|image list|List of processes to track (extended to children)|
-|`whitelist`|image list|List of processes to ignore|
-|`whitelist_children`|image list|List of processes to ignore (extended to children)|
+|`pid_targets`|array of pids|List of PIDs to track|
+|`pid_targets_children`|array of pids|List of PIDs to track (extended to children)|
+|`targets`|array of images|List of processes to track|
+|`targets_children`|array of images|List of processes to track (extended to children)|
+|`whitelist`|array of images|List of processes to ignore|
+|`whitelist_children`|array of images|List of processes to ignore (extended to children)|
+|`track_by_default`|bool|Tracking status of PID 1 and of processes matching no rule|
 |`ignore_self`|bool|Add the Pulsar executable to whitelist_children|
 
 Default configuration:
 
-```ini
-[process-monitor]
-enabled=true
-pid_targets=
-pid_targets_children=
-targets=
-targets_children=
-whitelist=
-whitelist_children=
-ignore_self=true
+```toml
+[module.process-monitor]
+enabled = true
+pid_targets = []
+pid_targets_children = []
+targets = []
+targets_children = []
+whitelist = []
+whitelist_children = []
+track_by_default = true
+ignore_self = true
 ```
 
-For example, to limit Pulsar analisys to SSH connections with:
+For example, to limit Pulsar analysis to SSH connections:
 
-```sh
-pulsar config --set process-monitor.whitelist_children=/usr/lib/systemd/systemd
-pulsar config --set process-monitor.targets_children=/usr/sbin/sshd
+```toml
+[module.process-monitor]
+whitelist_children = ["/usr/lib/systemd/systemd"]
+targets_children = ["/usr/sbin/sshd"]
 ```
 
 ## Testing
