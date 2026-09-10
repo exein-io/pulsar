@@ -23,15 +23,17 @@ This module also contains a DNS interceptor which will try to parse every UDP me
 
 Default configuration:
 
-```ini
-[network-monitor]
-enabled=true
+```toml
+[module.network-monitor]
+enabled = true
 ```
 
-You disable this module with:
+You disable this module in `/var/lib/pulsar/pulsar.toml`, then restart the
+daemon:
 
-```sh
-pulsar config --set network-monitor.enabled=false
+```toml
+[module.network-monitor]
+enabled = false
 ```
 
 ## Testing
