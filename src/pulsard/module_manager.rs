@@ -5,8 +5,8 @@ use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
-    CleanExit, Event, ModuleConfig, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
-    PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
+    CleanExit, Event, ModuleContext, ModuleError, ModuleSignal, ModuleStatus, PulsarDaemonHandle,
+    PulsarModule, ShutdownSender, ShutdownSignal,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -38,7 +38,7 @@ pub struct ModuleManager<T: PulsarModule> {
     process_tracker: ProcessTrackerHandle,
     bus: Bus,
     module: T,
-    config: ModuleConfig,
+    config: Result<T::Config, String>,
     status: ModuleStatus,
     running_task: Option<(ShutdownSender, JoinHandle<()>)>,
     bpf_context: BpfContext,
@@ -50,7 +50,7 @@ impl<T: PulsarModule> ModuleManager<T> {
         rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
         module: T,
         bus: Bus,
-        config: ModuleConfig,
+        config: Result<T::Config, String>,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
@@ -124,9 +124,8 @@ impl<T: PulsarModule> ModuleManager<T> {
                     return;
                 }
 
-                // Quickly parse the configuration, then put the module in starting status
-                let module_config = match T::Config::try_from(&self.config) {
-                    Ok(mc) => mc,
+                let module_config = match &self.config {
+                    Ok(config) => config.clone(),
                     Err(err) => {
                         self.status = ModuleStatus::Failed(format!("Configuration error: {err}"));
                         let err_msg = format!(
@@ -371,7 +370,7 @@ pub fn create_module_manager<T: PulsarModule + 'static>(
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     module: T,
-    config: ModuleConfig,
+    config: Result<T::Config, String>,
     bpf_context: BpfContext,
 ) -> ModuleManagerHandle {
     // Create command channel used in the ModuleManagerHandle to send commands to the running ModuleManager actor

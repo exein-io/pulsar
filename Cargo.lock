@@ -388,8 +388,10 @@ dependencies = [
  "nix",
  "pulsar-core",
  "regex",
+ "serde",
  "thiserror 2.0.17",
  "tokio",
+ "toml",
  "which",
 ]
 
@@ -792,7 +794,9 @@ dependencies = [
  "bpf-common",
  "log",
  "pulsar-core",
+ "serde",
  "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -1046,7 +1050,9 @@ dependencies = [
  "log",
  "nix",
  "pulsar-core",
+ "serde",
  "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -1856,6 +1862,7 @@ dependencies = [
  "percent-encoding",
  "quoted_printable",
  "rustls 0.23.32",
+ "serde",
  "socket2 0.6.1",
  "tokio",
  "tokio-native-tls",
@@ -2456,12 +2463,13 @@ dependencies = [
  "process-monitor",
  "pulsar-core",
  "rules-engine",
- "rust-ini",
  "semver",
  "serde",
+ "serde_ignored",
  "smtp-notifier",
  "threat-logger",
  "tokio",
+ "toml",
  "vergen-gitcl",
 ]
 
@@ -2475,6 +2483,7 @@ dependencies = [
  "log",
  "nix",
  "serde",
+ "serde_ignored",
  "strum",
  "thiserror 2.0.17",
  "tokio",
@@ -2735,6 +2744,7 @@ dependencies = [
  "serde_yaml",
  "thiserror 2.0.17",
  "tokio",
+ "toml",
  "validatron",
 ]
 
@@ -2944,6 +2954,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_ignored"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "115dffd5f3853e06e746965a20dcbae6ee747ae30b543d91b0e089668bb07798"
+dependencies = [
+ "serde",
+ "serde_core",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3094,7 +3114,9 @@ dependencies = [
  "openssl",
  "pulsar-core",
  "rand 0.9.2",
+ "serde",
  "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -3342,9 +3364,11 @@ dependencies = [
  "bpf-common",
  "log",
  "pulsar-core",
+ "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
+ "toml",
 ]
 
 [[package]]

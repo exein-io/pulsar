@@ -1,9 +1,8 @@
 //! A showcase of what a Pulsar modules can do
 use std::collections::HashMap;
 
-use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, Payload, SimplePulsarModule,
-};
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, Payload, SimplePulsarModule};
+use serde::Deserialize;
 
 pub struct MyCustomModule;
 
@@ -62,22 +61,12 @@ pub struct MyState {
 }
 
 /// An exmaple configuration. You can put whatever you want here,
-/// as long as you implement `TryFrom<&ModuleConfig>`
-#[derive(Clone, Debug, Default)]
+/// as long as it implements `serde::Deserialize`
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default)]
 pub struct MyModuleConfig {
     /// Enable printing events to stdout
     print_events: bool,
     /// Generate a threat event when resolving this domain name
     forbidden_dns: Option<String>,
-}
-
-impl TryFrom<&ModuleConfig> for MyModuleConfig {
-    type Error = ConfigError;
-
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        Ok(MyModuleConfig {
-            print_events: config.optional("print_events")?.unwrap_or(false),
-            forbidden_dns: config.get_raw("forbidden_dns").map(String::from),
-        })
-    }
 }

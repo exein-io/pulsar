@@ -82,11 +82,9 @@ pub mod pulsar {
     use bpf_common::{parsing::IndexError, program::BpfEvent};
     use pulsar_core::{
         event::FileFlags,
-        pdk::{
-            ConfigError, Event, IntoPayload, ModuleConfig, ModuleContext, ModuleError, Payload,
-            SimplePulsarModule,
-        },
+        pdk::{Event, IntoPayload, ModuleContext, ModuleError, Payload, SimplePulsarModule},
     };
+    use serde::Deserialize;
     use tokio::{fs::File, io::AsyncReadExt};
 
     pub struct FileSystemMonitorModule;
@@ -169,27 +167,25 @@ pub mod pulsar {
         }
     }
 
-    #[derive(Clone, Debug, Default)]
+    #[derive(Clone, Debug, Deserialize)]
+    #[serde(default)]
     pub struct Config {
+        /// Emit an `ElfOpened` event whenever an opened file turns out to be an ELF.
         elf_check: bool,
+        /// Path prefixes excluded from the ELF check.
         elf_check_whitelist: Vec<String>,
     }
 
-    impl TryFrom<&ModuleConfig> for Config {
-        type Error = ConfigError;
-
-        fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-            Ok(Config {
-                elf_check: config.optional("elf_check")?.unwrap_or(false),
-                elf_check_whitelist: config.get_list_with_default(
-                    "elf_check_whitelist",
-                    vec![
-                        String::from("/proc"),
-                        String::from("/sys"),
-                        String::from("/dev"),
-                    ],
-                )?,
-            })
+    impl Default for Config {
+        fn default() -> Self {
+            Self {
+                elf_check: false,
+                elf_check_whitelist: vec![
+                    String::from("/proc"),
+                    String::from("/sys"),
+                    String::from("/dev"),
+                ],
+            }
         }
     }
 
@@ -246,6 +242,26 @@ pub mod pulsar {
             }
         }
         false
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn missing_keys_keep_defaults() {
+            let config: Config = toml::from_str("").unwrap();
+            assert!(!config.elf_check);
+            assert_eq!(config.elf_check_whitelist, ["/proc", "/sys", "/dev"]);
+        }
+
+        #[test]
+        fn present_keys_win() {
+            let config: Config =
+                toml::from_str("elf_check = true\nelf_check_whitelist = []").unwrap();
+            assert!(config.elf_check);
+            assert!(config.elf_check_whitelist.is_empty());
+        }
     }
 }
 

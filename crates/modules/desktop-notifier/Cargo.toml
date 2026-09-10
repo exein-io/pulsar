@@ -12,3 +12,7 @@ bpf-common = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+toml = { workspace = true }

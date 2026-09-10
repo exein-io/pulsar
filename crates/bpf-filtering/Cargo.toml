@@ -18,7 +18,11 @@ nix = { workspace = true, features = ["fs"] }
 bpf-common = { workspace = true }
 pulsar-core = { workspace = true }
 regex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 which = { workspace = true, optional = true }
 
 [build-dependencies]
 bpf-builder = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }

@@ -20,3 +20,6 @@ lalrpop-util = { workspace = true, features=["lexer"] }
 
 [build-dependencies]
 lalrpop = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }
