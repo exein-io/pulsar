@@ -5,7 +5,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
--
+
+### Changed
+
+- **BREAKING**: configuration format from INI to TOML, the file moved to `/var/lib/pulsar/pulsar.toml`
+- **BREAKING**: module settings live under a `[module.<name>]` section and lists are TOML arrays instead of comma separated strings
+- **BREAKING**: rules format from YAML to TOML, rule files hold an array of tables under a `rules` key and every `toml` file below the rules folder is loaded as one
+- **BREAKING**: invalid values in the `[pulsar]` section are fatal instead of falling back to the default
+- **BREAKING**: `output_format` of `threat-logger` is matched case sensitively, use `plaintext` or `json`
+- **BREAKING**: module configurations are `serde::Deserialize` types instead of `TryFrom<&ModuleConfig>` implementors
+- configuration is parsed once at startup, a broken section of an enabled module now stops the daemon instead of failing that module later
+- unknown configuration keys and sections are reported as warnings instead of being ignored silently
+- a missing configuration file is created from a commented template instead of an empty file
+- the installer keeps an existing configuration file instead of overwriting it
+
+### Added
+
+- test loading and compiling every rule shipped with Pulsar
+
+### Removed
+
+- **BREAKING**: `pulsar config` command, together with the `/configs` and `/modules/{name}/config` API endpoints. Edit the configuration file and restart the daemon instead
+- **BREAKING**: configuration reload at runtime, including the `on_config_change` module hook
 
 ## [0.10.0] - 2026-09-17
 
