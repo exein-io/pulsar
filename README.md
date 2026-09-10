@@ -61,10 +61,11 @@ Behind the scenes, when an application performs an operation, it gets intercepte
 
 In the example above, the event produced matched the following rule:
 
-```yaml
-- name: Create sensitive files symlink
-  type: FileLink
-  condition: (payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"
+```toml
+[[rules]]
+name = "Create sensitive files symlink"
+type = "FileLink"
+condition = '(payload.destination IN ["/etc/shadow", "/etc/sudoers", "/etc/pam.conf", "/etc/security/pwquality.conf"] OR payload.destination STARTS_WITH "/etc/sudoers.d/" OR payload.destination STARTS_WITH "/etc/pam.d") AND payload.hard_link == "false"'
 ```
 
 ## Installation

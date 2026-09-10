@@ -5,7 +5,7 @@ When a match is found, a threat event is generated.
 
 ## Rules
 
-Default rules folder is `/var/lib/pulsar/rules`. Each rule file is a `yaml` file containing a list of rules with the following required fields:
+Default rules folder is `/var/lib/pulsar/rules`, searched recursively: every `toml` file below it is loaded as a rule file. Each file holds an array of tables under the `rules` key, where every rule has the following required fields:
 
 - `name`: a unique name for identifying the rule
 - `type`: the type of event to match (e.g. `FileOpened`, `Exec`, `NetworkConnection`)
@@ -19,28 +19,30 @@ Valid `severity` values are `low`, `medium`, `high`, and `critical`.
 Valid `category` values are (use `generic` if the rule does not fit any of the following):
 `command_and_control`, `credential_access`, `defense_evasion`, `discovery`, `execution`, `exfiltration`, `impact`, `initial_access`, `lateral_movement`, `persistence`, `privilege_escalation`, `reconnaissance`, `resource_development`.
 
+Conditions are written as TOML literal strings, in single quotes, so the double
+quotes they contain need no escaping. Use `'''` for a condition spanning several
+lines.
+
 ### Examples
 
-Create a `/var/lib/pulsar/rules/example_rules1.yaml` with the following content:
+Create a `/var/lib/pulsar/rules/example_rules1.toml` with the following content:
 
+```toml
+[[rules]]
+name = "Read sensitive file from untrusted process"
+type = "FileOpened"
+severity = "high"
+category = "generic"
+description = "A process different from sshd opened /etc/shadow which is a sensitive file that may contain hashed passwords."
+condition = 'header.image != "/usr/bin/sshd" AND payload.filename == "/etc/shadow"'
 
-```yaml
-- name: Read sensitive file from untrusted process
-  type: FileOpened
-  condition: header.image != "/usr/bin/sshd" && payload.filename == "/etc/shadow"
-  severity: high  
-  category: generic
-  description: A process different from sshd opened /etc/shadow which is a sensitive file
-    that may contain hashed passwords.
-
-
-- name: Executed telnet or nc
-  type: Exec
-  condition: payload.filename == "/usr/bin/telnet" || payload.filename == "/usr/bin/nc"
-  severity: high
-  category: generic
-  description: The telnet and nc commands are often used by attackers to open reverse
-    shells or to transfer files.
+[[rules]]
+name = "Executed telnet or nc"
+type = "Exec"
+severity = "high"
+category = "generic"
+description = "The telnet and nc commands are often used by attackers to open reverse shells or to transfer files."
+condition = 'payload.filename == "/usr/bin/telnet" OR payload.filename == "/usr/bin/nc"'
 ```
 
 The first rule will cause a warning whenever a process different from `sshd` opens
@@ -50,19 +52,21 @@ The first rule will cause a warning whenever a process different from `sshd` ope
 
 |Config|Type|Description|
 |------|----|-----------|
-|rules_path|path|Folder containing the `yaml` rules|
+|rules_path|path|Folder containing the `toml` rules|
 
 
 Default configuration:
 
-```ini
-[rules-engine]
-enabled=true
-rules_path=/var/lib/pulsar/rules
+```toml
+[module.rules-engine]
+enabled = true
+rules_path = "/var/lib/pulsar/rules"
 ```
 
-You disable this module with:
+You disable this module in `/var/lib/pulsar/pulsar.toml`, then restart the
+daemon:
 
-```sh
-pulsar config --set rules-engine.enabled=false
+```toml
+[module.rules-engine]
+enabled = false
 ```
