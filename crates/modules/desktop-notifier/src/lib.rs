@@ -6,8 +6,9 @@ use std::{
 use anyhow::Context;
 use pulsar_core::{
     event::Threat,
-    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule},
+    pdk::{Event, ModuleContext, ModuleError, SimplePulsarModule},
 };
+use serde::Deserialize;
 
 pub struct DesktopNotifierModule;
 
@@ -58,7 +59,7 @@ async fn notify_send(config: &Config, args: Vec<String>) {
     command
         .args(args)
         .env("DISPLAY", &config.display)
-        .env("DBUS_SESSION_BUS_ADDRESS", &config.bus_address)
+        .env("DBUS_SESSION_BUS_ADDRESS", config.bus_address())
         .uid(config.user_id)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -89,28 +90,60 @@ async fn notify_send(config: &Config, args: Vec<String>) {
     });
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
+#[serde(default)]
 pub struct Config {
+    /// Id of the user running the target desktop environment.
     user_id: u32,
+    /// Display the notification is sent to.
     display: String,
+    /// Executable used to send the notification.
     notify_send_executable: String,
-    bus_address: String,
+    /// Address of the target session bus. Defaults to the bus of `user_id`.
+    bus_address: Option<String>,
 }
 
-impl TryFrom<&ModuleConfig> for Config {
-    type Error = ConfigError;
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            user_id: 1000,
+            display: ":0".to_string(),
+            notify_send_executable: "notify-send".to_string(),
+            bus_address: None,
+        }
+    }
+}
 
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let user_id = config.optional("user_id")?.unwrap_or(1000);
-        Ok(Self {
-            user_id,
-            display: config.optional("display")?.unwrap_or(":0".to_string()),
-            notify_send_executable: config
-                .optional("notify_send_executable")?
-                .unwrap_or("notify-send".to_string()),
-            bus_address: config
-                .optional("bus_address")?
-                .unwrap_or(format!("unix:path=/run/user/{user_id}/bus")),
-        })
+impl Config {
+    fn bus_address(&self) -> String {
+        self.bus_address
+            .clone()
+            .unwrap_or_else(|| format!("unix:path=/run/user/{}/bus", self.user_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_keys_keep_defaults() {
+        let config: Config = toml::from_str("").unwrap();
+        assert_eq!(config.user_id, 1000);
+        assert_eq!(config.display, ":0");
+        assert_eq!(config.notify_send_executable, "notify-send");
+        assert_eq!(config.bus_address(), "unix:path=/run/user/1000/bus");
+    }
+
+    #[test]
+    fn bus_address_follows_user_id() {
+        let config: Config = toml::from_str("user_id = 1001").unwrap();
+        assert_eq!(config.bus_address(), "unix:path=/run/user/1001/bus");
+    }
+
+    #[test]
+    fn explicit_bus_address_wins() {
+        let config: Config = toml::from_str(r#"bus_address = "unix:path=/custom""#).unwrap();
+        assert_eq!(config.bus_address(), "unix:path=/custom");
     }
 }

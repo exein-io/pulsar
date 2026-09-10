@@ -23,9 +23,6 @@ pub struct PulsarDaemonOpts {
     pub config_file: Option<String>,
 }
 
-/// General configuration section for settings shared by all modules.
-const GENERAL_CONFIG: &str = "pulsar";
-
 pub async fn pulsar_daemon_run(
     options: &PulsarDaemonOpts,
     customize_starter: impl FnOnce(&mut PulsarDaemonStarter) -> Result<()>,
@@ -43,11 +40,12 @@ pub async fn pulsar_daemon_run(
     } else {
         PulsarConfig::new()?
     };
+    let api_socket_path = config.pulsar.api_socket_path.clone();
 
     // Initialize bus
     let bus = Bus::new();
 
-    let mut starter = PulsarDaemonStarter::new(bus.clone(), config.clone()).await?;
+    let mut starter = PulsarDaemonStarter::new(bus.clone(), config).await?;
 
     #[cfg(feature = "process-monitor")]
     starter.add_module(process_monitor::pulsar::ProcessMonitorModule)?;
@@ -71,10 +69,10 @@ pub async fn pulsar_daemon_run(
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();
 
-        let general_config = config.get_module_config(GENERAL_CONFIG);
-        let custom_socket_path = general_config.get_raw("api_socket_path");
-
-        server::run_api_server(EngineAPIContext { bus, pulsar_daemon }, custom_socket_path)?
+        server::run_api_server(
+            EngineAPIContext { bus, pulsar_daemon },
+            api_socket_path.as_deref(),
+        )?
     };
 
     let mut sig_int = signal(SignalKind::interrupt())?;

@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use engine::RuleEngine;
-use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule,
-};
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, SimplePulsarModule};
+use serde::Deserialize;
 
 mod dsl;
 mod engine;
@@ -27,6 +26,14 @@ impl SimplePulsarModule for RuleEngineModule {
         config: &Self::Config,
         ctx: &ModuleContext,
     ) -> Result<Self::State, ModuleError> {
+        if !config.rules_path.is_dir() {
+            return Err(format!(
+                "rules_path '{}' is not a directory",
+                config.rules_path.display()
+            )
+            .into());
+        }
+
         Ok(Self::State {
             engine: RuleEngine::new(&config.rules_path, ctx.clone())?,
         })
@@ -47,27 +54,34 @@ pub struct State {
     engine: RuleEngine,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
+#[serde(default)]
 pub struct Config {
+    /// Directory scanned recursively for rule files.
     rules_path: PathBuf,
 }
 
-impl TryFrom<&ModuleConfig> for Config {
-    type Error = ConfigError;
-
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let rules_path = config
-            .optional("rules_path")?
-            .unwrap_or(PathBuf::from(DEFAULT_RULES_PATH));
-
-        if !rules_path.exists() {
-            return Err(ConfigError::InvalidValue {
-                field: "rules_path".to_string(),
-                value: rules_path.display().to_string(),
-                err: format!("Directory '{}' not exists", rules_path.display()),
-            });
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            rules_path: PathBuf::from(DEFAULT_RULES_PATH),
         }
+    }
+}
 
-        Ok(Self { rules_path })
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+
+    #[test]
+    fn missing_keys_keep_defaults() {
+        let config: Config = toml::from_str("").unwrap();
+        assert_eq!(config.rules_path, PathBuf::from(DEFAULT_RULES_PATH));
+    }
+
+    #[test]
+    fn present_keys_win() {
+        let config: Config = toml::from_str(r#"rules_path = "/tmp/rules""#).unwrap();
+        assert_eq!(config.rules_path, PathBuf::from("/tmp/rules"));
     }
 }

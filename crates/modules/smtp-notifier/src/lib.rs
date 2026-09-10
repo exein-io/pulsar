@@ -1,6 +1,4 @@
-use std::{default::Default, error::Error, fmt, str::FromStr};
-
-use anyhow::Context;
+use anyhow::{Context, Result, bail};
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::{Mailbox, header::ContentType},
@@ -8,8 +6,9 @@ use lettre::{
 };
 use pulsar_core::{
     event::Threat,
-    pdk::{ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule},
+    pdk::{Event, ModuleContext, ModuleError, SimplePulsarModule},
 };
+use serde::{Deserialize, Deserializer, de};
 
 mod template;
 
@@ -107,42 +106,13 @@ async fn handle_event(
     Ok(())
 }
 
-#[derive(Debug)]
-struct ParseEncryptionError;
-
-impl Error for ParseEncryptionError {}
-
-impl fmt::Display for ParseEncryptionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
 enum Encryption {
     #[default]
     Tls,
     StartTls,
     None,
-}
-
-impl fmt::Display for Encryption {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl FromStr for Encryption {
-    type Err = ParseEncryptionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "none" => Ok(Encryption::None),
-            "tls" => Ok(Encryption::Tls),
-            "starttls" => Ok(Encryption::StartTls),
-            _ => Err(ParseEncryptionError),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -156,48 +126,128 @@ pub struct SmtpNotifierConfig {
     sender: Mailbox,
 }
 
-impl TryFrom<&ModuleConfig> for SmtpNotifierConfig {
-    type Error = ConfigError;
+// TODO: drop the intermediate struct once serde can express both the `sender`
+// fallback to `username` and a non-empty `receivers`.
+#[derive(Deserialize)]
+struct RawConfig {
+    /// Address of the SMTP server.
+    server: String,
+    /// User credential for the SMTP server.
+    username: String,
+    /// Password credential for the SMTP server.
+    password: String,
+    /// Addresses notifications are sent to. Must not be empty.
+    receivers: Vec<Mailbox>,
+    /// Port of the SMTP server.
+    #[serde(default = "default_port")]
+    port: u16,
+    /// Encryption used to reach the SMTP server.
+    #[serde(default)]
+    encryption: Encryption,
+    /// Address notifications are sent from. Defaults to `username`.
+    sender: Option<Mailbox>,
+}
 
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        let username = config.required::<String>("username")?;
+fn default_port() -> u16 {
+    465
+}
 
-        // Get sender from `sender` field or try to parse `username` as an email
-        let sender = match config.get_raw("sender") {
-            Some(s) => s
-                .parse::<Mailbox>()
-                .map_err(|err| ConfigError::InvalidValue {
-                    field: "sender".to_string(),
-                    value: s.to_string(),
-                    err: err.to_string(),
-                })?,
-            None => username
-                .parse::<Mailbox>()
-                .map_err(|err| ConfigError::InvalidValue {
-                    field: "username".to_string(),
-                    value: username.to_string(),
-                    err: format!(
-                        "if `username` is not the email address, a `sender` must be set: {err}"
-                    ),
-                })?,
-        };
+impl TryFrom<RawConfig> for SmtpNotifierConfig {
+    type Error = anyhow::Error;
 
-        let receivers = config.get_list::<Mailbox>("receivers")?;
-
-        if receivers.is_empty() {
-            return Err(ConfigError::RequiredValue {
-                field: "receivers".to_string(),
-            });
+    fn try_from(raw: RawConfig) -> Result<Self> {
+        if raw.receivers.is_empty() {
+            bail!("`receivers` must not be empty");
         }
 
+        let sender = match raw.sender {
+            Some(sender) => sender,
+            None => raw.username.parse::<Mailbox>().with_context(|| {
+                "if `username` is not an email address, `sender` must be set".to_string()
+            })?,
+        };
+
         Ok(SmtpNotifierConfig {
-            server: config.required::<String>("server")?,
-            username,
-            password: config.required::<String>("password")?,
-            receivers,
-            port: config.optional("port")?.unwrap_or(465),
-            encryption: config.optional("encryption")?.unwrap_or(Default::default()),
+            server: raw.server,
+            username: raw.username,
+            password: raw.password,
+            receivers: raw.receivers,
+            port: raw.port,
+            encryption: raw.encryption,
             sender,
         })
+    }
+}
+
+impl<'de> Deserialize<'de> for SmtpNotifierConfig {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let raw = RawConfig::deserialize(deserializer)?;
+        SmtpNotifierConfig::try_from(raw).map_err(|err| de::Error::custom(format!("{err:#}")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const REQUIRED: &str = r#"
+        server = "smtp.example.com"
+        password = "secret"
+        receivers = ["admin@example.com"]
+    "#;
+
+    fn parse(extra: &str) -> Result<SmtpNotifierConfig, toml::de::Error> {
+        toml::from_str(&format!("{REQUIRED}\n{extra}"))
+    }
+
+    #[test]
+    fn sender_defaults_to_username() {
+        let config = parse(r#"username = "pulsar@example.com""#).unwrap();
+        assert_eq!(config.sender.email.to_string(), "pulsar@example.com");
+        assert_eq!(config.port, 465);
+    }
+
+    #[test]
+    fn sender_overrides_username() {
+        let config = parse(
+            r#"
+            username = "login-name"
+            sender = "pulsar@example.com"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config.sender.email.to_string(), "pulsar@example.com");
+    }
+
+    #[test]
+    fn username_must_be_an_email_without_a_sender() {
+        let err = parse(r#"username = "login-name""#).unwrap_err();
+        assert!(err.to_string().contains("`sender` must be set"));
+    }
+
+    #[test]
+    fn empty_receivers_are_rejected() {
+        let err = toml::from_str::<SmtpNotifierConfig>(
+            r#"
+            server = "smtp.example.com"
+            username = "pulsar@example.com"
+            password = "secret"
+            receivers = []
+            "#,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("must not be empty"));
+    }
+
+    #[test]
+    fn encryption_parses_from_lowercase() {
+        let config = parse(
+            r#"
+            username = "pulsar@example.com"
+            encryption = "starttls"
+            "#,
+        )
+        .unwrap();
+        assert!(matches!(config.encryption, Encryption::StartTls));
     }
 }

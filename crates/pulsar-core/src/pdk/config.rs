@@ -1,121 +1,97 @@
-use std::{
-    collections::{
-        HashMap,
-        hash_map::{IntoIter, Iter},
-    },
-    fmt::{Debug, Display},
-    str::FromStr,
-};
-
+use serde::de::DeserializeOwned;
 use thiserror::Error;
 
-/// Per module configuration
+/// Raw configuration of a single module, as found in its `[module.<name>]` section.
 #[derive(Debug, Clone, Default)]
-pub struct ModuleConfig {
-    inner: HashMap<String, String>,
-}
+pub struct ModuleConfig(toml::Table);
 
-#[derive(Error, Debug, Clone)]
-pub enum ConfigError {
-    #[error("field {field} is required")]
-    RequiredValue { field: String },
-    #[error("{value} is not a valid value for field {field}: {err}")]
-    InvalidValue {
-        field: String,
-        value: String,
-        err: String,
-    },
+#[derive(Error, Debug)]
+#[error("invalid configuration for module `{module}`: {error}")]
+pub struct ConfigError {
+    module: String,
+    error: toml::de::Error,
 }
 
 impl ModuleConfig {
-    /// Inserts a new configuration value.
-    pub fn insert(&mut self, key: String, value: String) -> Option<String> {
-        self.inner.insert(key, value)
-    }
+    /// Deserialize into the configuration type of the module owning the section,
+    /// warning about the keys that type doesn't know.
+    pub fn parse<T: DeserializeOwned>(self, module: &str) -> Result<T, ConfigError> {
+        let (config, ignored) = self.parse_tracking_ignored(module)?;
 
-    /// Returns an option of raw configuration value.
-    pub fn get_raw(&self, config_name: &str) -> Option<&str> {
-        self.inner.get(config_name).map(String::as_str)
-    }
-
-    /// Returns a typed configuration value.
-    pub fn required<T>(&self, config_name: &str) -> Result<T, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        match self.inner.get(config_name) {
-            None => Err(ConfigError::RequiredValue {
-                field: config_name.to_string(),
-            }),
-            Some(value) => parse(value, config_name),
+        for key in ignored {
+            log::warn!("Ignoring unknown key `{key}` in [module.{module}]");
         }
+
+        Ok(config)
     }
 
-    /// Returns an optional typed configuration value.
-    pub fn optional<T>(&self, config_name: &str) -> Result<Option<T>, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        self.inner
-            .get(config_name)
-            .map(|value| parse(value, config_name))
-            .transpose()
-    }
+    fn parse_tracking_ignored<T: DeserializeOwned>(
+        self,
+        module: &str,
+    ) -> Result<(T, Vec<String>), ConfigError> {
+        let mut ignored = Vec::new();
+        let config = serde_ignored::deserialize(toml::Value::Table(self.0), |path| {
+            ignored.push(path.to_string())
+        })
+        .map_err(|error| ConfigError {
+            module: module.to_string(),
+            error,
+        })?;
 
-    /// Return a comma separed list of values. Return empty vector if field is missing.
-    pub fn get_list<T>(&self, config_name: &str) -> Result<Vec<T>, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: Display,
-    {
-        self.inner
-            .get(config_name)
-            .iter()
-            .flat_map(|config| config.split(','))
-            .filter(|item| !item.is_empty())
-            .map(|item| parse(item.trim(), config_name))
-            .collect()
-    }
-
-    /// Return a comma separed list of values. Return default vector if field is missing.
-    pub fn get_list_with_default<T>(
-        &self,
-        config_name: &str,
-        default: Vec<T>,
-    ) -> Result<Vec<T>, ConfigError>
-    where
-        T: FromStr,
-        <T as FromStr>::Err: std::error::Error + Send + Sync + 'static,
-    {
-        if self.inner.contains_key(config_name) {
-            self.get_list(config_name)
-        } else {
-            Ok(default)
-        }
-    }
-
-    /// Return an Iter to the underlying HashMap
-    pub fn iter(&self) -> Iter<'_, String, String> {
-        self.inner.iter()
-    }
-
-    /// Return an IntoIter to the underlying HashMap
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter(self) -> IntoIter<String, String> {
-        self.inner.into_iter()
+        Ok((config, ignored))
     }
 }
 
-fn parse<T>(value: &str, config_name: &str) -> Result<T, ConfigError>
-where
-    T: FromStr,
-    <T as FromStr>::Err: Display,
-{
-    T::from_str(value).map_err(|err| ConfigError::InvalidValue {
-        field: config_name.to_string(),
-        value: value.to_string(),
-        err: err.to_string(),
-    })
+impl From<toml::Table> for ModuleConfig {
+    fn from(table: toml::Table) -> Self {
+        Self(table)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[derive(Debug, Default, Deserialize)]
+    #[serde(default)]
+    struct Config {
+        elf_check: bool,
+        whitelist: Vec<String>,
+    }
+
+    fn parse(content: &str) -> Result<(Config, Vec<String>), ConfigError> {
+        ModuleConfig::from(content.parse::<toml::Table>().unwrap())
+            .parse_tracking_ignored("a-module")
+    }
+
+    #[test]
+    fn known_keys_are_not_reported() {
+        let (config, ignored) = parse("elf_check = true\nwhitelist = [\"/proc\"]\n").unwrap();
+        assert!(config.elf_check);
+        assert_eq!(config.whitelist, ["/proc"]);
+        assert!(ignored.is_empty());
+    }
+
+    #[test]
+    fn missing_keys_fall_back_to_defaults() {
+        let (config, ignored) = parse("").unwrap();
+        assert!(!config.elf_check);
+        assert!(ignored.is_empty());
+    }
+
+    #[test]
+    fn unknown_keys_are_reported_but_do_not_fail() {
+        let (config, ignored) =
+            parse("elf_check = true\nelf_chek = false\nnested = { a = 1 }\n").unwrap();
+        assert!(config.elf_check);
+        assert_eq!(ignored, ["elf_chek", "nested"]);
+    }
+
+    #[test]
+    fn invalid_value_still_fails() {
+        let err = parse("elf_check = \"yes\"").unwrap_err();
+        assert!(err.to_string().contains("a-module"));
+    }
 }

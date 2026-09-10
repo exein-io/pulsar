@@ -9,7 +9,11 @@ repository.workspace = true
 pulsar-core = { workspace = true }
 bpf-common = { workspace = true }
 
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }
