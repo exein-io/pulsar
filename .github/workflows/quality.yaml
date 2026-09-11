@@ -12,74 +12,48 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v4
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Link Checker
-        uses: lycheeverse/lychee-action@v1.8.0
-        with:
-          fail: true
+        run: nix develop --command bash -c 'lychee --no-progress $(git ls-files "*.md")'
 
   fmt:
     name: Formatting (rustfmt)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - target: x86_64-unknown-linux-gnu
-
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Formatting (rustfmt)
-        run: cargo fmt -- --check
+        run: nix develop --command just fmt-check
 
   lint:
-    name: Lint (clippy)
+    name: Lint (clippy, ${{ matrix.target }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - target: x86_64-unknown-linux-gnu
-            args: "--features full"
-
-          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
-          - target: x86_64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-
-          - target: aarch64-unknown-linux-gnu
-            args: "--features full"
-
-          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
-          - target: aarch64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
-
-          - target: riscv64gc-unknown-linux-gnu
-            args: "--features full"
-
-          # For `musl` builds, use the `all-vendored` and `tls-rustls` features.
-          - target: riscv64gc-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - riscv64gc-unknown-linux-gnu
+          - riscv64gc-unknown-linux-musl
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
-
-      - name: Install cross
-        uses: ./.github/actions/install-cross
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Clippy (all crates)
-        run: cross clippy --locked --target=${{ matrix.platform.target }} --workspace --all-targets ${{ matrix.platform.args }} -- -D warnings
+        run: nix develop --command just clippy ${{ matrix.target }}
 
       - name: Check build did not modify any files
         run: test -z "$(git status --porcelain)"

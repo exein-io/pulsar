@@ -8,3 +8,6 @@ compile_commands.json
 .cache
 
 .vagrant
+.direnv
+result
+result-*
