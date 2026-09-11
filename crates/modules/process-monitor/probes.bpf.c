@@ -316,6 +316,8 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
     // TODO: print error ??
     event->fork.option_index.discriminant = OPTION_NONE;
     event->fork.option_index.container_id.container_engine = container_engine;
+
+    // TODO: This can be removed, because event was zeroed during creation.
     event->fork.option_index.container_id.cgroup_id.start = 0;
     event->fork.option_index.container_id.cgroup_id.len = 0;
   } else {
@@ -362,6 +364,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   int container_engine = get_container_info(p, &c_id_buf);
   if (container_engine < 0) {
     event->exec.option_index.discriminant = OPTION_NONE;
+
+    // TODO: This can be removed, because event was zeroed during creation.
     event->exec.option_index.container_id.cgroup_id.start = 0;
     event->exec.option_index.container_id.cgroup_id.len = 0;
   } else {
@@ -388,8 +392,12 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
     return 0;
   }
 
+  // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
+  // be used as a lookup key for the target and whitelist maps and garbage
+  // would make the search fail.
+  // NOTE: init_process_event zeroes the event but deliberately NOT the
+  // contents of `buffer`, so this is still required.
   u64 *position = event->buffer.buffer + len_b;
-
   __builtin_memset((char *)position, 0, MAX_IMAGE_LEN);
 
   // We want to get the absolute path of the executable we're running.
