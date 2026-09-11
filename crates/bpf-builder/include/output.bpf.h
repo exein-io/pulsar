@@ -3,8 +3,8 @@
 // Manage output to userspace using a perf event array map
 #pragma once
 
-#include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
+#include "common.bpf.h"
 #include "interest_tracking.bpf.h"
 
 // eBPF programs could interrupt each other, see "Are BPF programs preemptible?"
@@ -78,6 +78,12 @@
     return old_value;                                                          \
   }                                                                            \
                                                                                \
+  /*                                                                           \
+   * Initializes ##struct_name.                                                \
+   *                                                                           \
+   * After successful initialization ##struct_name must be consumed            \
+   * by either calling discard_##struct_name or output_##struct_name           \
+   * */                                                                        \
   static __always_inline struct struct_name *init_##struct_name(               \
       int event_variant, pid_t tgid) {                                         \
     int nesting_level = increase_nesting_##struct_name();                      \
@@ -90,6 +96,7 @@
         bpf_map_lookup_elem(&map_temp_##struct_name, &key);                    \
     if (!event) {                                                              \
       LOG_ERROR("can't get event memory for nesting level %d", nesting_level); \
+      decrease_nesting_##struct_name();                                        \
       return NULL;                                                             \
     }                                                                          \
                                                                                \
@@ -97,7 +104,18 @@
     event->timestamp = bpf_ktime_get_ns();                                     \
     event->pid = tgid;                                                         \
     event->buffer.len = 0;                                                     \
+                                                                               \
     return event;                                                              \
+  }                                                                            \
+                                                                               \
+  /*                                                                           \
+   * Discards ##struct_name.                                                   \
+   *                                                                           \
+   * After calling this function *event must never be used again.              \
+   * */                                                                        \
+  static __always_inline void discard_##struct_name(                           \
+      struct struct_name *event) {                                             \
+    decrease_nesting_##struct_name();                                          \
   }                                                                            \
                                                                                \
   /* Output map definition */                                                  \
@@ -108,25 +126,31 @@
     __type(value, int);                                                        \
   } map_output_##struct_name SEC(".maps");                                     \
                                                                                \
+  /*                                                                           \
+   * Outputs ##struct_name to BPF_MAP_TYPE_PERF_EVENT_ARRAY.                   \
+   *                                                                           \
+   * After calling this function *event must never be used again.              \
+   * */                                                                        \
   static __always_inline void output_##struct_name(                            \
       void *ctx, struct struct_name *event) {                                  \
-    decrease_nesting_##struct_name();                                          \
     if (is_initialized()) {                                                    \
       if (event->buffer.len >= BUFFER_MAX) {                                   \
         LOG_ERROR("invalid buffer.len = %d, skipping event",                   \
                   event->buffer.len);                                          \
-        return;                                                                \
-      }                                                                        \
-      /* The output size is the full struct length,                            \
-       * minus the unused buffer len*/                                         \
-      unsigned int len =                                                       \
-          sizeof(struct struct_name) - (BUFFER_MAX - event->buffer.len);       \
-      int ret = bpf_perf_event_output(ctx, &map_output_##struct_name,          \
-                                      BPF_F_CURRENT_CPU, event, len);          \
-      if (ret) {                                                               \
-        LOG_ERROR("error %d emitting event of len %d", ret, len);              \
+      } else {                                                                 \
+        /* The output size is the full struct length,                          \
+         * minus the unused buffer len*/                                       \
+        unsigned int len =                                                     \
+            sizeof(struct struct_name) - (BUFFER_MAX - event->buffer.len);     \
+        int ret = bpf_perf_event_output(ctx, &map_output_##struct_name,        \
+                                        BPF_F_CURRENT_CPU, event, len);        \
+        if (ret) {                                                             \
+          LOG_ERROR("error %d emitting event of len %d", ret, len);            \
+        }                                                                      \
       }                                                                        \
     }                                                                          \
+                                                                               \
+    decrease_nesting_##struct_name();                                          \
   }
 
 // The init map contains configuration status for the eBPF program:
