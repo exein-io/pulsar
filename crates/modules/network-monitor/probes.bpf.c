@@ -136,17 +136,6 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
   }
 }
 
-// Unused fields must be memset to 0 or we could still have garbage from
-// previous usages of temp memory.
-static void reset_unused_fields_v4(struct sockaddr_in *v4) {
-  __builtin_memset(v4->__pad, 0, sizeof(v4->__pad));
-}
-
-static void reset_unused_fields_v6(struct sockaddr_in6 *v6) {
-  v6->sin6_flowinfo = 0;
-  v6->sin6_scope_id = 0;
-}
-
 // Copy an address from the source part of sock_common
 static __always_inline void copy_skc_source(struct sock_common *sk,
                                             struct address *addr) {
@@ -159,7 +148,6 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     addr->ip_ver = 0;
     addr->v4.sin_port = port;
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_rcv_saddr);
-    reset_unused_fields_v4(&addr->v4);
     break;
   }
   case AF_INET6: {
@@ -167,7 +155,6 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     addr->v6.sin6_port = port;
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_rcv_saddr.in6_u.u6_addr32);
-    reset_unused_fields_v6(&addr->v6);
     break;
   }
   default:
@@ -185,7 +172,6 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     addr->ip_ver = 0;
     bpf_core_read(&addr->v4.sin_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_daddr);
-    reset_unused_fields_v4(&addr->v4);
     break;
   }
   case AF_INET6: {
@@ -193,7 +179,6 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     bpf_core_read(&addr->v6.sin6_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_daddr.in6_u.u6_addr32);
-    reset_unused_fields_v6(&addr->v6);
     break;
   }
   default:
@@ -216,7 +201,6 @@ static __always_inline void copy_iphdr_source(struct iphdr *ih,
   addr->ip_ver = 0;
   ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
   bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->saddr);
-  reset_unused_fields_v4(&addr->v4);
 }
 
 static __always_inline void copy_iphdr_dest(struct iphdr *ih,
@@ -224,7 +208,6 @@ static __always_inline void copy_iphdr_dest(struct iphdr *ih,
   addr->ip_ver = 0;
   ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
   bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->daddr);
-  reset_unused_fields_v4(&addr->v4);
 }
 
 static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
@@ -233,7 +216,6 @@ static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
   ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
   bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                 &ih6->saddr.in6_u.u6_addr32);
-  reset_unused_fields_v6(&addr->v6);
 }
 
 static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
@@ -242,7 +224,6 @@ static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
   ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
   bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                 &ih6->daddr.in6_u.u6_addr32);
-  reset_unused_fields_v6(&addr->v6);
 }
 
 static __always_inline void copy_ipv4_tcphdr_source(struct tcphdr *th,

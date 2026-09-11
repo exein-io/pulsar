@@ -81,6 +81,12 @@
   /*                                                                           \
    * Initializes ##struct_name.                                                \
    *                                                                           \
+   * Every field is zeroed, except for the contents of `buffer`: only          \
+   * `buffer.len` is reset, so the buffer reads as empty while its bytes       \
+   * still hold whatever the previous event in this slot left there.           \
+   * Callers which read the buffer directly (e.g. as a map lookup key)         \
+   * must zero it themselves.                                                  \
+   *                                                                           \
    * After successful initialization ##struct_name must be consumed            \
    * by either calling discard_##struct_name or output_##struct_name           \
    * */                                                                        \
@@ -100,8 +106,15 @@
       return NULL;                                                             \
     }                                                                          \
                                                                                \
+    /* Call bpf_ktime_get_ns before __builtin_memset */                        \
+    /* to help LLVM to optimise-out zeroing memory, */                         \
+    /* which will be overwritten. */                                           \
+    u64 timestamp = bpf_ktime_get_ns();                                        \
+                                                                               \
+    __builtin_memset(event, 0, offsetof(struct struct_name, buffer));          \
+                                                                               \
     event->event_type = event_variant;                                         \
-    event->timestamp = bpf_ktime_get_ns();                                     \
+    event->timestamp = timestamp;                                              \
     event->pid = tgid;                                                         \
     event->buffer.len = 0;                                                     \
                                                                                \
