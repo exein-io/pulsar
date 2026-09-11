@@ -527,7 +527,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case ETH_P_IPV4: {
     if (data + sizeof(struct iphdr) > data_end) {
       LOG_ERROR("found an IPv4 packet too small to fit an IP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct iphdr *ih = data;
@@ -552,7 +552,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     __u32 ip_len = ip_hdrlen(ih);
     if (ip_len < sizeof(struct iphdr) || data + ip_len > data_end) {
       LOG_ERROR("found an IPv4 packet with an invalid header length");
-      goto pass;
+      goto discard_event;
     }
     headers_len = ip_len;
 
@@ -561,7 +561,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case ETH_P_IPV6: {
     if (data + sizeof(struct ipv6hdr) > data_end) {
       LOG_ERROR("found an IPv6 packet too small to fit an IP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct ipv6hdr *ih6 = data;
@@ -585,7 +585,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   }
   default:
     LOG_DEBUG("ignored unsupported L3 protocol %d", l3_proto);
-    goto pass;
+    goto discard_event;
   }
 
   // Parse L4 header (ICMP / TCP / UDP).
@@ -593,7 +593,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case IPPROTO_ICMP:
     if (data + headers_len + sizeof(struct icmphdr) > data_end) {
       LOG_ERROR("found an ICMP packet too small to fit an ICMP header");
-      goto pass;
+      goto discard_event;
     }
 
     headers_len += sizeof(struct icmphdr);
@@ -601,7 +601,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case IPPROTO_TCP: {
     if (data + headers_len + sizeof(struct tcphdr) > data_end) {
       LOG_ERROR("found a TCP packet too small to fit a TCP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct tcphdr *th = data + headers_len;
@@ -614,7 +614,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     if (tcp_len < sizeof(struct tcphdr) ||
         data + headers_len + tcp_len > data_end) {
       LOG_ERROR("found a TCP packet with an invalid data offset");
-      goto pass;
+      goto discard_event;
     }
     headers_len += tcp_len;
 
@@ -648,7 +648,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case IPPROTO_UDP: {
     if (data + headers_len + sizeof(struct udphdr) > data_end) {
       LOG_ERROR("found a UDP packet too small to fit a UDP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct udphdr *uh = data + headers_len;
@@ -692,7 +692,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   if (headers_len > skb->len) {
     LOG_ERROR("packet headers (%u) exceed packet length (%u)", headers_len,
               skb->len);
-    goto pass;
+    goto discard_event;
   }
 
   if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
@@ -704,7 +704,9 @@ __always_inline int process_skb(struct __sk_buff *skb,
 
 send_event:
   output_network_event(skb, network_event);
-pass:
+  return CGROUP_SKB_OK;
+discard_event:
+  discard_network_event(network_event);
   return CGROUP_SKB_OK;
 }
 

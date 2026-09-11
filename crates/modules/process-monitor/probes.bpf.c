@@ -384,6 +384,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   if (len_b > CONTAINER_ID_MAX_BUF) {
     LOG_ERROR("unexpected: container id buffer is too long");
+    discard_process_event(event);
     return 0;
   }
 
