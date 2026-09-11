@@ -57,22 +57,36 @@ cargo build --target "$target" --profile "$PROFILE" --workspace --bin test-suite
 binary="$REPO/target/$target/$PROFILE/test-suite"
 [ -x "$binary" ] || { echo "missing $binary" >&2; exit 1; }
 
-mkdir -p "$DATA/images/$ARCH" "$DATA/kernels/$ARCH"
+# find(1) exits 1 when the directory does not exist yet. Under `set -e` with
+# `pipefail` that aborts the script before the pull that would create it, and
+# `2>/dev/null` hides the reason. Probe through a helper that cannot fail.
+find_one() {
+    find "$1" -name "$2" -type f 2>/dev/null | head -1 || true
+}
+
+# Scope the rootfs cache by version, or a bare *.qcow2 probe reuses whatever
+# image is already there and boots the kernel against the wrong userspace.
+img_dir="$DATA/images/$ARCH/$IMAGE_VERSION"
+mkdir -p "$img_dir" "$DATA/kernels/$ARCH"
 
 echo "==> pulling rootfs kind:$IMAGE_VERSION ($ARCH)"
-image=$(find "$DATA/images/$ARCH" -name '*.qcow2' -type f 2>/dev/null | head -1)
+image=$(find_one "$img_dir" '*.qcow2')
 if [ -z "$image" ]; then
-    lvh images pull --platform "linux/$ARCH" --dir "$DATA/images/$ARCH/" \
+    lvh images pull --platform "linux/$ARCH" --dir "$img_dir/" \
         "quay.io/lvh-images/kind:$IMAGE_VERSION"
-    image=$(find "$DATA/images/$ARCH" -name '*.qcow2' -type f | head -1)
+    image=$(find_one "$img_dir" '*.qcow2')
+    [ -n "$image" ] || { echo "no qcow2 under $img_dir after 'lvh images pull'" >&2
+                         ls -R "$img_dir" >&2; exit 1; }
 fi
 echo "    image: $image"
 
 echo "==> pulling kernel $KERNEL ($ARCH)"
-vmlinuz=$(find "$DATA/kernels/$ARCH/$KERNEL" -name 'vmlinuz-*' -type f 2>/dev/null | head -1)
+vmlinuz=$(find_one "$DATA/kernels/$ARCH/$KERNEL" 'vmlinuz-*')
 if [ -z "$vmlinuz" ]; then
     lvh kernels pull --platform="linux/$ARCH" --dir "$DATA/kernels/$ARCH" "$KERNEL"
-    vmlinuz=$(find "$DATA/kernels/$ARCH/$KERNEL" -name 'vmlinuz-*' -type f | head -1)
+    vmlinuz=$(find_one "$DATA/kernels/$ARCH/$KERNEL" 'vmlinuz-*')
+    [ -n "$vmlinuz" ] || { echo "no vmlinuz under $DATA/kernels/$ARCH/$KERNEL after 'lvh kernels pull'" >&2
+                           ls -R "$DATA/kernels/$ARCH" >&2; exit 1; }
 fi
 echo "    kernel: $vmlinuz"
 
