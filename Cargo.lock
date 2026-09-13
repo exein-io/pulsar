@@ -2460,6 +2460,7 @@ dependencies = [
  "semver",
  "serde",
  "smtp-notifier",
+ "telegram-notifier",
  "threat-logger",
  "tokio",
  "vergen-gitcl",
@@ -3255,6 +3256,17 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
+]
+
+[[package]]
+name = "telegram-notifier"
+version = "0.10.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "log",
+ "pulsar-core",
+ "reqwest",
+ "tokio",
 ]
 
 [[package]]
