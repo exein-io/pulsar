@@ -1,0 +1,80 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          pulsar
+# Required-Start:    $network
+# Required-Stop:     $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Pulsar security agent
+# Description:       Pulsar security agent
+### END INIT INFO
+
+# Path to the executable
+EXEC=/usr/bin/pulsard
+# Name of the service
+NAME=pulsar
+# Logging
+LOGFILE=/var/log/${NAME}.log
+# PID file location
+PIDFILE=/var/run/${NAME}.pid
+
+start() {
+    echo "Starting $NAME..."
+    if [ -f $PIDFILE ] && kill -0 $(cat $PIDFILE); then
+        echo "$NAME is already running."
+        return 1
+    fi
+    nohup $EXEC >> $LOGFILE 2>&1 &
+    echo $! > $PIDFILE
+    echo "$NAME started."
+}
+
+stop() {
+    echo "Stopping $NAME..."
+    if [ -f $PIDFILE ]; then
+        PID=$(cat $PIDFILE)
+        if kill -0 $PID; then
+            kill $PID
+            rm -f $PIDFILE
+            echo "$NAME stopped."
+        else
+            echo "$NAME is not running."
+        fi
+    else
+        echo "$NAME PID file not found, $NAME may not be running."
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+status() {
+    if [ -f $PIDFILE ] && kill -0 $(cat $PIDFILE); then
+        echo "$NAME is running."
+    else
+        echo "$NAME is not running."
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
