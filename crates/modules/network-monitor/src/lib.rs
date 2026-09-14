@@ -650,9 +650,16 @@ pub mod test_suite {
                 }
                 ForkResult::Parent { child } => {
                     expected_pid = child;
-                    let (_connection, addr) = listener.accept().unwrap();
+                    let (connection, addr) = listener.accept().unwrap();
                     unsafe { kill(child.as_raw(), 9) };
                     source = addr;
+                    // Close the server side here rather than at the end of the
+                    // arm: it is what moves the client out of FIN_WAIT_2, and
+                    // the client's Close is the one asserted below. Closing
+                    // after the sleep leaves both closes to the moment the
+                    // closure returns, which is also when the assertion window
+                    // ends.
+                    drop(connection);
                     std::thread::sleep(Duration::from_millis(100));
                 }
             })
