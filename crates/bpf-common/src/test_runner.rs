@@ -37,6 +37,7 @@ use std::fmt::Debug;
 use std::{future::Future, pin::Pin, sync::OnceLock, time::Duration};
 
 use anyhow::Context;
+use aya::maps::{Map, MapData, PerCpuArray};
 use bytes::Bytes;
 use tokio::sync::mpsc;
 
@@ -47,6 +48,10 @@ use crate::{
 };
 
 const MAX_TIMEOUT: Duration = Duration::from_millis(30);
+
+/// Prefix of the per-cpu nesting counters declared by the `OUTPUT_MAP` macro
+/// in `output.bpf.h`.
+const NESTING_MAP_PREFIX: &str = "map_nesting_";
 
 /// Every module should export its own test suite
 pub struct TestSuite {
@@ -120,19 +125,22 @@ impl<T: Debug> TestRunner<T> {
     where
         F: FnOnce(),
     {
-        let _program = self.ebpf.await.context("running eBPF").unwrap();
+        let program = self.ebpf.await.context("running eBPF").unwrap();
         // Run the triggering code
         let start_time = Timestamp::now();
         trigger_program();
         let end_time = Timestamp::now();
         // Wait ebpf to process pending events
         tokio::time::sleep(MAX_TIMEOUT).await;
-        // Collect events
+        // Collect events. This must happen before the program is dropped, which
+        // stops the tasks reading the perf event array.
         let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
+        let leaked_slots = collect_leaked_event_slots(program);
         TestResult {
             start_time,
             end_time,
             events,
+            leaked_slots,
             expectations: Vec::new(),
         }
     }
@@ -142,19 +150,22 @@ impl<T: Debug> TestRunner<T> {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        let _program = self.ebpf.await.context("running eBPF").unwrap();
+        let program = self.ebpf.await.context("running eBPF").unwrap();
         // Run the triggering code
         let start_time = Timestamp::now();
         trigger_program.await;
         let end_time = Timestamp::now();
         // Wait ebpf to process pending events
         tokio::time::sleep(MAX_TIMEOUT).await;
-        // Collect events
+        // Collect events. This must happen before the program is dropped, which
+        // stops the tasks reading the perf event array.
         let events: Vec<_> = std::iter::from_fn(|| self.rx.try_recv().ok()).collect();
+        let leaked_slots = collect_leaked_event_slots(program);
         TestResult {
             start_time,
             end_time,
             events,
+            leaked_slots,
             expectations: Vec::new(),
         }
     }
@@ -180,6 +191,79 @@ impl<T: Send + 'static> BpfSender<T> for TestSender<T> {
     }
 }
 
+/// A per-cpu event slot which was taken but never released.
+///
+/// `init_*` takes a slot from the per-cpu scratch array and increments the
+/// nesting counter, `output_*` and `discard_*` give it back. A counter which is
+/// still non-zero once the probes are idle means some code path returned
+/// without consuming its event. Leaked slots are never recovered, so after
+/// `MAX_PREEMPTION_NESTING_LEVEL` of them the module stops emitting events
+/// altogether. See https://github.com/exein-io/pulsar/issues/381
+#[derive(Debug)]
+pub struct LeakedEventSlots {
+    /// Nesting counter map, eg. `map_nesting_network_event`.
+    pub map_name: String,
+    pub cpu: usize,
+    pub count: u64,
+}
+
+/// Take the `map_nesting_*` maps out of the eBPF object so they outlive it.
+///
+/// A `Map` owns its file descriptor, so it stays readable once the `Ebpf` it
+/// came from is dropped. Taking it does not disturb the attached programs:
+/// they hold their own reference to the map.
+fn take_nesting_counters(program: &mut Program) -> Vec<(String, Map)> {
+    let bpf = program.bpf();
+    let map_names: Vec<String> = bpf
+        .maps()
+        .map(|(name, _)| name)
+        .filter(|name| name.starts_with(NESTING_MAP_PREFIX))
+        .map(str::to_string)
+        .collect();
+
+    map_names
+        .into_iter()
+        .filter_map(|name| bpf.take_map(&name).map(|map| (name, map)))
+        .collect()
+}
+
+/// Find the event slots leaked while running a test.
+///
+/// Takes the counters out of the eBPF object and *then* drops the program,
+/// which detaches every probe. Nothing can be running by the time we read, so
+/// a non-zero counter is necessarily a slot which was taken and never given
+/// back, rather than a program which happened to be in flight.
+fn collect_leaked_event_slots(mut program: Program) -> Vec<LeakedEventSlots> {
+    let nesting_counters = take_nesting_counters(&mut program);
+    drop(program);
+
+    let mut leaked = Vec::new();
+    for (map_name, map) in nesting_counters {
+        let counters: PerCpuArray<MapData, u64> = match PerCpuArray::try_from(map) {
+            Ok(counters) => counters,
+            Err(err) => {
+                log::warn!("{map_name} is not a per-cpu array: {err}");
+                continue;
+            }
+        };
+        match counters.get(&0, 0) {
+            Ok(values) => leaked.extend(
+                values
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, &count)| count != 0)
+                    .map(|(cpu, &count)| LeakedEventSlots {
+                        map_name: map_name.clone(),
+                        cpu,
+                        count,
+                    }),
+            ),
+            Err(err) => log::warn!("could not read {map_name}: {err}"),
+        }
+    }
+    leaked
+}
+
 /// Events collected by the TestRunner
 pub struct TestResult<T: Debug> {
     /// When collection started
@@ -188,6 +272,8 @@ pub struct TestResult<T: Debug> {
     pub end_time: Timestamp,
     /// Collected events
     pub events: Vec<BpfEvent<T>>,
+    /// Event slots the eBPF programs took but never released
+    pub leaked_slots: Vec<LeakedEventSlots>,
 
     /// Expectations for this test. These are checked by the `report`
     /// function and used to produce a TestReport.
@@ -296,6 +382,16 @@ impl<T: Debug> TestResult<T> {
                 }
             }
         }
+
+        for leak in &self.leaked_slots {
+            lines.push(format!(
+                "* leaked {} event slot(s) in {} on cpu {}: an eBPF program called \
+                 init_* without a matching output_*/discard_*",
+                leak.count, leak.map_name, leak.cpu
+            ));
+            success = false;
+        }
+
         TestReport { success, lines }
     }
 }
