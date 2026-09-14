@@ -374,29 +374,33 @@ pub mod test_suite {
 
     use super::*;
 
+    mod malformed_packets;
+
     pub fn tests() -> TestSuite {
+        let mut tests = vec![
+            bind_ipv4(),
+            bind_ipv6(),
+            bind_udp(),
+            connect_ipv4(),
+            connect_ipv6(),
+            connect_udp(),
+            listen_ipv4(),
+            listen_ipv6(),
+            accept_ipv4(),
+            accept_ipv6(),
+            udp_ipv4_sendmsg_recvmsg(),
+            udp_ipv6_sendmsg_recvmsg(),
+            tcp_ipv4_sendmsg_recvmsg(),
+            tcp_ipv6_sendmsg_recvmsg(),
+            close_ipv4(),
+            close_ipv6(),
+            dns_ipv4(),
+            dns_ipv6(),
+        ];
+        tests.extend(malformed_packets::tests());
         TestSuite {
             name: "network-monitor",
-            tests: vec![
-                bind_ipv4(),
-                bind_ipv6(),
-                bind_udp(),
-                connect_ipv4(),
-                connect_ipv6(),
-                connect_udp(),
-                listen_ipv4(),
-                listen_ipv6(),
-                accept_ipv4(),
-                accept_ipv6(),
-                udp_ipv4_sendmsg_recvmsg(),
-                udp_ipv6_sendmsg_recvmsg(),
-                tcp_ipv4_sendmsg_recvmsg(),
-                tcp_ipv6_sendmsg_recvmsg(),
-                close_ipv4(),
-                close_ipv6(),
-                dns_ipv4(),
-                dns_ipv6(),
-            ],
+            tests,
         }
     }
 
