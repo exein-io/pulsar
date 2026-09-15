@@ -2,8 +2,8 @@
 #include "common.bpf.h"
 #include "bpf/bpf_core_read.h"
 #include "strncmp.bpf.h"
-#include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
+#include "common.bpf.h"
 #include "get_path.bpf.h"
 #include "interest_tracking.bpf.h"
 #include "loop.bpf.h"
@@ -423,12 +423,19 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
-  long start = BPF_CORE_READ(mm, arg_start);
-  long end = BPF_CORE_READ(mm, arg_end);
-  int len = end - start;
+  u64 start = BPF_CORE_READ(mm, arg_start);
+  u64 end = BPF_CORE_READ(mm, arg_end);
+  u64 len = end > start ? end - start : 0;
   buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
-                            len);
+
+  int r = buffer_append_user_memory(&event->buffer, &event->exec.argv,
+                                    (void *)start, len);
+  if (r < 0) {
+    // We are logging this, but not discarding event.
+    // It is better to have exec event with missing argv than
+    // to miss the event.
+    LOG_DEBUG("failed to append argv to buffer");
+  }
 
   output_process_event(ctx, event);
 
