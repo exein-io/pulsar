@@ -328,6 +328,8 @@ pub mod test_suite {
             tests: vec![
                 fork_event(),
                 exec_event(),
+                exec_event_argv_fits(),
+                exec_event_argv_too_long(),
                 relative_exec_event(),
                 exit_event(),
                 exit_event_no_thread(),
@@ -384,6 +386,79 @@ pub mod test_suite {
                         (filename, echo_path, "exec filename"),
                         (argc, 2, "number of arguments"),
                         (argv, String::from("echo\0-n\0"), "arguments")
+                    ),
+                )
+                .report()
+        })
+    }
+
+    /// `HALF_BUFFER_MASK` from `buffer.bpf.h`: the largest chunk which can be
+    /// appended to an event buffer.
+    const HALF_BUFFER_MASK: usize = 16384 / 2 - 1;
+
+    /// Build `echo <padding>` with an argv block of exactly `argv_len` bytes.
+    /// The block is "echo\0" + padding + "\0".
+    fn echo_with_argv_len(argv_len: usize) -> String {
+        "a".repeat(argv_len - "echo\0".len() - 1)
+    }
+
+    /// The largest argv which still fits must round-trip untouched.
+    fn exec_event_argv_fits() -> TestCase {
+        TestCase::new("exec_event_argv_fits", async {
+            let mut child_pid = Pid::from_raw(0);
+            let padding = echo_with_argv_len(HALF_BUFFER_MASK - 1);
+            let expected_argv = format!("echo\0{padding}\0");
+            test_runner()
+                .run(|| {
+                    let mut child = std::process::Command::new("echo")
+                        .arg(&padding)
+                        .stdout(std::process::Stdio::null())
+                        .spawn()
+                        .unwrap();
+                    child_pid = Pid::from_raw(child.id() as i32);
+                    child.wait().unwrap();
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(
+                        ProcessEvent::Exec,
+                        (argc, 2, "number of arguments"),
+                        (argv, expected_argv, "arguments")
+                    ),
+                )
+                .report()
+        })
+    }
+
+    /// An argv too large for the buffer must be reported as empty rather than
+    /// as a length the eBPF side never wrote: `buffer_append_user_memory` used
+    /// to mask `len` while advancing the index by the full value, exposing
+    /// whatever the previous event left in the buffer (#382).
+    ///
+    /// The exact cut-off is deliberately not pinned here; this argv is well
+    /// over it either way.
+    fn exec_event_argv_too_long() -> TestCase {
+        TestCase::new("exec_event_argv_too_long", async {
+            let mut child_pid = Pid::from_raw(0);
+            let padding = echo_with_argv_len(HALF_BUFFER_MASK + 1000);
+            test_runner()
+                .run(|| {
+                    let mut child = std::process::Command::new("echo")
+                        .arg(&padding)
+                        .stdout(std::process::Stdio::null())
+                        .spawn()
+                        .unwrap();
+                    child_pid = Pid::from_raw(child.id() as i32);
+                    child.wait().unwrap();
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(
+                        ProcessEvent::Exec,
+                        (argc, 2, "number of arguments"),
+                        (argv, String::new(), "arguments")
                     ),
                 )
                 .report()
