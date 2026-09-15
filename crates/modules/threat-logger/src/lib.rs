@@ -8,12 +8,10 @@ use std::{
         fd::AsFd,
         unix::{fs::MetadataExt, net::UnixDatagram},
     },
-    str::FromStr,
 };
 
-use pulsar_core::pdk::{
-    ConfigError, Event, ModuleConfig, ModuleContext, ModuleError, SimplePulsarModule,
-};
+use pulsar_core::pdk::{Event, ModuleContext, ModuleError, SimplePulsarModule};
+use serde::Deserialize;
 use thiserror::Error;
 
 const UNIX_SOCK_PATHS: [&str; 3] = ["/dev/log", "/var/run/syslog", "/var/run/log"];
@@ -45,22 +43,6 @@ impl SimplePulsarModule for ThreatLoggerModule {
         Ok(ThreatLoggerState { logger })
     }
 
-    async fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> Result<(), ModuleError> {
-        state.logger = match ThreatLogger::from_config(new_config) {
-            Ok(logr) => logr,
-            Err(logr) => {
-                ctx.raise_warning("Failed to connect to syslog".into())
-                    .await;
-                logr
-            }
-        };
-        Ok(())
-    }
-
     async fn on_event(
         event: &Event,
         _config: &Self::Config,
@@ -80,47 +62,32 @@ pub struct ThreatLoggerState {
     logger: ThreatLogger,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
 enum OutputFormat {
+    #[default]
     Plaintext,
     Json,
 }
 
-impl FromStr for OutputFormat {
-    type Err = ConfigError;
-    fn from_str(format: &str) -> Result<Self, Self::Err> {
-        match format.to_lowercase().as_str() {
-            "plaintext" => Ok(OutputFormat::Plaintext),
-            "json" => Ok(OutputFormat::Json),
-            _ => Err(ConfigError::InvalidValue {
-                field: String::from("output_format"),
-                value: format.to_string(),
-                err: String::from("Output format must be one of [plaintext, json]"),
-            }),
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
+#[serde(default)]
 pub struct Config {
+    /// Log threats to stdout.
     console: bool,
-    // file: bool, //TODO:
+    /// Log threats to syslog.
     syslog: bool,
+    /// Rendering of the logged threats.
     output_format: OutputFormat,
 }
 
-impl TryFrom<&ModuleConfig> for Config {
-    type Error = ConfigError;
-
-    fn try_from(config: &ModuleConfig) -> Result<Self, Self::Error> {
-        Ok(Self {
-            console: config.optional("console")?.unwrap_or(true),
-            // file: config.required("file")?,
-            syslog: config.optional("syslog")?.unwrap_or(true),
-            output_format: config
-                .optional("output_format")?
-                .unwrap_or(OutputFormat::Plaintext),
-        })
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            console: true,
+            syslog: true,
+            output_format: OutputFormat::default(),
+        }
     }
 }
 
@@ -210,5 +177,26 @@ impl ThreatLogger {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_keys_keep_defaults() {
+        let config: Config = toml::from_str("").unwrap();
+        assert!(config.console);
+        assert!(config.syslog);
+        assert!(matches!(config.output_format, OutputFormat::Plaintext));
+    }
+
+    #[test]
+    fn present_keys_win() {
+        let config: Config = toml::from_str("console = false\noutput_format = \"json\"").unwrap();
+        assert!(!config.console);
+        assert!(config.syslog);
+        assert!(matches!(config.output_format, OutputFormat::Json));
     }
 }

@@ -1,0 +1,15 @@
+[[rules]]
+name = "Read sensitive file from untrusted process"
+type = "FileOpened"
+category = "credential_access"
+severity = "high"
+description = "Detects a process other than sshd reading the shadow password file."
+condition = 'header.image != "/usr/bin/sshd" AND payload.filename == "/etc/shadow"'
+
+[[rules]]
+name = "Executed telnet or nc"
+type = "Exec"
+category = "execution"
+severity = "medium"
+description = "Detects the execution of telnet or netcat."
+condition = 'payload.filename == "/usr/bin/telnet" OR payload.filename == "/usr/bin/nc"'

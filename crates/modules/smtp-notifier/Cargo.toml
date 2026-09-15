@@ -15,8 +15,10 @@ lettre = { workspace = true, features = [
     "tokio1-native-tls",
     "tokio1",
     "builder",
+    "serde",
 ] }
 openssl = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
 leon = { workspace = true }
 gethostname = { workspace = true }
 chrono = { workspace = true }
@@ -27,3 +29,6 @@ default = ["openssl"]
 tls-openssl = ["openssl", "lettre/tokio1-native-tls"]
 tls-rustls = ["lettre/tokio1-rustls-tls"]
 openssl-vendored = ["openssl?/vendored"]
+
+[dev-dependencies]
+toml = { workspace = true }

@@ -13,8 +13,12 @@ bpf-common = { workspace = true }
 pulsar-core = { workspace = true }
 
 nix = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 
 [build-dependencies]
 bpf-builder = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }

@@ -15,8 +15,9 @@ tokio = { workspace = true }
 glob = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_yaml = { workspace = true }
+toml = { workspace = true }
 lalrpop-util = { workspace = true, features=["lexer"] }
 
 [build-dependencies]
 lalrpop = { workspace = true }
+
