@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - network-monitor: validate the IPv4, ICMP and TCP header lengths before
   computing the payload length, preventing an integer underflow in `data_len`
   on crafted packets (#374)
+- eBPF: fixed leaking per-cpu event slots for probe messages if probe returned
+  early (#381)
+- eBPF: zero every event field on creation, so an event can no longer expose
+  leftover data from a previous event on the same cpu (#381)
+- eBPF: fixed buffer_index len set in buffer_append_user_memory (#382)
+
+### Added
+
+- regression tests for malformed network packets (#381)
+- regression tests for buffer_append_user_memory behaviour (#382)
 
 ## [0.9.0] - 2024-11-15
 

@@ -374,29 +374,33 @@ pub mod test_suite {
 
     use super::*;
 
+    mod malformed_packets;
+
     pub fn tests() -> TestSuite {
+        let mut tests = vec![
+            bind_ipv4(),
+            bind_ipv6(),
+            bind_udp(),
+            connect_ipv4(),
+            connect_ipv6(),
+            connect_udp(),
+            listen_ipv4(),
+            listen_ipv6(),
+            accept_ipv4(),
+            accept_ipv6(),
+            udp_ipv4_sendmsg_recvmsg(),
+            udp_ipv6_sendmsg_recvmsg(),
+            tcp_ipv4_sendmsg_recvmsg(),
+            tcp_ipv6_sendmsg_recvmsg(),
+            close_ipv4(),
+            close_ipv6(),
+            dns_ipv4(),
+            dns_ipv6(),
+        ];
+        tests.extend(malformed_packets::tests());
         TestSuite {
             name: "network-monitor",
-            tests: vec![
-                bind_ipv4(),
-                bind_ipv6(),
-                bind_udp(),
-                connect_ipv4(),
-                connect_ipv6(),
-                connect_udp(),
-                listen_ipv4(),
-                listen_ipv6(),
-                accept_ipv4(),
-                accept_ipv6(),
-                udp_ipv4_sendmsg_recvmsg(),
-                udp_ipv6_sendmsg_recvmsg(),
-                tcp_ipv4_sendmsg_recvmsg(),
-                tcp_ipv6_sendmsg_recvmsg(),
-                close_ipv4(),
-                close_ipv6(),
-                dns_ipv4(),
-                dns_ipv6(),
-            ],
+            tests,
         }
     }
 
@@ -646,9 +650,16 @@ pub mod test_suite {
                 }
                 ForkResult::Parent { child } => {
                     expected_pid = child;
-                    let (_connection, addr) = listener.accept().unwrap();
+                    let (connection, addr) = listener.accept().unwrap();
                     unsafe { kill(child.as_raw(), 9) };
                     source = addr;
+                    // Close the server side here rather than at the end of the
+                    // arm: it is what moves the client out of FIN_WAIT_2, and
+                    // the client's Close is the one asserted below. Closing
+                    // after the sleep leaves both closes to the moment the
+                    // closure returns, which is also when the assertion window
+                    // ends.
+                    drop(connection);
                     std::thread::sleep(Duration::from_millis(100));
                 }
             })

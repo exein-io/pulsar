@@ -2,8 +2,8 @@
 #include "common.bpf.h"
 #include "bpf/bpf_core_read.h"
 #include "strncmp.bpf.h"
-#include "bpf/bpf_helpers.h"
 #include "buffer.bpf.h"
+#include "common.bpf.h"
 #include "get_path.bpf.h"
 #include "interest_tracking.bpf.h"
 #include "loop.bpf.h"
@@ -316,6 +316,8 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
     // TODO: print error ??
     event->fork.option_index.discriminant = OPTION_NONE;
     event->fork.option_index.container_id.container_engine = container_engine;
+
+    // TODO: This can be removed, because event was zeroed during creation.
     event->fork.option_index.container_id.cgroup_id.start = 0;
     event->fork.option_index.container_id.cgroup_id.len = 0;
   } else {
@@ -362,6 +364,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   int container_engine = get_container_info(p, &c_id_buf);
   if (container_engine < 0) {
     event->exec.option_index.discriminant = OPTION_NONE;
+
+    // TODO: This can be removed, because event was zeroed during creation.
     event->exec.option_index.container_id.cgroup_id.start = 0;
     event->exec.option_index.container_id.cgroup_id.len = 0;
   } else {
@@ -384,11 +388,16 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   if (len_b > CONTAINER_ID_MAX_BUF) {
     LOG_ERROR("unexpected: container id buffer is too long");
+    discard_process_event(event);
     return 0;
   }
 
+  // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
+  // be used as a lookup key for the target and whitelist maps and garbage
+  // would make the search fail.
+  // NOTE: init_process_event zeroes the event but deliberately NOT the
+  // contents of `buffer`, so this is still required.
   u64 *position = event->buffer.buffer + len_b;
-
   __builtin_memset((char *)position, 0, MAX_IMAGE_LEN);
 
   // We want to get the absolute path of the executable we're running.
@@ -414,12 +423,19 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
 
   struct task_struct *task = (struct task_struct *)bpf_get_current_task();
   struct mm_struct *mm = BPF_CORE_READ(task, mm);
-  long start = BPF_CORE_READ(mm, arg_start);
-  long end = BPF_CORE_READ(mm, arg_end);
-  int len = end - start;
+  u64 start = BPF_CORE_READ(mm, arg_start);
+  u64 end = BPF_CORE_READ(mm, arg_end);
+  u64 len = end > start ? end - start : 0;
   buffer_index_init(&event->buffer, &event->exec.argv);
-  buffer_append_user_memory(&event->buffer, &event->exec.argv, (void *)start,
-                            len);
+
+  int r = buffer_append_user_memory(&event->buffer, &event->exec.argv,
+                                    (void *)start, len);
+  if (r < 0) {
+    // We are logging this, but not discarding event.
+    // It is better to have exec event with missing argv than
+    // to miss the event.
+    LOG_DEBUG("failed to append argv to buffer");
+  }
 
   output_process_event(ctx, event);
 

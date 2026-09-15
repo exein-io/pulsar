@@ -136,17 +136,6 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
   }
 }
 
-// Unused fields must be memset to 0 or we could still have garbage from
-// previous usages of temp memory.
-static void reset_unused_fields_v4(struct sockaddr_in *v4) {
-  __builtin_memset(v4->__pad, 0, sizeof(v4->__pad));
-}
-
-static void reset_unused_fields_v6(struct sockaddr_in6 *v6) {
-  v6->sin6_flowinfo = 0;
-  v6->sin6_scope_id = 0;
-}
-
 // Copy an address from the source part of sock_common
 static __always_inline void copy_skc_source(struct sock_common *sk,
                                             struct address *addr) {
@@ -159,7 +148,6 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     addr->ip_ver = 0;
     addr->v4.sin_port = port;
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_rcv_saddr);
-    reset_unused_fields_v4(&addr->v4);
     break;
   }
   case AF_INET6: {
@@ -167,7 +155,6 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     addr->v6.sin6_port = port;
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_rcv_saddr.in6_u.u6_addr32);
-    reset_unused_fields_v6(&addr->v6);
     break;
   }
   default:
@@ -185,7 +172,6 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     addr->ip_ver = 0;
     bpf_core_read(&addr->v4.sin_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &sk->skc_daddr);
-    reset_unused_fields_v4(&addr->v4);
     break;
   }
   case AF_INET6: {
@@ -193,7 +179,6 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     bpf_core_read(&addr->v6.sin6_port, sizeof(u16), &sk->skc_dport);
     bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                   &sk->skc_v6_daddr.in6_u.u6_addr32);
-    reset_unused_fields_v6(&addr->v6);
     break;
   }
   default:
@@ -216,7 +201,6 @@ static __always_inline void copy_iphdr_source(struct iphdr *ih,
   addr->ip_ver = 0;
   ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
   bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->saddr);
-  reset_unused_fields_v4(&addr->v4);
 }
 
 static __always_inline void copy_iphdr_dest(struct iphdr *ih,
@@ -224,7 +208,6 @@ static __always_inline void copy_iphdr_dest(struct iphdr *ih,
   addr->ip_ver = 0;
   ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
   bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->daddr);
-  reset_unused_fields_v4(&addr->v4);
 }
 
 static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
@@ -233,7 +216,6 @@ static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
   ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
   bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                 &ih6->saddr.in6_u.u6_addr32);
-  reset_unused_fields_v6(&addr->v6);
 }
 
 static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
@@ -242,7 +224,6 @@ static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
   ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
   bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                 &ih6->daddr.in6_u.u6_addr32);
-  reset_unused_fields_v6(&addr->v6);
 }
 
 static __always_inline void copy_ipv4_tcphdr_source(struct tcphdr *th,
@@ -527,7 +508,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case ETH_P_IPV4: {
     if (data + sizeof(struct iphdr) > data_end) {
       LOG_ERROR("found an IPv4 packet too small to fit an IP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct iphdr *ih = data;
@@ -552,7 +533,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     __u32 ip_len = ip_hdrlen(ih);
     if (ip_len < sizeof(struct iphdr) || data + ip_len > data_end) {
       LOG_ERROR("found an IPv4 packet with an invalid header length");
-      goto pass;
+      goto discard_event;
     }
     headers_len = ip_len;
 
@@ -561,7 +542,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case ETH_P_IPV6: {
     if (data + sizeof(struct ipv6hdr) > data_end) {
       LOG_ERROR("found an IPv6 packet too small to fit an IP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct ipv6hdr *ih6 = data;
@@ -585,7 +566,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   }
   default:
     LOG_DEBUG("ignored unsupported L3 protocol %d", l3_proto);
-    goto pass;
+    goto discard_event;
   }
 
   // Parse L4 header (ICMP / TCP / UDP).
@@ -593,7 +574,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case IPPROTO_ICMP:
     if (data + headers_len + sizeof(struct icmphdr) > data_end) {
       LOG_ERROR("found an ICMP packet too small to fit an ICMP header");
-      goto pass;
+      goto discard_event;
     }
 
     headers_len += sizeof(struct icmphdr);
@@ -601,7 +582,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case IPPROTO_TCP: {
     if (data + headers_len + sizeof(struct tcphdr) > data_end) {
       LOG_ERROR("found a TCP packet too small to fit a TCP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct tcphdr *th = data + headers_len;
@@ -614,7 +595,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
     if (tcp_len < sizeof(struct tcphdr) ||
         data + headers_len + tcp_len > data_end) {
       LOG_ERROR("found a TCP packet with an invalid data offset");
-      goto pass;
+      goto discard_event;
     }
     headers_len += tcp_len;
 
@@ -648,7 +629,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   case IPPROTO_UDP: {
     if (data + headers_len + sizeof(struct udphdr) > data_end) {
       LOG_ERROR("found a UDP packet too small to fit a UDP header");
-      goto pass;
+      goto discard_event;
     }
 
     struct udphdr *uh = data + headers_len;
@@ -692,7 +673,7 @@ __always_inline int process_skb(struct __sk_buff *skb,
   if (headers_len > skb->len) {
     LOG_ERROR("packet headers (%u) exceed packet length (%u)", headers_len,
               skb->len);
-    goto pass;
+    goto discard_event;
   }
 
   if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
@@ -704,7 +685,9 @@ __always_inline int process_skb(struct __sk_buff *skb,
 
 send_event:
   output_network_event(skb, network_event);
-pass:
+  return CGROUP_SKB_OK;
+discard_event:
+  discard_network_event(network_event);
   return CGROUP_SKB_OK;
 }
 

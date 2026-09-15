@@ -102,30 +102,38 @@ static __always_inline void buffer_append_str(struct buffer *buffer,
 // Copy up to len bytes from source to the buffer pointed by index.
 // On success, update index and buffer length.
 // Source must point to user memory.
-static void buffer_append_user_memory(struct buffer *buffer,
-                                      struct buffer_index *index, void *source,
-                                      int len) {
-  int pos = (index->start + index->len);
+static __always_inline int buffer_append_user_memory(struct buffer *buffer,
+                                                     struct buffer_index *index,
+                                                     void *source, u32 len) {
+  // The verifier needs `pos` and `len` bounded separately: a bound on their
+  // sum tells it nothing about either, and the sum can wrap.
+  u32 pos = index->start + index->len;
   if (pos >= HALF_BUFFER_MASK) {
     LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
-    return;
+    return -1;
   }
-  int r = bpf_core_read_user(&((char *)buffer->buffer)[pos],
-                             len & HALF_BUFFER_MASK, source);
+  if (len >= HALF_BUFFER_MASK) {
+    LOG_ERROR("write of %d bytes exceeds buffer capacity (%d)", len,
+              HALF_BUFFER_MASK);
+    return -1;
+  }
+
+  int r = bpf_core_read_user(&((char *)buffer->buffer)[pos], len, source);
   if (r < 0) {
     LOG_ERROR("reading failure: %d", r);
-    return;
+    return -1;
   }
-  // LOG_DEBUG("New buffer: %s (+%d)", buffer->buffer, r);
 
   index->len += len;
   buffer->len += len;
+
+  return 0;
 }
 
 static __always_inline int buffer_append_skb_bytes(struct buffer *buffer,
                                                    struct buffer_index *index,
                                                    struct __sk_buff *skb,
-                                                   __u32 offset) {
+                                                   u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
     LOG_ERROR(
