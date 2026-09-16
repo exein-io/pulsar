@@ -84,30 +84,21 @@ repository = "https://github.com/exein-io/pulsar"
 [workspace.dependencies]
 # Crates
 bpf-builder = { path = "crates/bpf-builder" }
-bpf-common = { path = "crates/bpf-common", features = [
-    "test-utils",
-    "test-suite",
-] }
+bpf-common = { path = "crates/bpf-common" }
 bpf-features = { path = "crates/bpf-features" }
 bpf-feature-autodetect = { path = "crates/bpf-feature-autodetect" }
 bpf-features-macros = { path = "crates/bpf-features-macros" }
-bpf-filtering = { path = "crates/bpf-filtering", features = ["test-suite"] }
+bpf-filtering = { path = "crates/bpf-filtering" }
 engine-api = { path = "crates/engine-api" }
 pulsar-core = { path = "crates/pulsar-core" }
 validatron = { path = "crates/validatron" }
 validatron-derive = { path = "crates/validatron/derive" }
 # Modules
 desktop-notifier = { path = "crates/modules/desktop-notifier" }
-file-system-monitor = { path = "crates/modules/file-system-monitor", features = [
-    "test-suite",
-] }
+file-system-monitor = { path = "crates/modules/file-system-monitor" }
 threat-logger = { path = "crates/modules/threat-logger" }
-network-monitor = { path = "crates/modules/network-monitor", features = [
-    "test-suite",
-] }
-process-monitor = { path = "crates/modules/process-monitor", features = [
-    "test-suite",
-] }
+network-monitor = { path = "crates/modules/network-monitor" }
+process-monitor = { path = "crates/modules/process-monitor" }
 rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
 # External
