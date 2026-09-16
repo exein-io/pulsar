@@ -311,7 +311,6 @@ dependencies = [
  "bytes",
  "diesel",
  "glob",
- "hex",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -322,7 +321,6 @@ dependencies = [
  "nix",
  "nut",
  "procfs",
- "rand 0.9.2",
  "regex",
  "rust-ini",
  "serde",
@@ -347,7 +345,6 @@ dependencies = [
  "bpf-features",
  "libc",
  "log",
- "nix",
  "thiserror 2.0.17",
 ]
 
@@ -355,16 +352,9 @@ dependencies = [
 name = "bpf-features"
 version = "0.11.0-alpha.1"
 dependencies = [
- "anyhow",
- "aya",
- "aya-ebpf-bindings",
  "aya-obj",
- "libc",
- "log",
- "nix",
  "proc-macro2",
  "quote",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -372,7 +362,6 @@ name = "bpf-features-macros"
 version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-features",
- "proc-macro2",
  "quote",
  "syn",
 ]
@@ -791,7 +780,6 @@ name = "desktop-notifier"
 version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
- "bpf-common",
  "log",
  "pulsar-core",
  "serde",
@@ -2410,7 +2398,6 @@ dependencies = [
  "pulsar-core",
  "thiserror 2.0.17",
  "tokio",
- "which",
 ]
 
 [[package]]
@@ -2463,7 +2450,6 @@ dependencies = [
  "process-monitor",
  "pulsar-core",
  "rules-engine",
- "semver",
  "serde",
  "serde_ignored",
  "smtp-notifier",
@@ -2481,7 +2467,6 @@ dependencies = [
  "bpf-common",
  "chrono",
  "log",
- "nix",
  "serde",
  "serde_ignored",
  "strum",
@@ -2734,7 +2719,6 @@ dependencies = [
 name = "rules-engine"
 version = "0.11.0-alpha.1"
 dependencies = [
- "anyhow",
  "glob",
  "lalrpop",
  "lalrpop-util",
@@ -2742,7 +2726,6 @@ dependencies = [
  "pulsar-core",
  "serde",
  "thiserror 2.0.17",
- "tokio",
  "toml",
  "validatron",
 ]
@@ -2917,10 +2900,6 @@ name = "semver"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
-dependencies = [
- "serde",
- "serde_core",
-]
 
 [[package]]
 name = "serde"
@@ -3101,7 +3080,6 @@ dependencies = [
  "pulsar-core",
  "rand 0.9.2",
  "serde",
- "tokio",
  "toml",
 ]
 
@@ -3347,13 +3325,10 @@ dependencies = [
 name = "threat-logger"
 version = "0.11.0-alpha.1"
 dependencies = [
- "bpf-common",
- "log",
  "pulsar-core",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
- "tokio",
  "toml",
 ]
 

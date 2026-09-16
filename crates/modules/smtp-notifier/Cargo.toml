@@ -8,7 +8,6 @@ repository.workspace = true
 [dependencies]
 pulsar-core = { workspace = true }
 
-tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
 lettre = { workspace = true, features = [
     "smtp-transport",

@@ -15,6 +15,5 @@ tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
-nix = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 chrono = { workspace = true, features = ["std"] }
