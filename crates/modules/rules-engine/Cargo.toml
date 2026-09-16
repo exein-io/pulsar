@@ -10,8 +10,6 @@ validatron = { workspace = true }
 pulsar-core = { workspace = true }
 
 log = { workspace = true }
-anyhow = { workspace = true }
-tokio = { workspace = true }
 glob = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
