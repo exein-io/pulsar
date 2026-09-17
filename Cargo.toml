@@ -115,7 +115,6 @@ dns-parser = "0.8.0"
 diesel = { version = "2.3.13", features = ["sqlite"] }
 env_logger = "0.11.11"
 flate2 = "1.1.10"
-futures = "0.3.34"
 futures-util = "0.3.34"
 gethostname = "1.1.0"
 glob = "0.3.4"

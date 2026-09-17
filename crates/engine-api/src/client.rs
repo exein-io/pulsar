@@ -1,6 +1,6 @@
 use std::{ffi::CString, os::unix::prelude::FileTypeExt};
 
-use futures::{Stream, StreamExt};
+use futures_util::{Stream, StreamExt};
 use http_body_util::{BodyExt, Either, Empty, Full};
 use hyper::body::{Buf, Bytes};
 use hyper::{Method, Request, StatusCode, Uri};

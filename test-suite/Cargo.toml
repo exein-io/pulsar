@@ -14,5 +14,5 @@ process-monitor = { workspace = true, features = ["test-suite"] }
 libtest-mimic =  { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
-futures = { workspace = true }
+futures-util = { workspace = true }
 nix = { workspace = true }
