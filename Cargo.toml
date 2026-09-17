@@ -163,7 +163,7 @@ serde_ignored = "0.1.14"
 serde_json = "1.0.151"
 signal-hook = "0.4.4"
 strum = { version = "0.28.0", features = ["derive"] }
-syn = "2.0.119"
+syn = "3.0.6"
 sys-mount = { version = "3.1.0", default-features = false }
 tar = "0.4.46"
 thiserror = "2.0.20"
