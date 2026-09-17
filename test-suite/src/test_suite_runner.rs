@@ -1,7 +1,7 @@
 use std::panic::AssertUnwindSafe;
 
 use bpf_common::test_runner::{TestCase, TestReport, TestSuite};
-use futures::FutureExt;
+use futures_util::FutureExt;
 use libtest_mimic::{Arguments, Failed, Trial};
 use tokio::sync::{mpsc, oneshot};
 
