@@ -717,7 +717,7 @@ pub mod test_suite {
                 // DNS server.
                 let mut server = Server::default();
                 server
-                    .add_records(&dns_server_domain, vec![address])
+                    .add_records(&format!("{dns_server_domain}."), vec![address])
                     .unwrap();
                 let socket = tokio::net::UdpSocket::bind(&addr).await.unwrap();
                 let local_addr = socket.local_addr().unwrap();
