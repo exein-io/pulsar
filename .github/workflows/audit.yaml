@@ -2,18 +2,20 @@ name: "Audit Dependencies"
 on:
   # Run manually
   workflow_dispatch:
-  # push:
-  #   paths:
-  #     # Run if workflow changes
-  #     - '.github/workflows/audit.yml'
-  #     # Run on changed dependencies
-  #     - '**/Cargo.toml'
-  #     - '**/Cargo.lock'
-  #     # Run if the configuration file changes
-  #     - '**/audit.toml'
-  # # Rerun periodicly to pick up new advisories
-  # schedule:
-  #   - cron: '0 0 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      # Run if workflow changes
+      - '.github/workflows/audit.yaml'
+      # Run on changed dependencies
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+      # Run if the configuration file changes
+      - '**/audit.toml'
+  # Rerun periodically to pick up new advisories
+  schedule:
+    - cron: '0 0 * * *'
 
 permissions: read-all
 
