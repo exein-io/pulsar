@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::SystemTime};
 
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use gethostname::gethostname;
+use nix::unistd::gethostname;
 use pulsar_core::pdk::Payload;
 
 const EMAIL_TEMPLATE: &str = include_str!("./template.html.leon");
@@ -24,7 +24,7 @@ impl Template {
         description: &str,
         payload: &Payload,
     ) -> Result<String, anyhow::Error> {
-        let hostname = gethostname();
+        let hostname = gethostname().context("error getting the hostname")?;
         let datetime: DateTime<Utc> = <DateTime<Utc>>::from(*timestamp);
 
         let mut values = HashMap::new();

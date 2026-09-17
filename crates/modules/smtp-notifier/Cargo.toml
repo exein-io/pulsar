@@ -19,7 +19,7 @@ lettre = { workspace = true, features = [
 openssl = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 leon = { workspace = true }
-gethostname = { workspace = true }
+nix = { workspace = true }
 chrono = { workspace = true }
 rand = { workspace = true }
 
