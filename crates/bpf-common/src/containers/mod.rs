@@ -9,9 +9,9 @@ use std::{
     ptr,
 };
 
-use diesel::{connection::SimpleConnection, prelude::*};
 use ini::Ini;
 use nix::unistd::Uid;
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use validatron::Validatron;
@@ -19,7 +19,6 @@ use validatron::Validatron;
 use crate::parsing::procfs::ProcfsError;
 
 pub mod layers;
-pub mod schema;
 
 #[derive(Error, Debug)]
 pub enum ContainerError {
@@ -64,7 +63,7 @@ pub enum ContainerError {
     #[error("could not connect to the database `{path:?}`")]
     SqliteConnection {
         #[source]
-        source: ConnectionError,
+        source: rusqlite::Error,
         path: PathBuf,
     },
     #[error("could not find libpod container `{id}`")]
@@ -158,14 +157,6 @@ struct LibpodImageConfig {
     id: String,
     digest: String,
     layer: String,
-}
-
-/// Database schema of libpod.
-#[derive(Queryable, Selectable)]
-#[diesel(table_name = schema::libpod_db_container_config)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-struct LibpodDBContainerConfig {
-    json: String,
 }
 
 /// Container information used in Pulsar alerts and rules.
@@ -458,24 +449,18 @@ fn sqlite_find_libpod_container_config<P: AsRef<Path>>(
         ));
     }
 
-    use schema::libpod_db_container_config::dsl::*;
-
     let db_path_str = db_path.to_str().ok_or(ContainerError::PathNonUtf8 {
         path: db_path.clone(),
     })?;
-    let mut conn = SqliteConnection::establish(db_path_str).map_err(|source| {
-        ContainerError::SqliteConnection {
+    let conn =
+        Connection::open(db_path_str).map_err(|source| ContainerError::SqliteConnection {
             source,
             path: db_path.to_owned(),
-        }
-    })?;
+        })?;
 
     // Enable busy timeout to before querying the database because
     // of possible ongoing transactions
-    if let Err(err) = conn
-        .batch_execute("PRAGMA busy_timeout = 200;")
-        .map_err(ConnectionError::CouldntSetupConfiguration)
-    {
+    if let Err(err) = conn.execute_batch("PRAGMA busy_timeout = 200;") {
         log::error!("failed to setup busy timeout in sqlite: {err}");
 
         return Err(ContainerError::ContainerNotFound {
@@ -483,19 +468,17 @@ fn sqlite_find_libpod_container_config<P: AsRef<Path>>(
         });
     };
 
-    match libpod_db_container_config
-        .filter(id.eq(&container_id))
-        .limit(1)
-        .select(LibpodDBContainerConfig::as_select())
-        .first(&mut conn)
-    {
-        Ok(config) => {
-            let config: LibpodConfig = serde_json::from_str(&config.json).map_err(|source| {
-                ContainerError::ParseConfigDB {
+    match conn.query_row(
+        "SELECT JSON FROM ContainerConfig WHERE ID = ? LIMIT 1",
+        [container_id],
+        |row| row.get::<_, String>(0),
+    ) {
+        Ok(json) => {
+            let config: LibpodConfig =
+                serde_json::from_str(&json).map_err(|source| ContainerError::ParseConfigDB {
                     source,
                     path: db_path,
-                }
-            })?;
+                })?;
 
             Ok(config)
         }
