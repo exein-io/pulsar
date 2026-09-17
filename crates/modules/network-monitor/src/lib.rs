@@ -364,7 +364,11 @@ pub mod test_suite {
         test_runner::{TestCase, TestReport, TestRunner, TestSuite},
     };
     use dns_mock_server::Server;
-    use hickory_resolver::{Resolver, config::*, name_server::TokioConnectionProvider};
+    use hickory_resolver::{
+        Resolver,
+        config::{ConnectionConfig, NameServerConfig, ResolverConfig},
+        net::runtime::TokioRuntimeProvider,
+    };
 
     use nix::{
         libc::kill,
@@ -726,19 +730,17 @@ pub mod test_suite {
                 });
 
                 // DNS requests.
-                let mut config = ResolverConfig::new();
-                for ns in NameServerConfigGroup::from_ips_clear(
-                    &[local_addr.ip()],
-                    local_addr.port(),
+                let mut connection = ConnectionConfig::udp();
+                connection.port = local_addr.port();
+                let config = ResolverConfig::from_name_servers(vec![NameServerConfig::new(
+                    local_addr.ip(),
                     false,
-                )
-                .into_inner()
-                {
-                    config.add_name_server(ns);
-                }
+                    vec![connection],
+                )]);
                 let resolver =
-                    Resolver::builder_with_config(config, TokioConnectionProvider::default())
-                        .build();
+                    Resolver::builder_with_config(config, TokioRuntimeProvider::default())
+                        .build()
+                        .unwrap();
                 resolver.lookup_ip(&dns_server_domain).await.unwrap();
             })
             .await

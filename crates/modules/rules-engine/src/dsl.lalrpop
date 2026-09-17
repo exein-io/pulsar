@@ -90,13 +90,13 @@ Operator: Operator = {
 }
 
 FieldPath: Vec<Identifier> = {
-    <IdentSeq> =>? {
+    <idents:IdentSeq> =>? {
         let mut payload_subpath = false;
 
         let mut v = Vec::new();
-        v.reserve(<>.len());
+        v.reserve(idents.len());
 
-        let mut dotted_idents = <>.into_iter().enumerate();
+        let mut dotted_idents = idents.into_iter().enumerate();
 
         while let Some((index, value)) = dotted_idents.next() {
             match value {
