@@ -424,7 +424,7 @@ version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-features",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -3878,7 +3878,7 @@ version = "0.11.0-alpha.1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]
