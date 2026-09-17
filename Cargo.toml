@@ -171,7 +171,7 @@ tar = "0.4.46"
 thiserror = "2.0.20"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-fd = "0.3.0"
-tokio-tungstenite = "0.28.0"
+tokio-tungstenite = "0.29.0"
 uuid = { version = "1.26.1", features = ["v4"] }
 which = "8.0.6"
 xshell = "0.2.7"
