@@ -14,7 +14,7 @@ num_cpus = { workspace = true }
 reqwest = { workspace = true, default-features = false, features = [
     "blocking",
     "json",
-    "rustls-tls",
+    "rustls",
 ] }
 serde = { workspace = true, features = ["derive"] }
 signal-hook = { workspace = true }
