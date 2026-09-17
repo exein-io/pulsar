@@ -46,8 +46,6 @@ pub enum ContainerError {
         source: serde_json::error::Error,
         uri: hyper::Uri,
     },
-    #[error("path `{path}` is non-UTF-8")]
-    PathNonUtf8 { path: PathBuf },
     #[error("failed to make a request to the UNIX socket `{uri:?}`")]
     HyperRequest {
         #[source]
@@ -74,10 +72,6 @@ pub enum ContainerError {
     LayerStoreNotFound,
     #[error("could not find container image `{id}` in `{path:?}`")]
     ImageNotFound { id: String, path: PathBuf },
-    #[error("parsing image digest {digest} failed")]
-    ParseDigest { digest: String },
-    #[error("invalid hash function {hash_fn}")]
-    InvalidHashFunction { hash_fn: String },
     #[error(transparent)]
     Procfs(#[from] ProcfsError),
     #[error("error parsing libpod configuration from {path}")]
@@ -449,14 +443,10 @@ fn sqlite_find_libpod_container_config<P: AsRef<Path>>(
         ));
     }
 
-    let db_path_str = db_path.to_str().ok_or(ContainerError::PathNonUtf8 {
-        path: db_path.clone(),
+    let conn = Connection::open(&db_path).map_err(|source| ContainerError::SqliteConnection {
+        source,
+        path: db_path.to_owned(),
     })?;
-    let conn =
-        Connection::open(db_path_str).map_err(|source| ContainerError::SqliteConnection {
-            source,
-            path: db_path.to_owned(),
-        })?;
 
     // Enable busy timeout to before querying the database because
     // of possible ongoing transactions
