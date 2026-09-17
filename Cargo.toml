@@ -112,7 +112,6 @@ clap = { version = "4.6.7", features = ["derive"] }
 comfy-table = "8.0.0"
 dns-mock-server = "0.2.0"
 dns-parser = "0.8.0"
-diesel = { version = "2.3.13", features = ["sqlite"] }
 env_logger = "0.11.11"
 flate2 = "1.1.10"
 futures-util = "0.3.34"
@@ -134,7 +133,6 @@ lettre = { version = "0.11.23", default-features = false, features = [
 ] }
 libc = "0.2.189"
 libtest-mimic = "0.8.2"
-libsqlite3-sys = { version = "0.38.2" }
 log = { version = "0.4.34", features = ["std"] }
 nix = { version = "0.31.3", features = [
     "fs",
@@ -158,6 +156,7 @@ reqwest = { version = "0.13.5", default-features = false, features = [
     "json",
     "rustls",
 ] }
+rusqlite = "0.40.2"
 rust-ini = "0.21.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_ignored = "0.1.14"
