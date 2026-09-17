@@ -177,7 +177,7 @@ which = "8.0.6"
 xshell = "0.2.7"
 vergen-gitcl = "10.0.3"
 clap-verbosity-flag = "3.0.4"
-toml = "0.9.12"
+toml = "1.1.6"
 
 [profile.release]
 lto = true
