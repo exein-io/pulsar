@@ -75,7 +75,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.10.0-alpha.1"
+version = "0.10.0"
 license = "Apache-2.0 WITH BPF probes exception under GPL-2.0"
 edition = "2024"
 repository = "https://github.com/exein-io/pulsar"

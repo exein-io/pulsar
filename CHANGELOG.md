@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+-
+
+## [0.10.0] - 2026-09-17
 
 ### Fixed
 
@@ -16,11 +19,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - eBPF: zero every event field on creation, so an event can no longer expose
   leftover data from a previous event on the same cpu (#381)
 - eBPF: fixed buffer_index len set in buffer_append_user_memory (#382)
+- eBPF: handle the `struct kernfs_node` layout change of kernel 6.15, with the
+  vendored `vmlinux.h` updated to 6.15.2 (#351)
+- eBPF: `make_path` verifier error in `file-system-monitor` (#350)
+- rule DSL: the `<=` operator was evaluated as `>=` (#348)
+- daemon deadlock while starting a module (#342)
+- daemon deadlock while waiting for the module `init_state` result (#364)
+- missing dash in the `riscv64` architecture string in `pulsar-install.sh` (#346)
+- ci: bundle `pulsar-install.sh` in tagged releases, not only in `dev` ones (#320)
 
 ### Added
 
+- `btf_path` configuration option to load BTF from a file instead of the
+  running kernel (#368)
+- `pulsar --version` and `pulsard --version` report the git commit sha and the
+  build profile alongside the version (#369)
+- rules-engine: the matching rule `condition` is now part of the threat
+  metadata (#372)
+- new *Command and Control* rules (#355)
+- new *Credential Access* rules (#356)
 - regression tests for malformed network packets (#381)
 - regression tests for buffer_append_user_memory behaviour (#382)
+- ci: `riscv64gc-unknown-linux-musl` release build (#354)
+- ci: run integration tests in virtual machines using `lvh` (#353)
+
+### Changed
+
+- **BREAKING**: the single `pulsar-exec` binary is split into `pulsard`
+  (daemon) and `pulsar` (CLI), replacing the `scripts/pulsar` and
+  `scripts/pulsard` wrappers (#369)
+- **BREAKING**: `elf_check` in `file-system-monitor` now defaults to `false` (#349)
+- **BREAKING**: modules read optional settings with `ModuleConfig::optional`,
+  which returns an `Option`, instead of `ModuleConfig::with_default` (#349)
+- **BREAKING**: the `engine-api` client returns the typed `EngineClientError`
+  instead of `anyhow::Error` (#338)
+- **BREAKING**: switch to the Rust 2024 edition, raising the minimum supported
+  Rust version to 1.85 (#335)
+- rules: `basic-rules.yaml` is split into per-tactic directories under `rules/` (#362)
+- xtask: `surun` forwards signals to the child process (#363)
+- update aya to 0.13.1 (#334)
+- update vendored libbpf to v1.6.2 (#370)
+- update axum and hyper (#322)
+- use the aya kernel version implementation instead of the internal one (#323)
+- ci: build the BPF probes with clang 20 (#324, #352)
+- ci: pin the Rust toolchain in `rust-toolchain.toml` (#385)
+
+### Removed
+
+- **BREAKING**: `SyscallActivity` event type (#365)
+- **BREAKING**: process filtering by raw cgroup definition, together with the
+  `cgroup_targets` option and the `CgroupCreated`, `CgroupDeleted` and
+  `CgroupAttach` events (#366)
+- **BREAKING**: syscall number tables from `bpf-common::platform` (#325)
 
 ## [0.9.0] - 2024-11-15
 
