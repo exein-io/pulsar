@@ -12,16 +12,18 @@ This module will log Pulsar threat events to stdout.
 
 Default configuration:
 
-```ini
-[threat-logger]
-enabled=true
-console=true
-syslog=true
-output_format=plaintext
+```toml
+[module.threat-logger]
+enabled = true
+console = true
+syslog = true
+output_format = "plaintext"
 ```
 
-You disable this module with:
+You disable this module in `/var/lib/pulsar/pulsar.toml`, then restart the
+daemon:
 
-```sh
-pulsar config --set threat-logger.enabled=false
+```toml
+[module.threat-logger]
+enabled = false
 ```

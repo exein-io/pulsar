@@ -1,27 +1,19 @@
 use std::{borrow::Cow, fmt, future::Future, ops::Deref};
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use validatron::Validatron;
 
-use super::{ConfigError, Event, ModuleConfig, ModuleContext};
+use super::{Event, ModuleContext};
 
-#[derive(Debug)]
-pub struct NoConfig(());
-
-impl<'a> TryFrom<&'a ModuleConfig> for NoConfig {
-    type Error = ConfigError;
-
-    fn try_from(value: &'a ModuleConfig) -> std::prelude::v1::Result<Self, Self::Error> {
-        let _ = value;
-        Ok(Self(()))
-    }
-}
+/// Configuration of a module that takes no settings.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NoConfig {}
 
 /// Trait to implement to create a pulsar pluggable module. Note that this is the fully
 /// featured interface which is often too much. Please see [`SimplePulsarModule`] for a simpler interface.
 pub trait PulsarModule: Send {
-    type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
+    type Config: DeserializeOwned + Clone + Send + Sync + 'static;
     type State: Send + 'static;
     type Extension: Send + 'static;
     type TriggerOutput: Send + Sync;
@@ -47,15 +39,6 @@ pub trait PulsarModule: Send {
     ) -> impl Future<Output = Result<(), ModuleError>> + Send;
 
     #[allow(unused_variables)]
-    fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        ctx.stop_cfg_recv()
-    }
-
-    #[allow(unused_variables)]
     fn on_event(
         event: &Event,
         config: &Self::Config,
@@ -74,7 +57,7 @@ pub trait PulsarModule: Send {
 /// A simpler version of [`PulsarModule`] which is often enough. A blanket implementation ensures that
 /// [`PulsarModule`] is implemented for all implementors of [`SimplePulsarModule`].
 pub trait SimplePulsarModule: Send + Sync {
-    type Config: for<'a> TryFrom<&'a ModuleConfig, Error = ConfigError> + Send + Sync + 'static;
+    type Config: DeserializeOwned + Clone + Send + Sync + 'static;
     type State: Send + 'static;
 
     const MODULE_NAME: &'static str;
@@ -85,15 +68,6 @@ pub trait SimplePulsarModule: Send + Sync {
         config: &Self::Config,
         ctx: &ModuleContext,
     ) -> impl Future<Output = Result<Self::State, ModuleError>> + Send;
-
-    #[allow(unused_variables)]
-    fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> impl Future<Output = Result<(), ModuleError>> + Send {
-        ctx.stop_cfg_recv()
-    }
 
     #[allow(unused_variables)]
     fn on_event(
@@ -148,14 +122,6 @@ where
         _ctx: &ModuleContext,
     ) -> Result<(), ModuleError> {
         Ok(())
-    }
-
-    async fn on_config_change(
-        new_config: &Self::Config,
-        state: &mut Self::State,
-        ctx: &ModuleContext,
-    ) -> Result<(), ModuleError> {
-        <Self as SimplePulsarModule>::on_config_change(new_config, state, ctx).await
     }
 
     async fn on_event(

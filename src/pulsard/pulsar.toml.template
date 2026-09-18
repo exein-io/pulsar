@@ -1,0 +1,55 @@
+# Pulsar configuration.
+#
+# Every value below is the default: uncomment and change what you need, then
+# restart the daemon to apply it.
+
+[pulsar]
+# perf_pages = 128
+# btf_path = "/path/to/vmlinux"
+# api_socket_path = "/var/run/pulsar.sock"
+
+[module.process-monitor]
+# enabled = true
+# pid_targets = []
+# pid_targets_children = []
+# targets = []
+# targets_children = []
+# whitelist = []
+# whitelist_children = []
+# track_by_default = true
+# ignore_self = true
+
+[module.file-system-monitor]
+# enabled = true
+# elf_check = false
+# elf_check_whitelist = ["/proc", "/sys", "/dev"]
+
+[module.network-monitor]
+# enabled = true
+
+[module.rules-engine]
+# enabled = true
+# rules_path = "/var/lib/pulsar/rules"
+
+[module.threat-logger]
+# enabled = true
+# console = true
+# syslog = true
+# output_format = "plaintext"
+
+[module.desktop-notifier]
+# enabled = false
+# user_id = 1000
+# display = ":0"
+# notify_send_executable = "notify-send"
+# bus_address = "unix:path=/run/user/1000/bus"
+
+[module.smtp-notifier]
+# enabled = false
+# server = "smtp.example.com"
+# username = "pulsar@example.com"
+# password = ""
+# receivers = ["admin@example.com"]
+# port = 465
+# encryption = "tls"
+# sender = "pulsar@example.com"

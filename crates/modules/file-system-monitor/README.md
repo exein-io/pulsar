@@ -18,22 +18,24 @@ in its first bytes.
 |Config|Type|Description|
 |------|----|-----------|
 |`elf_check`|boolean|Enable ELF check|
-|`elf_check_whitelist`|path list|Paths ignored by ELF check|
+|`elf_check_whitelist`|array of paths|Paths ignored by ELF check|
 
 Default configuration:
 
-```ini
-[file-system-monitor]
-enabled=true
-elf_check=false
-elf_check_whitelist=/proc,/sys,/dev
+```toml
+[module.file-system-monitor]
+enabled = true
+elf_check = false
+elf_check_whitelist = ["/proc", "/sys", "/dev"]
 ```
 
-You disable this module or the ELF check with:
+You disable this module or the ELF check in `/var/lib/pulsar/pulsar.toml`,
+then restart the daemon:
 
-```sh
-pulsar config --set file-system-monitor.enabled=false
-pulsar config --set file-system-monitor.elf_check=false
+```toml
+[module.file-system-monitor]
+enabled = false
+elf_check = false
 ```
 
 ## Testing

@@ -14,24 +14,26 @@ spawn a child `notify-send` subprocess with the configured user id.
 |`user_id`|int|Id of the user running the target desktop environment|
 |`display`|string|Target display|
 |`notify_send_executable`|string|executable for sending notifications|
-|`bus_address`|string|address of the target session-bus|
+|`bus_address`|string|address of the target session-bus, defaults to the bus of `user_id`|
 
 The default configuration is compatible with Ubuntu.
 To make sure your system is compatible, check the output of `id -u`,
 `echo $DISPLAY` and `echo $DBUS_SESSION_BUS_ADDRESS`. Also, make sure
 `notify-send` is installed.
 
-```ini
-[desktop-notifier]
-enabled=false
-user_id=1000
-display=:0
-notify_send_executable=notify-send
-bus_address=unix:path=/run/user/1000/bus
+```toml
+[module.desktop-notifier]
+enabled = false
+user_id = 1000
+display = ":0"
+notify_send_executable = "notify-send"
+bus_address = "unix:path=/run/user/1000/bus"
 ```
 
-This module is disabled by default. You can enable it with:
+This module is disabled by default. Enable it in `/var/lib/pulsar/pulsar.toml`
+and restart the daemon:
 
-```sh
-pulsar config --set desktop-notifier.enabled=true
+```toml
+[module.desktop-notifier]
+enabled = true
 ```

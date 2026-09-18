@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
-use bpf_common::program::{BpfContext, BpfLogLevel, PERF_PAGES_DEFAULT, Pinning};
+use bpf_common::program::{BpfContext, BpfLogLevel, Pinning};
 
 use pulsar_core::{
     bus::Bus,
     pdk::{
-        ModuleConfig, ModuleOverview, ModuleStatus, PulsarDaemonCommand, PulsarDaemonError,
-        PulsarDaemonHandle, PulsarModule,
+        ModuleOverview, ModuleStatus, PulsarDaemonCommand, PulsarDaemonError, PulsarDaemonHandle,
+        PulsarModule,
         process_tracker::{ProcessTrackerHandle, start_process_tracker},
     },
 };
 use tokio::sync::mpsc;
 
-use crate::pulsard::{GENERAL_CONFIG, config::PulsarConfig};
+use crate::pulsard::config::PulsarConfig;
 
 use super::module_manager::{ModuleManagerHandle, create_module_manager};
 
@@ -33,25 +33,8 @@ impl PulsarDaemonStarter {
 
         let process_tracker = start_process_tracker();
 
-        let general_config = config.get_module_config(GENERAL_CONFIG).unwrap_or_default();
-        let perf_pages = match general_config.optional("perf_pages") {
-            Ok(value) => value.unwrap_or(PERF_PAGES_DEFAULT),
-            Err(err) => {
-                log::warn!(
-                    "failed to parse `perf_pages` field. fallback to default {PERF_PAGES_DEFAULT}. Err: {err}"
-                );
-                PERF_PAGES_DEFAULT
-            }
-        };
-        let btf_path = match general_config.optional("btf_path") {
-            Ok(path) => path,
-            Err(err) => {
-                log::warn!(
-                    "failed to parse `btf_path` field. fallback to default /proc provider. Err: {err}"
-                );
-                None
-            }
-        };
+        let perf_pages = config.pulsar.perf_pages;
+        let btf_path = config.pulsar.btf_path.clone();
         let bpf_log_level = if cfg!(debug_assertions) {
             if log::max_level() >= log::Level::Debug {
                 BpfLogLevel::Debug
@@ -81,7 +64,17 @@ impl PulsarDaemonStarter {
 
         let module_name = T::MODULE_NAME.to_owned();
 
-        let config = self.config.get_watched_module_config(&module_name);
+        // A module with no section is configured as if it had an empty one.
+        let section = self.config.take_module(&module_name).unwrap_or_default();
+        let enabled = section.enabled.unwrap_or(T::DEFAULT_ENABLED);
+
+        // A broken configuration is fatal for a module about to be started, and
+        // only reported to whoever tries to start a disabled one later on.
+        let config = match section.parse_config::<T::Config>(&module_name) {
+            Ok(config) => Ok(config),
+            Err(err) if enabled => return Err(err.into()),
+            Err(err) => Err(err.to_string()),
+        };
 
         let module_handle = create_module_manager(
             self.bus.clone(),
@@ -97,7 +90,7 @@ impl PulsarDaemonStarter {
             .insert(
                 module_name.to_string(),
                 ModuleData {
-                    enabled_by_default: T::DEFAULT_ENABLED,
+                    enabled,
                     handle: module_handle,
                 },
             )
@@ -116,6 +109,8 @@ impl PulsarDaemonStarter {
     ///
     /// Returns the [`PulsarDaemonHandle`] that can be used to interact with the [`PulsarDaemon`] actor.
     pub(super) async fn start_daemon(self) -> anyhow::Result<PulsarDaemonHandle> {
+        self.config.warn_unclaimed();
+
         #[cfg(debug_assertions)]
         let trace_pipe_handle = bpf_common::trace_pipe::start().await;
 
@@ -128,19 +123,7 @@ impl PulsarDaemonStarter {
 
         // Start modules
         for (module_name, data) in &self.modules {
-            let module_config = self.config.get_watched_module_config(module_name);
-            let is_enabled = match module_config.borrow().optional("enabled") {
-                Ok(value) => value.unwrap_or(data.enabled_by_default),
-                Err(err) => {
-                    log::warn!(
-                        "failed to parse `enabled` configuration field for module `{module_name}`. fallback to module default `{}`. Err: {err}",
-                        data.enabled_by_default,
-                    );
-                    data.enabled_by_default
-                }
-            };
-
-            if is_enabled {
+            if data.enabled {
                 log::info!("Starting module {module_name}");
                 // Start modules asynchronously because some of them maybe need to interact with the PulsarDaemon actor
                 // through the ModuleContext
@@ -157,7 +140,6 @@ impl PulsarDaemonStarter {
 
         let daemon = PulsarDaemon {
             modules: self.modules,
-            config: self.config,
             rx_cmd: self.rx_modules_cmd,
             #[cfg(debug_assertions)]
             trace_pipe_handle,
@@ -178,10 +160,8 @@ impl PulsarDaemonStarter {
 ///
 /// [`PulsarDaemon`] can:
 /// - administrate loaded modules using the relative [`ModuleManagerHandle`]
-/// - manage module configurations using [`PulsarConfig`]
 pub struct PulsarDaemon {
     modules: HashMap<String, ModuleData>,
-    config: PulsarConfig,
     rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
     #[cfg(debug_assertions)]
     #[allow(unused)]
@@ -220,30 +200,7 @@ impl PulsarDaemon {
             } => {
                 let _ = tx_reply.send(self.stop(&module_name).await);
             }
-            PulsarDaemonCommand::GetConfiguration {
-                tx_reply,
-                module_name,
-            } => {
-                let _ = tx_reply.send(self.get_module_config(&module_name));
-            }
-            PulsarDaemonCommand::SetConfiguration {
-                tx_reply,
-                module_name,
-                key,
-
-                value,
-            } => {
-                let _ = tx_reply.send(self.update_config(&module_name, &key, &value));
-            }
-            PulsarDaemonCommand::Configs { tx_reply } => {
-                let _ = tx_reply.send(self.get_configs());
-            }
         }
-    }
-
-    /// Helper function to check if a module exists in the loaded modules list.
-    fn contains_module(&self, module_name: &str) -> bool {
-        self.modules.contains_key(module_name) || module_name == GENERAL_CONFIG
     }
 
     /// Get module status.
@@ -309,40 +266,6 @@ impl PulsarDaemon {
         }
         v
     }
-
-    /// Get module configuration.
-    fn get_module_config(&self, module_name: &str) -> Result<ModuleConfig, PulsarDaemonError> {
-        if !self.contains_module(module_name) {
-            return Err(PulsarDaemonError::ModuleNotFound(module_name.to_string()));
-        }
-
-        self.config.get_module_config(module_name).ok_or_else(|| {
-            log::error!("Module found in task manager but configuration not found");
-
-            PulsarDaemonError::ModuleNotFound(module_name.to_string())
-        })
-    }
-
-    /// Get all configurations.
-    fn get_configs(&self) -> Vec<(String, ModuleConfig)> {
-        self.config.get_configs()
-    }
-
-    /// Update module configuration. It takes a key and value.
-    fn update_config(
-        &self,
-        module_name: &str,
-        key: &str,
-        value: &str,
-    ) -> Result<(), PulsarDaemonError> {
-        if !self.contains_module(module_name) {
-            return Err(PulsarDaemonError::ModuleNotFound(module_name.to_string()));
-        }
-
-        self.config
-            .update_config(module_name, key, value)
-            .map_err(PulsarDaemonError::ConfigurationUpdateError)
-    }
 }
 
 /// Run a [`PulsarDaemon`] actor.
@@ -358,6 +281,6 @@ async fn run_daemon_actor(mut actor: PulsarDaemon) {
 }
 
 struct ModuleData {
-    enabled_by_default: bool,
+    enabled: bool,
     handle: ModuleManagerHandle,
 }

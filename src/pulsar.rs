@@ -1,5 +1,5 @@
-use anyhow::{Context, Result, ensure};
-use clap::{ArgGroup, Args, Parser, Subcommand};
+use anyhow::{Context, Result};
+use clap::{Args, Parser, Subcommand};
 use engine_api::client::EngineApiClient;
 use futures_util::StreamExt;
 
@@ -34,75 +34,16 @@ pub enum Commands {
     /// Stop a module
     Stop { module_name: String },
 
-    /// Manage module configuration
-    Config(Config),
-
     /// Start event monitor
     Monitor(Monitor),
 }
 
 // THIS "SHIM" STRUCT IS MANDATORY
 #[derive(Parser, Debug, Clone)]
-#[clap(group(
-    ArgGroup::new("config_variant")
-        .required(true)
-        .args(&["all", "module", "set"]),
-))]
-pub struct Config {
-    /// Print configuration for all modules
-    #[clap(long, short)]
-    pub all: bool,
-
-    /// Print configuration for a specified module
-    #[clap(long, short)]
-    pub module: Option<String>,
-
-    /// Set/Update configuration for a specified module: syntax is 'MODULE.KEY=VALUE'
-    #[clap(long, short, value_parser=parse_mc_key_value, value_name = "MODULE.KEY=VALUE")]
-    pub set: Option<ModuleConfigKV>,
-}
-
-#[derive(Parser, Debug, Clone)]
-pub struct ModuleConfigKV {
-    pub module_name: String,
-    pub key: String,
-    pub value: String,
-}
-
-#[derive(Parser, Debug, Clone)]
 pub struct Monitor {
     /// Show all events
     #[clap(long, default_value_t = false)]
     pub all: bool,
-}
-
-fn parse_mc_key_value(input: &str) -> Result<ModuleConfigKV> {
-    // split 'module_name.config_name=config_value'
-    let parts: Vec<&str> = input.split('=').filter(|s| !s.is_empty()).collect();
-    ensure!(
-        parts.len() == 2,
-        "invalid configuration expression '{}': syntax is 'MODULE.KEY=VALUE'",
-        input
-    );
-    let (module_and_config, value) = (parts[0], parts[1]);
-
-    // split 'module_name.config_name'
-    let parts: Vec<&str> = module_and_config
-        .split('.')
-        .filter(|s| !s.is_empty())
-        .collect();
-    ensure!(
-        parts.len() == 2,
-        "invalid module expression '{}': syntax is 'MODULE.KEY=VALUE'",
-        module_and_config
-    );
-    let (module_name, key) = (parts[0], parts[1]);
-
-    Ok(ModuleConfigKV {
-        module_name: module_name.to_string(),
-        key: key.to_string(),
-        value: value.to_string(),
-    })
 }
 
 pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
@@ -130,28 +71,6 @@ pub async fn pulsar_cli_run(options: &PulsarCliOpts) -> Result<()> {
             engine_api_client.stop(module_name).await?;
             "Module stopped".to_string().term_print()
         }
-        Commands::Config(Config { all, module, set }) => match (all, module, set) {
-            (true, _, _) => engine_api_client.get_configs().await?.term_print(),
-            (_, Some(module), _) => engine_api_client
-                .get_module_config(module)
-                .await?
-                .term_print(),
-            (
-                _,
-                _,
-                Some(ModuleConfigKV {
-                    module_name,
-                    key,
-                    value,
-                }),
-            ) => {
-                engine_api_client
-                    .set_module_config(module_name, key.clone(), value.clone())
-                    .await?;
-                "Configuration updated".to_string().term_print()
-            }
-            _ => unreachable!(),
-        },
         Commands::Monitor(Monitor { all }) => {
             let mut stream = engine_api_client.event_monitor().await?;
 
