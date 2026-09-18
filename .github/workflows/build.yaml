@@ -46,6 +46,11 @@ jobs:
           rustup toolchain install
           rustup target add ${{ matrix.platform.target }}
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: ${{ matrix.platform.target }}-${{ matrix.profile }}
+
       - name: Install cross
         uses: ./.github/actions/install-cross
 
