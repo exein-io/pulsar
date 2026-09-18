@@ -1,0 +1,16 @@
+# Title: Network service discovery
+
+# Creation Date: 2025.04.11
+
+# MITRE ATT&CK Tactic: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK technique: T1046 - Network Service Discovery - https://attack.mitre.org/techniques/T1046/
+
+- name: Potential Network Scan Executed From Host
+  type: Exec
+  category: discovery
+  severity: low
+  description: Detects the execution of Unix utilities capable of performing network scans, such as nping, hping, hping2, and hping3.
+    Adversaries may use these tools to conduct ping sweeps or port scans during network service discovery, especially when traditional reconnaissance utilities are unavailable or when attempting to evade detection.
+  condition: payload.filename ENDS_WITH "nping" OR payload.filename ENDS_WITH "hping" OR 
+    payload.filename ENDS_WITH "hping2" OR payload.filename ENDS_WITH "hping3"

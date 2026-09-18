@@ -1,0 +1,21 @@
+# Title: Dynamic Linker Discovery
+
+# Creation Date: 2025/04/11
+
+# MITRE ATT&CK Tactic: TA0007 - Discovery - https://attack.mitre.org/tactics/TA0007/
+
+# MITRE ATT&CK Technique: T1057 - Process Discovery - https://attack.mitre.org/techniques/T1057/
+
+- name: Suspicious Dynamic Linker Discovery
+  type: FileOpened
+  category: discovery
+  severity: low
+  description: Detects the use of hex dump utilities such as od or xxd to read dynamic linker and preload configuration files.
+    Attackers may analyze these binaries to identify injection points or persist via preload mechanisms.
+  condition: (header.image ENDS_WITH "/od" OR header.image ENDS_WITH "/xxd" OR header.image ENDS_WITH "hexdump"
+    ) AND     (
+      payload.filename ENDS_WITH "/ld.so.preload" OR           
+      payload.filename ENDS_WITH "/ld-linux-x86-64.so.2" OR  
+      payload.filename ENDS_WITH "/ld-linux-aarch64.so.2" OR
+      payload.filename ENDS_WITH "/ld-linux-riscv64.so.2"   
+    )
