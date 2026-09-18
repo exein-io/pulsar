@@ -101,7 +101,7 @@ main() {
     ensure downloader "https://github.com/exein-io/pulsar/releases/download/${PULSAR_VERSION}/pulsar${_arch}" "${_dir}/pulsar"
 
     # Download release archive
-    local _release_url=$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/tags/${PULSAR_VERSION} | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \") 
+    local _release_url="$(curl -s https://api.github.com/repos/exein-io/pulsar/releases/tags/${PULSAR_VERSION} | grep "tarball_url" | cut -d : -f 2,3 | tr -d , | tr -d \")"
     local _tmp_pulsar_archive="${_dir}/pulsar.tar.gz"
     ensure downloader $_release_url $_tmp_pulsar_archive
 
