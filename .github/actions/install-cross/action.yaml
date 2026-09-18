@@ -1,17 +1,30 @@
 name: 'Install cross'
 description: 'Install cross-rs from a pinned revision'
 
+inputs:
+  revision:
+    description: 'cross-rs revision to install'
+    # Pinned to a `main` revision: the last release (v0.2.5) still ships
+    # Ubuntu 16.04 images, where Clang/LLVM 20 is not available.
+    default: '8c1a8aa4b661711f4b7b6ac07c2e8929ce2f7d27'
+
 runs:
   using: composite
   steps:
-    # Pinned to a `main` revision: the last release (v0.2.5) still ships
-    # Ubuntu 16.04 images, where Clang/LLVM 20 is not available.
+    - name: Restore cross from cache
+      id: cache
+      uses: actions/cache@v6.1.0
+      with:
+        path: |
+          ~/.cargo/bin/cross
+          ~/.cargo/bin/cross-util
+        key: cross-${{ runner.os }}-${{ runner.arch }}-${{ inputs.revision }}
+
     - name: Install cross
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      env:
-        CROSS_REV: 8c1a8aa4b661711f4b7b6ac07c2e8929ce2f7d27
       run: |
-        cargo install cross --locked --git https://github.com/cross-rs/cross --rev "$CROSS_REV"
+        cargo install cross --locked --git https://github.com/cross-rs/cross --rev "${{ inputs.revision }}"
 
     - run: cross --version --verbose
       shell: bash
