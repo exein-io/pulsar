@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Code checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Create release directory
         run: rsync -rv --exclude=.git . ../pulsar-${{ env.REGISTRY_TAG }}
@@ -39,7 +39,7 @@ jobs:
 
       # Note this artifact name is unique and does NOT conflict with build job artifact names
       - name: Upload vendored archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: vendored-archive-${{ env.REGISTRY_TAG }}
           path: ${{ steps.create-archive.outputs.archive_file_name }}
@@ -82,7 +82,7 @@ jobs:
 
     steps:
       - name: Code checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
         run: |
@@ -98,10 +98,10 @@ jobs:
           cross build --locked --target=${{ matrix.platform.target }} --bin pulsar ${{ matrix.platform.args }} --release
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4.4.1
         if: ${{ matrix.platform.docker != null }}
 
       - name: Prepare Docker image directory
@@ -113,7 +113,7 @@ jobs:
           echo "TAG=${{ env.TMP_LOCAL_IMAGE }}:${platform//\//-}" >> $GITHUB_ENV
 
       - name: Create Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7.4.0
         if: ${{ matrix.platform.docker != null }}
         with:
           context: "."
@@ -128,7 +128,7 @@ jobs:
       # We include the target in the artifact name to avoid collisions in parallel
       - name: Upload Docker image
         if: ${{ matrix.platform.docker != null }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: image-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}
           path: /tmp/images/${{ env.TARFILE }}
@@ -151,14 +151,14 @@ jobs:
 
       # Again, ensure artifact names are unique per target
       - name: Upload daemon binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: binary-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}-pulsard
           path: ${{ steps.rename_binary.outputs.daemon_binary }}
           if-no-files-found: error
           retention-days: 1
       - name: Upload cli binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: binary-${{ env.REGISTRY_TAG }}-${{ matrix.platform.target }}-pulsar
           path: ${{ steps.rename_binary.outputs.cli_binary }}
@@ -174,21 +174,21 @@ jobs:
     steps:
       # We ONLY want the binaries (all targets) and vendored archive, so we do:
       - name: Download pulsard binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: "binary-${{ env.REGISTRY_TAG }}-*-pulsard"
           merge-multiple: true
           path: /tmp/binaries
 
       - name: Download pulsar binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: "binary-${{ env.REGISTRY_TAG }}-*-pulsar"
           merge-multiple: true
           path: /tmp/binaries
 
       - name: Download vendored archive
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           # Single vendored artifact name
           pattern: "vendored-archive-${{ env.REGISTRY_TAG }}"
@@ -196,7 +196,7 @@ jobs:
           path: /tmp/vendored
 
       - name: Code checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Create installer
         run: |
@@ -216,7 +216,7 @@ jobs:
 
       - name: Dev release
         if: github.ref_type == 'branch'
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.21.0
         with:
           name: ${{ env.REGISTRY_TAG }}
           tag: ${{ env.REGISTRY_TAG }}
@@ -227,7 +227,7 @@ jobs:
 
       - name: Release
         if: github.ref_type == 'tag'
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.21.0
         with:
           name: ${{ env.REGISTRY_TAG }}
           draft: true
@@ -252,7 +252,7 @@ jobs:
       # We do NOT download the binaries or vendored archives here,
       # only Docker images. We use a wildcard for all platforms.
       - name: Download images
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: "image-${{ env.REGISTRY_TAG }}-*"
           merge-multiple: true
@@ -269,7 +269,7 @@ jobs:
           docker push -a ${{ env.TMP_LOCAL_IMAGE }}
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

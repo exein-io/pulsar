@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Code checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
         run: |
