@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-builder"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "bpf-features",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-common"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "aya",
@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-feature-autodetect"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "aya",
@@ -353,7 +353,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-features"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "aya",
@@ -369,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-features-macros"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-features",
  "proc-macro2",
@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "bpf-filtering"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "bpf-builder",
@@ -786,7 +786,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-notifier"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -949,7 +949,7 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "engine-api"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1039,7 +1039,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "file-system-monitor"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-builder",
  "bpf-common",
@@ -2059,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "network-monitor"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-builder",
  "bpf-common",
@@ -2392,7 +2392,7 @@ dependencies = [
 
 [[package]]
 name = "process-monitor"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "bpf-builder",
@@ -2438,7 +2438,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -2467,7 +2467,7 @@ dependencies = [
 
 [[package]]
 name = "pulsar-core"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "bpf-common",
@@ -2723,7 +2723,7 @@ dependencies = [
 
 [[package]]
 name = "rules-engine"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "glob",
@@ -3084,7 +3084,7 @@ dependencies = [
 
 [[package]]
 name = "smtp-notifier"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3281,7 +3281,7 @@ dependencies = [
 
 [[package]]
 name = "test-suite"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-common",
  "bpf-filtering",
@@ -3337,7 +3337,7 @@ dependencies = [
 
 [[package]]
 name = "threat-logger"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "bpf-common",
  "log",
@@ -3744,7 +3744,7 @@ dependencies = [
 
 [[package]]
 name = "validatron"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "log",
  "serde",
@@ -3754,7 +3754,7 @@ dependencies = [
 
 [[package]]
 name = "validatron-derive"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4344,7 +4344,7 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.10.0"
+version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "clap",
