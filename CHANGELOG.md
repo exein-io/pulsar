@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- release builds no longer contain test only dependencies, the `test-suite` and `test-utils` features were enabled unconditionally for every consumer of the internal crates
+- the root build script no longer re-runs on every build, it watched the package root, which recurses into `target`, and `.git` paths which do not exist in a worktree
+
 ### Changed
 
 - **BREAKING**: configuration format from INI to TOML, the file moved from `/var/lib/pulsar/pulsar.ini` to `/etc/pulsar/pulsar.toml`
@@ -21,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the configuration template documents every setting and is installed by both the installer and the Docker image
 - the installer keeps an existing configuration file instead of overwriting it
 - the installer keeps an installed rule that differs from the shipped one, writing the shipped version next to it as `<rule>.toml.new`
+- **BREAKING**: `nix`, `toml` and `tokio-tungstenite` upgrades reach the module API, through `bpf-common`'s `Pid`, `Uid` and `Gid` re-exports, `ModuleConfig` and the `engine-api` errors
+- **BREAKING**: `ContainerError::SqliteConnection` carries a `rusqlite::Error`, `diesel` was replaced by `rusqlite` for the single query it ran
+- every other dependency upgraded to its latest version, clearing all advisories reported by `cargo audit`
+- `gethostname` replaced by `nix::unistd::gethostname` and `futures` by `futures-util`
+- ci: re-enable the `cargo audit` workflow, update all actions and cache both the Rust build artifacts and the `cross` installation
 
 ### Added
 
@@ -28,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **BREAKING**: the `ContainerError` variants `ParseDigest`, `InvalidHashFunction` and `PathNonUtf8`, none of which could ever be returned
+- unused dependencies across the workspace
 - **BREAKING**: `pulsar config` command, together with the `/configs` and `/modules/{name}/config` API endpoints. Edit the configuration file and restart the daemon instead
 - **BREAKING**: configuration reload at runtime, including the `on_config_change` module hook
 
