@@ -10,10 +10,9 @@ use pulsar_core::pdk::{ConfigError, ModuleConfig};
 use serde::{Deserialize, de::DeserializeOwned};
 
 const DEFAULT_CONFIG_FILE: &str = "/etc/pulsar/pulsar.toml";
-const CONFIG_TEMPLATE: &str = include_str!("pulsar.toml.template");
 
 /// Global Pulsar configuration, parsed from a `TOML` file at startup.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct PulsarConfig {
     /// Settings of the agent itself.
     #[serde(default)]
@@ -62,18 +61,18 @@ impl ModuleSection {
 }
 
 impl PulsarConfig {
-    /// Construct a new [`PulsarConfig`] using the default file, writing a
-    /// commented template if it doesn't exist yet.
+    /// Construct a new [`PulsarConfig`] using the default file, falling back
+    /// to the defaults when it doesn't exist.
     pub fn new() -> Result<Self> {
-        let config_file = PathBuf::from(DEFAULT_CONFIG_FILE);
+        let config_file = Path::new(DEFAULT_CONFIG_FILE);
         if !config_file.exists() {
-            let prefix = config_file.parent().unwrap(); // Unwrap if / is passed
-            fs::create_dir_all(prefix)
-                .with_context(|| format!("Error creating {}", prefix.display()))?;
-            fs::write(&config_file, CONFIG_TEMPLATE)
-                .with_context(|| format!("Error writing {}", config_file.display()))?;
+            log::info!(
+                "Configuration file {} not found, using the default configuration",
+                config_file.display()
+            );
+            return Ok(Self::default());
         }
-        Self::from_file(&config_file)
+        Self::from_file(config_file)
     }
 
     /// Construct a new [`PulsarConfig`] using a custom file.
@@ -131,6 +130,8 @@ impl PulsarConfig {
 mod tests {
     use super::*;
 
+    const CONFIG_TEMPLATE: &str = include_str!("pulsar.toml.template");
+
     fn parse(content: &str) -> PulsarConfig {
         PulsarConfig::parse_str(content).unwrap().0
     }
@@ -146,6 +147,16 @@ mod tests {
         assert!(config.pulsar.btf_path.is_none());
         assert!(config.module.values().all(|s| s.enabled.is_none()));
         assert!(ignored(CONFIG_TEMPLATE).is_empty());
+    }
+
+    #[test]
+    fn defaults_match_an_empty_file() {
+        let config = PulsarConfig::default();
+        let empty = parse("");
+        assert_eq!(config.pulsar.perf_pages, empty.pulsar.perf_pages);
+        assert_eq!(config.pulsar.btf_path, empty.pulsar.btf_path);
+        assert_eq!(config.pulsar.api_socket_path, empty.pulsar.api_socket_path);
+        assert!(config.module.is_empty());
     }
 
     #[test]
