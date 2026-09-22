@@ -42,6 +42,8 @@ main() {
     need_cmd install
     need_cmd tar
     need_cmd gzip
+    need_cmd find
+    need_cmd cmp
 
     # Parse command line
     for arg in "$@"; do
@@ -140,9 +142,9 @@ main() {
         ensure $_install -m 644 "${_tmp_pulsar_src}/src/pulsard/pulsar.toml.template" "${_pulsar_config_file}"
     fi
 
-    # Install rules from release archive 
+    # Install rules from release archive
     printf '%s\n' 'info: installing rules' 1>&2
-    (cd $_tmp_pulsar_src/rules && find . -type f -exec $_install -Dm 644 "{}" "${_pulsar_rules_dir}/{}" \;)
+    install_rules "$_install" "${_tmp_pulsar_src}/rules" "${_pulsar_rules_dir}"
 
 
     printf '%s\n' 'info: cleaning' 1>&2
@@ -301,6 +303,37 @@ check_cmd() {
 
 assert_nz() {
     if [ -z "$1" ]; then err "assert_nz $2"; fi
+}
+
+# Install the shipped rules, keeping local edits. A rule that is already
+# installed and differs from the shipped one is left alone and the new version
+# is written next to it as `<rule>.new`, for the admin to review and merge.
+install_rules() {
+    local _install_cmd="$1"
+    local _src_dir="$2"
+    local _dest_dir="$3"
+    local _rule
+    local _target
+    local _pending=""
+
+    # Splitting on whitespace is safe here: no shipped rule has a space in its name.
+    for _rule in $(find "$_src_dir" -type f); do
+        _target="${_dest_dir}/${_rule#"${_src_dir}"/}"
+        if [ ! -f "$_target" ]; then
+            ensure $_install_cmd -Dm 644 "$_rule" "$_target"
+        elif ! cmp -s "$_rule" "$_target"; then
+            ensure $_install_cmd -Dm 644 "$_rule" "${_target}.new"
+            _pending="${_pending} ${_target}.new"
+        fi
+    done
+
+    if [ -n "$_pending" ]; then
+        printf '%s\n' 'info: these rules differ from the shipped ones and were kept,' 1>&2
+        printf '%s\n' 'info: the shipped version is next to each of them:' 1>&2
+        for _target in $_pending; do
+            printf '%s\n' "info:   ${_target}" 1>&2
+        done
+    fi
 }
 
 # Run a command that should never fail. If the command fails execution
