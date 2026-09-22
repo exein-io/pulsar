@@ -140,13 +140,41 @@ mod tests {
         PulsarConfig::parse_str(content).unwrap().1
     }
 
+    /// The template as an admin gets it after uncommenting every documented
+    /// default, leaving out the `#>` examples they are expected to fill in.
+    /// The `##` prose keeps its comment marker and stays out of the way.
+    fn uncommented_template() -> String {
+        CONFIG_TEMPLATE
+            .lines()
+            .filter(|line| !line.starts_with("#>"))
+            .map(|line| line.strip_prefix("# ").unwrap_or(line))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     #[test]
-    fn template_parses_to_defaults() {
+    fn shipped_template_changes_nothing() {
         let config = parse(CONFIG_TEMPLATE);
         assert_eq!(config.pulsar.perf_pages, PERF_PAGES_DEFAULT);
         assert!(config.pulsar.btf_path.is_none());
         assert!(config.module.values().all(|s| s.enabled.is_none()));
         assert!(ignored(CONFIG_TEMPLATE).is_empty());
+    }
+
+    /// Uncommenting a documented default must be a no-op: the values the
+    /// template advertises are the ones the code falls back to.
+    #[test]
+    fn template_documents_the_real_defaults() {
+        let (config, ignored) = PulsarConfig::parse_str(&uncommented_template()).unwrap();
+        let defaults = GeneralConfig::default();
+
+        assert!(
+            ignored.is_empty(),
+            "unknown keys in the template: {ignored:?}"
+        );
+        assert_eq!(config.pulsar.perf_pages, defaults.perf_pages);
+        assert_eq!(config.pulsar.btf_path, defaults.btf_path);
+        assert_eq!(config.pulsar.api_socket_path, defaults.api_socket_path);
     }
 
     #[test]
