@@ -1,55 +1,96 @@
-# Pulsar configuration.
-#
-# Every value below is the default: uncomment and change what you need, then
-# restart the daemon to apply it.
+## Pulsar configuration.
+##
+## A line commented with `#` carries the built-in default: uncommenting it as it
+## stands changes nothing, it is there to document the value in use.
+##
+## A line commented with `#>` is an example or a value you have to provide
+## yourself. It is not a default and nothing is applied until you uncomment the
+## line and adapt it.
+##
+## Restart the daemon to apply a change.
 
 [pulsar]
-# perf_pages = 128
-# btf_path = "/path/to/vmlinux"
-# api_socket_path = "/var/run/pulsar.sock"
+## Size of the perf event buffer shared with the eBPF probes, in pages.
+# perf_pages = 4096
+## Unix socket the API server listens on, shown as the value used when unset.
+#> api_socket_path = "/var/run/pulsar.sock"
+## File the kernel BTF is read from, instead of the running kernel one.
+#> btf_path = "/path/to/vmlinux"
 
 [module.process-monitor]
+## Whether the module is started with the daemon.
 # enabled = true
+## Pids to track.
 # pid_targets = []
+## Pids to track, extended to their children.
 # pid_targets_children = []
+## Process images to track.
 # targets = []
+## Process images to track, extended to their children.
 # targets_children = []
+## Process images to ignore.
 # whitelist = []
+## Process images to ignore, extended to their children.
 # whitelist_children = []
+## Tracking status of Pid 1 and of processes matching no rule.
 # track_by_default = true
+## Add the Pulsar executable to `whitelist_children`.
 # ignore_self = true
 
 [module.file-system-monitor]
+## Whether the module is started with the daemon.
 # enabled = true
+## Emit an `ElfOpened` event whenever an opened file turns out to be an ELF.
 # elf_check = false
+## Path prefixes excluded from the ELF check.
 # elf_check_whitelist = ["/proc", "/sys", "/dev"]
 
 [module.network-monitor]
+## Whether the module is started with the daemon.
 # enabled = true
 
 [module.rules-engine]
+## Whether the module is started with the daemon.
 # enabled = true
+## Directory scanned recursively for rule files.
 # rules_path = "/etc/pulsar/rules"
 
 [module.threat-logger]
+## Whether the module is started with the daemon.
 # enabled = true
+## Log threats to stdout.
 # console = true
+## Log threats to syslog.
 # syslog = true
+## Rendering of the logged threats: "plaintext" or "json".
 # output_format = "plaintext"
 
 [module.desktop-notifier]
+## Whether the module is started with the daemon.
 # enabled = false
+## Id of the user running the target desktop environment.
 # user_id = 1000
+## Display the notification is sent to.
 # display = ":0"
+## Executable used to send the notification.
 # notify_send_executable = "notify-send"
-# bus_address = "unix:path=/run/user/1000/bus"
+## Address of the target session bus, defaulting to the bus of `user_id`.
+#> bus_address = "unix:path=/run/user/1000/bus"
 
 [module.smtp-notifier]
+## Whether the module is started with the daemon.
 # enabled = false
-# server = "smtp.example.com"
-# username = "pulsar@example.com"
-# password = ""
-# receivers = ["admin@example.com"]
+## Address of the SMTP server. Required when the module is enabled.
+#> server = "smtp.example.com"
+## User credential for the SMTP server. Required when the module is enabled.
+#> username = "pulsar@example.com"
+## Password credential for the SMTP server. Required when the module is enabled.
+#> password = ""
+## Addresses notifications are sent to. Required when the module is enabled.
+#> receivers = ["admin@example.com"]
+## Port of the SMTP server.
 # port = 465
+## Encryption used to reach the SMTP server: "tls", "starttls" or "none".
 # encryption = "tls"
-# sender = "pulsar@example.com"
+## Address notifications are sent from, defaulting to `username`.
+#> sender = "pulsar@example.com"
