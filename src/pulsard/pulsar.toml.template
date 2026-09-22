@@ -29,7 +29,7 @@
 
 [module.rules-engine]
 # enabled = true
-# rules_path = "/var/lib/pulsar/rules"
+# rules_path = "/etc/pulsar/rules"
 
 [module.threat-logger]
 # enabled = true

@@ -5,7 +5,7 @@ When a match is found, a threat event is generated.
 
 ## Rules
 
-Default rules folder is `/var/lib/pulsar/rules`, searched recursively: every `toml` file below it is loaded as a rule file. Each file holds an array of tables under the `rules` key, where every rule has the following required fields:
+Default rules folder is `/etc/pulsar/rules`, searched recursively: every `toml` file below it is loaded as a rule file. Each file holds an array of tables under the `rules` key, where every rule has the following required fields:
 
 - `name`: a unique name for identifying the rule
 - `type`: the type of event to match (e.g. `FileOpened`, `Exec`, `NetworkConnection`)
@@ -25,7 +25,7 @@ lines.
 
 ### Examples
 
-Create a `/var/lib/pulsar/rules/example_rules1.toml` with the following content:
+Create a `/etc/pulsar/rules/example_rules1.toml` with the following content:
 
 ```toml
 [[rules]]
@@ -60,10 +60,10 @@ Default configuration:
 ```toml
 [module.rules-engine]
 enabled = true
-rules_path = "/var/lib/pulsar/rules"
+rules_path = "/etc/pulsar/rules"
 ```
 
-You disable this module in `/var/lib/pulsar/pulsar.toml`, then restart the
+You disable this module in `/etc/pulsar/pulsar.toml`, then restart the
 daemon:
 
 ```toml

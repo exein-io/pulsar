@@ -28,7 +28,7 @@ Default configuration:
 enabled = true
 ```
 
-You disable this module in `/var/lib/pulsar/pulsar.toml`, then restart the
+You disable this module in `/etc/pulsar/pulsar.toml`, then restart the
 daemon:
 
 ```toml

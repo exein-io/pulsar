@@ -7,7 +7,7 @@ $ cargo build && sudo ./target/debug/examples/pulsar-extension-module pulsard
 ```
 
 By default our custom module will do nothing, but we can instruct it to warn
-about DNS queries to `exein.io`. Add its section to `/var/lib/pulsar/pulsar.toml`:
+about DNS queries to `exein.io`. Add its section to `/etc/pulsar/pulsar.toml`:
 
 ```toml
 [module.my-custom-module]

@@ -30,7 +30,7 @@ notify_send_executable = "notify-send"
 bus_address = "unix:path=/run/user/1000/bus"
 ```
 
-This module is disabled by default. Enable it in `/var/lib/pulsar/pulsar.toml`
+This module is disabled by default. Enable it in `/etc/pulsar/pulsar.toml`
 and restart the daemon:
 
 ```toml

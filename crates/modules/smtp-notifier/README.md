@@ -23,7 +23,7 @@ port = 465
 encryption = "tls"
 ```
 
-This module is disabled by default. Enable it in `/var/lib/pulsar/pulsar.toml`,
+This module is disabled by default. Enable it in `/etc/pulsar/pulsar.toml`,
 filling in the required fields, then restart the daemon:
 
 ```toml
