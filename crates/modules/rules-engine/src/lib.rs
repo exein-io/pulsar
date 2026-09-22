@@ -10,7 +10,7 @@ mod ruleset;
 
 pub use engine::{Category, Metadata, Severity};
 
-const DEFAULT_RULES_PATH: &str = "/var/lib/pulsar/rules";
+const DEFAULT_RULES_PATH: &str = "/etc/pulsar/rules";
 
 pub struct RuleEngineModule;
 

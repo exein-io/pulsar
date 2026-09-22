@@ -29,7 +29,7 @@ elf_check = false
 elf_check_whitelist = ["/proc", "/sys", "/dev"]
 ```
 
-You disable this module or the ELF check in `/var/lib/pulsar/pulsar.toml`,
+You disable this module or the ELF check in `/etc/pulsar/pulsar.toml`,
 then restart the daemon:
 
 ```toml

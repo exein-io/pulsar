@@ -9,7 +9,7 @@ use bpf_common::program::PERF_PAGES_DEFAULT;
 use pulsar_core::pdk::{ConfigError, ModuleConfig};
 use serde::{Deserialize, de::DeserializeOwned};
 
-const DEFAULT_CONFIG_FILE: &str = "/var/lib/pulsar/pulsar.toml";
+const DEFAULT_CONFIG_FILE: &str = "/etc/pulsar/pulsar.toml";
 const CONFIG_TEMPLATE: &str = include_str!("pulsar.toml.template");
 
 /// Global Pulsar configuration, parsed from a `TOML` file at startup.

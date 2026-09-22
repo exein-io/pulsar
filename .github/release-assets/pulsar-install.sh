@@ -128,7 +128,7 @@ main() {
 
     printf '%s\n' 'info: generating configuration' 1>&2
 
-    local _pulsar_config_dir="/var/lib/pulsar"
+    local _pulsar_config_dir="/etc/pulsar"
     local _pulsar_rules_dir="${_pulsar_config_dir}/rules"
 
     ensure $_install -d ${_pulsar_config_dir}
