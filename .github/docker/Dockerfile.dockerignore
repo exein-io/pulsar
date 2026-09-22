@@ -4,5 +4,5 @@
 # Include essential files
 !target/*/release/pulsard
 !target/*/release/pulsar
-!.github/docker/pulsar.toml
+!src/pulsard/pulsar.toml.template
 !rules

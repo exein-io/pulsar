@@ -1,5 +1,0 @@
-[module.desktop-notifier]
-enabled = false
-
-[module.smtp-notifier]
-enabled = false
