@@ -18,6 +18,7 @@ network-monitor = { workspace = true, optional = true }
 process-monitor = { workspace = true, optional = true }
 rules-engine = { workspace = true, optional = true }
 smtp-notifier = { workspace = true, optional = true }
+telegram-notifier = { workspace = true, optional = true }
 # External
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
@@ -46,7 +47,7 @@ core = [
     "network-monitor",
     "file-system-monitor",
 ]
-extra = ["rules-engine", "desktop-notifier", "smtp-notifier"]
+extra = ["rules-engine", "desktop-notifier", "smtp-notifier", "telegram-notifier"]
 tls-openssl = ["smtp-notifier/tls-openssl"]
 tls-rustls = ["smtp-notifier/tls-rustls"]
 all-vendored = ["openssl-vendored", "sqlite3-vendored"]
@@ -62,6 +63,7 @@ members = [
     "crates/modules/threat-logger",
     "crates/modules/desktop-notifier",
     "crates/modules/smtp-notifier",
+    "crates/modules/telegram-notifier",
     "crates/pulsar-core",
     "crates/bpf-common",
     "crates/bpf-builder",
@@ -110,6 +112,7 @@ process-monitor = { path = "crates/modules/process-monitor", features = [
 ] }
 rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
+telegram-notifier = { path = "crates/modules/telegram-notifier" }
 # External
 anyhow = "1"
 aya = { version = "0.13.1", features = ["async_tokio"] }
