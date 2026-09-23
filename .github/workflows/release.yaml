@@ -19,8 +19,11 @@ jobs:
       - name: Code checkout
         uses: actions/checkout@v4
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Create release directory
-        run: rsync -rv --exclude=.git . ../pulsar-${{ env.REGISTRY_TAG }}
+        run: nix develop --command rsync -rv --exclude=.git . ../pulsar-${{ env.REGISTRY_TAG }}
 
       - name: Cargo vendor
         working-directory: ../pulsar-${{ env.REGISTRY_TAG }}
@@ -28,7 +31,7 @@ jobs:
           mkdir ../vendor-cargo-home
           export CARGO_HOME=$(realpath ../vendor-cargo-home)
           mkdir -p .cargo
-          cargo vendor >> .cargo/config.toml
+          nix develop ${{ github.workspace }} --command cargo vendor >> .cargo/config.toml
 
       - name: Create vendored source archive
         working-directory: ../
@@ -54,48 +57,35 @@ jobs:
       matrix:
         platform:
           - target: x86_64-unknown-linux-gnu
-            args: "--features full --features openssl-vendored"
             docker:
               base-image: debian:bookworm
               platform: linux/amd64
 
           - target: x86_64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
 
           - target: aarch64-unknown-linux-gnu
-            args: "--features full --features openssl-vendored"
             docker:
               base-image: debian:bookworm
               platform: linux/arm64
 
           - target: aarch64-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
 
           - target: riscv64gc-unknown-linux-gnu
-            args: "--features full --features openssl-vendored"
             docker:
               base-image: debian:sid
               platform: linux/riscv64
 
           - target: riscv64gc-unknown-linux-musl
-            args: "--no-default-features --features full --features all-vendored --features tls-rustls"
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
-
-      - name: Install cross
-        uses: ./.github/actions/install-cross
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Build Release
-        run: |
-          cross build --locked --target=${{ matrix.platform.target }} --bin pulsard ${{ matrix.platform.args }} --release
-          cross build --locked --target=${{ matrix.platform.target }} --bin pulsar ${{ matrix.platform.args }} --release
+        run: nix develop --command just dist ${{ matrix.platform.target }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

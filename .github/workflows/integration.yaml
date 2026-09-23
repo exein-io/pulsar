@@ -6,133 +6,52 @@ on:
 
 jobs:
   architest:
-    name: architest (${{ matrix.profile }}, ${{ matrix.platform.arch }})
+    name: architest (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        profile:
-          # - debug
-          - release
-
-        platform:
-          - arch: amd64
-            target: x86_64-unknown-linux-musl
-            kernel-versions: "5.13,5.15,6.0,6.3,6.6"
-
-          - arch: arm64
-            target: aarch64-unknown-linux-musl
-            kernel-versions: "5.15,6.2,6.6"
+        arch:
+          - amd64
+          - arm64
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        if: endsWith(matrix.platform.target, 'musl')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
-      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
-
-      - name: Install cross
-        uses: ./.github/actions/install-cross
-
+      # Kernel versions come from the justfile so they stay in one place.
       - name: Integration tests
-        if: endsWith(matrix.platform.target, 'musl')
-        run: |
-            cargo xtask test-suite \
-                --force-architest \
-                --target=${{ matrix.platform.target }} \
-                --kernel-versions=${{ matrix.platform.kernel-versions }} \
-                --features all-vendored --features tls-rustls
+        run: nix develop --command just architest ${{ matrix.arch }}
 
   lvh:
-    name: lvh (${{ matrix.profile.name }}, ${{ matrix.platform.arch }}, ${{ matrix.kernel.version }})
+    name: lvh (${{ matrix.arch }}, ${{ matrix.kernel }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        profile:
-          #   - name: debug
-          #     cargo-profile: dev
-          #     out-dir: debug
-          - name: release
-            cargo-profile: release
-            out-dir: release
-
+        arch:
+          - amd64
+          - arm64
         kernel:
-          - version: "6.12"
-            build:
-              date: "20250630.013259"
-          - version: "6.6"
-            build:
-              date: "20250630.013259"
-          - version: "6.1"
-            build:
-              date: "20250630.013259"
-          - version: "5.15"
-            build:
-              date: "20250630.013259"
-
-        platform:
-          - target: x86_64-unknown-linux-musl
-            arch: "amd64"
-            cpu-kind: host
-
-          - target: aarch64-unknown-linux-musl
-            arch: "arm64"
-            cpu-kind: cortex-a57
+          - "5.15"
+          - "6.1"
+          - "6.6"
+          - "6.12"
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
-      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
-
-      - name: Install cross
-        uses: ./.github/actions/install-cross
-
-      - name: Build test suite
-        run: |
-          cross build \
-            --target=${{ matrix.platform.target }} \
-            --profile ${{ matrix.profile['cargo-profile'] }} \
-            --workspace \
-            --bin test-suite \
-            --features all-vendored --features tls-rustls
+      # amd64 boots with hardware acceleration; arm64 is emulated and needs none.
+      - name: Allow access to /dev/kvm
+        if: matrix.arch == 'amd64'
+        run: sudo chmod 666 /dev/kvm
 
       - name: Run test suite
-        uses: cilium/little-vm-helper@9c1f3a549af06e213863d034c13ba1c5d1e3c667 # v0.0.26
-        with:
-          test-name: test-suite-run
-          image: "kind"
-          image-version: ${{ matrix.kernel.version }}-${{ matrix.kernel.build.date }}
-          kernel-version: ${{ matrix.kernel.version }}-${{ matrix.kernel.build.date }}
-          host-mount: .
-          # qemu-system is installed above; the action's own provisioning
-          # path fails on the ubuntu-24.04 runners.
-          install-dependencies: "false"
-          arch: ${{ matrix.platform.arch }}
-          cpu-kind: ${{ matrix.platform['cpu-kind'] }}
-          ssh-connect-wait-retries: '10'
-          verbose: true
-          cmd: |
-            # print kernel version
-            echo "Kernel Version: "
-            uname -a
-
-            # run test suite
-            sudo /host/target/${{ matrix.platform.target }}/${{ matrix.profile['out-dir'] }}/test-suite
+        run: nix develop --command just lvh ${{ matrix.arch }} ${{ matrix.kernel }}
