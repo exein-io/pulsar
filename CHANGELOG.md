@@ -8,16 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **BREAKING**: configuration format from INI to TOML, the file moved to `/var/lib/pulsar/pulsar.toml`
+- **BREAKING**: configuration format from INI to TOML, the file moved from `/var/lib/pulsar/pulsar.ini` to `/etc/pulsar/pulsar.toml`
 - **BREAKING**: module settings live under a `[module.<name>]` section and lists are TOML arrays instead of comma separated strings
 - **BREAKING**: rules format from YAML to TOML, rule files hold an array of tables under a `rules` key and every `toml` file below the rules folder is loaded as one
+- **BREAKING**: the rules folder moved from `/var/lib/pulsar/rules` to `/etc/pulsar/rules`
 - **BREAKING**: invalid values in the `[pulsar]` section are fatal instead of falling back to the default
 - **BREAKING**: `output_format` of `threat-logger` is matched case sensitively, use `plaintext` or `json`
 - **BREAKING**: module configurations are `serde::Deserialize` types instead of `TryFrom<&ModuleConfig>` implementors
 - configuration is parsed once at startup, a broken section of an enabled module now stops the daemon instead of failing that module later
 - unknown configuration keys and sections are reported as warnings instead of being ignored silently
-- a missing configuration file is created from a commented template instead of an empty file
+- a missing configuration file leaves every setting at its default, the daemon no longer writes one
+- the configuration template documents every setting and is installed by both the installer and the Docker image
 - the installer keeps an existing configuration file instead of overwriting it
+- the installer keeps an installed rule that differs from the shipped one, writing the shipped version next to it as `<rule>.toml.new`
 
 ### Added
 
