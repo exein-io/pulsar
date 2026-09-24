@@ -4,14 +4,14 @@
 //!
 use std::{
     collections::HashSet, convert::TryFrom, fmt, fmt::Display, fs::File, io, mem::size_of,
-    path::PathBuf, sync::Arc, time::Duration,
+    ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration,
 };
 
 use aya::{
     Btf, BtfError, Ebpf, EbpfLoader, Endianness, Pod,
     maps::{
         Array, HashMap, Map, MapData,
-        perf::{AsyncPerfEventArray, PerfBufferError},
+        perf::{PerfBufferError, PerfEvent, PerfEventArray},
     },
     programs::{
         CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, KProbe, Lsm, RawTracePoint, TracePoint,
@@ -22,7 +22,11 @@ use bpf_feature_autodetect::autodetect_features;
 use bpf_features::BpfFeatures;
 use bytes::{Buf, Bytes, BytesMut};
 use thiserror::Error;
-use tokio::{sync::watch, task::JoinError};
+use tokio::{
+    io::{Interest, unix::AsyncFd},
+    sync::watch,
+    task::JoinError,
+};
 
 use crate::{
     BpfSender, Pid,
@@ -30,13 +34,12 @@ use crate::{
     time::Timestamp,
 };
 
-const PERF_HEADER_SIZE: usize = 4;
 const PINNED_MAPS_PATH: &str = "/sys/fs/bpf/pulsar";
 
 pub const PERF_PAGES_DEFAULT: usize = 4096;
 
-/// Max buffer size in bytes
-const BUFFER_MAX: usize = 16384;
+/// Max number of events read from a perf buffer before returning the space to the kernel
+const BATCH_SIZE: usize = 10;
 
 /// BpfContext contains extra settings which could be provided on program load
 #[derive(Clone)]
@@ -279,10 +282,10 @@ impl ProgramBuilder {
         let bpf = tokio::task::spawn_blocking(move || {
             let _ = std::fs::create_dir(&self.ctx.pinning_path);
             let mut bpf = EbpfLoader::new()
-                .map_pin_path(&self.ctx.pinning_path)
+                .default_map_pin_directory(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
-                .set_global("log_level", &(self.ctx.log_level as i32), true)
-                .set_global(
+                .override_global("log_level", &(self.ctx.log_level as i32), true)
+                .override_global(
                     "LINUX_KERNEL_VERSION",
                     &self.ctx.kernel_version.code(),
                     true,
@@ -469,7 +472,7 @@ impl Program {
     ) -> Result<(), ProgramError> {
         let map_resource = self.take_map(map_name)?;
 
-        let mut perf_array: AsyncPerfEventArray<_> = AsyncPerfEventArray::try_from(map_resource)?;
+        let mut perf_array = PerfEventArray::try_from(map_resource)?;
         let mut init_map = Array::try_from(
             self.bpf
                 .take_map("init_map")
@@ -479,63 +482,60 @@ impl Program {
         let buffers = online_cpus()
             .unwrap()
             .into_iter()
-            .map(|cpu_id| perf_array.open(cpu_id, Some(self.ctx.perf_pages)))
+            .map(|cpu_id| {
+                let buf = perf_array.open(cpu_id, Some(self.ctx.perf_pages))?;
+                Ok(AsyncFd::with_interest(buf, Interest::READABLE)?)
+            })
             .collect::<Result<Vec<_>, PerfBufferError>>()?;
         for mut buf in buffers {
             let name = self.name.clone();
             let mut sender = sender.clone();
             let mut rx_exit = self.tx_exit.subscribe();
-            let event_size: usize = size_of::<RawBpfEvent<T>>();
-            let buffer_size: usize = event_size + PERF_HEADER_SIZE + BUFFER_MAX;
             tokio::spawn(async move {
-                let mut buffers = (0..10)
-                    .map(|_| BytesMut::with_capacity(buffer_size))
-                    .collect::<Vec<_>>();
                 loop {
-                    let events = tokio::select! {
+                    let mut guard = tokio::select! {
+                        // In the event of shutdown do not process remaining events.
+                        biased;
+
                         Err(_) = rx_exit.changed() => return,
-                        events = buf.read_events(&mut buffers) => events,
+                        guard = buf.readable_mut() => match guard {
+                            Ok(guard) => guard,
+                            Err(e) => return sender.send(Err(PerfBufferError::from(e).into())),
+                        },
                     };
-                    match events {
-                        Ok(events) => {
-                            if events.lost > 0 {
-                                log::warn!(
-                                    "{}: Lost {} events (read {})",
-                                    name,
-                                    events.lost,
-                                    events.read
-                                );
+
+                    let result = guard.get_inner_mut().try_fold(
+                        (0usize, 0u64),
+                        |(mut read, lost), event| match event {
+                            PerfEvent::Lost { count } => {
+                                ControlFlow::Continue((read, lost + count))
                             }
-                            for buffer in buffers.iter_mut().take(events.read) {
-                                if buffer.len() < event_size {
-                                    log::error!("sizeof T: {}", size_of::<T>());
-                                    log::error!(
-                                        "sizeof RawBpfEvent<T>: {}",
-                                        size_of::<RawBpfEvent<T>>()
-                                    );
-                                    panic!("Buffer too short. buffer.len() = {}", buffer.len(),);
+                            PerfEvent::Sample { head, tail } => {
+                                // SAFETY: We are processing event send by our own probe,
+                                // which matches `RawBpfEvent` ABI.
+                                unsafe { process_raw_event(head, tail, &mut sender) };
+
+                                read += 1;
+                                if read >= BATCH_SIZE {
+                                    ControlFlow::Break((read, lost))
+                                } else {
+                                    ControlFlow::Continue((read, lost))
                                 }
-                                let mut buffer =
-                                    std::mem::replace(buffer, BytesMut::with_capacity(buffer_size));
-                                let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
-                                let raw = unsafe { ptr.read_unaligned() };
-                                buffer.advance(event_size);
-                                // NOTE: read buffer will be padded. Eg. if the eBPF program
-                                // writes 3 bytes, we'll read 4, with the forth being a 0.
-                                // This is why we need buffer_len and can't rely on the
-                                // received buffer alone.
-                                buffer.truncate(raw.buffer.buffer_len as usize);
-                                let buffer = buffer.freeze();
-                                sender.send(Ok(BpfEvent {
-                                    timestamp: raw.timestamp,
-                                    pid: raw.pid,
-                                    payload: raw.payload,
-                                    buffer,
-                                }))
                             }
+                        },
+                    );
+
+                    let (read, lost) = match result {
+                        ControlFlow::Continue(counts) => {
+                            guard.clear_ready();
+                            counts
                         }
-                        Err(e) => return sender.send(Err(e.into())),
+                        ControlFlow::Break(counts) => counts,
                     };
+
+                    if lost > 0 {
+                        log::warn!("{name}: Lost {lost} events (read {read})");
+                    }
                 }
             });
         }
@@ -564,6 +564,48 @@ impl Program {
         self.used_maps.insert(map_name.to_string());
         Ok(map_resource)
     }
+}
+
+/// Parses raw bpf event and sends it for further processing using sender.
+///
+/// # Safety
+///
+/// `head` and `tail` must come from `PerfEvent::Sample { head, tail }`.
+/// Events send with perf array must be ABI compatible with [`RawBpfEvent`].
+unsafe fn process_raw_event<T: Send, S: BpfSender<T>>(head: &[u8], tail: &[u8], sender: &mut S) {
+    // NOTE: This should be const, but alas we cannot use generic from outer context,
+    // and const generics are unstable.
+    let event_size: usize = size_of::<RawBpfEvent<T>>();
+
+    let len = head.len() + tail.len();
+    if len < event_size {
+        // TODO: This error should be handled gracefully.
+        log::error!("sizeof T: {}", size_of::<T>());
+        log::error!("sizeof RawBpfEvent<T>: {event_size}");
+        panic!("Buffer too short. buffer.len() = {len}");
+    }
+
+    let mut buffer = BytesMut::with_capacity(len);
+    buffer.extend_from_slice(head);
+    buffer.extend_from_slice(tail);
+    let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
+
+    // SAFETY: caller must guarantee it.
+    let raw = unsafe { ptr.read_unaligned() };
+
+    buffer.advance(event_size);
+    // NOTE: read buffer will be padded. Eg. if the eBPF program
+    // writes 3 bytes, we'll read 4, with the forth being a 0.
+    // This is why we need buffer_len and can't rely on the
+    // received buffer alone.
+    buffer.truncate(raw.buffer.buffer_len as usize);
+
+    sender.send(Ok(BpfEvent {
+        timestamp: raw.timestamp,
+        pid: raw.pid,
+        payload: raw.payload,
+        buffer: buffer.freeze(),
+    }));
 }
 
 #[derive(Debug)]
