@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the installer keeps an installed rule that differs from the shipped one, writing the shipped version next to it as `<rule>.toml.new`
 - **BREAKING**: `nix`, `toml` and `tokio-tungstenite` upgrades reach the module API, through `bpf-common`'s `Pid`, `Uid` and `Gid` re-exports, `ModuleConfig` and the `engine-api` errors
 - **BREAKING**: `ContainerError::SqliteConnection` carries a `rusqlite::Error`, `diesel` was replaced by `rusqlite` for the single query it ran
+- **BREAKING**: `aya` upgraded to 0.14 and `aya-obj` to 0.3, reaching the module API through `bpf-common`'s `aya` re-export and `ProgramError::PerfBuffer`
+- perf event arrays are read through `tokio::io::unix::AsyncFd` since `aya` removed `AsyncPerfEventArray`, each event is allocated at its actual size instead of the maximum one
 - every other dependency upgraded to its latest version, clearing all advisories reported by `cargo audit`
 - `gethostname` replaced by `nix::unistd::gethostname` and `futures` by `futures-util`
 - ci: re-enable the `cargo audit` workflow, update all actions and cache both the Rust build artifacts and the `cross` installation
