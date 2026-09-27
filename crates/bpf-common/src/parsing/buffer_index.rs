@@ -100,3 +100,95 @@ mod test_utils {
         }
     }
 }
+
+// Unit tests
+#[cfg(test)]
+mod tests {
+    use std::marker::PhantomData;
+
+    use bytes::Bytes;
+
+    use super::*;
+
+    // Allows to construct a `BufferIndex` directly. Done here
+    // so that private field are accesed without hacks.
+    fn index<T: ?Sized>(start: u16, len: u16) -> BufferIndex<T> {
+        BufferIndex {
+            start,
+            len,
+            _data: PhantomData,
+        }
+    }
+
+    #[test]
+    fn in_bounds_slice_is_extraced() {
+        let buffer = Bytes::from_static(b"hello random string");
+        let index: BufferIndex<[u8]> = index(0, 5);
+        assert_eq!(index.bytes(&buffer).unwrap(), b"hello");
+    }
+
+    #[test]
+    fn zero_length_slice_at_end_of_buffer_is_ok() {
+        let buffer = Bytes::from_static(b"hello");
+        let index: BufferIndex<[u8]> = index(5, 0);
+        assert!(index.bytes(&buffer).unwrap().is_empty());
+    }
+
+    #[test]
+    fn length_past_buffer_end_is_rejected() {
+        let buffer = Bytes::from_static(b"hello");
+        let index: BufferIndex<[u8]> = index(0, 15);
+        assert_eq!(
+            index.bytes(&buffer).unwrap_err(),
+            IndexError::IndexOutsideBuffer {
+                start: 0,
+                end: 15,
+                len: 5
+            }
+        )
+    }
+
+    #[test]
+    fn start_past_buffer_end_is_rejected() {
+        let buffer = Bytes::from_static(b"hello");
+        let index: BufferIndex<[u8]> = index(15, 1);
+        assert_eq!(
+            index.bytes(&buffer).unwrap_err(),
+            IndexError::IndexOutsideBuffer {
+                start: 15,
+                end: 16,
+                len: 5
+            }
+        )
+    }
+
+    #[test]
+    fn valid_utf8_is_parsed_as_string() {
+        let text = "h\u{e9}ello"; // "héllo", é is a "weird" (still valid utf8) char
+        let buffer = Bytes::from_static(text.as_bytes());
+        let index: BufferIndex<str> = index(0, text.len() as u16);
+        assert_eq!(index.string(&buffer).unwrap(), text);
+    }
+
+    #[test]
+    fn invalid_utf8_returns_not_a_string_error() {
+        let buffer = Bytes::from_static(&[0xff, 0xfe, 0xfd]); // rubbish data
+        let index: BufferIndex<str> = index(0, 3);
+        assert!(matches!(
+            index.string(&buffer).unwrap_err(),
+            IndexError::NotAString { .. }
+        ));
+    }
+
+    // TODO: This is behaviour that happens in debug mode, maybe it will need to be removed
+    // once release mode is established, as of now the test case is left commented.
+    // In release mode it will not panic but wrap around integer range (u8).
+    /*
+    #[test]
+    #[should_panic(expected = "attempt to add with overflow")]
+    fn start_plus_len_overflow_panics_instead_of_returning_an_error() {
+        let buffer = Bytes::from_static(b"hello");
+        let index: BufferIndex<[u8]> = index(60_000, 10_000);
+        let _ = index.bytes(&buffer);
+    }*/
+}
