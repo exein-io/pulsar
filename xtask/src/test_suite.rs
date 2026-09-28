@@ -136,11 +136,15 @@ fn reserve_port() -> io::Result<(Socket, u16)> {
 /// QEMU's user-mode forward accepts on `port` as soon as QEMU starts, well
 /// before the guest sshd listens, so a TCP probe would succeed too early and the
 /// following scp would fail with `kex_exchange_identification`.
-fn wait_for_ssh(port: u16) -> Result<()> {
+///
+/// Fails if QEMU exits while waiting.
+fn wait_for_ssh(port: u16, qemu: &mut QemuGuard) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(180);
     let port = port.to_string();
 
     loop {
+        qemu.ensure_running()?;
+
         let status = Command::new("ssh")
             .args([
                 "-o",
@@ -161,6 +165,8 @@ fn wait_for_ssh(port: u16) -> Result<()> {
             .context("Failed to execute ssh")?;
 
         if status.success() {
+            // If QEMU died on startup, ssh may have reached another listener.
+            qemu.ensure_running()?;
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -172,6 +178,20 @@ fn wait_for_ssh(port: u16) -> Result<()> {
 
 /// Owns the QEMU process and kills and waits for it when dropped, ignoring errors.
 struct QemuGuard(Child);
+
+impl QemuGuard {
+    /// Fails if QEMU has already exited.
+    fn ensure_running(&mut self) -> Result<()> {
+        match self.0.try_wait().context("Failed to check QEMU status")? {
+            None => Ok(()),
+            Some(status) => bail!(
+                "QEMU exited unexpectedly ({status}). If it failed to bind the forwarded \
+                 port on startup, check that libslirp still sets SO_REUSEADDR on hostfwd \
+                 sockets (see reserve_port)"
+            ),
+        }
+    }
+}
 
 impl Drop for QemuGuard {
     fn drop(&mut self) {
@@ -251,7 +271,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         cmd!(sh, "sudo resize2fs rootfs.ext2").run()?;
 
         // Run qemu
-        let qemu = QemuGuard(
+        let mut qemu = QemuGuard(
             Command::new(qemu_cmd)
                 .args(qemu_args)
                 .current_dir(&tempdir)
@@ -259,7 +279,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
                 .context("Failed to run QEMU")?,
         );
 
-        wait_for_ssh(port)?;
+        wait_for_ssh(port, &mut qemu)?;
 
         // QEMU is listening on the port now, so the reservation is no longer needed.
         drop(reservation);
@@ -268,6 +288,8 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P {port} {binary_file} root@localhost:/tmp/").run()?;
         let test_args = test_args.clone();
         cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p {port} /tmp/test-suite {test_args...}").run()?;
+
+        qemu.ensure_running()?;
 
         // Kills QEMU.
         drop(qemu);
