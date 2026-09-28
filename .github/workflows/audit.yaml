@@ -21,12 +21,14 @@ permissions: read-all
 
 jobs:
   audit:
+    name: Audit Rust Dependencies
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
     steps:
       - name: Code checkout
         uses: actions/checkout@v7.0.1
 
-      - uses: actions-rust-lang/audit@v1.2.7
-        name: Audit Rust Dependencies
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
+      - name: Audit
+        run: nix develop --command cargo audit
