@@ -1,6 +1,7 @@
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{self, Read, Write},
+    net::{Ipv4Addr, SocketAddr},
     path::Path,
     process::{Child, Command, Stdio},
     time::{Duration, Instant},
@@ -10,6 +11,7 @@ use anyhow::{Context, Result, bail};
 use clap::Parser;
 use flate2::read::GzDecoder;
 use indicatif::{ProgressBar, ProgressStyle};
+use socket2::{Domain, Socket, Type};
 use tar::Archive;
 use xshell::{Shell, cmd};
 
@@ -112,13 +114,31 @@ fn download_and_unpack_architest(tempdir: &TempDir, architest_tarball: &str) -> 
     Ok(())
 }
 
+/// Reserve a free local port for QEMU's ssh forward.
+///
+/// The socket is bound but never listens, so while it is open the kernel won't
+/// hand the port out to anyone else. QEMU can still bind it, because libslirp
+/// sets `SO_REUSEADDR` on its forward socket (`tcpx_listen`).
+fn reserve_port() -> io::Result<(Socket, u16)> {
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None)?;
+    socket.set_reuse_address(true)?;
+    socket.bind(&SocketAddr::from((Ipv4Addr::LOCALHOST, 0)).into())?;
+    let port = socket
+        .local_addr()?
+        .as_socket()
+        .ok_or_else(|| io::Error::other("reserved socket has no IP address"))?
+        .port();
+    Ok((socket, port))
+}
+
 /// Poll until the VM accepts ssh connections.
 ///
-/// QEMU's user-mode forward accepts on 3366 as soon as QEMU starts, well before
-/// the guest sshd listens, so a TCP probe would succeed too early and the
+/// QEMU's user-mode forward accepts on `port` as soon as QEMU starts, well
+/// before the guest sshd listens, so a TCP probe would succeed too early and the
 /// following scp would fail with `kex_exchange_identification`.
-fn wait_for_ssh() -> Result<()> {
+fn wait_for_ssh(port: u16) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(180);
+    let port = port.to_string();
 
     loop {
         let status = Command::new("ssh")
@@ -130,7 +150,7 @@ fn wait_for_ssh() -> Result<()> {
                 "-o",
                 "ConnectTimeout=5",
                 "-p",
-                "3366",
+                &port,
                 "root@localhost",
                 "true",
             ])
@@ -173,6 +193,10 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
     sh.change_dir(&tempdir);
 
     for kernel_version in kernel_versions {
+        let (reservation, port) =
+            reserve_port().context("Failed to reserve a port for the QEMU ssh forward")?;
+        let nic = format!("user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:{port}-10.0.2.14:22");
+
         let (architest_tarball, qemu_cmd, qemu_args) = match target.as_str() {
             "aarch64-unknown-linux-musl" => (
                 format!("aarch64_{kernel_version}.tar.gz"),
@@ -196,7 +220,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
                     "1024M",
                     "-nographic",
                     "-nic",
-                    "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:3366-10.0.2.14:22",
+                    &nic,
                 ],
             ),
             "x86_64-unknown-linux-musl" => (
@@ -215,7 +239,7 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
                     "1024M",
                     "-nographic",
                     "-nic",
-                    "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:3366-10.0.2.14:22",
+                    &nic,
                 ],
             ),
             _ => return Err(anyhow::anyhow!("Unsupported target: {target}")),
@@ -235,11 +259,15 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
                 .context("Failed to run QEMU")?,
         );
 
-        wait_for_ssh()?;
+        wait_for_ssh(port)?;
 
-        cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P 3366 {binary_file} root@localhost:/tmp/").run()?;
+        // QEMU is listening on the port now, so the reservation is no longer needed.
+        drop(reservation);
+
+        let port = port.to_string();
+        cmd!(sh, "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P {port} {binary_file} root@localhost:/tmp/").run()?;
         let test_args = test_args.clone();
-        cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite {test_args...}").run()?;
+        cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p {port} /tmp/test-suite {test_args...}").run()?;
 
         // Kills QEMU.
         drop(qemu);
