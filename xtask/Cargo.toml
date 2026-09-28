@@ -18,6 +18,7 @@ reqwest = { workspace = true, default-features = false, features = [
 ] }
 serde = { workspace = true, features = ["derive"] }
 signal-hook = { workspace = true }
+socket2 = { workspace = true }
 tar = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 xshell = { workspace = true }
