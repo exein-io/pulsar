@@ -2,7 +2,7 @@ use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     time::{Duration, Instant},
 };
 
@@ -150,6 +150,16 @@ fn wait_for_ssh() -> Result<()> {
     }
 }
 
+/// Owns the QEMU process and kills and waits for it when dropped, ignoring errors.
+struct QemuGuard(Child);
+
+impl Drop for QemuGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> {
     let Options {
         target,
@@ -217,11 +227,13 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         cmd!(sh, "sudo resize2fs rootfs.ext2").run()?;
 
         // Run qemu
-        let mut qemu_process = Command::new(qemu_cmd)
-            .args(qemu_args)
-            .current_dir(&tempdir)
-            .spawn()
-            .context("Failed to run QEMU")?;
+        let qemu = QemuGuard(
+            Command::new(qemu_cmd)
+                .args(qemu_args)
+                .current_dir(&tempdir)
+                .spawn()
+                .context("Failed to run QEMU")?,
+        );
 
         wait_for_ssh()?;
 
@@ -229,8 +241,8 @@ fn test_architest(sh: Shell, options: Options, binary_file: &str) -> Result<()> 
         let test_args = test_args.clone();
         cmd!(sh, "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 3366 /tmp/test-suite {test_args...}").run()?;
 
-        qemu_process.kill()?;
-        qemu_process.wait()?;
+        // Kills QEMU.
+        drop(qemu);
     }
 
     Ok(())
