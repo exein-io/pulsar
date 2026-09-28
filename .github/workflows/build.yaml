@@ -28,6 +28,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
+        with:
+          rust-cache-key: ${{ matrix.target }}-${{ matrix.profile }}
 
       - name: Build
         run: nix develop --command just build ${{ matrix.target }} ${{ matrix.profile }}

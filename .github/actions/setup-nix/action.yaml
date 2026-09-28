@@ -1,6 +1,11 @@
 name: 'Setup Nix'
 description: 'Install Nix and restore the flake store cache'
 
+inputs:
+  rust-cache-key:
+    description: 'Key for caching Rust build artifacts; empty disables the cache'
+    default: ''
+
 runs:
   using: composite
   steps:
@@ -25,3 +30,15 @@ runs:
     - name: Build devShell
       shell: bash
       run: nix develop --command true
+
+    # rust-cache calls cargo and rustc directly, outside the devShell.
+    - name: Expose Rust toolchain
+      if: inputs.rust-cache-key != ''
+      shell: bash
+      run: nix develop --command bash -c 'dirname "$(command -v cargo)"' >> "$GITHUB_PATH"
+
+    - name: Cache Rust build artifacts
+      if: inputs.rust-cache-key != ''
+      uses: Swatinem/rust-cache@v2.9.2
+      with:
+        key: ${{ inputs.rust-cache-key }}-${{ hashFiles('flake.lock') }}

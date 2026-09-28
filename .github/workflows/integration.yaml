@@ -21,6 +21,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
+        with:
+          rust-cache-key: architest-${{ matrix.arch }}
 
       # Kernel versions come from the justfile so they stay in one place.
       - name: Integration tests
@@ -47,6 +49,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
+        with:
+          rust-cache-key: lvh-${{ matrix.arch }}
 
       # amd64 boots with hardware acceleration; arm64 is emulated and needs none.
       - name: Allow access to /dev/kvm

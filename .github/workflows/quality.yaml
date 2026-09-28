@@ -51,6 +51,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
+        with:
+          rust-cache-key: ${{ matrix.target }}
 
       - name: Clippy (all crates)
         run: nix develop --command just clippy ${{ matrix.target }}
