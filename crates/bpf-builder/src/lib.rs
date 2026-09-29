@@ -50,10 +50,10 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
         .arg(format!(
             "-D__TARGET_ARCH_{}",
             match arch.as_str() {
-                "x86_64" => "x86".to_string(),
-                "aarch64" => "arm64".to_string(),
-                "riscv64" => "riscv".to_string(),
-                _ => arch.clone(),
+                "x86_64" => "x86",
+                "aarch64" => "arm64",
+                "riscv64" => "riscv",
+                other => other,
             }
         ))
         .args(extra_args)
