@@ -45,6 +45,8 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
         .arg("-c")
         .arg("-Werror")
         .arg("-fno-stack-protector")
+        // Explicitly pass ISA version, to not rely on clang defaults.
+        .arg("-mcpu=v3")
         .arg(format!(
             "-D__TARGET_ARCH_{}",
             match arch.as_str() {
