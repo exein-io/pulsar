@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the root build script no longer re-runs on every build, it watched the package root, which recurses into `target`, and `.git` paths which do not exist in a worktree
 - `SSH related file changes` rule only matches write-mode opens, `sshd`/`ssh` loading shared libraries no longer triggers it
 - `Open sensitive file` rule no longer triggers on the PAM login stack (`sshd`, `login`, `su`, `sudo`) reading `/etc/shadow` and related files
+- probes are built with `-mcpu=v3` instead of the host clang's default ISA, clang before 20 produced v1 bytecode that the verifier rejected in `process-monitor`
 
 ### Changed
 
