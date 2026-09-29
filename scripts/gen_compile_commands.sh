@@ -39,6 +39,7 @@ out="${root}/compile_commands.json"
         printf '    "arguments": [\n'
         printf '      "%s",\n' "${clang}"
         printf '      "-target", "bpf",\n'
+        printf '      "-mcpu=v3",\n'
         printf '      "-I%s",\n' "${include}"
         printf '      "-I%s/%s",\n' "${include}" "${arch}"
         printf '      "-g",\n'
