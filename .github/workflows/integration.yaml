@@ -6,7 +6,7 @@ on:
 
 jobs:
   architest:
-    name: architest (${{ matrix.profile }}, ${{ matrix.platform.arch }})
+    name: architest (${{ matrix.profile }}, ${{ matrix.arch }}, ${{ matrix.kernel }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -15,21 +15,41 @@ jobs:
           # - debug
           - release
 
-        platform:
+        arch:
+          - amd64
+          - arm64
+
+        kernel:
+          - "5.13"
+          - "5.15"
+          - "6.0"
+          - "6.2"
+          - "6.3"
+          - "6.6"
+
+        # Kernels without an architest image for that arch.
+        exclude:
+          - arch: amd64
+            kernel: "6.2"
+          - arch: arm64
+            kernel: "5.13"
+          - arch: arm64
+            kernel: "6.0"
+          - arch: arm64
+            kernel: "6.3"
+
+        include:
           - arch: amd64
             target: x86_64-unknown-linux-musl
-            kernel-versions: "5.13,5.15,6.0,6.3,6.6"
-
           - arch: arm64
             target: aarch64-unknown-linux-musl
-            kernel-versions: "5.15,6.2,6.6"
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v7.0.1
 
       - name: Install dependencies
-        if: endsWith(matrix.platform.target, 'musl')
+        if: endsWith(matrix.target, 'musl')
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system
@@ -37,24 +57,24 @@ jobs:
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
         run: |
           rustup toolchain install
-          rustup target add ${{ matrix.platform.target }}
+          rustup target add ${{ matrix.target }}
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2.9.2
         with:
-          key: ${{ matrix.platform.target }}-${{ matrix.profile }}
+          key: ${{ matrix.target }}-${{ matrix.profile }}
 
       - name: Install cross
         uses: ./.github/actions/install-cross
 
       - name: Integration tests
-        if: endsWith(matrix.platform.target, 'musl')
+        if: endsWith(matrix.target, 'musl')
         run: |
-            cargo xtask test-suite \
-                --force-architest \
-                --target=${{ matrix.platform.target }} \
-                --kernel-versions=${{ matrix.platform.kernel-versions }} \
-                --features all-vendored --features tls-rustls
+          cargo xtask test-suite \
+              --force-architest \
+              --target=${{ matrix.target }} \
+              --kernel-versions=${{ matrix.kernel }} \
+              --features all-vendored --features tls-rustls
 
   lvh:
     name: lvh (${{ matrix.profile.name }}, ${{ matrix.platform.arch }}, ${{ matrix.kernel.version }})
@@ -137,7 +157,7 @@ jobs:
           install-dependencies: "false"
           arch: ${{ matrix.platform.arch }}
           cpu-kind: ${{ matrix.platform['cpu-kind'] }}
-          ssh-connect-wait-retries: '10'
+          ssh-connect-wait-retries: "10"
           verbose: true
           cmd: |
             # print kernel version
