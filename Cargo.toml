@@ -158,7 +158,7 @@ nix = { version = "0.30.1", features = [
 ] }
 num_cpus = "1.17"
 nut = "0.1.4"
-openssl = "0.10.73"
+openssl = "0.10.81"
 proc-macro2 = "1.0"
 procfs = { version = "0.18.0", default-features = false }
 quote = "1.0.41"
