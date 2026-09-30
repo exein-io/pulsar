@@ -2556,6 +2556,7 @@ dependencies = [
  "serde",
  "serde_ignored",
  "smtp-notifier",
+ "telegram-notifier",
  "threat-logger",
  "tokio",
  "toml",
@@ -3408,6 +3409,17 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
+]
+
+[[package]]
+name = "telegram-notifier"
+version = "0.10.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "log",
+ "pulsar-core",
+ "reqwest",
+ "tokio",
 ]
 
 [[package]]
