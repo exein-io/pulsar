@@ -36,6 +36,18 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
     let clang = env::var("CLANG").unwrap_or_else(|_| String::from(CLANG_DEFAULT));
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     let include_path = PathBuf::from(INCLUDE_PATH);
+
+    // Fail loudly on an unsupported arch instead of passing an undefined
+    // __TARGET_ARCH_* through, which would silently miscompile the BPF.
+    let target_arch = match arch.as_str() {
+        "x86_64" => "x86",
+        "aarch64" => "arm64",
+        "riscv64" => "riscv",
+        other => {
+            bail!("unsupported target arch `{other}`: only x86_64, aarch64, riscv64 are supported")
+        }
+    };
+
     let status = Command::new(clang)
         .arg(format!("-I{}", include_path.to_string_lossy()))
         .arg(format!("-I{}", include_path.join(&arch).to_string_lossy()))
@@ -47,15 +59,12 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
         .arg("-fno-stack-protector")
         // Explicitly pass ISA version, to not rely on clang defaults.
         .arg("-mcpu=v3")
-        .arg(format!(
-            "-D__TARGET_ARCH_{}",
-            match arch.as_str() {
-                "x86_64" => "x86",
-                "aarch64" => "arm64",
-                "riscv64" => "riscv",
-                other => other,
-            }
-        ))
+        // Kernel >= 7.0 is built with -fms-extensions and vmlinux.h contains
+        // anonymous members of named structs (`struct foo;`), which is a
+        // Microsoft extension.
+        .arg("-fms-extensions")
+        .arg("-Wno-microsoft-anon-tag")
+        .arg(format!("-D__TARGET_ARCH_{target_arch}"))
         .args(extra_args)
         .arg(probe)
         .arg("-o")

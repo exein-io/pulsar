@@ -15,7 +15,6 @@ case "$(uname -m)" in
     x86_64)          arch=x86_64  ; target_arch=x86   ;;
     aarch64 | arm64) arch=aarch64 ; target_arch=arm64 ;;
     riscv64)         arch=riscv64 ; target_arch=riscv ;;
-    arm*)            arch=arm     ; target_arch=arm   ;;
     *)
         echo "unsupported host architecture: $(uname -m)" >&2
         exit 1
@@ -40,6 +39,8 @@ out="${root}/compile_commands.json"
         printf '      "%s",\n' "${clang}"
         printf '      "-target", "bpf",\n'
         printf '      "-mcpu=v3",\n'
+        printf '      "-fms-extensions",\n'
+        printf '      "-Wno-microsoft-anon-tag",\n'
         printf '      "-I%s",\n' "${include}"
         printf '      "-I%s/%s",\n' "${include}" "${arch}"
         printf '      "-g",\n'
