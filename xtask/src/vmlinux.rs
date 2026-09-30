@@ -307,17 +307,6 @@ pub(crate) fn run(options: Options) -> Result<()> {
     generate_vmlinux_for_arch(
         &options,
         &version,
-        Some("arm"),
-        Some("arm-linux-gnueabi-"),
-        &builddir,
-        PathBuf::from(format!(
-            "crates/bpf-builder/include/arm/vmlinux_{sanitized_version}.h",
-        )),
-        PathBuf::from("crates/bpf-builder/include/arm/vmlinux.h"),
-    )?;
-    generate_vmlinux_for_arch(
-        &options,
-        &version,
         Some("arm64"),
         Some("aarch64-linux-gnu-"),
         &builddir,

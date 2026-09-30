@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- eBPF: dropped the vendored 32-bit `arm` `vmlinux.h`, `cargo xtask vmlinux` no longer builds it
 - **BREAKING**: configuration format from INI to TOML, the file moved from `/var/lib/pulsar/pulsar.ini` to `/etc/pulsar/pulsar.toml`
 - **BREAKING**: module settings live under a `[module.<name>]` section and lists are TOML arrays instead of comma separated strings
 - **BREAKING**: rules format from YAML to TOML, rule files hold an array of tables under a `rules` key and every `toml` file below the rules folder is loaded as one
