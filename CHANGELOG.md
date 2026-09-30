@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - probes are built with `-mcpu=v3` instead of the host clang's default ISA, clang before 20 produced v1 bytecode that the verifier rejected in `process-monitor`
+- building against OpenSSL 4, `openssl` upgraded to 0.10.81 and `openssl-sys` to 0.9.117, the previous `openssl-sys` rejected any OpenSSL newer than 3
 
 ## [0.10.0] - 2026-09-17
 
