@@ -12,7 +12,7 @@ pub struct BufferIndex<T: ?Sized> {
     start: u16,
     /// Length of the pointed-at slice
     len: u16,
-    /// BufferIndex is marked with a generic argument, which  annotates what the pointed at
+    /// BufferIndex is marked with a generic argument, which annotates what the pointed at
     /// buffer should be. Utility methods are added in `impl BufferIndex<T>` for making it
     /// easier to work with those resources.
     _data: std::marker::PhantomData<T>,
@@ -33,8 +33,12 @@ impl<T: ?Sized> BufferIndex<T> {
     /// Returns `Err(IndexError::IndexOutsideBuffer)` when buffer is too short.
     pub fn bytes<'a>(&self, buffer: &'a Bytes) -> Result<&'a [u8], IndexError> {
         let start = self.start as usize;
-        let end = (self.start + self.len) as usize;
-        if start <= end && end <= buffer.len() {
+        let end = self
+            .start
+            .checked_add(self.len)
+            .ok_or(IndexError::IndexOverflow)? as usize;
+
+        if end <= buffer.len() {
             Ok(&buffer[start..end])
         } else {
             Err(IndexError::IndexOutsideBuffer {
@@ -61,12 +65,16 @@ impl BufferIndex<str> {
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum IndexError {
+    #[error("Index arithmetic overflowed")]
+    IndexOverflow,
+
     #[error("Index [{start}-{end}] is out of event buffer (len {len})")]
     IndexOutsideBuffer {
         start: usize,
         end: usize,
         len: usize,
     },
+
     #[error("Index is not pointing to a valid string. {bytes:?} {error:?}")]
     NotAString {
         #[source]
@@ -85,6 +93,7 @@ mod test_utils {
         fn equals(&self, t: &String, buffer: &Bytes) -> bool {
             self.string(buffer).as_ref() == Ok(t)
         }
+
         fn repr(&self, buffer: &Bytes) -> String {
             format!("{:?}", self.string(buffer))
         }
@@ -95,6 +104,7 @@ mod test_utils {
         fn equals(&self, t: &Vec<u8>, buffer: &Bytes) -> bool {
             self.bytes(buffer) == Ok(t)
         }
+
         fn repr(&self, buffer: &Bytes) -> String {
             format!("{:?}", self.bytes(buffer))
         }
@@ -111,7 +121,7 @@ mod tests {
     use super::*;
 
     // Allows to construct a `BufferIndex` directly. Done here
-    // so that private field are accesed without hacks.
+    // so that private fields are accessed without hacks.
     fn index<T: ?Sized>(start: u16, len: u16) -> BufferIndex<T> {
         BufferIndex {
             start,
@@ -121,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn in_bounds_slice_is_extraced() {
+    fn in_bounds_slice_is_extracted() {
         let buffer = Bytes::from_static(b"hello random string");
         let index: BufferIndex<[u8]> = index(0, 5);
         assert_eq!(index.bytes(&buffer).unwrap(), b"hello");
@@ -145,7 +155,7 @@ mod tests {
                 end: 15,
                 len: 5
             }
-        )
+        );
     }
 
     #[test]
@@ -159,7 +169,15 @@ mod tests {
                 end: 16,
                 len: 5
             }
-        )
+        );
+    }
+
+    #[test]
+    fn start_plus_len_overflow_returns_error() {
+        let buffer = Bytes::from_static(b"hello");
+        let index: BufferIndex<[u8]> = index(u16::MAX, 1);
+
+        assert_eq!(index.bytes(&buffer).unwrap_err(), IndexError::IndexOverflow);
     }
 
     #[test]
@@ -179,16 +197,4 @@ mod tests {
             IndexError::NotAString { .. }
         ));
     }
-
-    // TODO: This is behaviour that happens in debug mode, maybe it will need to be removed
-    // once release mode is established, as of now the test case is left commented.
-    // In release mode it will not panic but wrap around integer range (u8).
-    /*
-    #[test]
-    #[should_panic(expected = "attempt to add with overflow")]
-    fn start_plus_len_overflow_panics_instead_of_returning_an_error() {
-        let buffer = Bytes::from_static(b"hello");
-        let index: BufferIndex<[u8]> = index(60_000, 10_000);
-        let _ = index.bytes(&buffer);
-    }*/
 }
