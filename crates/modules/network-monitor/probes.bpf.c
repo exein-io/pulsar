@@ -186,34 +186,32 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
   }
 }
 
-static __always_inline __u32 ip_hdrlen(const struct iphdr *ih)
-{
+static __always_inline __u32 ip_hdrlen(const struct iphdr *ih) {
   return ih->ihl << 2;
 }
 
-static __always_inline __u32 tcp_hdrlen(const struct tcphdr *th)
-{
+static __always_inline __u32 tcp_hdrlen(const struct tcphdr *th) {
   return th->doff << 2;
 }
 
 static __always_inline void copy_iphdr_source(struct iphdr *ih,
                                               struct address *addr) {
   addr->ip_ver = 0;
-  ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
+  ((struct sockaddr *)&addr->v4)->sa_family = AF_INET;
   bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->saddr);
 }
 
 static __always_inline void copy_iphdr_dest(struct iphdr *ih,
                                             struct address *addr) {
   addr->ip_ver = 0;
-  ((struct sockaddr*)&addr->v4)->sa_family = AF_INET;
+  ((struct sockaddr *)&addr->v4)->sa_family = AF_INET;
   bpf_core_read(&addr->v4.sin_addr, IPV4_NUM_OCTECTS, &ih->daddr);
 }
 
 static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
                                                 struct address *addr) {
   addr->ip_ver = 1;
-  ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
+  ((struct sockaddr *)&addr->v6)->sa_family = AF_INET6;
   bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                 &ih6->saddr.in6_u.u6_addr32);
 }
@@ -221,7 +219,7 @@ static __always_inline void copy_ipv6hdr_source(struct ipv6hdr *ih6,
 static __always_inline void copy_ipv6hdr_dest(struct ipv6hdr *ih6,
                                               struct address *addr) {
   addr->ip_ver = 1;
-  ((struct sockaddr*)&addr->v6)->sa_family = AF_INET6;
+  ((struct sockaddr *)&addr->v6)->sa_family = AF_INET6;
   bpf_core_read(&addr->v6.sin6_addr, IPV6_NUM_OCTECTS,
                 &ih6->daddr.in6_u.u6_addr32);
 }
@@ -373,8 +371,7 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
 
 #define ITER_UBUF 5
 
-static __always_inline void
-*get_iov_base(const void *msg_iter) {
+static __always_inline void *get_iov_base(const void *msg_iter) {
   // Definition of `struct iov_iter` used in new kernels (>=6.4).
   const struct iov_iter *msg_iter_nocompat = msg_iter;
 
@@ -387,7 +384,8 @@ static __always_inline void
     return BPF_CORE_READ(msg_iter_nocompat, __iov, iov_base);
   }
 
-  // Use the <= 6.4 definition, which we represent with `struct iov_iter_compat`.
+  // Use the <= 6.4 definition, which we represent with `struct
+  // iov_iter_compat`.
   const struct iov_iter___compat *msg_iter_compat = (const void *)msg_iter;
   return BPF_CORE_READ(msg_iter_compat, iov, iov_base);
 }
@@ -463,13 +461,11 @@ int BPF_PROG(sys_exit_accept, struct pt_regs *regs, int __syscall_nr,
   return 0;
 }
 
-__always_inline int process_skb(struct __sk_buff *skb,
-                                __u8 direction) {
+__always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
   struct task_struct *task = get_current_task();
   pid_t tgid = BPF_CORE_READ(task, tgid);
 
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true,
-                              true))
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true, true))
     return CGROUP_SKB_OK;
 
   struct network_event *network_event;
@@ -678,7 +674,8 @@ __always_inline int process_skb(struct __sk_buff *skb,
 
   if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
                               headers_len) < 0) {
-    LOG_ERROR("Failed to retrieve the packet payload. The event is going to miss the `data` part.");
+    LOG_ERROR("Failed to retrieve the packet payload. The event is going to "
+              "miss the `data` part.");
   }
 
   msg_event->data_len = skb->len - headers_len;
@@ -692,11 +689,7 @@ discard_event:
 }
 
 SEC("cgroup_skb/egress")
-int skb_egress(struct __sk_buff *skb) {
-  return process_skb(skb, EGRESS);
-}
+int skb_egress(struct __sk_buff *skb) { return process_skb(skb, EGRESS); }
 
 SEC("cgroup_skb/ingress")
-int skb_ingress(struct __sk_buff *skb) {
-  return process_skb(skb, INGRESS);
-}
+int skb_ingress(struct __sk_buff *skb) { return process_skb(skb, INGRESS); }
