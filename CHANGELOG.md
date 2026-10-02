@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - eBPF: vendored `vmlinux.h` updated to kernel 7.2.8 and libbpf headers to v1.7.0, probes are now compiled with `-fms-extensions` since kernel 7.x BTF contains anonymous members of named structs
 - eBPF: dropped the vendored 32-bit `arm` `vmlinux.h`, `cargo xtask vmlinux` no longer builds it
+- eBPF: vendored `vmlinux.h` headers moved from `crates/bpf-builder/include/<arch>` to `crates/bpf-builder/vmlinux/<arch>`
 - **BREAKING**: configuration format from INI to TOML, the file moved from `/var/lib/pulsar/pulsar.ini` to `/etc/pulsar/pulsar.toml`
 - **BREAKING**: module settings live under a `[module.<name>]` section and lists are TOML arrays instead of comma separated strings
 - **BREAKING**: rules format from YAML to TOML, rule files hold an array of tables under a `rules` key and every `toml` file below the rules folder is loaded as one
@@ -44,11 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - unit test coverage for `BufferIndex` bounds checking and UTF-8 parsing
 - test loading and compiling every rule shipped with Pulsar
+- eBPF: `.clang-format` config for the C sources, checked in CI, generated `vmlinux.h` and vendored libbpf headers are excluded
+- eBPF: root `compile_flags.txt` so clangd-based editors understand the eBPF sources without setup, checked in CI against the sources
 
 ### Removed
 
 - **BREAKING**: the `ContainerError` variants `ParseDigest`, `InvalidHashFunction` and `PathNonUtf8`, none of which could ever be returned
 - unused dependencies across the workspace
+- `scripts/gen_compile_commands.sh`, replaced by the committed `compile_flags.txt`
 - **BREAKING**: `pulsar config` command, together with the `/configs` and `/modules/{name}/config` API endpoints. Edit the configuration file and restart the daemon instead
 - **BREAKING**: configuration reload at runtime, including the `on_config_change` module hook
 
