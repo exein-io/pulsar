@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 #pragma once
+#include "vmlinux.h"
+
 #include "common.bpf.h"
 #include "loop.bpf.h"
 #include "output.bpf.h"
-#include "vmlinux.h"
 
 // Note on kernel data structures:
 //

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-#include "common.bpf.h"
+#include "vmlinux.h"
+
 #include "bpf/bpf_core_read.h"
-#include "strncmp.bpf.h"
+
 #include "buffer.bpf.h"
 #include "common.bpf.h"
 #include "get_path.bpf.h"
 #include "interest_tracking.bpf.h"
+#include "kernfs_node_compat.h"
 #include "loop.bpf.h"
 #include "output.bpf.h"
-#include "vmlinux.h"
-#include "kernfs_node_compat.h"
+#include "strncmp.bpf.h"
 
 char LICENSE[] SEC("license") = "GPL v2";
 
