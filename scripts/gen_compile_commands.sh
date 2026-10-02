@@ -42,7 +42,7 @@ out="${root}/compile_commands.json"
         printf '      "-fms-extensions",\n'
         printf '      "-Wno-microsoft-anon-tag",\n'
         printf '      "-I%s",\n' "${include}"
-        printf '      "-I%s/%s",\n' "${include}" "${arch}"
+        printf '      "-I%s/vmlinux/%s",\n' "${include}" "${arch}"
         printf '      "-g",\n'
         printf '      "-O2",\n'
         printf '      "-D__TARGET_ARCH_%s",\n' "${target_arch}"
