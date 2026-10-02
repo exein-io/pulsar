@@ -8,7 +8,8 @@
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-include="${root}/crates/bpf-builder/include"
+bpf_builder="${root}/crates/bpf-builder"
+include="${bpf_builder}/include"
 clang="${CLANG:-clang}"
 
 case "$(uname -m)" in
@@ -42,7 +43,7 @@ out="${root}/compile_commands.json"
         printf '      "-fms-extensions",\n'
         printf '      "-Wno-microsoft-anon-tag",\n'
         printf '      "-I%s",\n' "${include}"
-        printf '      "-I%s/%s",\n' "${include}" "${arch}"
+        printf '      "-I%s/vmlinux/%s",\n' "${bpf_builder}" "${arch}"
         printf '      "-g",\n'
         printf '      "-O2",\n'
         printf '      "-D__TARGET_ARCH_%s",\n' "${target_arch}"
