@@ -11,6 +11,6 @@
  */
 
 struct kernfs_node___compat {
-	struct kernfs_node___compat *parent;
-	const char *name;
+  struct kernfs_node___compat *parent;
+  const char *name;
 } __attribute__((preserve_access_index));
