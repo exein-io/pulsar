@@ -11,6 +11,7 @@ use bpf_features::BpfFeatures;
 static CLANG_DEFAULT: &str = "clang";
 static LLVM_STRIP: &str = "llvm-strip";
 static INCLUDE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/include");
+static VMLINUX_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/include/vmlinux");
 
 // Given a probe name and the eBPF program source code path, compile it to OUT_DIR.
 // We'll build multiple versions with all combinations of eBPF features we rely
@@ -36,6 +37,7 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
     let clang = env::var("CLANG").unwrap_or_else(|_| String::from(CLANG_DEFAULT));
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     let include_path = PathBuf::from(INCLUDE_PATH);
+    let vmlinux_path = PathBuf::from(VMLINUX_PATH).join(&arch);
 
     // Fail loudly on an unsupported arch instead of passing an undefined
     // __TARGET_ARCH_* through, which would silently miscompile the BPF.
@@ -50,7 +52,7 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
 
     let status = Command::new(clang)
         .arg(format!("-I{}", include_path.to_string_lossy()))
-        .arg(format!("-I{}", include_path.join(&arch).to_string_lossy()))
+        .arg(format!("-I{}", vmlinux_path.to_string_lossy()))
         .arg("-g")
         .arg("-O2")
         .args(["-target", "bpf"])

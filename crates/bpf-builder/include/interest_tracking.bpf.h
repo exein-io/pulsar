@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 #pragma once
 
-#include "common.bpf.h"
 #include "vmlinux.h"
+
+#include "common.bpf.h"
 
 struct bpf_map_def_aya {
   unsigned int type;
