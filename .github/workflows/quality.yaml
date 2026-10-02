@@ -38,6 +38,22 @@ jobs:
       - name: Formatting (rustfmt)
         run: cargo fmt -- --check
 
+  clang-format:
+    name: Formatting (clang-format)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-format-20
+
+      - name: Formatting (clang-format)
+        run: git ls-files '*.c' '*.h' | xargs clang-format-20 --dry-run -Werror
+
   lint:
     name: Lint (clippy)
     runs-on: ubuntu-latest
