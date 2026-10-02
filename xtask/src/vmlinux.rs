@@ -15,6 +15,7 @@ use crate::tempdir::TempDir;
 
 const REPO_URL: &str = "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git";
 const KERNEL_API: &str = "https://www.kernel.org/releases.json";
+const VMLINUX_DIR: &str = "crates/bpf-builder/include/vmlinux";
 
 /// Type of C compiler used for the build.
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -293,39 +294,24 @@ pub(crate) fn run(options: Options) -> Result<()> {
 
     clone_repo(&version, &builddir)?;
 
-    generate_vmlinux_for_arch(
-        &options,
-        &version,
-        None,
-        None,
-        &builddir,
-        PathBuf::from(format!(
-            "crates/bpf-builder/include/x86_64/vmlinux_{sanitized_version}.h",
-        )),
-        PathBuf::from("crates/bpf-builder/include/x86_64/vmlinux.h"),
-    )?;
-    generate_vmlinux_for_arch(
-        &options,
-        &version,
-        Some("arm64"),
-        Some("aarch64-linux-gnu-"),
-        &builddir,
-        PathBuf::from(format!(
-            "crates/bpf-builder/include/aarch64/vmlinux_{sanitized_version}.h",
-        )),
-        PathBuf::from("crates/bpf-builder/include/aarch64/vmlinux.h"),
-    )?;
-    generate_vmlinux_for_arch(
-        &options,
-        &version,
-        Some("riscv"),
-        Some("riscv64-linux-gnu-"),
-        &builddir,
-        PathBuf::from(format!(
-            "crates/bpf-builder/include/riscv64/vmlinux_{sanitized_version}.h",
-        )),
-        PathBuf::from("crates/bpf-builder/include/riscv64/vmlinux.h"),
-    )?;
+    // (Rust target arch, kernel ARCH, CROSS_COMPILE prefix)
+    let archs = [
+        ("x86_64", None, None),
+        ("aarch64", Some("arm64"), Some("aarch64-linux-gnu-")),
+        ("riscv64", Some("riscv"), Some("riscv64-linux-gnu-")),
+    ];
+    for (rust_arch, kernel_arch, cross_compile) in archs {
+        let dir = PathBuf::from(VMLINUX_DIR).join(rust_arch);
+        generate_vmlinux_for_arch(
+            &options,
+            &version,
+            kernel_arch,
+            cross_compile,
+            &builddir,
+            dir.join(format!("vmlinux_{sanitized_version}.h")),
+            dir.join("vmlinux.h"),
+        )?;
+    }
 
     if !options.preserve_builddir {
         fs::remove_dir_all(&builddir)?;
