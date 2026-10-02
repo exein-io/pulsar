@@ -102,9 +102,9 @@ rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
 # External
 anyhow = "1.0.104"
-aya = { version = "0.13.1", features = ["async_tokio"] }
+aya = "0.14.0"
 aya-ebpf-bindings = "0.2.0"
-aya-obj = "0.2.1"
+aya-obj = "0.3.0"
 axum = { version = "0.8.9", features = ["ws"] }
 bytes = "1.12.1"
 chrono = { version = "0.4.45" }
