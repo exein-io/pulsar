@@ -167,6 +167,7 @@ strum = { version = "0.28.0", features = ["derive"] }
 syn = "3.0.6"
 sys-mount = { version = "3.1.0", default-features = false }
 tar = "0.4.46"
+tempfile = "3.27.0"
 thiserror = "2.0.20"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-fd = "0.3.0"
