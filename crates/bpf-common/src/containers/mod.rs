@@ -98,6 +98,8 @@ pub enum ContainerError {
     InvalidImageDigest(String),
     #[error("layer {0} not found in the layer store")]
     LayerNotFound(String),
+    #[error("cycle in the layer store at layer {0}")]
+    LayerCycle(String),
     #[error("could not find overlay directory")]
     OverlayDirNotFound,
 }
