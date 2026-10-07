@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Podman image layer lookup follows the full parent chain regardless of layer store order, without duplicating the top layer, and reports cyclic parent chains as errors (#421)
 - release builds no longer contain test only dependencies, the `test-suite` and `test-utils` features were enabled unconditionally for every consumer of the internal crates
 - the root build script no longer re-runs on every build, it watched the package root, which recurses into `target`, and `.git` paths which do not exist in a worktree
 - `SSH related file changes` rule only matches write-mode opens, `sshd`/`ssh` loading shared libraries no longer triggers it
