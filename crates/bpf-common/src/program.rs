@@ -315,8 +315,7 @@ impl ProgramBuilder {
             }
             Result::<Ebpf, ProgramError>::Ok(bpf)
         })
-        .await
-        .expect("join error")?;
+        .await??;
 
         Ok(Program {
             tx_exit,
