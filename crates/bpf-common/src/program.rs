@@ -215,6 +215,13 @@ pub enum ProgramError {
         #[source]
         error: io::Error,
     },
+    #[error("read too short raw event from the probe")]
+    ReadTooShortRawEvent {
+        /// Minimal size of the message required by ABI.
+        abi_required_size: usize,
+        /// Message's bytes.
+        bytes: Bytes,
+    },
 
     // TODO: This was never constructed. Remove it during cleanup.
     #[error("reading link failed {path}")]
@@ -599,16 +606,24 @@ unsafe fn process_raw_event<T: Send, S: BpfSender<T>>(head: &[u8], tail: &[u8], 
     let event_size: usize = size_of::<RawBpfEvent<T>>();
 
     let len = head.len() + tail.len();
-    if len < event_size {
-        // TODO: This error should be handled gracefully.
-        log::error!("sizeof T: {}", size_of::<T>());
-        log::error!("sizeof RawBpfEvent<T>: {event_size}");
-        panic!("Buffer too short. buffer.len() = {len}");
-    }
-
     let mut buffer = BytesMut::with_capacity(len);
     buffer.extend_from_slice(head);
     buffer.extend_from_slice(tail);
+
+    if len < event_size {
+        log::error!(
+            "Event read is too short to be parsed as RawBpfEvent. Event len = {event_len}. Sizeof T = {sizeof_t}. Sizeof RawBpfEvent<T> = {sizeof_raw_event}",
+            event_len = len,
+            sizeof_t = size_of::<T>(),
+            sizeof_raw_event = event_size,
+        );
+        sender.send(Err(ProgramError::ReadTooShortRawEvent {
+            abi_required_size: event_size,
+            bytes: buffer.freeze(),
+        }));
+        return;
+    }
+
     let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
 
     // SAFETY: caller must guarantee it.
