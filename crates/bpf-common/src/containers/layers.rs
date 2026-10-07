@@ -236,8 +236,8 @@ pub(crate) fn podman_layers<P: AsRef<Path>>(
         .collect();
     let mut layers = Vec::new();
     let mut visited = HashSet::new();
-    let mut layer_id = top_layer_id;
-    loop {
+    let mut next = Some(top_layer_id);
+    while let Some(layer_id) = next {
         if !visited.insert(layer_id) {
             return Err(ContainerError::LayerCycle(layer_id.to_string()));
         }
@@ -245,12 +245,7 @@ pub(crate) fn podman_layers<P: AsRef<Path>>(
             .get(layer_id)
             .ok_or_else(|| ContainerError::LayerNotFound(layer_id.to_string()))?;
         layers.extend(find_subdirs(overlay_dir.join(&layer.id)));
-        match layer.parent.as_deref() {
-            Some(parent) => {
-                layer_id = parent;
-            }
-            None => break,
-        }
+        next = layer.parent.as_deref();
     }
 
     Ok(layers)
