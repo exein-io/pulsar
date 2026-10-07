@@ -3,8 +3,17 @@
 //! - allows to read events events.
 //!
 use std::{
-    collections::HashSet, convert::TryFrom, fmt, fmt::Display, fs::File, io, mem::size_of,
-    ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration,
+    borrow::Cow,
+    collections::HashSet,
+    convert::TryFrom,
+    fmt::{self, Display},
+    fs::File,
+    io,
+    mem::size_of,
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
 };
 
 use aya::{
@@ -198,6 +207,16 @@ pub enum ProgramError {
     },
     #[error(transparent)]
     MountinfoError(#[from] MountinfoError),
+    #[error("could not read CPUs information")]
+    CpusInformationNotAvailable {
+        /// Path of the file which we failed to read.
+        path: Cow<'static, Path>,
+        /// Io read error.
+        #[source]
+        error: io::Error,
+    },
+
+    // TODO: This was never constructed. Remove it during cleanup.
     #[error("reading link failed {path}")]
     ReadFile {
         #[source]
@@ -480,7 +499,10 @@ impl Program {
         )?;
 
         let buffers = online_cpus()
-            .unwrap()
+            .map_err(|(path, error)| ProgramError::CpusInformationNotAvailable {
+                path: Cow::Borrowed(Path::new(path)),
+                error,
+            })?
             .into_iter()
             .map(|cpu_id| {
                 let buf = perf_array.open(cpu_id, Some(self.ctx.perf_pages))?;
