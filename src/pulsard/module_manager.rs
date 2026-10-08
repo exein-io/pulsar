@@ -169,7 +169,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                                 break;
                             }
                             ModuleManagerCommand::StartModule { tx_reply } => {
-                                let _ = tx_reply.send(Err("already starting".to_string()));
+                                let _ = tx_reply.send(Ok(()));
                             }
                             ModuleManagerCommand::GetStatus { tx_reply } => {
                                 let _ = tx_reply.send(ModuleStatus::Starting);
@@ -232,7 +232,11 @@ impl<T: PulsarModule> ModuleManager<T> {
                         // this should never happen
                         Err("internal error: module busy".to_string())
                     }
-                    ModuleStatus::Created | ModuleStatus::Stopped => Ok(()),
+                    ModuleStatus::Created => Ok(()),
+                    ModuleStatus::Stopped => {
+                        log::warn!("Module {} is already stopped", T::MODULE_NAME);
+                        Ok(())
+                    }
                     ModuleStatus::Running(_) => {
                         let (tx_shutdown, task) = self.running_task.take().unwrap();
                         tx_shutdown.send_signal();
@@ -246,7 +250,7 @@ impl<T: PulsarModule> ModuleManager<T> {
 
                                 self.status = ModuleStatus::Stopped;
 
-                                Err("forced cancelled".to_string())
+                                Ok(())
                             },
                             result = task => {
                                 match result {
@@ -258,26 +262,19 @@ impl<T: PulsarModule> ModuleManager<T> {
                                         Ok(())
                                     }
                                     Err(err) => {
-                                        let err_msg =
-                                            format!("Module {} exit failure: {err}", T::MODULE_NAME);
-
-                                        log::warn!("{err_msg}");
+                                        log::error!("Module {} exit failure: {err}", T::MODULE_NAME);
 
                                         self.status = ModuleStatus::Failed(err.to_string());
 
-                                        Err(err.to_string())
+                                        Ok(())
                                     }
                                 }
                             }
                         }
                     }
-                    ModuleStatus::Failed(_) => {
-                        let err_msg = format!(
-                            "Stopping module {} failed: Module found in status: {:?}",
-                            T::MODULE_NAME,
-                            self.status
-                        );
-                        Err(err_msg)
+                    ModuleStatus::Failed(ref reason) => {
+                        log::warn!("Module {} has already failed: {reason}", T::MODULE_NAME);
+                        Ok(())
                     }
                 };
 
