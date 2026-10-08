@@ -4,15 +4,15 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 
+use super::ConfigError;
+
 /// Error happening during daemon administration.
 #[derive(Error, Debug)]
 pub enum PulsarDaemonError {
-    #[error("module {0} not found")]
-    ModuleNotFound(String),
-    #[error("{0}")]
-    StartError(String),
-    #[error("{0}")]
-    StopError(String),
+    #[error("module {name} not found")]
+    ModuleNotFound { name: String },
+    #[error(transparent)]
+    InvalidConfig(#[from] ConfigError),
 }
 
 /// Handle to a running PulsarDaemon.

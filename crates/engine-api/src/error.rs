@@ -146,9 +146,8 @@ impl IntoResponse for EngineApiError {
 impl From<PulsarDaemonError> for EngineApiError {
     fn from(error: PulsarDaemonError) -> Self {
         match &error {
-            PulsarDaemonError::ModuleNotFound(_) => Self::BadRequest(error.to_string()),
-            PulsarDaemonError::StartError(_) => Self::BadRequest(error.to_string()),
-            PulsarDaemonError::StopError(_) => Self::BadRequest(error.to_string()),
+            PulsarDaemonError::ModuleNotFound { .. } => Self::BadRequest(error.to_string()),
+            PulsarDaemonError::InvalidConfig(..) => Self::BadRequest(error.to_string()),
         }
     }
 }
