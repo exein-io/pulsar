@@ -1,0 +1,46 @@
+# Requests a default reviewer when a PR has none:
+#   - PRs opened by @aleksanderkrauze get @banditopazzo,
+#   - all other PRs get @aleksanderkrauze.
+#
+# Runs when a PR is opened or marked ready for review (drafts are skipped).
+# Nothing is added if a human reviewer or team was already requested, or has
+# already reviewed. Bot reviewers such as Copilot don't count, so requesting
+# only Copilot still gets the default reviewer added. Reviewers changed after
+# this runs are left alone.
+name: Assign default reviewer
+on:
+  pull_request_target:
+    types: [opened, ready_for_review]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  assign:
+    name: Assign default reviewer
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request reviewer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          requested=$(gh api "repos/$REPO/pulls/$PR/requested_reviewers" \
+            --jq '[.users[] | select(.type == "User")] + .teams | length')
+          reviewed=$(gh api "repos/$REPO/pulls/$PR/reviews" \
+            --jq "[.[] | select(.user.type == \"User\" and .user.login != \"$AUTHOR\")] | length")
+
+          if [ "$requested" -gt 0 ] || [ "$reviewed" -gt 0 ]; then
+            echo "Reviewer already chosen, skipping"
+            exit 0
+          fi
+
+          if [ "$AUTHOR" = "aleksanderkrauze" ]; then
+            reviewer=banditopazzo
+          else
+            reviewer=aleksanderkrauze
+          fi
+          gh pr edit "$PR" --repo "$REPO" --add-reviewer "$reviewer"
