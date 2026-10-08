@@ -6,9 +6,11 @@ _Short introduction explaining the motivation and reasoning behind the pull requ
 
 _Feel free to include design and implementation for external review outside of the code changes._
 
-## I have 
+## I have
 
-- [ ] run `cargo fmt`;
-- [ ] run `cargo clippy`;
-- [ ] run `cargo test`and all tests pass;
-- [ ] linked to the originating issue (if applicable).
+- [ ] run `cargo fmt`
+- [ ] run `cargo clippy`
+- [ ] run `cargo test` and all tests pass
+- [ ] run `cargo xtask test-suite` and all tests pass on my architecture and kernel
+- [ ] linked to the originating issue (if applicable)
+- [ ] updated `CHANGELOG.md` with the description of this PR's changes
