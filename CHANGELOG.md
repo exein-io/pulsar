@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SSH related file changes` rule only matches write-mode opens, `sshd`/`ssh` loading shared libraries no longer triggers it
 - `Open sensitive file` rule no longer triggers on the PAM login stack (`sshd`, `login`, `su`, `sudo`) reading `/etc/shadow` and related files
 - probes are built with `-mcpu=v3` instead of the host clang's default ISA, clang before 20 produced v1 bytecode that the verifier rejected in `process-monitor`
+- `pulsar restart` revives a failed module, stopping a module that is already stopped or failed, or that had to be aborted, no longer returns an error
+- a module that doesn't stop in time is aborted and awaited before its status changes, so a restart never overlaps with the previous instance
+- errors and warnings raised by a stopped module instance no longer reach the restarted one, where an error stopped it again
 
 ### Changed
 
@@ -38,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - perf event arrays are read through `tokio::io::unix::AsyncFd` since `aya` removed `AsyncPerfEventArray`, each event is allocated at its actual size instead of the maximum one
 - every other dependency upgraded to its latest version, clearing all advisories reported by `cargo audit`
 - `gethostname` replaced by `nix::unistd::gethostname` and `futures` by `futures-util`
+- a module gets 10 seconds instead of 5 to stop gracefully before it is aborted
+- **BREAKING**: `PulsarDaemonError::InvalidConfig` carries the module's `ConfigError` instead of a string, and `ModuleNotFound` is a struct variant
 - ci: re-enable the `cargo audit` workflow, update all actions and cache both the Rust build artifacts and the `cross` installation
 
 ### Added
@@ -48,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **BREAKING**: the `ContainerError` variants `ParseDigest`, `InvalidHashFunction` and `PathNonUtf8`, none of which could ever be returned
+- **BREAKING**: the `PulsarDaemonError` variants `StartError` and `StopError`, stopping a module can no longer fail
 - unused dependencies across the workspace
 - **BREAKING**: `pulsar config` command, together with the `/configs` and `/modules/{name}/config` API endpoints. Edit the configuration file and restart the daemon instead
 - **BREAKING**: configuration reload at runtime, including the `on_config_change` module hook
