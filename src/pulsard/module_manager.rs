@@ -5,8 +5,8 @@ use bpf_common::program::BpfContext;
 use pulsar_core::bus::Bus;
 use pulsar_core::pdk::process_tracker::ProcessTrackerHandle;
 use pulsar_core::pdk::{
-    CleanExit, Event, ModuleContext, ModuleError, ModuleSignal, ModuleStatus, PulsarDaemonHandle,
-    PulsarModule, ShutdownSender, ShutdownSignal,
+    CleanExit, ConfigError, Event, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
+    PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -14,10 +14,10 @@ use tokio::task::JoinHandle;
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
 enum ModuleManagerCommand {
     StartModule {
-        tx_reply: oneshot::Sender<Result<(), String>>,
+        tx_reply: oneshot::Sender<Result<(), ConfigError>>,
     },
     StopModule {
-        tx_reply: oneshot::Sender<Result<(), String>>,
+        tx_reply: oneshot::Sender<()>,
         timeout: Duration,
     },
     GetStatus {
@@ -38,7 +38,7 @@ pub struct ModuleManager<T: PulsarModule> {
     process_tracker: ProcessTrackerHandle,
     bus: Bus,
     module: T,
-    config: Result<T::Config, String>,
+    config: Result<T::Config, ConfigError>,
     status: ModuleStatus,
     running_task: Option<(ShutdownSender, JoinHandle<()>)>,
     bpf_context: BpfContext,
@@ -50,7 +50,7 @@ impl<T: PulsarModule> ModuleManager<T> {
         rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
         module: T,
         bus: Bus,
-        config: Result<T::Config, String>,
+        config: Result<T::Config, ConfigError>,
         daemon_handle: PulsarDaemonHandle,
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
@@ -128,11 +128,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                     Ok(config) => config.clone(),
                     Err(err) => {
                         self.status = ModuleStatus::Failed(format!("Configuration error: {err}"));
-                        let err_msg = format!(
-                            "Starting module {} failed, error in configuration: {err}",
-                            T::MODULE_NAME
-                        );
-                        let _ = tx_reply.send(Err(err_msg));
+                        let _ = tx_reply.send(Err(err.clone()));
                         return;
                     }
                 };
@@ -165,7 +161,7 @@ impl<T: PulsarModule> ModuleManager<T> {
 
                         match cmd {
                             ModuleManagerCommand::StopModule { tx_reply, .. } => {
-                                let _ = tx_reply.send(Ok(()));
+                                let _ = tx_reply.send(());
                                 break;
                             }
                             ModuleManagerCommand::StartModule { tx_reply } => {
@@ -226,16 +222,15 @@ impl<T: PulsarModule> ModuleManager<T> {
                 self.status = ModuleStatus::Running(Vec::new());
             }
             ModuleManagerCommand::StopModule { tx_reply, timeout } => {
-                let result = match self.status {
+                match self.status {
                     ModuleStatus::Starting => {
                         // While starting external commands are masked
                         // this should never happen
-                        Err("internal error: module busy".to_string())
+                        log::error!("Module {} cannot be stopped while starting", T::MODULE_NAME);
                     }
-                    ModuleStatus::Created => Ok(()),
+                    ModuleStatus::Created => {}
                     ModuleStatus::Stopped => {
                         log::warn!("Module {} is already stopped", T::MODULE_NAME);
-                        Ok(())
                     }
                     ModuleStatus::Running(_) => {
                         let (tx_shutdown, task) = self.running_task.take().unwrap();
@@ -249,8 +244,6 @@ impl<T: PulsarModule> ModuleManager<T> {
                                 task_abort_handle.abort();
 
                                 self.status = ModuleStatus::Stopped;
-
-                                Ok(())
                             },
                             result = task => {
                                 match result {
@@ -258,15 +251,11 @@ impl<T: PulsarModule> ModuleManager<T> {
                                         log::info!("Module {} exited", T::MODULE_NAME);
 
                                         self.status = ModuleStatus::Stopped;
-
-                                        Ok(())
                                     }
                                     Err(err) => {
                                         log::error!("Module {} exit failure: {err}", T::MODULE_NAME);
 
                                         self.status = ModuleStatus::Failed(err.to_string());
-
-                                        Ok(())
                                     }
                                 }
                             }
@@ -274,15 +263,14 @@ impl<T: PulsarModule> ModuleManager<T> {
                     }
                     ModuleStatus::Failed(ref reason) => {
                         log::warn!("Module {} has already failed: {reason}", T::MODULE_NAME);
-                        Ok(())
                     }
-                };
+                }
 
                 // The `let _ =` ignores any errors when sending.
                 //
                 // This can happen if the `select!` macro is used
                 // to cancel waiting for the response.
-                let _ = tx_reply.send(result);
+                let _ = tx_reply.send(());
             }
             ModuleManagerCommand::GetStatus { tx_reply } => {
                 // The `let _ =` ignores any errors when sending.
@@ -332,7 +320,7 @@ impl ModuleManagerHandle {
     }
 
     /// Start the module
-    pub async fn start(&self) -> Result<(), String> {
+    pub async fn start(&self) -> Result<(), ConfigError> {
         let (send, recv) = oneshot::channel();
         let msg = ModuleManagerCommand::StartModule { tx_reply: send };
 
@@ -344,7 +332,7 @@ impl ModuleManagerHandle {
     }
 
     /// Stop the module
-    pub async fn stop(&self) -> Result<(), String> {
+    pub async fn stop(&self) {
         let (send, recv) = oneshot::channel();
         let msg = ModuleManagerCommand::StopModule {
             tx_reply: send,
@@ -367,7 +355,7 @@ pub fn create_module_manager<T: PulsarModule + 'static>(
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
     module: T,
-    config: Result<T::Config, String>,
+    config: Result<T::Config, ConfigError>,
     bpf_context: BpfContext,
 ) -> ModuleManagerHandle {
     // Create command channel used in the ModuleManagerHandle to send commands to the running ModuleManager actor
