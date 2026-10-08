@@ -9,7 +9,10 @@ use pulsar_core::pdk::{
     PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinError, JoinHandle};
+
+/// How long a module gets to shut down gracefully before its task is aborted.
+const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Messages used for internal communication between [`ModuleManagerHandle`] and the underlying [`ModuleManager`] actor.
 enum ModuleManagerCommand {
@@ -18,7 +21,6 @@ enum ModuleManagerCommand {
     },
     StopModule {
         tx_reply: oneshot::Sender<()>,
-        timeout: Duration,
     },
     GetStatus {
         tx_reply: oneshot::Sender<ModuleStatus>,
@@ -71,16 +73,40 @@ impl<T: PulsarModule> ModuleManager<T> {
         }
     }
 
+    /// Signal the running task to shut down and wait for it to finish, aborting it after [`STOP_TIMEOUT`].
+    ///
+    /// Returns an error only if the task panicked.
+    async fn stop_running_task(&mut self) -> Result<(), JoinError> {
+        let (tx_shutdown, mut task) = self.running_task.take().unwrap();
+        tx_shutdown.send_signal();
+
+        let result = match tokio::time::timeout(STOP_TIMEOUT, &mut task).await {
+            Ok(result) => result,
+            Err(_) => {
+                log::warn!(
+                    "Module {} did not stop within {STOP_TIMEOUT:?}, aborting",
+                    T::MODULE_NAME
+                );
+
+                // Waits until the task is dropped, so it never overlaps a restarted instance.
+                // Hangs if the module blocks without yielding.
+                task.abort();
+                task.await
+            }
+        };
+
+        match result {
+            Err(err) if err.is_cancelled() => Ok(()),
+            result => result,
+        }
+    }
+
     /// Handle unrecoverable error coming from modules.
     ///
     /// It will stop the module through [`PulsarModuleTask::stop`] method.
     async fn handle_module_error(&mut self, err: ModuleError) {
         if let ModuleStatus::Running(_) = self.status {
-            let (tx_shutdown, task) = self.running_task.take().unwrap();
-            tx_shutdown.send_signal();
-            let result = task.await;
-
-            match result {
+            match self.stop_running_task().await {
                 Ok(_) => {
                     log::error!(
                         "Error in module {}. Module stopped. {err:?}",
@@ -221,7 +247,7 @@ impl<T: PulsarModule> ModuleManager<T> {
                 self.running_task = Some((tx_shutdown, join_handle));
                 self.status = ModuleStatus::Running(Vec::new());
             }
-            ModuleManagerCommand::StopModule { tx_reply, timeout } => {
+            ModuleManagerCommand::StopModule { tx_reply } => {
                 match self.status {
                     ModuleStatus::Starting => {
                         // While starting external commands are masked
@@ -232,35 +258,18 @@ impl<T: PulsarModule> ModuleManager<T> {
                     ModuleStatus::Stopped => {
                         log::warn!("Module {} is already stopped", T::MODULE_NAME);
                     }
-                    ModuleStatus::Running(_) => {
-                        let (tx_shutdown, task) = self.running_task.take().unwrap();
-                        tx_shutdown.send_signal();
+                    ModuleStatus::Running(_) => match self.stop_running_task().await {
+                        Ok(()) => {
+                            log::info!("Module {} exited", T::MODULE_NAME);
 
-                        let task_abort_handle = task.abort_handle();
-
-                        tokio::select! {
-                            _ = tokio::time::sleep(timeout) => {
-                                log::warn!("Module {} stopping reached timeout", T::MODULE_NAME);
-                                task_abort_handle.abort();
-
-                                self.status = ModuleStatus::Stopped;
-                            },
-                            result = task => {
-                                match result {
-                                    Ok(()) => {
-                                        log::info!("Module {} exited", T::MODULE_NAME);
-
-                                        self.status = ModuleStatus::Stopped;
-                                    }
-                                    Err(err) => {
-                                        log::error!("Module {} exit failure: {err}", T::MODULE_NAME);
-
-                                        self.status = ModuleStatus::Failed(err.to_string());
-                                    }
-                                }
-                            }
+                            self.status = ModuleStatus::Stopped;
                         }
-                    }
+                        Err(err) => {
+                            log::error!("Module {} exit failure: {err}", T::MODULE_NAME);
+
+                            self.status = ModuleStatus::Failed(err.to_string());
+                        }
+                    },
                     ModuleStatus::Failed(ref reason) => {
                         log::warn!("Module {} has already failed: {reason}", T::MODULE_NAME);
                     }
@@ -334,10 +343,7 @@ impl ModuleManagerHandle {
     /// Stop the module
     pub async fn stop(&self) {
         let (send, recv) = oneshot::channel();
-        let msg = ModuleManagerCommand::StopModule {
-            tx_reply: send,
-            timeout: Duration::from_secs(5),
-        };
+        let msg = ModuleManagerCommand::StopModule { tx_reply: send };
 
         // Ignore send errors. If this send fails, so does the
         // recv.await below. There's no reason to check the
