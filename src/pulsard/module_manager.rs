@@ -8,6 +8,7 @@ use pulsar_core::pdk::{
     CleanExit, ConfigError, Event, ModuleContext, ModuleError, ModuleSignal, ModuleStatus,
     PulsarDaemonHandle, PulsarModule, ShutdownSender, ShutdownSignal,
 };
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::{JoinError, JoinHandle};
 
@@ -27,14 +28,21 @@ enum ModuleManagerCommand {
     },
 }
 
+/// A started module instance.
+struct RunningTask {
+    tx_shutdown: ShutdownSender,
+    task: JoinHandle<()>,
+    /// Signals of this instance only,
+    /// so a stopped instance can't affect the next one.
+    rx_sig: mpsc::Receiver<ModuleSignal>,
+}
+
 /// Actor responsible of underlying module lifecycle.
 ///
 /// Module is stored as pointer to dynamic [`TaskLauncher`] trait object. This is the "receipe" to start the module every time is requested by upper layer.
 ///
 /// Once started, the running module will be managed through its [`PulsarModuleTask`] implementation.
 pub struct ModuleManager<T: PulsarModule> {
-    tx_sig: mpsc::Sender<ModuleSignal>,
-    rx_sig: mpsc::Receiver<ModuleSignal>,
     rx_cmd: mpsc::Receiver<ModuleManagerCommand>,
     daemon_handle: PulsarDaemonHandle,
     process_tracker: ProcessTrackerHandle,
@@ -42,7 +50,7 @@ pub struct ModuleManager<T: PulsarModule> {
     module: T,
     config: Result<T::Config, ConfigError>,
     status: ModuleStatus,
-    running_task: Option<(ShutdownSender, JoinHandle<()>)>,
+    running_task: Option<RunningTask>,
     bpf_context: BpfContext,
 }
 
@@ -57,10 +65,7 @@ impl<T: PulsarModule> ModuleManager<T> {
         process_tracker: ProcessTrackerHandle,
         bpf_context: BpfContext,
     ) -> Self {
-        let (tx_sig, rx_sig) = mpsc::channel(8);
         Self {
-            tx_sig,
-            rx_sig,
             rx_cmd,
             module,
             bus,
@@ -77,7 +82,12 @@ impl<T: PulsarModule> ModuleManager<T> {
     ///
     /// Returns an error only if the task panicked.
     async fn stop_running_task(&mut self) -> Result<(), JoinError> {
-        let (tx_shutdown, mut task) = self.running_task.take().unwrap();
+        let RunningTask {
+            tx_shutdown,
+            mut task,
+            rx_sig,
+        } = self.running_task.take().unwrap();
+        drop(rx_sig);
         tx_shutdown.send_signal();
 
         let result = match tokio::time::timeout(STOP_TIMEOUT, &mut task).await {
@@ -105,6 +115,7 @@ impl<T: PulsarModule> ModuleManager<T> {
     ///
     /// It will stop the module through [`PulsarModuleTask::stop`] method.
     async fn handle_module_error(&mut self, err: ModuleError) {
+        // Signals are received only while the module is running.
         if let ModuleStatus::Running(_) = self.status {
             match self.stop_running_task().await {
                 Ok(_) => {
@@ -127,16 +138,6 @@ impl<T: PulsarModule> ModuleManager<T> {
                     self.status = ModuleStatus::Failed(err_msg);
                 }
             }
-        } else {
-            let err_msg = format!(
-                "Error in module {err}. Stopping module {} failed: Module found in status: {:?}",
-                T::MODULE_NAME,
-                self.status
-            );
-
-            log::error!("{err_msg}");
-
-            self.status = ModuleStatus::Failed(err_msg);
         }
     }
 
@@ -166,11 +167,12 @@ impl<T: PulsarModule> ModuleManager<T> {
                 // Continue starting the module asynchronously
 
                 let (tx_stop_event_recv, rx_stop_event_recv) = mpsc::channel(1);
+                let (tx_sig, rx_sig) = mpsc::channel(8);
 
                 let mut ctx = ModuleContext::new(
                     self.bus.clone(),
                     T::MODULE_NAME.to_string().into(),
-                    self.tx_sig.clone(),
+                    tx_sig.clone(),
                     self.daemon_handle.clone(),
                     self.process_tracker.clone(),
                     self.bpf_context.clone(),
@@ -226,8 +228,6 @@ impl<T: PulsarModule> ModuleManager<T> {
                 let rx_event = self.bus.get_receiver();
                 let (tx_shutdown, rx_shutdown) = ShutdownSignal::new();
 
-                let tx_sig = self.tx_sig.clone();
-
                 // Check error and forward to this module manager actor
                 let join_handle = tokio::spawn(async move {
                     let res = run_module_loop::<T>(
@@ -239,12 +239,19 @@ impl<T: PulsarModule> ModuleManager<T> {
                         rx_stop_event_recv,
                         &mut ctx,
                     );
-                    if let Err(err) = res.await {
-                        let _ = tx_sig.send(ModuleSignal::Error(err)).await;
+                    if let Err(err) = res.await
+                        && let Err(SendError(ModuleSignal::Error(err))) =
+                            tx_sig.send(ModuleSignal::Error(err)).await
+                    {
+                        log::error!("Error in module {} while stopping: {err}", T::MODULE_NAME);
                     }
                 });
 
-                self.running_task = Some((tx_shutdown, join_handle));
+                self.running_task = Some(RunningTask {
+                    tx_shutdown,
+                    task: join_handle,
+                    rx_sig,
+                });
                 self.status = ModuleStatus::Running(Vec::new());
             }
             ModuleManagerCommand::StopModule { tx_reply } => {
@@ -302,7 +309,7 @@ impl<T: PulsarModule> Drop for ModuleManager<T> {
     /// Stop the task when dropped
     fn drop(&mut self) {
         if let ModuleStatus::Running(_) = self.status {
-            self.running_task.take().unwrap().0.send_signal();
+            self.running_task.take().unwrap().tx_shutdown.send_signal();
         }
     }
 }
@@ -388,7 +395,12 @@ pub fn create_module_manager<T: PulsarModule + 'static>(
 async fn run_module_manager_actor<T: PulsarModule>(mut actor: ModuleManager<T>) {
     loop {
         tokio::select!(
-            Some(sig) = actor.rx_sig.recv() => match sig {
+            Some(sig) = async {
+                match actor.running_task.as_mut() {
+                    Some(running) => running.rx_sig.recv().await,
+                    None => std::future::pending().await,
+                }
+            } => match sig {
                     ModuleSignal::Error(err) => actor.handle_module_error(err).await,
                     ModuleSignal::Warning(warn) => actor.add_warning(warn),
             },
