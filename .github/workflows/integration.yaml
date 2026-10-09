@@ -1,5 +1,8 @@
 name: Integration tests
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - "*"
@@ -64,6 +67,7 @@ jobs:
         with:
           key: ${{ matrix.target }}-${{ matrix.profile }}
           cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install cross
         uses: ./.github/actions/install-cross
@@ -133,6 +137,7 @@ jobs:
         with:
           key: ${{ matrix.platform.target }}-${{ matrix.profile.name }}
           cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install cross
         uses: ./.github/actions/install-cross
