@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Debug, Clone, Default)]
 pub struct ModuleConfig(toml::Table);
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[error("invalid configuration for module `{module}`: {error}")]
 pub struct ConfigError {
     module: String,
