@@ -1,5 +1,8 @@
 name: Build
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - "*"
@@ -47,9 +50,12 @@ jobs:
           rustup target add ${{ matrix.platform.target }}
 
       - name: Cache Rust build artifacts
+        if: ${{ matrix.profile == 'release' }}
         uses: Swatinem/rust-cache@v2.9.2
         with:
           key: ${{ matrix.platform.target }}-${{ matrix.profile }}
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install cross
         uses: ./.github/actions/install-cross
