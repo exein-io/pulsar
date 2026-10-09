@@ -63,6 +63,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
         with:
           key: ${{ matrix.target }}-${{ matrix.profile }}
+          cache-bin: false
 
       - name: Install cross
         uses: ./.github/actions/install-cross
@@ -131,6 +132,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
         with:
           key: ${{ matrix.platform.target }}-${{ matrix.profile.name }}
+          cache-bin: false
 
       - name: Install cross
         uses: ./.github/actions/install-cross
