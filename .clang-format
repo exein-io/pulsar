@@ -1,0 +1,10 @@
+BasedOnStyle: LLVM
+# vmlinux.h must come before the libbpf headers, which depend on its types.
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"vmlinux\.h"$'
+    Priority: 1
+  - Regex: '^[<"]bpf/'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
