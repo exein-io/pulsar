@@ -147,6 +147,7 @@ jobs:
             --features all-vendored --features tls-rustls
 
       - name: Run test suite
+        id: lvh
         uses: cilium/little-vm-helper@9c1f3a549af06e213863d034c13ba1c5d1e3c667 # v0.0.26
         with:
           test-name: test-suite-run
@@ -168,3 +169,16 @@ jobs:
 
             # run test suite
             sudo /host/target/${{ matrix.platform.target }}/${{ matrix.profile['out-dir'] }}/test-suite
+
+      # The action caches the VM image and kernel unconditionally, about 9 GB
+      # per run, which evicts our other caches. Deleting them here leaves its
+      # post-job save step nothing to upload. This relies on the action's
+      # internal layout: `rm` fails if these paths move, but when bumping its
+      # version also check that it does not cache anything else. Replace with
+      # `cache-artifacts: false` once https://github.com/cilium/little-vm-helper/pull/734
+      # is released.
+      - name: Remove lvh image and kernel before caching
+        if: ${{ always() && steps.lvh.outcome != 'skipped' }}
+        run: |
+          sudo rm /images/${{ matrix.platform.arch }}/images/kind_${{ matrix.kernel.version }}.qcow2.zst
+          sudo rm -r /kernels/${{ matrix.platform.arch }}/${{ matrix.kernel.version }}-${{ matrix.kernel.build.date }}
