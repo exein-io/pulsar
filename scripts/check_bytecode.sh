@@ -8,7 +8,7 @@ set -x
 # Stop on error
 set -e
 
-# Compile eBPF to /tmp/obj.o
-${CLANG:-clang} -g -O2 -c $1 -o /tmp/obj.o -target bpf -mcpu=v3 -D__TARGET_ARCH_x86 -I crates/bpf-builder/include/ -I crates/bpf-builder/vmlinux/x86_64/
+# Compile eBPF to /tmp/obj.o, run from the repository root
+${CLANG:-clang} -g -c "$1" -o /tmp/obj.o @compile_flags.txt
 sleep 1
 ${LLVM_OBJDUMP:-llvm-objdump} -S --no-show-raw-insn /tmp/obj.o
