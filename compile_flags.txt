@@ -1,0 +1,12 @@
+--target=bpf
+-mcpu=v3
+-O2
+-fms-extensions
+-Wno-microsoft-anon-tag
+-D__TARGET_ARCH_x86
+-DFEATURE_ATOMICS
+-DFEATURE_CGROUP_TASK_BTF
+-DFEATURE_BPF_LOOP
+-DFEATURE_LSM
+-Icrates/bpf-builder/include
+-Icrates/bpf-builder/vmlinux/x86_64

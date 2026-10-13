@@ -51,6 +51,7 @@ fn compile(probe: &str, out_object: PathBuf, extra_args: &[String]) -> anyhow::R
         }
     };
 
+    // Keep the root compile_flags.txt in sync with these flags.
     let status = Command::new(clang)
         .arg(format!("-I{}", include_path.to_string_lossy()))
         .arg(format!("-I{}", vmlinux_path.to_string_lossy()))
