@@ -38,21 +38,26 @@ jobs:
       - name: Formatting (rustfmt)
         run: cargo fmt -- --check
 
-  clang-format:
-    name: Formatting (clang-format)
+  ebpf-c:
+    name: eBPF C checks
     runs-on: ubuntu-latest
 
     steps:
       - name: Code checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Install clang-format
+      - name: Install clang and clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-format-20
+          sudo apt-get install -y --no-install-recommends clang-20 clang-format-20
 
       - name: Formatting (clang-format)
         run: git ls-files '*.c' '*.h' | xargs clang-format-20 --dry-run -Werror
+
+      - name: Check compile_flags.txt
+        run: |
+          git ls-files '*.bpf.c' ':(glob)crates/bpf-builder/include/*.h' \
+            | xargs clang-20 -fsyntax-only -Werror @compile_flags.txt
 
   lint:
     name: Lint (clippy)
