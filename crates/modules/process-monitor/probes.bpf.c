@@ -166,8 +166,9 @@ get_container_info(struct task_struct *cur_tsk,
   if (bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id))
     cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id, memory_cgrp_id);
   else {
-    LOG_ERROR("failed to read memory cgroup id. make sure `CONFIG_MEMCG` is "
-              "enabled in the kernel configuration\n");
+    AYA_LOG_ERROR(
+        "failed to read memory cgroup id. make sure `CONFIG_MEMCG` is "
+        "enabled in the kernel configuration");
     return FAILED_READ_MEMORY_CGROUP_ID;
   }
 
@@ -184,7 +185,8 @@ get_container_info(struct task_struct *cur_tsk,
   }
 
   if (bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, name) < 0) {
-    LOG_ERROR("failed to get kernfs node name: %s\n", c_id_buf->buf);
+    AYA_LOG_ERROR("failed to get kernfs node name: ",
+                  LOG_FMT_STR_N(c_id_buf->buf, sizeof(c_id_buf->buf)));
     return FAILED_READ_CGROUP_NAME;
   }
 
@@ -198,8 +200,8 @@ get_container_info(struct task_struct *cur_tsk,
       parent_name = BPF_CORE_READ(kn, __parent, name);
       if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF, parent_name) <
           0) {
-        LOG_ERROR("failed to get parent kernfs node name: %s\n",
-                  parent_buf.buf);
+        AYA_LOG_ERROR("failed to get parent kernfs node name: ",
+                      LOG_FMT_STR_N(parent_buf.buf, sizeof(parent_buf.buf)));
         return FAILED_READ_PARENT_CGROUP_NAME;
       }
     }
@@ -211,8 +213,8 @@ get_container_info(struct task_struct *cur_tsk,
       parent_name = BPF_CORE_READ(kn_compat, parent, name);
       if (bpf_core_read_str(parent_buf.buf, CONTAINER_ID_MAX_BUF, parent_name) <
           0) {
-        LOG_ERROR("failed to get parent kernfs node name: %s\n",
-                  parent_buf.buf);
+        AYA_LOG_ERROR("failed to get parent kernfs node name: ",
+                      LOG_FMT_STR_N(parent_buf.buf, sizeof(parent_buf.buf)));
         return FAILED_READ_PARENT_CGROUP_NAME;
       }
     }
@@ -254,7 +256,8 @@ get_container_info(struct task_struct *cur_tsk,
     if (parent_name == NULL ||
         bpf_core_read_str(c_id_buf->buf, CONTAINER_ID_MAX_BUF, parent_name) <
             0) {
-      LOG_ERROR("failed to get parent kernfs node name: %s\n", c_id_buf->buf);
+      AYA_LOG_ERROR("failed to get parent kernfs node name: ",
+                    LOG_FMT_STR_N(c_id_buf->buf, sizeof(c_id_buf->buf)));
       return FAILED_READ_PARENT_CGROUP_NAME;
     }
 
@@ -264,13 +267,14 @@ get_container_info(struct task_struct *cur_tsk,
     }
 
     // Error podman step 2
-    LOG_ERROR("failed parsing libpod id: %s\n", c_id_buf->buf);
+    AYA_LOG_ERROR("failed parsing libpod id: ",
+                  LOG_FMT_STR_N(c_id_buf->buf, sizeof(c_id_buf->buf)));
     return FAILED_PARSE_LIBPOD_CGROUP_NAME;
   }
 
   // No container or unknown container engine
-  LOG_DEBUG("no container or unknown container engine. id: %s\n",
-            c_id_buf->buf);
+  AYA_LOG_DEBUG("no container or unknown container engine. id: ",
+                LOG_FMT_STR_N(c_id_buf->buf, sizeof(c_id_buf->buf)));
   return UNKNOWN_CONTAINER_ENGINE;
 }
 
@@ -291,7 +295,7 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
   }
   // Propagate whitelist to child
   tracker_fork(&GLOBAL_INTEREST_MAP, parent, child);
-  LOG_DEBUG("fork %d %d", parent_tgid, child_tgid);
+  AYA_LOG_DEBUG("fork ", parent_tgid, " ", child_tgid);
 
   struct process_event *event = init_process_event(EVENT_FORK, child_tgid);
   if (!event)
@@ -330,8 +334,9 @@ int BPF_PROG(sched_process_fork, struct task_struct *parent,
                       &event->fork.option_index.container_id.cgroup_id,
                       c_id_buf.buf, CONTAINER_ID_MAX_BUF, c_id_buf.offset);
 
-    LOG_DEBUG("fork - detected container with id: %s",
-              c_id_buf.buf + c_id_buf.offset);
+    AYA_LOG_DEBUG(
+        "fork - detected container with id: ",
+        LOG_FMT_STR_N(c_id_buf.buf + c_id_buf.offset, CONTAINER_ID_MAX_BUF));
   }
 
   output_process_event(ctx, event);
@@ -378,8 +383,9 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
                       &event->exec.option_index.container_id.cgroup_id,
                       c_id_buf.buf, CONTAINER_ID_MAX_BUF, c_id_buf.offset);
 
-    LOG_DEBUG("exec - detected container with id: %s",
-              c_id_buf.buf + c_id_buf.offset);
+    AYA_LOG_DEBUG(
+        "exec - detected container with id: ",
+        LOG_FMT_STR_N(c_id_buf.buf + c_id_buf.offset, CONTAINER_ID_MAX_BUF));
   }
 
   // This is needed because the first MAX_IMAGE_LEN bytes of buffer will
@@ -388,7 +394,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   u32 len_b = event->buffer.len;
 
   if (len_b > CONTAINER_ID_MAX_BUF) {
-    LOG_ERROR("unexpected: container id buffer is too long");
+    AYA_LOG_ERROR("unexpected: container id buffer is too long");
     discard_process_event(event);
     return 0;
   }
@@ -435,7 +441,7 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
     // We are logging this, but not discarding event.
     // It is better to have exec event with missing argv than
     // to miss the event.
-    LOG_DEBUG("failed to append argv to buffer");
+    AYA_LOG_DEBUG("failed to append argv to buffer");
   }
 
   output_process_event(ctx, event);
@@ -474,7 +480,7 @@ static __always_inline long loop_collect_orphan(u32 i, void *callback_ctx) {
 // will be checked as soon as possibile (the scheduler iteration which happens
 // immediately after an exit syscall) for changes to a process parent.
 static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
-  LOG_DEBUG("%d is DEAD ", tgid);
+  AYA_LOG_DEBUG(tgid, " is DEAD");
 
   // Collect orphans by iterating the dead process children
   struct ctx_collect_orphan c;
@@ -487,11 +493,11 @@ static __always_inline void collect_orphans(pid_t tgid, struct task_struct *p) {
   LOOP(MAX_ORPHANS, MAX_ORPHANS_UNROLL, loop_collect_orphan, &c);
   // Log a warning if we couln't process all children
   if (c.next != c.last) {
-    LOG_ERROR("Couldn't iterate all children. Too many of them");
+    AYA_LOG_ERROR("Couldn't iterate all children. Too many of them");
   }
   u64 r = bpf_map_push_elem(&orphans_map, &c.pending, 0);
   if (r) {
-    LOG_ERROR("Pushing to orphans_map failed: %d", r);
+    AYA_LOG_ERROR("Pushing to orphans_map failed: ", r);
   }
 }
 
@@ -510,7 +516,7 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
 
   // cleanup resources from map_interest
   if (!tracker_remove(&GLOBAL_INTEREST_MAP, p)) {
-    LOG_DEBUG("%d not found in map_interest during exit", tgid);
+    AYA_LOG_DEBUG(tgid, " not found in map_interest during exit");
     // Multiple threads may exit at the same time, causing the check above
     // to pass multiple times. Since we want to generate only one event,
     // we'll consider a missing entry in map_interest as a signal that
@@ -524,11 +530,21 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   // NOTE: here we're assuming the exit code is set by the last exiting thread
   event->exit.exit_code = BPF_CORE_READ(p, exit_code) >> 8;
 
-  LOG_DEBUG("exitited at %ld with code %d", event->timestamp,
-            event->exit.exit_code);
+  AYA_LOG_DEBUG("exitited at ", event->timestamp, " with code ",
+                event->exit.exit_code);
   output_process_event(ctx, event);
   collect_orphans(tgid, p);
   return 0;
+}
+
+// Out-of-line logs for the sched_switch loops, which are unrolled on kernels
+// without bpf_loop: an inlined log would be copied into every iteration.
+static __noinline void log_new_parent(pid_t pid, pid_t ppid) {
+  AYA_LOG_DEBUG("New parent for ", pid, ": ", ppid);
+}
+
+static __noinline void log_no_new_parent_yet(pid_t dead_parent) {
+  AYA_LOG_DEBUG("No new parent set yet for children of dead ", dead_parent);
 }
 
 // Context for loop_orphan_adopted
@@ -553,7 +569,7 @@ static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx) {
   if (!event) // memory error
     return LOOP_STOP;
   event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
-  LOG_DEBUG("New parent for %d: %d", event->pid, event->change_parent.ppid);
+  log_new_parent(event->pid, event->change_parent.ppid);
   output_process_event(c->ctx, event);
   return LOOP_CONTINUE;
 }
@@ -584,8 +600,7 @@ int BPF_PROG(sched_switch) {
     struct task_struct *first_orphan = c.pending.orphans[0];
     pid_t first_new_parent = BPF_CORE_READ(first_orphan, parent, pid);
     if (c.pending.dead_parent == first_new_parent) {
-      LOG_DEBUG("No new parent set yet for children of dead %d",
-                c.pending.dead_parent);
+      log_no_new_parent_yet(c.pending.dead_parent);
       // push the item back
       bpf_map_push_elem(&orphans_map, &c.pending, 0);
     } else {
