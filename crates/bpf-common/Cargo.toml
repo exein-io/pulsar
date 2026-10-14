@@ -20,7 +20,6 @@ bpf-features-macros = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tokio-fd = { workspace = true }
 log = { workspace = true }
 anyhow = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
