@@ -40,17 +40,56 @@
     __uint(max_entries, 1);                                                    \
   } map_nesting_##struct_name SEC(".maps");                                    \
                                                                                \
+  /* The log calls below are out of line: these functions are inlined into     \
+   * loop bodies, which are unrolled on kernels without bpf_loop, and an       \
+   * inlined log would be copied into every iteration. */                      \
+  static __noinline void log_no_nesting_counter_##struct_name(void) {          \
+    AYA_LOG_ERROR("can't get nesting counter");                                \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_nesting_before_decrement_##struct_name(           \
+      u64 old_value) {                                                         \
+    AYA_LOG_ERROR("nesting_level = ", old_value, " before decrement");         \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_preemption_##struct_name(u64 nesting_level) {     \
+    AYA_LOG_DEBUG("Preemption actually happend: nesting_level = ",             \
+                  nesting_level);                                              \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_nesting_too_deep_##struct_name(u64 old_value) {   \
+    AYA_LOG_ERROR("nesting_level = ", old_value);                              \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_invalid_nesting_##struct_name(void) {             \
+    AYA_LOG_ERROR("invalid nesting_level");                                    \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_no_event_memory_##struct_name(                    \
+      int nesting_level) {                                                     \
+    AYA_LOG_ERROR("can't get event memory for nesting level ", nesting_level); \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_invalid_buffer_len_##struct_name(u32 len) {       \
+    AYA_LOG_ERROR("invalid buffer.len = ", len, ", skipping event");           \
+  }                                                                            \
+                                                                               \
+  static __noinline void log_output_error_##struct_name(int ret,               \
+                                                        unsigned int len) {    \
+    AYA_LOG_ERROR("error ", ret, " emitting event of len ", len);              \
+  }                                                                            \
+                                                                               \
   static __always_inline void decrease_nesting_##struct_name() {               \
     u32 zero = 0;                                                              \
     u64 *nesting_level =                                                       \
         bpf_map_lookup_elem(&map_nesting_##struct_name, &zero);                \
     if (!nesting_level) {                                                      \
-      LOG_ERROR("can't get nesting counter");                                  \
+      log_no_nesting_counter_##struct_name();                                  \
       return;                                                                  \
     }                                                                          \
     u64 old_value = sync_decrement(nesting_level);                             \
     if (old_value <= 0) {                                                      \
-      LOG_ERROR("nesting_level = %d before decrement", old_value);             \
+      log_nesting_before_decrement_##struct_name(old_value);                   \
       sync_increment(nesting_level);                                           \
     }                                                                          \
   }                                                                            \
@@ -60,18 +99,17 @@
     u64 *nesting_level =                                                       \
         bpf_map_lookup_elem(&map_nesting_##struct_name, &zero);                \
     if (!nesting_level) {                                                      \
-      LOG_ERROR("can't get nesting counter");                                  \
+      log_no_nesting_counter_##struct_name();                                  \
       return -1;                                                               \
     }                                                                          \
     u64 old_value = sync_increment(nesting_level);                             \
     if (old_value > 0) {                                                       \
       /*This is not an error, but being so uncommon, it may sill make sense to \
        * log it */                                                             \
-      LOG_DEBUG("Preemption actually happend: nesting_level = %d",             \
-                old_value + 1);                                                \
+      log_preemption_##struct_name(old_value + 1);                             \
     }                                                                          \
     if (old_value >= MAX_PREEMPTION_NESTING_LEVEL) {                           \
-      LOG_ERROR("nesting_level = %d", old_value);                              \
+      log_nesting_too_deep_##struct_name(old_value);                           \
       sync_decrement(nesting_level);                                           \
       return -1;                                                               \
     }                                                                          \
@@ -94,14 +132,14 @@
       int event_variant, pid_t tgid) {                                         \
     int nesting_level = increase_nesting_##struct_name();                      \
     if (nesting_level < 0) {                                                   \
-      LOG_ERROR("invalid nesting_level");                                      \
+      log_invalid_nesting_##struct_name();                                     \
       return NULL;                                                             \
     }                                                                          \
     u32 key = nesting_level;                                                   \
     struct struct_name *event =                                                \
         bpf_map_lookup_elem(&map_temp_##struct_name, &key);                    \
     if (!event) {                                                              \
-      LOG_ERROR("can't get event memory for nesting level %d", nesting_level); \
+      log_no_event_memory_##struct_name(nesting_level);                        \
       decrease_nesting_##struct_name();                                        \
       return NULL;                                                             \
     }                                                                          \
@@ -148,8 +186,7 @@
       void *ctx, struct struct_name *event) {                                  \
     if (is_initialized()) {                                                    \
       if (event->buffer.len >= BUFFER_MAX) {                                   \
-        LOG_ERROR("invalid buffer.len = %d, skipping event",                   \
-                  event->buffer.len);                                          \
+        log_invalid_buffer_len_##struct_name(event->buffer.len);               \
       } else {                                                                 \
         /* The output size is the full struct length,                          \
          * minus the unused buffer len*/                                       \
@@ -158,7 +195,7 @@
         int ret = bpf_perf_event_output(ctx, &map_output_##struct_name,        \
                                         BPF_F_CURRENT_CPU, event, len);        \
         if (ret) {                                                             \
-          LOG_ERROR("error %d emitting event of len %d", ret, len);            \
+          log_output_error_##struct_name(ret, len);                            \
         }                                                                      \
       }                                                                        \
     }                                                                          \

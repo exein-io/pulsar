@@ -86,7 +86,7 @@ static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
   }
   long res = bpf_map_update_elem(tracker, &child_tgid, &policy, BPF_ANY);
   if (res != 0) {
-    LOG_ERROR("error inheriting interest for %d (%d)", child_tgid, res);
+    AYA_LOG_ERROR("error inheriting interest for ", child_tgid, " (", res, ")");
   }
   return 1;
 }
@@ -113,7 +113,7 @@ static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
   if (p_policy != NULL) {
     policy = *p_policy;
   } else {
-    LOG_ERROR("policy for %d not found", tgid);
+    AYA_LOG_ERROR("policy for ", tgid, " not found");
     policy = INTEREST_TRACK_SELF | INTEREST_TRACK_CHILDREN;
   }
 
@@ -135,7 +135,7 @@ static __always_inline bool tracker_check_rules(struct bpf_map_def_aya *tracker,
 
   long res = bpf_map_update_elem(tracker, &tgid, &policy, BPF_ANY);
   if (res != 0) {
-    LOG_ERROR("updating interest for %d (%d)", tgid, res);
+    AYA_LOG_ERROR("updating interest for ", tgid, " (", res, ")");
   }
   return 0;
 }
@@ -177,13 +177,16 @@ tracker_is_interesting(struct bpf_map_def_aya *tracker, u32 tgid,
   u8 *value = (u8 *)bpf_map_lookup_elem(tracker, &tgid);
   // If we can't find an element, we process it
   if (value == NULL) {
-    if (do_warning && log_level >= LOG_LEVEL_ERROR) {
+    // Checked here, not only in AYA_LOG_ERROR, to skip the pid 1 lookup below
+    // when logging is disabled.
+    if (do_warning && AYA_LOG_LEVEL >= AYA_LOG_LEVEL_Error) {
       // We want to warn about missing entries in tracker, but only
       // if process tracking is running. We check if tracker contains
       // pid 1, which should always exist.
       u32 pid_init = 1;
       if (bpf_map_lookup_elem(tracker, &pid_init)) {
-        LOG_ERROR("[%s] missing entry for pid %d", caller, tgid);
+        AYA_LOG_ERROR("missing entry for pid ", tgid,
+                      ", caller: ", LOG_FMT_STR_N(caller, 64));
       }
     }
     return track_by_default;

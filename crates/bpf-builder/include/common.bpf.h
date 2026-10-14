@@ -8,6 +8,8 @@
 #include "bpf/bpf_helpers.h"
 #include "bpf/bpf_tracing.h"
 
+#include "aya_log.bpf.h"
+
 #define LOG_LEVEL_NONE 0
 #define LOG_LEVEL_ERROR 1
 #define LOG_LEVEL_DEBUG 2
