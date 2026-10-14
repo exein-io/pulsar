@@ -86,7 +86,7 @@ static __always_inline bool tracker_fork(struct bpf_map_def_aya *tracker,
   }
   long res = bpf_map_update_elem(tracker, &child_tgid, &policy, BPF_ANY);
   if (res != 0) {
-    LOG_ERROR("error inheriting interest for %d (%d)", child, res);
+    LOG_ERROR("error inheriting interest for %d (%d)", child_tgid, res);
   }
   return 1;
 }
