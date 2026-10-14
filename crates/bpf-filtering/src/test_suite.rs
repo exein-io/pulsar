@@ -321,7 +321,7 @@ fn load_ebpf() -> Ebpf {
         bpf_common::program::Pinning::Disabled,
         bpf_common::program::PERF_PAGES_DEFAULT,
         None,
-        bpf_common::program::BpfLogLevel::Debug,
+        log::LevelFilter::Debug,
     )
     .unwrap();
     const PIN_PATH: &str = "/sys/fs/bpf/filtering-test";

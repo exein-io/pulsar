@@ -43,7 +43,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     BpfSender, Pid, Program, ProgramError,
-    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
+    program::{BpfContext, BpfEvent, Pinning},
     time::Timestamp,
 };
 
@@ -111,7 +111,7 @@ impl<T: Debug> TestRunner<T> {
         static BPF_CONTEXT: OnceLock<BpfContext> = OnceLock::new();
 
         let ctx = BPF_CONTEXT.get_or_init(|| {
-            BpfContext::new(Pinning::Disabled, 512, None, BpfLogLevel::Debug).unwrap()
+            BpfContext::new(Pinning::Disabled, 512, None, log::LevelFilter::Debug).unwrap()
         });
 
         Self {
