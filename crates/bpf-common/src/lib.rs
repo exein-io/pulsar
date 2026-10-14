@@ -6,9 +6,6 @@ pub mod test_runner;
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
 
-#[cfg(debug_assertions)]
-pub mod trace_pipe;
-
 mod bump_memlock_rlimit;
 pub mod parsing;
 pub mod time;
