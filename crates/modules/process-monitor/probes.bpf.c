@@ -530,7 +530,7 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
   // NOTE: here we're assuming the exit code is set by the last exiting thread
   event->exit.exit_code = BPF_CORE_READ(p, exit_code) >> 8;
 
-  AYA_LOG_DEBUG("exitited at ", event->timestamp, " with code ",
+  AYA_LOG_DEBUG("exited at ", event->timestamp, " with code ",
                 event->exit.exit_code);
   output_process_event(ctx, event);
   collect_orphans(tgid, p);
