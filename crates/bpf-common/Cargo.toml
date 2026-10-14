@@ -13,6 +13,7 @@ sqlite3-vendored = ["rusqlite/bundled"]
 
 [dependencies]
 aya = { workspace = true }
+aya-log = { workspace = true }
 bpf-features = { workspace = true }
 bpf-feature-autodetect = { workspace = true }
 bpf-features-macros = { workspace = true }

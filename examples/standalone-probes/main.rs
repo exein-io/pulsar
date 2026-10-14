@@ -2,7 +2,7 @@ use std::future::Future;
 
 use bpf_common::{
     Program, ProgramError,
-    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
+    program::{BpfContext, BpfEvent, Pinning},
 };
 use clap::{Parser, Subcommand};
 use pulsar_core::pdk::IntoPayload;
@@ -64,9 +64,9 @@ where
     let _stop_handle = bpf_common::trace_pipe::start().await;
     let (tx, mut rx) = mpsc::channel(100);
     let log_level = if args.verbose {
-        BpfLogLevel::Debug
+        log::LevelFilter::Debug
     } else {
-        BpfLogLevel::Error
+        log::LevelFilter::Error
     };
     let ctx = BpfContext::new(Pinning::Disabled, 512, None, log_level).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");

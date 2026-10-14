@@ -248,6 +248,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "aya-log"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "476912cd6322ecf481a48f9db82207406a472563875eef014e927800522aac5c"
+dependencies = [
+ "aya",
+ "aya-log-common",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "aya-log-common"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d14c56374a63b20cb1d76108bf9ff2a75e137d47f57f32f2841ef74153b2186a"
+dependencies = [
+ "num_enum",
+]
+
+[[package]]
 name = "aya-obj"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -344,6 +365,7 @@ version = "0.11.0-alpha.1"
 dependencies = [
  "anyhow",
  "aya",
+ "aya-log",
  "bpf-feature-autodetect",
  "bpf-features",
  "bpf-features-macros",
@@ -2174,6 +2196,27 @@ checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi",
  "libc",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d0bca838442ec211fa11de3a8b0e0e8f3a4522575b5c4c06ed722e005036f26"
+dependencies = [
+ "num_enum_derive",
+ "rustversion",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

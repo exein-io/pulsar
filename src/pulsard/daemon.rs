@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
-use bpf_common::program::{BpfContext, BpfLogLevel, Pinning};
+use bpf_common::program::{BpfContext, Pinning};
 
 use pulsar_core::{
     bus::Bus,
@@ -36,13 +36,9 @@ impl PulsarDaemonStarter {
         let perf_pages = config.pulsar.perf_pages;
         let btf_path = config.pulsar.btf_path.clone();
         let bpf_log_level = if cfg!(debug_assertions) {
-            if log::max_level() >= log::Level::Debug {
-                BpfLogLevel::Debug
-            } else {
-                BpfLogLevel::Error
-            }
+            log::max_level()
         } else {
-            BpfLogLevel::Disabled
+            log::LevelFilter::Off
         };
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, btf_path, bpf_log_level)?;
 
