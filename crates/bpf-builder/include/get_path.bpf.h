@@ -76,6 +76,11 @@ struct ctx_get_path {
   struct components *components;
 };
 
+// Out of line, because it's called from a loop body.
+static __noinline void log_root_not_mount_root(void) {
+  AYA_LOG_ERROR("We reached root, but not mount root");
+}
+
 // Used to iterate over all the dentry ancestors of a file and append
 // their name to struct components.
 static __always_inline long loop_get_dentry_name(u32 i, void *callback_ctx) {
@@ -98,7 +103,7 @@ static __always_inline long loop_get_dentry_name(u32 i, void *callback_ctx) {
   // If a dentry is the parent of itself, we should have reached to root.
   // The topmost dentry must match root_dentry.
   if (current_dentry == parent_dentry && current_dentry != root_dentry) {
-    LOG_ERROR("We reached root, but not mount root");
+    log_root_not_mount_root();
     return LOOP_STOP;
   }
 
@@ -156,7 +161,7 @@ static void get_path_str(struct path *path, struct buffer *buffer,
   struct ctx_get_path c;
   struct components *components = bpf_map_lookup_elem(&components_map, &key);
   if (!components) {
-    LOG_ERROR("can't get context memory");
+    AYA_LOG_ERROR("can't get context memory");
     return;
   }
   c.components = components;

@@ -8,27 +8,9 @@
 #include "bpf/bpf_helpers.h"
 #include "bpf/bpf_tracing.h"
 
-#define LOG_LEVEL_NONE 0
-#define LOG_LEVEL_ERROR 1
-#define LOG_LEVEL_DEBUG 2
-const volatile int log_level = 0;
+#include "aya_log.bpf.h"
+
 const volatile int LINUX_KERNEL_VERSION;
-
-// NOTE: bpf_printk supports up to 3 arguments, while these LOG_ macros
-// allow only up to 2 arguments since one is used by the probe name.
-#define LOG_DEBUG(fmt, ...)                                                    \
-  ({                                                                           \
-    if (log_level >= LOG_LEVEL_DEBUG) {                                        \
-      bpf_printk("[%s] " fmt, __func__, ##__VA_ARGS__);                        \
-    }                                                                          \
-  })
-
-#define LOG_ERROR(fmt, ...)                                                    \
-  ({                                                                           \
-    if (log_level >= LOG_LEVEL_ERROR) {                                        \
-      bpf_printk("[%s] " fmt " (ERROR)", __func__, ##__VA_ARGS__);             \
-    }                                                                          \
-  })
 
 // --------------- PULSAR_LSM_HOOK MACRO DEFINITION --------------
 // This macro makes it easy to hook into LSM attach points, keeping a kprobe

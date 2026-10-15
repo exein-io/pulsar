@@ -2,7 +2,7 @@ use std::future::Future;
 
 use bpf_common::{
     Program, ProgramError,
-    program::{BpfContext, BpfEvent, BpfLogLevel, Pinning},
+    program::{BpfContext, BpfEvent, Pinning},
 };
 use clap::{Parser, Subcommand};
 use pulsar_core::pdk::IntoPayload;
@@ -56,18 +56,18 @@ where
     Fut: Future<Output = Result<Program, ProgramError>>,
     T: IntoPayload,
 {
+    let log_level = if args.verbose {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Error
+    };
     env_logger::builder()
         .filter(Some("probe"), log::LevelFilter::Info)
-        .filter(Some("trace_pipe"), log::LevelFilter::Info)
+        .filter(Some("file_system_monitor::ebpf"), log_level)
+        .filter(Some("process_monitor::ebpf"), log_level)
+        .filter(Some("network_monitor::ebpf"), log_level)
         .init();
-    #[cfg(debug_assertions)]
-    let _stop_handle = bpf_common::trace_pipe::start().await;
     let (tx, mut rx) = mpsc::channel(100);
-    let log_level = if args.verbose {
-        BpfLogLevel::Debug
-    } else {
-        BpfLogLevel::Error
-    };
     let ctx = BpfContext::new(Pinning::Disabled, 512, None, log_level).unwrap();
     let _program = program(ctx, tx).await.expect("initialization failed");
     loop {
