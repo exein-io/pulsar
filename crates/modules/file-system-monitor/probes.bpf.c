@@ -19,7 +19,7 @@ char LICENSE[] SEC("license") = "GPL v2";
 
 struct file_opened_event {
   struct buffer_index filename;
-  int flags;
+  unsigned int flags;
 };
 
 struct file_link_event {

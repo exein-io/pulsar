@@ -17,6 +17,6 @@ pub mod file {
     pub mod flags {
         pub use super::super::platform::file::flags::*;
 
-        pub const O_ACCMODE: i32 = 3;
+        pub const O_ACCMODE: u32 = 3;
     }
 }
