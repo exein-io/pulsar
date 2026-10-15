@@ -58,7 +58,7 @@ pub enum FsEvent {
     },
     FileOpened {
         filename: BufferIndex<str>,
-        flags: i32,
+        flags: u32,
     },
     FileLink {
         source: BufferIndex<str>,
