@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `pulsard` failed to start after an unclean shutdown because of the API socket left behind, the stale socket is now removed
+- a second `pulsard` loaded its probes and could break the running one before failing on the API socket, it now exits before loading anything
 - Podman image layer lookup follows the full parent chain regardless of layer store order, without duplicating the top layer, and reports cyclic parent chains as errors (#421)
 - release builds no longer contain test only dependencies, the `test-suite` and `test-utils` features were enabled unconditionally for every consumer of the internal crates
 - the root build script no longer re-runs on every build, it watched the package root, which recurses into `target`, and `.git` paths which do not exist in a worktree
