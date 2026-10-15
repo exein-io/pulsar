@@ -3,8 +3,17 @@
 //! - allows to read events events.
 //!
 use std::{
-    collections::HashSet, convert::TryFrom, fmt, fmt::Display, fs::File, io, mem::size_of,
-    ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration,
+    borrow::Cow,
+    collections::HashSet,
+    convert::TryFrom,
+    fmt::{self, Display},
+    fs::File,
+    io,
+    mem::size_of,
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
 };
 
 use aya::{
@@ -198,6 +207,23 @@ pub enum ProgramError {
     },
     #[error(transparent)]
     MountinfoError(#[from] MountinfoError),
+    #[error("could not read CPUs information")]
+    CpusInformationNotAvailable {
+        /// Path of the file which we failed to read.
+        path: Cow<'static, Path>,
+        /// Io read error.
+        #[source]
+        error: io::Error,
+    },
+    #[error("read too short raw event from the probe")]
+    ReadTooShortRawEvent {
+        /// Minimal size of the message required by ABI.
+        abi_required_size: usize,
+        /// Message's bytes.
+        bytes: Bytes,
+    },
+
+    // TODO: This was never constructed. Remove it during cleanup.
     #[error("reading link failed {path}")]
     ReadFile {
         #[source]
@@ -296,8 +322,7 @@ impl ProgramBuilder {
             }
             Result::<Ebpf, ProgramError>::Ok(bpf)
         })
-        .await
-        .expect("join error")?;
+        .await??;
 
         Ok(Program {
             tx_exit,
@@ -480,7 +505,10 @@ impl Program {
         )?;
 
         let buffers = online_cpus()
-            .unwrap()
+            .map_err(|(path, error)| ProgramError::CpusInformationNotAvailable {
+                path: Cow::Borrowed(Path::new(path)),
+                error,
+            })?
             .into_iter()
             .map(|cpu_id| {
                 let buf = perf_array.open(cpu_id, Some(self.ctx.perf_pages))?;
@@ -578,16 +606,24 @@ unsafe fn process_raw_event<T: Send, S: BpfSender<T>>(head: &[u8], tail: &[u8], 
     let event_size: usize = size_of::<RawBpfEvent<T>>();
 
     let len = head.len() + tail.len();
-    if len < event_size {
-        // TODO: This error should be handled gracefully.
-        log::error!("sizeof T: {}", size_of::<T>());
-        log::error!("sizeof RawBpfEvent<T>: {event_size}");
-        panic!("Buffer too short. buffer.len() = {len}");
-    }
-
     let mut buffer = BytesMut::with_capacity(len);
     buffer.extend_from_slice(head);
     buffer.extend_from_slice(tail);
+
+    if len < event_size {
+        log::error!(
+            "Event read is too short to be parsed as RawBpfEvent. Event len = {event_len}. Sizeof T = {sizeof_t}. Sizeof RawBpfEvent<T> = {sizeof_raw_event}",
+            event_len = len,
+            sizeof_t = size_of::<T>(),
+            sizeof_raw_event = event_size,
+        );
+        sender.send(Err(ProgramError::ReadTooShortRawEvent {
+            abi_required_size: event_size,
+            bytes: buffer.freeze(),
+        }));
+        return;
+    }
+
     let ptr = buffer.as_ptr() as *const RawBpfEvent<T>;
 
     // SAFETY: caller must guarantee it.
