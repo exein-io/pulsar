@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- systemd unit, OpenRC and SysV init scripts in `contrib/init` and a logrotate rule in `contrib/logrotate`, installed by `pulsar-install.sh` for the detected init system
+
 ### Fixed
 
 - `pulsard` failed to start after an unclean shutdown because of the API socket left behind, the stale socket is now removed
