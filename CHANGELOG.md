@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SSH related file changes` rule only matches write-mode opens, `sshd`/`ssh` loading shared libraries no longer triggers it
 - `Open sensitive file` rule no longer triggers on the PAM login stack (`sshd`, `login`, `su`, `sudo`) reading `/etc/shadow` and related files
 - probes are built with `-mcpu=v3` instead of the host clang's default ISA, clang before 20 produced v1 bytecode that the verifier rejected in `process-monitor`
+- riscv64: open flags of `FileOpened` and `ElfOpened` events are decoded with the kernel's values, most `O_*` flags were checked and displayed as other flags. `Truncate log files` and `Shell history truncation` now detect truncation and no longer trigger on `O_DSYNC` and `O_SYNC` opens, `SSH related file changes` no longer triggers on read-only `O_NOCTTY` opens
 
 ### Changed
 
@@ -36,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `nix`, `toml` and `tokio-tungstenite` upgrades reach the module API, through `bpf-common`'s `Pid`, `Uid` and `Gid` re-exports, `ModuleConfig` and the `engine-api` errors
 - **BREAKING**: `ContainerError::SqliteConnection` carries a `rusqlite::Error`, `diesel` was replaced by `rusqlite` for the single query it ran
 - **BREAKING**: `aya` upgraded to 0.14 and `aya-obj` to 0.3, reaching the module API through `bpf-common`'s `aya` re-export and `ProgramError::PerfBuffer`
+- **BREAKING**: open flags are `u32`, matching the kernel's `f_flags`: `FileFlags` wraps a `u32`, `FileFlags::from_raw_unchecked` takes one, `FileFlags` converts into `u32` instead of `i32`, and the `kernel::file::flags` constants are `u32`
 - perf event arrays are read through `tokio::io::unix::AsyncFd` since `aya` removed `AsyncPerfEventArray`, each event is allocated at its actual size instead of the maximum one
 - every other dependency upgraded to its latest version, clearing all advisories reported by `cargo audit`
 - **BREAKING**: `nut` upgraded to 0.1.6 without its CLI dependencies, reading a corrupted podman boltdb database returns `ContainerError::BoltDB` instead of panicking or crashing
