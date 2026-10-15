@@ -1,0 +1,11 @@
+# Rotation of the pulsard log written by the OpenRC and SysV init scripts.
+# copytruncate: pulsard exits on SIGHUP, it can't be asked to reopen the file.
+/var/log/pulsar.log {
+	weekly
+	rotate 4
+	compress
+	delaycompress
+	missingok
+	notifempty
+	copytruncate
+}

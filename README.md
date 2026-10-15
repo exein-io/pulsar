@@ -78,6 +78,16 @@ The recommended approach to getting started with Pulsar is by using the official
 
 Another approach to install Pulsar is by using pre-built binaries. Binaries are available for the [latest release](https://github.com/exein-io/pulsar/releases/latest). Download the two executables for your architecture: `pulsard` (daemon) and `pulsar` (CLI). Static builds may be published with a `-static` suffix where available.
 
+### Run as a service
+
+The installation script installs a service for the detected init system, without enabling or starting it, and prints the commands to do so. The service files are replaced on every install, keep your settings in the places listed below. When installing manually, use the files in [`contrib`](contrib):
+
+- systemd: copy [`pulsar.service`](contrib/init/systemd/pulsar.service) to `/etc/systemd/system/`, then run `systemctl daemon-reload` and `systemctl enable --now pulsar`. Customize it with `systemctl edit pulsar`
+- OpenRC: copy [`pulsar`](contrib/init/openrc/pulsar) to `/etc/init.d/`, then run `rc-update add pulsar default` and `rc-service pulsar start`. `pulsard` arguments can be set with `PULSARD_ARGS` in `/etc/conf.d/pulsar`
+- SysV init: copy [`pulsar`](contrib/init/sysvinit/pulsar) to `/etc/init.d/` and enable it with your distribution tool, e.g. `update-rc.d pulsar defaults`. `pulsard` arguments can be set with `DAEMON_ARGS` in `/etc/default/pulsar`
+
+With OpenRC and SysV init the logs are written to `/var/log/pulsar.log`, copy [`contrib/logrotate/pulsar`](contrib/logrotate/pulsar) to `/etc/logrotate.d/` to rotate them.
+
 ### Build from source
 
 We do not recommend build Pulsar from source. Building from source is only necessary if you wish to make modifications. If you want to play with the source code check the [Developers](https://pulsar.sh/docs/category/developers) section of the documentation.
