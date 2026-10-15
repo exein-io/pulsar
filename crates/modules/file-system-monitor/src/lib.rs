@@ -274,13 +274,19 @@ pub mod test_suite {
         event_check,
         test_runner::{TestCase, TestRunner, TestSuite},
     };
-    use pulsar_core::kernel::{self, file::flags::O_LARGEFILE};
+    use nix::{
+        fcntl::{OFlag, open},
+        sys::stat::Mode,
+    };
+    use pulsar_core::kernel::file::flags::*;
 
     pub fn tests() -> TestSuite {
         TestSuite {
             name: "file-system-monitor",
             tests: vec![
                 open_file(),
+                open_file_flags(),
+                open_directory(),
                 create_file(),
                 unlink_file(),
                 symlink(),
@@ -325,16 +331,17 @@ pub mod test_suite {
         })
     }
 
+    /// 64-bit kernels add O_LARGEFILE to every open (`force_o_largefile()`).
+    /// Its value is architecture-dependent and libc exports it as 0, because
+    /// userspace shouldn't specify it, so the expected flags add it here.
+    fn with_largefile(flags: u32) -> u32 {
+        flags | O_LARGEFILE
+    }
+
     fn open_file() -> TestCase {
         TestCase::new("open_file", async {
             let path = temp_dir().join("open_file");
-
-            // Unless the kernel is configured with CONFIG_ARCH_32BIT_OFF_T,
-            // `force_o_largefile()` returns true and all open syscalls will
-            // automatically add the O_LARGEFILE flag. The flag is architecture-dependant
-            // and exported as 0 on libc (because userspace shouldn't specify it)
-            // For tests to pass, we'll have to ignore it.
-            let expected_flags = kernel::file::flags::O_RDWR | O_LARGEFILE;
+            let expected_flags = with_largefile(O_RDWR);
 
             _ = std::fs::remove_file(&path);
             std::fs::write(&path, b"hello_world").unwrap();
@@ -343,6 +350,60 @@ pub mod test_suite {
             TestRunner::with_ebpf(program)
                 .run(|| {
                     options.open(&path).unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::FileOpened,
+                    (filename, path.to_str().unwrap().into(), "filename"),
+                    (flags, expected_flags, "open flags")
+                ))
+                .report()
+        })
+    }
+
+    fn open_file_flags() -> TestCase {
+        TestCase::new("open_file_flags", async {
+            let path = temp_dir().join("open_file_flags");
+            let expected_flags = with_largefile(
+                O_WRONLY | O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_APPEND | O_NONBLOCK,
+            );
+
+            _ = std::fs::remove_file(&path);
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    open(
+                        &path,
+                        OFlag::O_WRONLY
+                            | OFlag::O_CREAT
+                            | OFlag::O_EXCL
+                            | OFlag::O_NOCTTY
+                            | OFlag::O_TRUNC
+                            | OFlag::O_APPEND
+                            | OFlag::O_NONBLOCK,
+                        Mode::S_IRUSR | Mode::S_IWUSR,
+                    )
+                    .unwrap();
+                })
+                .await
+                .expect_event(event_check!(
+                    FsEvent::FileOpened,
+                    (filename, path.to_str().unwrap().into(), "filename"),
+                    (flags, expected_flags, "open flags")
+                ))
+                .report()
+        })
+    }
+
+    fn open_directory() -> TestCase {
+        TestCase::new("open_directory", async {
+            let path = temp_dir().join("open_directory");
+            let expected_flags = with_largefile(O_RDONLY | O_DIRECTORY);
+
+            _ = std::fs::remove_dir(&path);
+            std::fs::create_dir(&path).unwrap();
+            TestRunner::with_ebpf(program)
+                .run(|| {
+                    open(&path, OFlag::O_RDONLY | OFlag::O_DIRECTORY, Mode::empty()).unwrap();
                 })
                 .await
                 .expect_event(event_check!(
