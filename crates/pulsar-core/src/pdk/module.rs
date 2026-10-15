@@ -12,6 +12,9 @@ pub struct NoConfig {}
 
 /// Trait to implement to create a pulsar pluggable module. Note that this is the fully
 /// featured interface which is often too much. Please see [`SimplePulsarModule`] for a simpler interface.
+///
+/// Methods must not block: a blocked module can't be stopped. Move blocking work to
+/// [`tokio::task::spawn_blocking`].
 pub trait PulsarModule: Send {
     type Config: DeserializeOwned + Clone + Send + Sync + 'static;
     type State: Send + 'static;

@@ -71,9 +71,8 @@ impl PulsarDaemonStarter {
         // A broken configuration is fatal for a module about to be started, and
         // only reported to whoever tries to start a disabled one later on.
         let config = match section.parse_config::<T::Config>(&module_name) {
-            Ok(config) => Ok(config),
             Err(err) if enabled => return Err(err.into()),
-            Err(err) => Err(err.to_string()),
+            config => config,
         };
 
         let module_handle = create_module_manager(
@@ -205,54 +204,50 @@ impl PulsarDaemon {
 
     /// Get module status.
     async fn status(&self, module_name: &str) -> Result<ModuleStatus, PulsarDaemonError> {
-        let data = self
-            .modules
-            .get(module_name)
-            .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
+        let data =
+            self.modules
+                .get(module_name)
+                .ok_or_else(|| PulsarDaemonError::ModuleNotFound {
+                    name: module_name.to_string(),
+                })?;
         Ok(data.handle.status().await)
     }
 
     /// Start a module.
     async fn start(&self, module_name: &str) -> Result<(), PulsarDaemonError> {
-        let data = self
-            .modules
-            .get(module_name)
-            .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
+        let data =
+            self.modules
+                .get(module_name)
+                .ok_or_else(|| PulsarDaemonError::ModuleNotFound {
+                    name: module_name.to_string(),
+                })?;
 
-        data.handle
-            .start()
-            .await
-            .map_err(PulsarDaemonError::StartError)
+        Ok(data.handle.start().await?)
     }
 
     /// Restart a module.
     async fn restart(&self, module_name: &str) -> Result<(), PulsarDaemonError> {
-        let data = self
-            .modules
-            .get(module_name)
-            .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
-        data.handle
-            .stop()
-            .await
-            .map_err(PulsarDaemonError::StopError)?;
-
-        data.handle
-            .start()
-            .await
-            .map_err(PulsarDaemonError::StartError)
+        let data =
+            self.modules
+                .get(module_name)
+                .ok_or_else(|| PulsarDaemonError::ModuleNotFound {
+                    name: module_name.to_string(),
+                })?;
+        data.handle.stop().await;
+        Ok(data.handle.start().await?)
     }
 
     /// Stop a module.
     async fn stop(&self, module_name: &str) -> Result<(), PulsarDaemonError> {
-        let data = self
-            .modules
-            .get(module_name)
-            .ok_or_else(|| PulsarDaemonError::ModuleNotFound(module_name.to_string()))?;
+        let data =
+            self.modules
+                .get(module_name)
+                .ok_or_else(|| PulsarDaemonError::ModuleNotFound {
+                    name: module_name.to_string(),
+                })?;
 
-        data.handle
-            .stop()
-            .await
-            .map_err(PulsarDaemonError::StopError)
+        data.handle.stop().await;
+        Ok(())
     }
 
     /// Get loaded module list.
