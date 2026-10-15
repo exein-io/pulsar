@@ -450,22 +450,22 @@ impl fmt::Display for DnsAnswer {
 // High level abstraction for file flags bitmask
 #[repr(C)]
 #[derive(Clone, Serialize, Deserialize)]
-pub struct FileFlags(i32);
+pub struct FileFlags(u32);
 
 impl FileFlags {
-    pub fn from_raw_unchecked(flags: i32) -> Self {
+    pub fn from_raw_unchecked(flags: u32) -> Self {
         Self(flags)
     }
 }
 
 impl FileFlags {
-    const ACC_MODE_FLAGS: [(&'static str, i32); 3] = [
+    const ACC_MODE_FLAGS: [(&'static str, u32); 3] = [
         ("O_RDONLY", kernel::file::flags::O_RDONLY),
         ("O_WRONLY", kernel::file::flags::O_WRONLY),
         ("O_RDWR", kernel::file::flags::O_RDWR),
     ];
 
-    const OTHER_FLAGS: [(&'static str, i32); 7] = [
+    const OTHER_FLAGS: [(&'static str, u32); 7] = [
         ("O_CREAT", kernel::file::flags::O_CREAT),
         ("O_EXCL", kernel::file::flags::O_EXCL),
         ("O_NOCTTY", kernel::file::flags::O_NOCTTY),
@@ -542,7 +542,7 @@ impl fmt::Display for FileFlags {
     }
 }
 
-impl From<FileFlags> for i32 {
+impl From<FileFlags> for u32 {
     fn from(f_flags: FileFlags) -> Self {
         f_flags.0
     }
