@@ -133,6 +133,10 @@ lettre = { version = "0.11.23", default-features = false, features = [
 ] }
 libc = "0.2.189"
 libtest-mimic = "0.8.2"
+linux-raw-sys = { version = "0.12.1", default-features = false, features = [
+    "general",
+    "no_std",
+] }
 log = { version = "0.4.34", features = ["std"] }
 nix = { version = "0.31.3", features = [
     "fs",
