@@ -88,6 +88,12 @@ pub enum ContainerError {
     LibpodDBNotFound(String),
     #[error("bolt db `{0}` open failed")]
     BoltDBOpenFailed(String),
+    #[error("could not read bolt db `{path:?}`")]
+    BoltDB {
+        #[source]
+        source: nut::Error,
+        path: PathBuf,
+    },
     #[error("bolt bucket `{0}` not found")]
     BoltBucketNotFound(String),
     #[error("bolt key `{0}` not found")]
@@ -514,18 +520,26 @@ fn boltdb_find_libpod_container_config<P: AsRef<Path>>(
         .build()
         .map_err(|_| ContainerError::BoltDBOpenFailed(db_path.display().to_string()))?;
 
-    let tx = db.begin_tx().unwrap();
+    let bolt_err = |source| ContainerError::BoltDB {
+        source,
+        path: db_path.clone(),
+    };
 
-    let ctr = tx
-        .bucket(b"ctr")
-        .map_err(|_| ContainerError::BoltBucketNotFound("ctr".to_string()))?;
+    let tx = db.begin_tx().map_err(bolt_err)?;
+
+    let ctr = tx.bucket(b"ctr").map_err(|e| match e {
+        nut::Error::BucketNotFound => ContainerError::BoltBucketNotFound("ctr".to_string()),
+        e => bolt_err(e),
+    })?;
 
     let container_associated_bucket = ctr
-        .bucket(container_id.as_bytes())
+        .try_bucket(container_id.as_bytes())
+        .map_err(bolt_err)?
         .ok_or(ContainerError::BoltBucketNotFound(container_id.to_string()))?;
 
     let config = container_associated_bucket
-        .get(b"config")
+        .try_get(b"config")
+        .map_err(bolt_err)?
         .ok_or(ContainerError::BoltKeyNotFound("config".to_string()))?;
 
     let config: LibpodConfig =

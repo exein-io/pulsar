@@ -1,7 +1,2 @@
 [advisories]
-ignore = [
-    # ansi_term is unmaintained, not vulnerable. It is used only by nut's CLI
-    # binary (src/bin/nut.rs); the nut library code we call never references it.
-    # Remove once nut no longer depends on it (#399).
-    "RUSTSEC-2021-0139",
-]
+ignore = []

@@ -144,7 +144,8 @@ nix = { version = "0.31.3", features = [
     "net",
 ] }
 num_cpus = "1.17.0"
-nut = "0.1.4"
+# Default `cli` feature only builds the nut binary, which we do not use.
+nut = { version = "0.1.6", default-features = false }
 openssl = "0.10.81"
 proc-macro2 = "1.0.107"
 procfs = { version = "0.18.0", default-features = false }

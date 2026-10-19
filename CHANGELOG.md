@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `aya` upgraded to 0.14 and `aya-obj` to 0.3, reaching the module API through `bpf-common`'s `aya` re-export and `ProgramError::PerfBuffer`
 - perf event arrays are read through `tokio::io::unix::AsyncFd` since `aya` removed `AsyncPerfEventArray`, each event is allocated at its actual size instead of the maximum one
 - every other dependency upgraded to its latest version, clearing all advisories reported by `cargo audit`
+- **BREAKING**: `nut` upgraded to 0.1.6 without its CLI dependencies, reading a corrupted podman boltdb database returns `ContainerError::BoltDB` instead of panicking or crashing
 - `gethostname` replaced by `nix::unistd::gethostname` and `futures` by `futures-util`
 - ci: re-enable the `cargo audit` workflow, update all actions and cache both the Rust build artifacts and the `cross` installation
 
