@@ -1,0 +1,25 @@
+[Unit]
+Description=Pulsar runtime security agent
+Documentation=https://pulsar.sh/docs https://github.com/exein-io/pulsar
+After=network.target
+# Stop retrying when pulsard keeps failing at startup, e.g. on an unsupported
+# kernel or an invalid configuration.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/pulsard
+# pulsard exits with success on SIGTERM and SIGHUP: restart it in any case, a
+# security agent must come back even if it wasn't stopped by systemd.
+Restart=always
+RestartSec=2
+# pulsard stops its modules one at a time, each with a 5s timeout.
+TimeoutStopSec=45
+
+# pulsard runs as root to load eBPF probes. The usual sandboxing options are
+# left out on purpose: it mounts and pins to /sys/fs/bpf, inspects files
+# anywhere on the system (including /tmp and /home) and reads container layers.
+
+[Install]
+WantedBy=multi-user.target
