@@ -35,7 +35,7 @@ int sys_enter(struct trace_event_raw_sys_enter *ctx) {
   pid_t tgid = tracker_interesting_tgid(&m_interest);
   if (tgid < 0) {
     pid_t real_tgid = bpf_get_current_pid_tgid() >> 32;
-    bpf_printk("ignoring %d", real_tgid);
+    AYA_LOG_DEBUG("ignoring ", real_tgid);
     u64 *skipped_counter = bpf_map_lookup_elem(&skipped_map, &real_tgid);
     if (skipped_counter) {
       *skipped_counter += 1;

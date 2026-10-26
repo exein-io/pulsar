@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
-use bpf_common::program::{BpfContext, BpfLogLevel, Pinning};
+use bpf_common::program::{BpfContext, Pinning};
 
 use pulsar_core::{
     bus::Bus,
@@ -36,13 +36,9 @@ impl PulsarDaemonStarter {
         let perf_pages = config.pulsar.perf_pages;
         let btf_path = config.pulsar.btf_path.clone();
         let bpf_log_level = if cfg!(debug_assertions) {
-            if log::max_level() >= log::Level::Debug {
-                BpfLogLevel::Debug
-            } else {
-                BpfLogLevel::Error
-            }
+            log::max_level()
         } else {
-            BpfLogLevel::Disabled
+            log::LevelFilter::Off
         };
         let bpf_context = BpfContext::new(Pinning::Enabled, perf_pages, btf_path, bpf_log_level)?;
 
@@ -111,9 +107,6 @@ impl PulsarDaemonStarter {
     pub(super) async fn start_daemon(self) -> anyhow::Result<PulsarDaemonHandle> {
         self.config.warn_unclaimed();
 
-        #[cfg(debug_assertions)]
-        let trace_pipe_handle = bpf_common::trace_pipe::start().await;
-
         // This act as a "weak" PulsarDaemonHandle to be used inside modules.
         //
         // [`run_daemon_actor`] relies on the [`std::ops::Drop`] of the outside PulsarDaemonHandle to stop PulsarDaemon actor.
@@ -141,8 +134,6 @@ impl PulsarDaemonStarter {
         let daemon = PulsarDaemon {
             modules: self.modules,
             rx_cmd: self.rx_modules_cmd,
-            #[cfg(debug_assertions)]
-            trace_pipe_handle,
         };
 
         // Start daemon
@@ -163,9 +154,6 @@ impl PulsarDaemonStarter {
 pub struct PulsarDaemon {
     modules: HashMap<String, ModuleData>,
     rx_cmd: mpsc::Receiver<PulsarDaemonCommand>,
-    #[cfg(debug_assertions)]
-    #[allow(unused)]
-    trace_pipe_handle: bpf_common::trace_pipe::StopHandle,
 }
 
 impl PulsarDaemon {

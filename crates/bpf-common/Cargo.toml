@@ -13,13 +13,13 @@ sqlite3-vendored = ["rusqlite/bundled"]
 
 [dependencies]
 aya = { workspace = true }
+aya-log = { workspace = true }
 bpf-features = { workspace = true }
 bpf-feature-autodetect = { workspace = true }
 bpf-features-macros = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tokio-fd = { workspace = true }
 log = { workspace = true }
 anyhow = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
