@@ -44,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `nut` upgraded to 0.1.6 without its CLI dependencies, reading a corrupted podman boltdb database returns `ContainerError::BoltDB` instead of panicking or crashing
 - `gethostname` replaced by `nix::unistd::gethostname` and `futures` by `futures-util`
 - ci: re-enable the `cargo audit` workflow, update all actions and cache both the Rust build artifacts and the `cross` installation
-- eBPF: logs are read through `aya-log` from a ring buffer per program instead of `/sys/kernel/debug/tracing/trace_pipe`, under the `<module>::ebpf` target and prefixed with the eBPF function name, so they work without debugfs and can be filtered per module
+- eBPF: logs are read through `aya-log` from a ring buffer per program instead of `/sys/kernel/debug/tracing/trace_pipe`, under the `<module>::ebpf` target and prefixed with the source file and line, so they work without debugfs and can be filtered per module
+- eBPF: log records are built from constant templates in `.rodata` by one shared function per object instead of inline at every call site, so a log call costs about 15 instructions, and `AYA_LOG_FN` defines the out-of-line log functions used in unrolled loops
 - eBPF: the `bpf_printk`-based `LOG_ERROR`/`LOG_DEBUG` macros are replaced by `AYA_LOG_{ERROR,WARN,INFO,DEBUG,TRACE}` with typed arguments, e.g. `AYA_LOG_ERROR("offset: ", off, "+", len)`, which also work on kernels without `bpf_snprintf`
 - **BREAKING**: `BpfContext::new` takes a `log::LevelFilter` for the eBPF log level, `BpfLogLevel` was removed
 

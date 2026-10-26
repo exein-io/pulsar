@@ -23,10 +23,10 @@ pub(super) fn ebpf_level(level: log::LevelFilter) -> Option<aya_log::Level> {
 
 /// Forwards log records decoded by aya-log to the global logger.
 ///
-/// The eBPF side leaves the target empty and puts the function name in the
-/// module path. Records are logged with the target `<crate_name>::ebpf` of the
-/// module, so they can be filtered together with the module's own logs, and
-/// with the function name as a message prefix.
+/// The eBPF side leaves the target empty. Records are logged with the target
+/// `<crate_name>::ebpf` of the module, so they can be filtered together with
+/// the module's own logs, and with the source file and line as a message
+/// prefix.
 pub(super) struct ModuleLogger {
     target: String,
 }
@@ -45,10 +45,11 @@ impl log::Log for ModuleLogger {
     }
 
     fn log(&self, record: &log::Record) {
-        let function = record.module_path().unwrap_or_default();
+        let file = record.file().unwrap_or_default();
+        let line = record.line().unwrap_or_default();
         log::logger().log(
             &log::Record::builder()
-                .args(format_args!("[{function}] {}", record.args()))
+                .args(format_args!("[{file}:{line}] {}", record.args()))
                 .target(&self.target)
                 .level(record.level())
                 .file(record.file())
