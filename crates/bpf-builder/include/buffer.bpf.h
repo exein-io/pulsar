@@ -61,19 +61,13 @@ static void buffer_index_init(struct buffer *buffer,
 }
 
 // Out-of-line logs for buffer_append_str, which is used inside loop bodies:
-// on kernels without bpf_loop those are unrolled, and an inlined log would be
-// copied into every iteration.
-static __noinline void log_write_over_half(u16 start, u16 len) {
-  AYA_LOG_ERROR("trying to write over half: ", start, "+", len);
-}
-
-static __noinline void log_offset_out_of_bounds(u32 offset, u32 len) {
-  AYA_LOG_ERROR("offset out of bounds: ", offset, "+", len);
-}
-
-static __noinline void log_reading_failure(int r) {
-  AYA_LOG_ERROR("reading failure: ", r);
-}
+// on kernels without bpf_loop those are unrolled.
+AYA_LOG_FN(log_write_over_half, AYA_LOG_LEVEL_Error, (u16 start, u16 len),
+           "trying to write over half: ", start, "+", len)
+AYA_LOG_FN(log_offset_out_of_bounds, AYA_LOG_LEVEL_Error, (u32 offset, u32 len),
+           "offset out of bounds: ", offset, "+", len)
+AYA_LOG_FN(log_reading_failure, AYA_LOG_LEVEL_Error, (int r),
+           "reading failure: ", r)
 
 // Copies up to @len bytes from @source, starting from the given @offset, to
 // the @buffer pointed by @index.
@@ -86,7 +80,7 @@ static __always_inline void buffer_append_str(struct buffer *buffer,
                                               u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
-    log_write_over_half(index->start, index->len);
+    AYA_LOG_CALL(log_write_over_half, index->start, index->len);
     return;
   }
 
@@ -97,14 +91,14 @@ static __always_inline void buffer_append_str(struct buffer *buffer,
     partial_len = (partial_len + 1) & HALF_BUFFER_MASK;
   }
   if (partial_len <= 0) {
-    log_offset_out_of_bounds(offset, len);
+    AYA_LOG_CALL(log_offset_out_of_bounds, offset, len);
     return;
   }
 
   int r = bpf_core_read_str(&((char *)buffer->buffer)[pos], partial_len,
                             source + offset);
   if (r <= 0) {
-    log_reading_failure(r);
+    AYA_LOG_CALL(log_reading_failure, r);
     return;
   }
   // AYA_LOG_DEBUG("New buffer (+", r, "): ", LOG_FMT_STR(buffer->buffer));

@@ -163,16 +163,16 @@ static __always_inline bool tracker_remove(struct bpf_map_def_aya *tracker,
 #define tracker_interesting_tgid(tracker)                                      \
   ({                                                                           \
     pid_t tgid = bpf_get_current_pid_tgid() >> 32;                             \
-    if (!tracker_is_interesting(tracker, tgid, __func__, true, true))          \
+    if (!tracker_is_interesting(tracker, tgid, AYA_LOG_HERE, true, true))      \
       tgid = -1;                                                               \
     tgid;                                                                      \
   })
 
 // Return if we should generate events for this process.
-// Takes a caller name which will be logged in case of error.
+// Takes the caller's site, which is logged in case of error.
 static __always_inline bool
 tracker_is_interesting(struct bpf_map_def_aya *tracker, u32 tgid,
-                       const char *caller, bool do_warning,
+                       const struct aya_log_site *site, bool do_warning,
                        bool track_by_default) {
   u8 *value = (u8 *)bpf_map_lookup_elem(tracker, &tgid);
   // If we can't find an element, we process it
@@ -185,8 +185,7 @@ tracker_is_interesting(struct bpf_map_def_aya *tracker, u32 tgid,
       // pid 1, which should always exist.
       u32 pid_init = 1;
       if (bpf_map_lookup_elem(tracker, &pid_init)) {
-        AYA_LOG_ERROR("missing entry for pid ", tgid,
-                      ", caller: ", LOG_FMT_STR_N(caller, 64));
+        AYA_LOG_ERROR_AT(site, "missing entry for pid ", tgid);
       }
     }
     return track_by_default;

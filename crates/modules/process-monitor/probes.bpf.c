@@ -538,14 +538,11 @@ int BPF_PROG(sched_process_exit, struct task_struct *p) {
 }
 
 // Out-of-line logs for the sched_switch loops, which are unrolled on kernels
-// without bpf_loop: an inlined log would be copied into every iteration.
-static __noinline void log_new_parent(pid_t pid, pid_t ppid) {
-  AYA_LOG_DEBUG("New parent for ", pid, ": ", ppid);
-}
-
-static __noinline void log_no_new_parent_yet(pid_t dead_parent) {
-  AYA_LOG_DEBUG("No new parent set yet for children of dead ", dead_parent);
-}
+// without bpf_loop.
+AYA_LOG_FN(log_new_parent, AYA_LOG_LEVEL_Debug, (pid_t pid, pid_t ppid),
+           "New parent for ", pid, ": ", ppid)
+AYA_LOG_FN(log_no_new_parent_yet, AYA_LOG_LEVEL_Debug, (pid_t dead_parent),
+           "No new parent set yet for children of dead ", dead_parent)
 
 // Context for loop_orphan_adopted
 struct ctx_orphan_adopted {
@@ -569,7 +566,7 @@ static __always_inline long loop_orphan_adopted(u32 i, void *callback_ctx) {
   if (!event) // memory error
     return LOOP_STOP;
   event->change_parent.ppid = BPF_CORE_READ(orphan, parent, pid);
-  log_new_parent(event->pid, event->change_parent.ppid);
+  AYA_LOG_CALL(log_new_parent, event->pid, event->change_parent.ppid);
   output_process_event(c->ctx, event);
   return LOOP_CONTINUE;
 }
@@ -600,7 +597,7 @@ int BPF_PROG(sched_switch) {
     struct task_struct *first_orphan = c.pending.orphans[0];
     pid_t first_new_parent = BPF_CORE_READ(first_orphan, parent, pid);
     if (c.pending.dead_parent == first_new_parent) {
-      log_no_new_parent_yet(c.pending.dead_parent);
+      AYA_LOG_CALL(log_no_new_parent_yet, c.pending.dead_parent);
       // push the item back
       bpf_map_push_elem(&orphans_map, &c.pending, 0);
     } else {

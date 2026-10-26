@@ -77,9 +77,8 @@ struct ctx_get_path {
 };
 
 // Out of line, because it's called from a loop body.
-static __noinline void log_root_not_mount_root(void) {
-  AYA_LOG_ERROR("We reached root, but not mount root");
-}
+AYA_LOG_FN(log_root_not_mount_root, AYA_LOG_LEVEL_Error, (),
+           "We reached root, but not mount root")
 
 // Used to iterate over all the dentry ancestors of a file and append
 // their name to struct components.
@@ -103,7 +102,7 @@ static __always_inline long loop_get_dentry_name(u32 i, void *callback_ctx) {
   // If a dentry is the parent of itself, we should have reached to root.
   // The topmost dentry must match root_dentry.
   if (current_dentry == parent_dentry && current_dentry != root_dentry) {
-    log_root_not_mount_root();
+    AYA_LOG_CALL(log_root_not_mount_root);
     return LOOP_STOP;
   }
 

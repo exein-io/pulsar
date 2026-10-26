@@ -396,7 +396,7 @@ int tcp_set_state(struct pt_regs *regs) {
   // this function may be called after the process has already exited,
   // so we don't want to log errors in case tgid has already been
   // deleted from map_interest
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, false,
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, AYA_LOG_HERE, false,
                               true))
     return 0;
 
@@ -465,7 +465,8 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
   struct task_struct *task = get_current_task();
   pid_t tgid = BPF_CORE_READ(task, tgid);
 
-  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, __func__, true, true))
+  if (!tracker_is_interesting(&GLOBAL_INTEREST_MAP, tgid, AYA_LOG_HERE, true,
+                              true))
     return CGROUP_SKB_OK;
 
   struct network_event *network_event;
