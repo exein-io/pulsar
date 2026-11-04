@@ -402,20 +402,8 @@ int BPF_PROG(sched_process_exec, struct task_struct *p, pid_t old_pid,
   __builtin_memset((char *)position, 0, MAX_IMAGE_LEN);
 
   // We want to get the absolute path of the executable we're running.
-  // When executing a process with a relative path, bprm->filename won't be
-  // enough and we'll have to do a full path traversal. When starts with /
-  // though, we can just copy it, as an optimization.
-  const char *bprm_filename = BPF_CORE_READ(bprm, filename);
-  char first_character = 0;
-  bpf_core_read(&first_character, 1, bprm_filename);
-  if (first_character == '/') {
-    buffer_index_init(&event->buffer, &event->exec.filename);
-    buffer_append_str(&event->buffer, &event->exec.filename, bprm_filename,
-                      BUFFER_MAX, 0);
-  } else {
-    struct path path = BPF_CORE_READ(bprm, file, f_path);
-    get_path_str(&path, &event->buffer, &event->exec.filename);
-  }
+  struct path path = BPF_CORE_READ(bprm, file, f_path);
+  get_path_str(&path, &event->buffer, &event->exec.filename);
 
   char *image = (char *)&event->buffer.buffer;
 
