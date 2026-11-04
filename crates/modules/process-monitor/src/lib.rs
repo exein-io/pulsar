@@ -331,6 +331,7 @@ pub mod test_suite {
                 exec_event_argv_fits(),
                 exec_event_argv_too_long(),
                 relative_exec_event(),
+                dotdot_exec_event(),
                 exit_event(),
                 exit_event_no_thread(),
                 parent_change(),
@@ -367,7 +368,7 @@ pub mod test_suite {
     fn exec_event() -> TestCase {
         TestCase::new("exec_event", async {
             let mut child_pid = Pid::from_raw(0);
-            let echo_buff = find_executable("echo");
+            let echo_buff = find_executable("echo").canonicalize().unwrap();
             let echo_path = echo_buff.as_path().to_str().unwrap().to_string();
             test_runner()
                 .run(|| {
@@ -484,6 +485,37 @@ pub mod test_suite {
                 .expect_event_from_pid(
                     child_pid,
                     event_check!(ProcessEvent::Exec, (filename, echo_path, "exec filename")),
+                )
+                .report()
+        })
+    }
+
+    /// An absolute but non-canonical exec path (containing `..`) must be
+    /// reported as the resolved path, not the raw execve() string.
+    fn dotdot_exec_event() -> TestCase {
+        TestCase::new("dotdot_exec_event", async {
+            let mut child_pid = Pid::from_raw(0);
+            let echo = find_executable("echo").canonicalize().unwrap(); // e.g. /usr/bin/echo
+            let dir = echo.parent().unwrap(); // /usr/bin
+            let dotdot = format!(
+                "{}/../{}/echo",
+                dir.display(),
+                dir.file_name().unwrap().to_str().unwrap()
+            ); // /usr/bin/../bin/echo
+            let expected = echo.to_str().unwrap().to_string();
+            test_runner()
+                .run(|| {
+                    let mut child = std::process::Command::new(&dotdot)
+                        .arg("-n")
+                        .spawn()
+                        .unwrap();
+                    child_pid = Pid::from_raw(child.id() as i32);
+                    child.wait().unwrap();
+                })
+                .await
+                .expect_event_from_pid(
+                    child_pid,
+                    event_check!(ProcessEvent::Exec, (filename, expected, "exec filename")),
                 )
                 .report()
         })
