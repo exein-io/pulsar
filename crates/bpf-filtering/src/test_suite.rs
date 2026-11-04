@@ -119,7 +119,12 @@ fn exec_updates_interest() -> TestCase {
             interest_map.clear().unwrap();
 
             // add rule to target echo
-            let image = which("echo").unwrap().to_string_lossy().to_string();
+            let image = which("echo")
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             let mut rule_map = RuleMap::load(&mut bpf, RULE_MAP_NAME).unwrap();
             rule_map.clear().unwrap();
             rule_map
