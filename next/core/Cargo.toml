@@ -1,0 +1,21 @@
+[package]
+name = "next-core"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+aya = { workspace = true }
+bpf-common = { workspace = true }
+bpf-filtering = { workspace = true }
+linux-raw-sys = { workspace = true }
+log = { workspace = true }
+next-bpf = { workspace = true }
+nix = { workspace = true, features = ["time"] }
+serde = { workspace = true, features = ["rc"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["fs", "macros", "rt", "sync"] }
+uuid = { workspace = true, features = ["serde", "v7"] }
+validatron = { workspace = true }

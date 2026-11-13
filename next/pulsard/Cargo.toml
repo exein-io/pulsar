@@ -1,0 +1,24 @@
+[package]
+name = "next-pulsard"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "pulsard-next"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+bpf-filtering = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+env_logger = { workspace = true }
+log = { workspace = true }
+next-bpf = { workspace = true }
+next-core = { workspace = true }
+next-rules-engine = { workspace = true }
+next-threat-logger = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+toml = { workspace = true }

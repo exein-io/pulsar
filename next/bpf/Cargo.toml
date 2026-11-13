@@ -1,0 +1,29 @@
+[package]
+name = "next-bpf"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+# No native library is linked: `links` only passes the directory with the ABI
+# and SDK headers to build scripts of dependent crates, in DEP_BPF_ABI_INCLUDE,
+# so extension probes are built against the same headers.
+links = "bpf-abi"
+
+[dependencies]
+aya = { workspace = true }
+aya-obj = { workspace = true }
+bpf-feature-autodetect = { workspace = true }
+bpf-features = { workspace = true }
+nix = { workspace = true, features = ["resource"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["net", "sync"] }
+zerocopy = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+nix = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+
+[build-dependencies]
+anyhow = { workspace = true }
+next-bpf-builder = { workspace = true }

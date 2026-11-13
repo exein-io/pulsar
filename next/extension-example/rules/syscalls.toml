@@ -1,0 +1,7 @@
+[[rules]]
+name = "Process with many syscalls"
+type = "SyscallActivity"
+category = "generic"
+severity = "low"
+description = "A process made more than 100000 syscalls"
+condition = "payload.total > 100000"

@@ -72,6 +72,14 @@ members = [
     "crates/bpf-features-macros",
     "xtask",
     "test-suite",
+    # Architecture prototype
+    "next/bpf-builder",
+    "next/bpf",
+    "next/core",
+    "next/rules-engine",
+    "next/reporters/threat-logger",
+    "next/pulsard",
+    "next/extension-example",
 ]
 
 [workspace.package]
@@ -100,12 +108,20 @@ network-monitor = { path = "crates/modules/network-monitor" }
 process-monitor = { path = "crates/modules/process-monitor" }
 rules-engine = { path = "crates/modules/rules-engine" }
 smtp-notifier = { path = "crates/modules/smtp-notifier" }
+# Architecture prototype
+next-bpf = { path = "next/bpf" }
+next-bpf-builder = { path = "next/bpf-builder" }
+next-core = { path = "next/core" }
+next-pulsard = { path = "next/pulsard" }
+next-rules-engine = { path = "next/rules-engine" }
+next-threat-logger = { path = "next/reporters/threat-logger" }
 # External
 anyhow = "1.0.104"
 aya = "0.14.0"
 aya-ebpf-bindings = "0.2.0"
 aya-obj = "0.3.0"
 axum = { version = "0.8.9", features = ["ws"] }
+bindgen = "0.73.2"
 bytes = "1.12.1"
 chrono = { version = "0.4.45" }
 clap = { version = "4.6.7", features = ["derive"] }
@@ -183,6 +199,7 @@ xshell = "0.2.7"
 vergen-gitcl = "10.0.3"
 clap-verbosity-flag = "3.0.4"
 toml = "1.1.6"
+zerocopy = { version = "0.8.57", features = ["derive"] }
 
 [profile.release]
 lto = true

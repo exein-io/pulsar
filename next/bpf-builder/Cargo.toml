@@ -1,0 +1,12 @@
+[package]
+name = "next-bpf-builder"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+bindgen = { workspace = true }
+bpf-features = { workspace = true }
+quote = { workspace = true }

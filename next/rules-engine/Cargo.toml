@@ -1,0 +1,20 @@
+[package]
+name = "next-rules-engine"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+next-core = { workspace = true }
+validatron = { workspace = true }
+
+log = { workspace = true }
+glob = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+toml = { workspace = true }
+lalrpop-util = { workspace = true, features = ["lexer"] }
+
+[build-dependencies]
+lalrpop = { workspace = true }
