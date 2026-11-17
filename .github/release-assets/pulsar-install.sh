@@ -116,11 +116,12 @@ main() {
 
     local _bindir="/usr/bin"
 
-    local _install="install"
+    local _sudo=""
     if [ "$(id -u)" -ne 0 ]; then
         need_cmd sudo
-        _install="sudo ${_install}"
+        _sudo="sudo"
     fi
+    local _install="${_sudo} install"
 
     # ensure $_install -d ${_bindir}
 
@@ -146,6 +147,8 @@ main() {
     printf '%s\n' 'info: installing rules' 1>&2
     install_rules "$_install" "${_tmp_pulsar_src}/rules" "${_pulsar_rules_dir}"
 
+    printf '%s\n' 'info: installing service' 1>&2
+    install_service "$_sudo" "${_tmp_pulsar_src}/contrib"
 
     printf '%s\n' 'info: cleaning' 1>&2
     ignore rm -rf "$_dir"
@@ -333,6 +336,63 @@ install_rules() {
         for _target in $_pending; do
             printf '%s\n' "info:   ${_target}" 1>&2
         done
+    fi
+}
+
+# Install the service for the init system, without enabling or starting it,
+# and print how to do it. Settings belong in drop-ins (systemd),
+# /etc/conf.d/pulsar (OpenRC) or /etc/default/pulsar (SysV), the service files
+# are replaced on every install.
+install_service() {
+    local _sudo="$1"
+    local _src_dir="$2"
+    local _init
+
+    # Prefer the running init system, then look at what is installed, like in
+    # an image build or a chroot.
+    if [ -d /run/systemd/system ]; then
+        _init=systemd
+    elif [ -d /run/openrc ]; then
+        _init=openrc
+    elif [ "$(cat /proc/1/comm 2> /dev/null)" = init ] && [ -d /etc/init.d ]; then
+        # Booted with SysV init, even if systemd is installed.
+        _init=sysvinit
+    elif check_cmd systemctl; then
+        _init=systemd
+    elif check_cmd openrc-run; then
+        _init=openrc
+    elif [ -d /etc/init.d ]; then
+        _init=sysvinit
+    else
+        printf '%s\n' 'info: no supported init system found, no service installed' 1>&2
+        return 0
+    fi
+
+    case "$_init" in
+        systemd)
+            ensure $_sudo install -Dm 644 "${_src_dir}/init/systemd/pulsar.service" /usr/lib/systemd/system/pulsar.service
+            if [ -f /etc/systemd/system/pulsar.service ]; then
+                printf '%s\n' 'warn: /etc/systemd/system/pulsar.service overrides the installed unit, remove it to use the new one' 1>&2
+            fi
+            printf '%s\n' 'info: to start pulsar now and at boot run: systemctl daemon-reload && systemctl enable --now pulsar' 1>&2
+            printf '%s\n' 'info: if pulsar is already running, restart it to use this version: systemctl daemon-reload && systemctl restart pulsar' 1>&2
+            ;;
+        openrc)
+            ensure $_sudo install -Dm 755 "${_src_dir}/init/openrc/pulsar" /etc/init.d/pulsar
+            printf '%s\n' 'info: to start pulsar now and at boot run: rc-update add pulsar default && rc-service pulsar start' 1>&2
+            printf '%s\n' 'info: if pulsar is already running, restart it to use this version: rc-service pulsar restart' 1>&2
+            ;;
+        sysvinit)
+            ensure $_sudo install -Dm 755 "${_src_dir}/init/sysvinit/pulsar" /etc/init.d/pulsar
+            printf '%s\n' 'info: to start pulsar run: /etc/init.d/pulsar start' 1>&2
+            printf '%s\n' 'info: to start it at boot, enable it with your distribution tool, e.g. update-rc.d pulsar defaults' 1>&2
+            printf '%s\n' 'info: if pulsar is already running, restart it to use this version: /etc/init.d/pulsar restart' 1>&2
+            ;;
+    esac
+
+    # systemd keeps the logs in the journal, the other init scripts in a file.
+    if [ "$_init" != systemd ] && [ -d /etc/logrotate.d ]; then
+        ensure $_sudo install -Dm 644 "${_src_dir}/logrotate/pulsar" /etc/logrotate.d/pulsar
     fi
 }
 

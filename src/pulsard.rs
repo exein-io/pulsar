@@ -8,10 +8,12 @@ use tokio::signal::unix::{SignalKind, signal};
 
 mod config;
 mod daemon;
+mod instance_lock;
 mod module_manager;
 
 pub use config::PulsarConfig;
 pub use daemon::PulsarDaemonStarter;
+use instance_lock::InstanceLock;
 pub use module_manager::{ModuleManager, ModuleManagerHandle};
 
 #[derive(Args, Debug, Clone)]
@@ -31,6 +33,9 @@ pub async fn pulsar_daemon_run(
 
     ensure!(geteuid().is_root(), "You must run this as root user!!!");
 
+    // Fail before touching the eBPF state shared by all instances.
+    let instance_lock = InstanceLock::acquire()?;
+
     bpf_fs::check_or_mount_bpf_fs()?;
 
     bpf_common::bump_memlock_rlimit()?;
@@ -40,7 +45,8 @@ pub async fn pulsar_daemon_run(
     } else {
         PulsarConfig::new()?
     };
-    let api_socket_path = config.pulsar.api_socket_path.clone();
+    // Fail on socket problems before loading any probe.
+    let api_socket = server::bind_api_socket(config.pulsar.api_socket_path.as_deref())?;
 
     // Initialize bus
     let bus = Bus::new();
@@ -69,10 +75,7 @@ pub async fn pulsar_daemon_run(
     let server_handle = {
         let pulsar_daemon = pulsar_daemon.clone();
 
-        server::run_api_server(
-            EngineAPIContext { bus, pulsar_daemon },
-            api_socket_path.as_deref(),
-        )?
+        server::run_api_server(EngineAPIContext { bus, pulsar_daemon }, api_socket)?
     };
 
     let mut sig_int = signal(SignalKind::interrupt())?;
@@ -99,6 +102,9 @@ pub async fn pulsar_daemon_run(
             )
         }
     }
+
+    // Let another pulsard start only once all modules are stopped.
+    drop(instance_lock);
 
     Ok(())
 }

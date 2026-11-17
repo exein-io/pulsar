@@ -1,0 +1,148 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          pulsar
+# Required-Start:    $remote_fs $syslog $network
+# Required-Stop:     $remote_fs $syslog $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Pulsar runtime security agent
+# Description:       eBPF based runtime security agent for Linux.
+### END INIT INFO
+
+NAME=pulsar
+DAEMON=/usr/bin/pulsard
+DAEMON_ARGS=
+PIDFILE=/var/run/${NAME}.pid
+LOGFILE=/var/log/${NAME}.log
+# Seconds to wait for a graceful shutdown before sending SIGKILL: pulsard stops
+# its modules one at a time, each with a 5s timeout.
+STOP_TIMEOUT=45
+
+# The variables above can be overridden here.
+[ -r /etc/default/${NAME} ] && . /etc/default/${NAME}
+
+# Run one action at a time: concurrent ones would race on the PID file. flock is
+# in util-linux and BusyBox, the lock is released when the script exits.
+lock_actions() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "$NAME must be managed as root." >&2
+        exit 4
+    fi
+    if ! command -v flock > /dev/null 2>&1; then
+        echo "flock not found, concurrent actions are not serialized." >&2
+        return 0
+    fi
+    exec 9> "${PIDFILE}.lock"
+    flock 9
+}
+
+# Print the PID of the running pulsard, fail if it's not running.
+running_pid() {
+    [ -r "$PIDFILE" ] || return 1
+    read -r pid < "$PIDFILE"
+    [ -n "$pid" ] && [ -r "/proc/$pid/comm" ] || return 1
+    # The PID may have been reused by another process. The kernel truncates
+    # process names to 15 characters.
+    read -r comm < "/proc/$pid/comm"
+    [ "$comm" = "$(printf '%.15s' "${DAEMON##*/}")" ] || return 1
+    echo "$pid"
+}
+
+do_start() {
+    if pid=$(running_pid); then
+        echo "$NAME is already running (pid $pid)."
+        return 0
+    fi
+    if [ ! -x "$DAEMON" ]; then
+        echo "$DAEMON not found." >&2
+        return 5
+    fi
+
+    printf 'Starting %s... ' "$NAME"
+    # Don't keep the caller's directory busy or pass on its umask.
+    cd / && umask 022
+    # Detach from the controlling terminal: pulsard exits on SIGHUP.
+    setsid=$(command -v setsid)
+    # The daemon must not inherit the actions lock, it would hold it forever.
+    # shellcheck disable=SC2086 # DAEMON_ARGS is split on purpose
+    $setsid "$DAEMON" $DAEMON_ARGS < /dev/null >> "$LOGFILE" 2>&1 9>&- &
+    echo $! > "${PIDFILE}.tmp"
+    mv -f "${PIDFILE}.tmp" "$PIDFILE"
+
+    # pulsard exits right away on errors like an invalid configuration.
+    sleep 1
+    if running_pid > /dev/null; then
+        echo "done."
+        return 0
+    fi
+    rm -f "$PIDFILE"
+    echo "failed, see $LOGFILE."
+    return 1
+}
+
+do_stop() {
+    if ! pid=$(running_pid); then
+        rm -f "$PIDFILE"
+        echo "$NAME is not running."
+        return 0
+    fi
+
+    printf 'Stopping %s... ' "$NAME"
+    kill -TERM "$pid"
+    waited=0
+    while kill -0 "$pid" 2> /dev/null && [ "$waited" -lt "$STOP_TIMEOUT" ]; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+    if kill -0 "$pid" 2> /dev/null; then
+        printf 'timed out, killing... '
+        kill -KILL "$pid"
+        # Even SIGKILL can't end a process stuck in uninterruptible I/O.
+        waited=0
+        while kill -0 "$pid" 2> /dev/null && [ "$waited" -lt 5 ]; do
+            sleep 1
+            waited=$((waited + 1))
+        done
+        if kill -0 "$pid" 2> /dev/null; then
+            echo "failed, pid $pid still exists."
+            return 1
+        fi
+    fi
+    rm -f "$PIDFILE"
+    echo "done."
+}
+
+do_status() {
+    if pid=$(running_pid); then
+        echo "$NAME is running (pid $pid)."
+        return 0
+    fi
+    if [ -f "$PIDFILE" ]; then
+        echo "$NAME is not running, but $PIDFILE exists."
+        return 1
+    fi
+    echo "$NAME is not running."
+    return 3
+}
+
+case "$1" in
+    start)
+        lock_actions
+        do_start
+        ;;
+    stop)
+        lock_actions
+        do_stop
+        ;;
+    restart | force-reload)
+        lock_actions
+        do_stop && do_start
+        ;;
+    status)
+        do_status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|force-reload|status}" >&2
+        exit 2
+        ;;
+esac

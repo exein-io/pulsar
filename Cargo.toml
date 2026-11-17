@@ -36,6 +36,9 @@ clap-verbosity-flag = { workspace = true }
 anyhow = { workspace = true }
 vergen-gitcl = { workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [features]
 default = ["full", "tls-openssl"]
 full = ["core", "extra"]

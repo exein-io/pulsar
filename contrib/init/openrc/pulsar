@@ -1,0 +1,30 @@
+#!/sbin/openrc-run
+
+name="pulsar"
+description="Pulsar runtime security agent"
+
+# pulsard arguments and the settings below can be overridden in
+# /etc/conf.d/pulsar.
+command="/usr/bin/pulsard"
+command_args="${PULSARD_ARGS}"
+
+# Restart pulsard whenever it exits: it exits with success on SIGTERM and
+# SIGHUP, and a security agent must come back even if it wasn't stopped by
+# OpenRC. Give up when it keeps failing at startup, e.g. on an unsupported
+# kernel or an invalid configuration.
+supervisor="supervise-daemon"
+respawn_delay="${respawn_delay:-2}"
+respawn_max="${respawn_max:-5}"
+respawn_period="${respawn_period:-60}"
+
+output_log="${output_log:-/var/log/${RC_SVCNAME}.log}"
+error_log="${error_log:-/var/log/${RC_SVCNAME}.log}"
+
+# pulsard stops its modules one at a time, each with a 5s timeout.
+retry="${retry:-TERM/45/KILL/5}"
+
+depend() {
+	need localmount
+	after net
+	use logger
+}
