@@ -76,15 +76,17 @@ struct {
 } pulsar_lost SEC(".maps");
 
 // Counts a record that could not be written, in total and for this producer.
+// Relaxed: clang 23 compiles the __sync builtins to fetching atomics, which
+// need kernel 5.12, even when the result is unused.
 static __always_inline void pulsar_count_lost(void) {
   __u32 key = PULSAR_LOST_TOTAL;
   __u64 *total = bpf_map_lookup_elem(&pulsar_lost, &key);
   if (total)
-    __sync_fetch_and_add(total, 1);
+    __atomic_fetch_add(total, 1, __ATOMIC_RELAXED);
   key = PULSAR_LOST_TOTAL + 1 + PULSAR_PRODUCER_ID;
   __u64 *own = bpf_map_lookup_elem(&pulsar_lost, &key);
   if (own)
-    __sync_fetch_and_add(own, 1);
+    __atomic_fetch_add(own, 1, __ATOMIC_RELAXED);
 }
 
 static __always_inline __u32 pulsar_lost_snapshot(void) {
@@ -160,9 +162,12 @@ static __always_inline void pulsar_discard(void *record) {
 // Largest header + body of a variable-size kind.
 #define PULSAR_SCRATCH_RECORD_MAX 256
 
+// Map values are 8-byte aligned. Saying so lets clang zero a slot with 8-byte
+// stores: with byte stores, a record needs more than it inlines, and clang 23
+// emits a call to memset, which can't be loaded.
 struct pulsar_scratch_slot {
   __u8 bytes[PULSAR_SCRATCH_RECORD_MAX + sizeof(struct pulsar_buffer)];
-};
+} __attribute__((aligned(8)));
 
 // The BPF stack limit of 512 bytes is exceeded by a record with its buffer, so
 // we use a per-cpu array as a workaround.

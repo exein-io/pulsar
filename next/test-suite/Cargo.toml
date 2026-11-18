@@ -1,0 +1,14 @@
+[package]
+name = "next-test-suite"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "test-suite-next"
+path = "src/main.rs"
+
+[dependencies]
+next-test-suite-harness = { workspace = true }
+nix = { workspace = true, features = ["process"] }

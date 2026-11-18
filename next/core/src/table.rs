@@ -160,7 +160,13 @@ impl<P> ProcessTable<P> {
                 self.learn(subject.cgroup_id, membership);
                 let parent = self.live(subject.ppid).map(|parent| parent.id);
                 let mut node = Node::new(subject.id(), subject.ppid, parent);
-                if let Some(parent) = parent.and_then(|parent| self.lookup(parent)) {
+                if let Some(parent) = parent.and_then(|parent| self.nodes.get_mut(&parent.pid)) {
+                    // A process read from /proc has an image but no exec id
+                    // yet: bind it to its child's, as `enrich` does to the
+                    // first one seen.
+                    if parent.exec_id.is_none() && parent.image.is_some() {
+                        parent.exec_id = Some(subject.exec_id);
+                    }
                     // A fork copies the exec id, so the parent's image is the
                     // child's only if the table knows the parent's current exec.
                     if parent.exec_id == Some(subject.exec_id) {

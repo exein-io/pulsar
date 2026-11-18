@@ -1,0 +1,20 @@
+[package]
+name = "next-test-suite-harness"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+env_logger = { workspace = true }
+ipc-channel = { workspace = true }
+libtest-mimic = { workspace = true }
+next-core = { workspace = true }
+nix = { workspace = true, features = ["mount", "process", "reboot"] }
+procspawn = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }
+
+[dev-dependencies]
+validatron = { workspace = true }

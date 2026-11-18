@@ -49,8 +49,26 @@ pub type KindOf<S> = <<S as crate::Schema>::Payload as PayloadSet>::Kind;
 /// so the calling crate depends on `serde` and `validatron`. It implements
 /// [`PayloadSet`] and `From<OssPayload>`; the kind enum implements
 /// [`PayloadKind`] and `From<OssPayloadKind>`.
+///
+/// With `kind = ExtPayloadKind, variants = ext_payload_variants`, it also
+/// exports a macro that hands every variant to another one, for other crates,
+/// such as the patterns of the test suite harness:
+///
+/// ```ignore
+/// ext::ext_payload_variants! { @with path::to::macro [arguments] }
+/// // expands to
+/// path::to::macro! { arguments [FileCreated { .. }, .., SyscallActivity { .. },] }
+/// ```
 #[macro_export]
 macro_rules! compose_payload {
+    (
+        $(#[$meta:meta])* $vis:vis $name:ident, kind = $kind:ident, variants = $macro:ident
+        { $($variants:tt)* }
+    ) => {
+        $crate::compose_payload! { $(#[$meta])* $vis $name, kind = $kind { $($variants)* } }
+        // `$` can't be written in the body of the new macro, so it is passed in.
+        $crate::__oss_payload! { @with $crate::__variants_macro [($) $macro [$($variants)*]] }
+    };
     (
         $(#[$meta:meta])* $vis:vis $name:ident, kind = $kind:ident { $($variants:tt)* }
     ) => {
@@ -58,13 +76,31 @@ macro_rules! compose_payload {
     };
 }
 
-// The OSS variants, written once. They are handed to __payload_enum together
-// with the caller's, because a macro can't read another enum's variants.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __variants_macro {
+    (($d:tt) $macro:ident [$($own:tt)*] [$($oss:tt)*]) => {
+        #[macro_export]
+        macro_rules! $macro {
+            (@with $d callback:path [$d ($d args:tt)*]) => {
+                $d callback! { $d ($d args)* [$($oss)* $($own)*] }
+            };
+        }
+    };
+}
+
+// The OSS variants, written once. A macro can't read another enum's variants,
+// so they are handed to the macro that needs them, after its own arguments:
+// to __payload_enum, together with the caller's, or to any other macro with
+// `@with path::to::macro [arguments]`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __oss_payload {
     ($mode:ident $head:tt $own:tt) => {
-        $crate::__payload_enum! { $mode $head $own [
+        $crate::__oss_payload! { @with $crate::__payload_enum [$mode $head $own] }
+    };
+    (@with $macro:path [$($args:tt)*]) => {
+        $macro! { $($args)* [
             FileCreated { filename: Option<$crate::payload::Text> },
             FileDeleted { filename: Option<$crate::payload::Text> },
             DirCreated { dirname: Option<$crate::payload::Text> },
@@ -265,7 +301,7 @@ impl Validatron for Text {
 }
 
 /// Process arguments. Rules test them with CONTAINS.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Argv {
     pub args: Vec<String>,
     pub truncated: bool,
@@ -298,7 +334,7 @@ impl Validatron for Argv {
 }
 
 /// Open flags. Rules test them with CONTAINS.
-#[derive(Clone, Serialize)]
+#[derive(Clone, PartialEq, Serialize)]
 pub struct FileFlags(pub u32);
 
 impl FileFlags {
@@ -317,6 +353,19 @@ impl FileFlags {
         ("O_NONBLOCK", kernel::O_NONBLOCK),
         ("O_DIRECTORY", kernel::O_DIRECTORY),
     ];
+
+    /// What rules test with CONTAINS: `flag` is the access mode, or one of
+    /// the other flags set.
+    pub fn contains(&self, flag: &FileFlags) -> bool {
+        if FileFlags::ACC_MODE_FLAGS
+            .iter()
+            .any(|(_, acc_mode_flag)| *acc_mode_flag == flag.0)
+        {
+            self.0 & kernel::O_ACCMODE == flag.0
+        } else {
+            self.0 & flag.0 > 0
+        }
+    }
 }
 
 impl Validatron for FileFlags {
@@ -333,16 +382,7 @@ impl Validatron for FileFlags {
                 }),
                 Box::new(|op| match op {
                     Operator::Multi(MultiOperator::Contains) => {
-                        Ok(Box::new(|a: &FileFlags, b: &FileFlags| {
-                            if FileFlags::ACC_MODE_FLAGS
-                                .iter()
-                                .any(|(_, acc_mode_flag)| *acc_mode_flag == b.0)
-                            {
-                                a.0 & kernel::O_ACCMODE == b.0
-                            } else {
-                                a.0 & b.0 > 0
-                            }
-                        }))
+                        Ok(Box::new(|a: &FileFlags, b: &FileFlags| a.contains(b)))
                     }
                     _ => Err(ValidatronError::OperatorNotAllowedOnType(
                         op,
@@ -371,20 +411,20 @@ impl fmt::Debug for FileFlags {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Validatron)]
+#[derive(Clone, Debug, PartialEq, Serialize, Validatron)]
 pub struct Host {
     pub ip: IpAddr,
     pub port: u16,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DnsQuestion {
     pub name: String,
     pub qtype: String,
     pub qclass: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DnsAnswer {
     pub name: String,
     pub class: String,

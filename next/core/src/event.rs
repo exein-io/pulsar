@@ -53,7 +53,7 @@ impl From<&pulsar_subject> for Subject {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Validatron)]
+#[derive(Clone, Debug, PartialEq, Serialize, Validatron)]
 pub struct Container {
     /// "docker" or "podman".
     pub engine: String,
