@@ -6,12 +6,23 @@
 //! that runs one function and exits. In there any code is fine, [`fork`]
 //! included.
 
-use std::{fs, time::Duration};
+use std::{
+    ffi::CString,
+    fs,
+    panic::{self, AssertUnwindSafe},
+    time::Duration,
+};
 
 use anyhow::Context;
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use nix::unistd::{ForkResult, Pid};
 use serde::{Serialize, de::DeserializeOwned};
+
+/// What a shell exits with when it can't run a command.
+const EXEC_FAILED: i32 = 127;
+
+/// What a Rust program exits with when it panics.
+const PANICKED: i32 = 101;
 
 /// How long a helper may run after [`Helper::finish`] let it go, unless the
 /// test sets its own with [`Helper::run_timeout`].
@@ -92,7 +103,8 @@ fn run<A, R, F: Fn(A) -> R>((go, args): (IpcReceiver<()>, A)) -> R {
 }
 
 /// Forks the helper. The child runs `child` and exits with the code it
-/// returns.
+/// returns, or as a panicking program does: a panic must not reach the code of
+/// the helper, which would report it as the helper's.
 pub fn fork(child: impl FnOnce() -> i32) -> Pid {
     let threads = fs::read_dir("/proc/self/task").map(Iterator::count);
     assert!(
@@ -101,7 +113,30 @@ pub fn fork(child: impl FnOnce() -> i32) -> Pid {
     );
     // SAFETY: the process has a single thread, so the child may run any code.
     match unsafe { nix::unistd::fork() }.expect("fork") {
-        ForkResult::Child => std::process::exit(child()),
+        ForkResult::Child => {
+            std::process::exit(panic::catch_unwind(AssertUnwindSafe(child)).unwrap_or(PANICKED))
+        }
         ForkResult::Parent { child } => child,
     }
+}
+
+/// Runs `path` with `argv` in place of the helper. Returns only when that
+/// fails, with the code a shell exits with then.
+pub fn exec(path: &str, argv: &[String]) -> i32 {
+    let path = CString::new(path).expect("a path without NUL");
+    let argv: Vec<_> = argv
+        .iter()
+        .map(|arg| CString::new(arg.as_str()).expect("an argument without NUL"))
+        .collect();
+    let Err(err) = nix::unistd::execv(&path, &argv);
+    eprintln!("exec {path:?}: {err}");
+    EXEC_FAILED
+}
+
+/// Forks the helper, waits for the child, and returns its pid. The child runs
+/// `child` as with [`fork`].
+pub fn fork_and_wait(child: impl FnOnce() -> i32) -> u32 {
+    let pid = fork(child);
+    nix::sys::wait::waitpid(pid, None).expect("waiting for the child");
+    pid.as_raw() as u32
 }

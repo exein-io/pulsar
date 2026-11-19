@@ -2326,6 +2326,9 @@ dependencies = [
 name = "next-test-suite"
 version = "0.11.0-alpha.1"
 dependencies = [
+ "anyhow",
+ "bpf-filtering",
+ "next-core",
  "next-test-suite-harness",
  "nix",
 ]

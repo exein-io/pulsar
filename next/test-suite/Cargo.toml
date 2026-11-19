@@ -9,6 +9,13 @@ repository.workspace = true
 name = "test-suite-next"
 path = "src/main.rs"
 
+[[bin]]
+name = "test-suite-next-exec"
+path = "src/exec_target.rs"
+
 [dependencies]
+anyhow = { workspace = true }
+bpf-filtering = { workspace = true }
+next-core = { workspace = true }
 next-test-suite-harness = { workspace = true }
-nix = { workspace = true, features = ["process"] }
+nix = { workspace = true, features = ["feature", "process", "user"] }

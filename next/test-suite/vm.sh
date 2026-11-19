@@ -18,8 +18,11 @@ cargo build --quiet --manifest-path "$root/Cargo.toml" -p next-test-suite --targ
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir "$work/initramfs"
-cp "$root/target/$target/debug/test-suite-next" "$work/initramfs/"
-(cd "$work/initramfs" && echo test-suite-next | cpio --quiet -o -H newc) | gzip -1 >"$work/initramfs.gz"
+binaries=(test-suite-next test-suite-next-exec)
+for binary in "${binaries[@]}"; do
+    cp "$root/target/$target/debug/$binary" "$work/initramfs/"
+done
+(cd "$work/initramfs" && printf '%s\n' "${binaries[@]}" | cpio --quiet -o -H newc) | gzip -1 >"$work/initramfs.gz"
 
 qemu-system-x86_64 -enable-kvm -cpu host -m 1G -smp 2 -nographic -no-reboot \
     -kernel "$kernel" -initrd "$work/initramfs.gz" \

@@ -32,6 +32,8 @@ use tokio::{
     time::{Instant, timeout_at},
 };
 
+use crate::{Outcome, Verdict};
+
 /// Not the daemon's: a start removes stale pins, which would break a
 /// `pulsard-next` running on the same machine.
 const PIN_DIR: &str = "/sys/fs/bpf/pulsar-next-tests";
@@ -54,21 +56,42 @@ pub struct Recording<P = OssPayload> {
     pub stats: Stats,
 }
 
+impl<P> Recording<P> {
+    /// The outcome of a test that found `verdict` on these events.
+    pub fn outcome(&self, verdict: Verdict) -> Outcome {
+        Outcome {
+            verdict,
+            lost: self.stats.lost,
+            invalid: self.stats.invalid,
+        }
+    }
+}
+
 impl TestDaemon {
-    /// With the OSS probes. Returns once they are attached and /proc was read.
+    /// With the OSS probes and the default configuration. Returns once the
+    /// probes are attached and /proc was read.
     pub async fn start() -> anyhow::Result<Self> {
-        Self::start_with(|pulsar| pulsar.probe(ProcessProbe)).await
+        Self::start_configured(|_| {}).await
+    }
+
+    /// With the OSS probes and the configuration `configure` makes of the
+    /// default.
+    pub async fn start_configured(configure: impl FnOnce(&mut CoreConfig)) -> anyhow::Result<Self> {
+        Self::start_with(configure, |pulsar| pulsar.probe(ProcessProbe)).await
     }
 }
 
 impl<S: Schema> TestDaemon<S> {
-    /// With the probes `probes` adds. Returns once they are attached and
-    /// /proc was read.
+    /// With the configuration `configure` makes of the default, and the
+    /// probes `probes` adds. Returns once they are attached and /proc was
+    /// read.
     pub async fn start_with(
+        configure: impl FnOnce(&mut CoreConfig),
         probes: impl FnOnce(PulsarBuilder<S>) -> PulsarBuilder<S>,
     ) -> anyhow::Result<Self> {
         let mut config = CoreConfig::default();
         config.loader.pin_dir = PIN_DIR.into();
+        configure(&mut config);
         let (collected, events) = mpsc::unbounded_channel();
         let running = probes(Pulsar::<S>::builder(config))
             .detector(Collector::<S>(collected))

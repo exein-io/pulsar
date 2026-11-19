@@ -11,7 +11,14 @@ mod vm;
 
 use std::process::ExitCode;
 
+use serde::{Serialize, de::DeserializeOwned};
+
 pub use outcome::{Outcome, Test, TestResult, Verdict};
+
+use crate::{
+    daemon::{Recording, TestDaemon},
+    helper::Helper,
+};
 
 #[doc(hidden)]
 pub use next_core as __next_core;
@@ -33,4 +40,33 @@ pub fn run(tests: impl FnOnce() -> Vec<Test>) -> ExitCode {
     // Tests share the pin directory.
     args.test_threads = Some(1);
     libtest_mimic::run(&args, outcome::trials(tests())).exit_code()
+}
+
+/// What [`watch`] returns.
+pub struct Watched<R> {
+    pub recording: Recording,
+    /// The pid of the helper.
+    pub pid: u32,
+    /// What the function of the helper returned.
+    pub result: R,
+}
+
+/// Runs `f(args)` in a helper, see [`Helper::spawn`], while a daemon with
+/// the OSS probes watches. The recording ends with the exit of the helper.
+pub async fn watch<A, R, F>(args: A, f: F) -> anyhow::Result<Watched<R>>
+where
+    A: Serialize + DeserializeOwned,
+    R: Serialize + DeserializeOwned + Send + 'static,
+    F: Fn(A) -> R,
+{
+    let helper = Helper::spawn(args, f)?;
+    let daemon = TestDaemon::start().await?;
+    let pid = helper.pid();
+    let result = helper.finish().await?;
+    let recording = daemon.stop_after_exit(pid).await?;
+    Ok(Watched {
+        recording,
+        pid,
+        result,
+    })
 }
