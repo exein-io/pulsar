@@ -6,3 +6,4 @@
 | `file-system-monitor` | Producer | Watch file system events
 | `network-monitor` | Producer | Watch network events
 | `threat-logger` | Consumer | Log events to stdout. Used for development and toubleshooting
+| `telegram-notifier` | Consumer | Send threat events to a Telegram bot chat/channel
