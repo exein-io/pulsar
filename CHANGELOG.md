@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Upgrade `lettre` from 0.11.23 to 0.11.24 (RUSTSEC-2026-0561 SMTP command injection) (#461)
 - Podman image layer lookup follows the full parent chain regardless of layer store order, without duplicating the top layer, and reports cyclic parent chains as errors (#421)
 - release builds no longer contain test only dependencies, the `test-suite` and `test-utils` features were enabled unconditionally for every consumer of the internal crates
 - the root build script no longer re-runs on every build, it watched the package root, which recurses into `target`, and `.git` paths which do not exist in a worktree
