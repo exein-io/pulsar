@@ -104,6 +104,7 @@ smtp-notifier = { path = "crates/modules/smtp-notifier" }
 anyhow = "1.0.104"
 aya = "0.14.0"
 aya-ebpf-bindings = "0.2.0"
+aya-log = "0.3.0"
 aya-obj = "0.3.0"
 axum = { version = "0.8.9", features = ["ws"] }
 bytes = "1.12.1"
@@ -175,7 +176,6 @@ tar = "0.4.46"
 tempfile = "3.27.0"
 thiserror = "2.0.20"
 tokio = { version = "1.53.1", features = ["full"] }
-tokio-fd = "0.3.0"
 tokio-tungstenite = "0.29.0"
 uuid = { version = "1.26.1", features = ["v4"] }
 which = "8.0.6"

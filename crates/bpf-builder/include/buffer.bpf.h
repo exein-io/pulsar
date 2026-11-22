@@ -60,6 +60,21 @@ static void buffer_index_init(struct buffer *buffer,
   index->len = 0;
 }
 
+// Out-of-line logs for buffer_append_str, which is used inside loop bodies:
+// on kernels without bpf_loop those are unrolled, and an inlined log would be
+// copied into every iteration.
+static __noinline void log_write_over_half(u16 start, u16 len) {
+  AYA_LOG_ERROR("trying to write over half: ", start, "+", len);
+}
+
+static __noinline void log_offset_out_of_bounds(u32 offset, u32 len) {
+  AYA_LOG_ERROR("offset out of bounds: ", offset, "+", len);
+}
+
+static __noinline void log_reading_failure(int r) {
+  AYA_LOG_ERROR("reading failure: ", r);
+}
+
 // Copies up to @len bytes from @source, starting from the given @offset, to
 // the @buffer pointed by @index.
 //
@@ -71,7 +86,7 @@ static __always_inline void buffer_append_str(struct buffer *buffer,
                                               u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
-    LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
+    log_write_over_half(index->start, index->len);
     return;
   }
 
@@ -82,17 +97,17 @@ static __always_inline void buffer_append_str(struct buffer *buffer,
     partial_len = (partial_len + 1) & HALF_BUFFER_MASK;
   }
   if (partial_len <= 0) {
-    LOG_ERROR("offset out of bounds: %u+%u", offset, len);
+    log_offset_out_of_bounds(offset, len);
     return;
   }
 
   int r = bpf_core_read_str(&((char *)buffer->buffer)[pos], partial_len,
                             source + offset);
   if (r <= 0) {
-    LOG_ERROR("reading failure: %d", r);
+    log_reading_failure(r);
     return;
   }
-  // LOG_DEBUG("New buffer: %s (+%d)", buffer->buffer, r);
+  // AYA_LOG_DEBUG("New buffer (+", r, "): ", LOG_FMT_STR(buffer->buffer));
 
   // Update counters, ignoring the final 0.
   index->len += r - 1;
@@ -109,18 +124,18 @@ static __always_inline int buffer_append_user_memory(struct buffer *buffer,
   // sum tells it nothing about either, and the sum can wrap.
   u32 pos = index->start + index->len;
   if (pos >= HALF_BUFFER_MASK) {
-    LOG_ERROR("trying to write over half: %d+%d", index->start, index->len);
+    AYA_LOG_ERROR("trying to write over half: ", index->start, "+", index->len);
     return -1;
   }
   if (len >= HALF_BUFFER_MASK) {
-    LOG_ERROR("write of %d bytes exceeds buffer capacity (%d)", len,
-              HALF_BUFFER_MASK);
+    AYA_LOG_ERROR("write of ", len, " bytes exceeds buffer capacity (",
+                  HALF_BUFFER_MASK, ")");
     return -1;
   }
 
   int r = bpf_core_read_user(&((char *)buffer->buffer)[pos], len, source);
   if (r < 0) {
-    LOG_ERROR("reading failure: %d", r);
+    AYA_LOG_ERROR("reading failure: ", r);
     return -1;
   }
 
@@ -136,16 +151,16 @@ static __always_inline int buffer_append_skb_bytes(struct buffer *buffer,
                                                    u32 offset) {
   int pos = (index->start + index->len);
   if (pos >= HALF_BUFFER_MASK) {
-    LOG_ERROR("Attempting to write beyond buffer capacity. Calculated "
-              "position: %zu, capacity: %d.",
-              pos, HALF_BUFFER_MASK);
+    AYA_LOG_ERROR(
+        "Attempting to write beyond buffer capacity. Calculated position: ",
+        pos, ", capacity: ", HALF_BUFFER_MASK, ".");
     return -1;
   }
 
   s32 len = skb->len - offset;
   if (len >= HALF_BUFFER_MASK) {
-    LOG_ERROR("Payload size (%d) exceeds buffer capacity (%d).", len,
-              HALF_BUFFER_MASK);
+    AYA_LOG_ERROR("Payload size (", len, ") exceeds buffer capacity (",
+                  HALF_BUFFER_MASK, ").");
     return -1;
   }
 
@@ -164,7 +179,7 @@ static __always_inline int buffer_append_skb_bytes(struct buffer *buffer,
   int r = bpf_skb_load_bytes(skb, offset, &((char *)buffer->buffer)[pos], len);
 
   if (r < 0) {
-    LOG_ERROR("Could not read the network packet payload: %d", r);
+    AYA_LOG_ERROR("Could not read the network packet payload: ", r);
     return -1;
   }
 

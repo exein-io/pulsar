@@ -34,6 +34,8 @@ use crate::{
     time::Timestamp,
 };
 
+mod logging;
+
 const PINNED_MAPS_PATH: &str = "/sys/fs/bpf/pulsar";
 
 pub const PERF_PAGES_DEFAULT: usize = 4096;
@@ -55,8 +57,8 @@ pub struct BpfContext {
     /// NOTE: this will result in a memory usage of:
     /// (number of modules) * (number of cores) * (perf_pages) * 4Kb
     perf_pages: usize,
-    /// Log level for eBPF print statements
-    log_level: BpfLogLevel,
+    /// Most verbose level of eBPF log messages, `None` disables them
+    log_level: Option<aya_log::Level>,
     /// Kernel version
     kernel_version: KernelVersion,
     /// eBPF features support
@@ -69,19 +71,12 @@ pub enum Pinning {
     Disabled,
 }
 
-#[derive(Clone, Copy)]
-pub enum BpfLogLevel {
-    Disabled = 0,
-    Error = 1,
-    Debug = 2,
-}
-
 impl BpfContext {
     pub fn new(
         pinning: Pinning,
         mut perf_pages: usize,
         btf_path: Option<PathBuf>,
-        log_level: BpfLogLevel,
+        log_level: log::LevelFilter,
     ) -> Result<Self, ProgramError> {
         let btf = if let Some(btf_path) = btf_path {
             Btf::parse_file(btf_path, Endianness::default())?
@@ -115,7 +110,7 @@ impl BpfContext {
             btf: Arc::new(btf),
             perf_pages,
             pinning_path,
-            log_level,
+            log_level: logging::ebpf_level(log_level),
             kernel_version,
             features,
         })
@@ -279,12 +274,17 @@ impl ProgramBuilder {
         let ctx = self.ctx.clone();
         let name = self.name.to_string();
 
-        let bpf = tokio::task::spawn_blocking(move || {
+        let (bpf, logger) = tokio::task::spawn_blocking(move || {
             let _ = std::fs::create_dir(&self.ctx.pinning_path);
             let mut bpf = EbpfLoader::new()
                 .default_map_pin_directory(&self.ctx.pinning_path)
                 .btf(Some(btf.as_ref()))
-                .override_global("log_level", &(self.ctx.log_level as i32), true)
+                // 0 is below every level, so it disables all eBPF logs.
+                .override_global(
+                    aya_log::LEVEL,
+                    &self.ctx.log_level.map_or(0, u8::from),
+                    true,
+                )
                 .override_global(
                     "LINUX_KERNEL_VERSION",
                     &self.ctx.kernel_version.code(),
@@ -294,10 +294,15 @@ impl ProgramBuilder {
             for program in self.programs {
                 program.attach(&mut bpf, &btf)?;
             }
-            Result::<Ebpf, ProgramError>::Ok(bpf)
+            let logger = logging::init(&mut bpf, self.name);
+            Result::<_, ProgramError>::Ok((bpf, logger))
         })
         .await
         .expect("join error")?;
+
+        if let Some(logger) = logger {
+            logging::spawn_reader(logger, name.clone(), tx_exit.subscribe());
+        }
 
         Ok(Program {
             tx_exit,

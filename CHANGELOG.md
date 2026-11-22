@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Open sensitive file` rule no longer triggers on the PAM login stack (`sshd`, `login`, `su`, `sudo`) reading `/etc/shadow` and related files
 - probes are built with `-mcpu=v3` instead of the host clang's default ISA, clang before 20 produced v1 bytecode that the verifier rejected in `process-monitor`
 - riscv64: open flags of `FileOpened` and `ElfOpened` events are decoded with the kernel's values, most `O_*` flags were checked and displayed as other flags. `Truncate log files` and `Shell history truncation` now detect truncation and no longer trigger on `O_DSYNC` and `O_SYNC` opens, `SSH related file changes` no longer triggers on read-only `O_NOCTTY` opens
+- eBPF: the error logged when a forked process can't inherit interest printed the low bits of a `task_struct` pointer instead of the child PID
 
 ### Changed
 
@@ -43,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `nut` upgraded to 0.1.6 without its CLI dependencies, reading a corrupted podman boltdb database returns `ContainerError::BoltDB` instead of panicking or crashing
 - `gethostname` replaced by `nix::unistd::gethostname` and `futures` by `futures-util`
 - ci: re-enable the `cargo audit` workflow, update all actions and cache both the Rust build artifacts and the `cross` installation
+- eBPF: logs are read through `aya-log` from a ring buffer per program instead of `/sys/kernel/debug/tracing/trace_pipe`, under the `<module>::ebpf` target and prefixed with the eBPF function name, so they work without debugfs and can be filtered per module
+- eBPF: the `bpf_printk`-based `LOG_ERROR`/`LOG_DEBUG` macros are replaced by `AYA_LOG_{ERROR,WARN,INFO,DEBUG,TRACE}` with typed arguments, e.g. `AYA_LOG_ERROR("offset: ", off, "+", len)`, which also work on kernels without `bpf_snprintf`
+- **BREAKING**: `BpfContext::new` takes a `log::LevelFilter` for the eBPF log level, `BpfLogLevel` was removed
 
 ### Added
 
@@ -50,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - test loading and compiling every rule shipped with Pulsar
 - eBPF: `.clang-format` config for the C sources, checked in CI, generated `vmlinux.h` and vendored libbpf headers are excluded
 - eBPF: root `compile_flags.txt` so clangd-based editors understand the eBPF sources without setup, checked in CI against the sources
+- eBPF: `aya_log.bpf.h` with the `AYA_LOG_*` macros and `LOG_FMT_*` helpers for hex, byte arrays, IP and MAC addresses, pointers and kernel or user strings
 
 ### Removed
 
@@ -58,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/gen_compile_commands.sh`, replaced by the committed `compile_flags.txt`
 - **BREAKING**: `pulsar config` command, together with the `/configs` and `/modules/{name}/config` API endpoints. Edit the configuration file and restart the daemon instead
 - **BREAKING**: configuration reload at runtime, including the `on_config_change` module hook
+- **BREAKING**: `bpf_common::trace_pipe`, together with the `tokio-fd` dependency
 
 ## [0.10.0] - 2026-09-17
 

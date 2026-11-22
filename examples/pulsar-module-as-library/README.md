@@ -29,11 +29,10 @@ tokio = { version = "1", features = ["full"] }
 Then we'll define a configuration for the eBPF program. This will disable map
 pinning (a feature used to share maps in eBPF programs which is needed by the
 pulsar agent for process filtering), use a 512 pages PerfArray size and disable
-`/sys/kernel/debug/tracing/trace_pipe` logging.
-This configuration is good for this use-case, no need to change it unless you
-have specific reasons.
+eBPF logging. This configuration is good for this use-case, no need to change it
+unless you have specific reasons.
 ```rust
-    let ctx = BpfContext::new(Pinning::Disabled, 512, BpfLogLevel::Disabled).unwrap();
+    let ctx = BpfContext::new(Pinning::Disabled, 512, None, log::LevelFilter::Off).unwrap();
 ```
 
 Then we'll create a `tokio::sync::mpsc` channel and pass the sender side to our

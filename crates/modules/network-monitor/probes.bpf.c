@@ -104,7 +104,7 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
   else
     r = bpf_core_read(&family, sizeof(family), &addr->sa_family);
   if (r != 0) {
-    LOG_ERROR("Error reading sockaddr family: %d", r);
+    AYA_LOG_ERROR("Error reading sockaddr family: ", r);
     return;
   }
 
@@ -116,7 +116,7 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
     else
       r = bpf_core_read(&dest->v4, sizeof(struct sockaddr_in), addr);
     if (r != 0) {
-      LOG_ERROR("Error copying sockaddr_in: %d", r);
+      AYA_LOG_ERROR("Error copying sockaddr_in: ", r);
     }
     break;
   }
@@ -127,12 +127,12 @@ static __always_inline void copy_sockaddr(struct sockaddr *addr,
     else
       r = bpf_core_read(&dest->v6, sizeof(struct sockaddr_in6), addr);
     if (r != 0) {
-      LOG_ERROR("Error copying sockaddr_in6: %d", r);
+      AYA_LOG_ERROR("Error copying sockaddr_in6: ", r);
     }
     break;
   }
   default:
-    LOG_DEBUG("ignored sockaddr family %d", family);
+    AYA_LOG_DEBUG("ignored sockaddr family ", family);
   }
 }
 
@@ -158,7 +158,7 @@ static __always_inline void copy_skc_source(struct sock_common *sk,
     break;
   }
   default:
-    LOG_DEBUG("ignored sockaddr family %d", family);
+    AYA_LOG_DEBUG("ignored sockaddr family ", family);
   }
 }
 
@@ -182,7 +182,7 @@ static __always_inline void copy_skc_dest(struct sock_common *sk,
     break;
   }
   default:
-    LOG_DEBUG("ignored sockaddr family %d", family);
+    AYA_LOG_DEBUG("ignored sockaddr family ", family);
   }
 }
 
@@ -344,7 +344,7 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
   u64 pid_tgid = bpf_get_current_pid_tgid();
   struct arguments *args = bpf_map_lookup_elem(&args_map, &pid_tgid);
   if (args == 0) {
-    LOG_DEBUG("accept_exit on unknown socket");
+    AYA_LOG_DEBUG("accept_exit on unknown socket");
     return;
   }
   struct socket *sock = (struct socket *)args->data[0];
@@ -352,7 +352,7 @@ static __always_inline void on_accept_exit(void *ctx, long ret) {
 
   // Ignore failed accept
   if (ret < 0) {
-    LOG_DEBUG("Failed accept: %d", ret);
+    AYA_LOG_DEBUG("Failed accept: ", ret);
     return;
   }
 
@@ -406,7 +406,7 @@ int tcp_set_state(struct pt_regs *regs) {
   if (state == TCP_SYN_SENT || state == TCP_LAST_ACK) {
     ret = bpf_map_update_elem(&tcp_set_state_map, &sk, &tgid, BPF_ANY);
     if (ret) {
-      LOG_ERROR("updating tcp_set_state_map");
+      AYA_LOG_ERROR("updating tcp_set_state_map");
     }
     return 0;
   }
@@ -415,14 +415,14 @@ int tcp_set_state(struct pt_regs *regs) {
   pid_t *id = bpf_map_lookup_elem(&tcp_set_state_map, &sk);
   pid_t original_pid = tgid;
   if (!id) {
-    LOG_DEBUG("can't retrieve the original pid");
+    AYA_LOG_DEBUG("can't retrieve the original pid");
     return 0;
   } else {
     original_pid = *id;
   }
   ret = bpf_map_delete_elem(&tcp_set_state_map, &sk);
   if (ret) {
-    LOG_ERROR("deleting from tcp_set_state_map");
+    AYA_LOG_ERROR("deleting from tcp_set_state_map");
   }
 
   u16 family = 0;
@@ -503,7 +503,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
   switch (l3_proto) {
   case ETH_P_IPV4: {
     if (data + sizeof(struct iphdr) > data_end) {
-      LOG_ERROR("found an IPv4 packet too small to fit an IP header");
+      AYA_LOG_ERROR("found an IPv4 packet too small to fit an IP header");
       goto discard_event;
     }
 
@@ -528,7 +528,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
     // parsed at the right offset and never past the end of the packet.
     __u32 ip_len = ip_hdrlen(ih);
     if (ip_len < sizeof(struct iphdr) || data + ip_len > data_end) {
-      LOG_ERROR("found an IPv4 packet with an invalid header length");
+      AYA_LOG_ERROR("found an IPv4 packet with an invalid header length");
       goto discard_event;
     }
     headers_len = ip_len;
@@ -537,7 +537,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
   }
   case ETH_P_IPV6: {
     if (data + sizeof(struct ipv6hdr) > data_end) {
-      LOG_ERROR("found an IPv6 packet too small to fit an IP header");
+      AYA_LOG_ERROR("found an IPv6 packet too small to fit an IP header");
       goto discard_event;
     }
 
@@ -561,7 +561,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
     break;
   }
   default:
-    LOG_DEBUG("ignored unsupported L3 protocol %d", l3_proto);
+    AYA_LOG_DEBUG("ignored unsupported L3 protocol ", l3_proto);
     goto discard_event;
   }
 
@@ -569,7 +569,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
   switch (l4_proto) {
   case IPPROTO_ICMP:
     if (data + headers_len + sizeof(struct icmphdr) > data_end) {
-      LOG_ERROR("found an ICMP packet too small to fit an ICMP header");
+      AYA_LOG_ERROR("found an ICMP packet too small to fit an ICMP header");
       goto discard_event;
     }
 
@@ -577,7 +577,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
     break;
   case IPPROTO_TCP: {
     if (data + headers_len + sizeof(struct tcphdr) > data_end) {
-      LOG_ERROR("found a TCP packet too small to fit a TCP header");
+      AYA_LOG_ERROR("found a TCP packet too small to fit a TCP header");
       goto discard_event;
     }
 
@@ -590,7 +590,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
     __u32 tcp_len = tcp_hdrlen(th);
     if (tcp_len < sizeof(struct tcphdr) ||
         data + headers_len + tcp_len > data_end) {
-      LOG_ERROR("found a TCP packet with an invalid data offset");
+      AYA_LOG_ERROR("found a TCP packet with an invalid data offset");
       goto discard_event;
     }
     headers_len += tcp_len;
@@ -624,7 +624,7 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
   }
   case IPPROTO_UDP: {
     if (data + headers_len + sizeof(struct udphdr) > data_end) {
-      LOG_ERROR("found a UDP packet too small to fit a UDP header");
+      AYA_LOG_ERROR("found a UDP packet too small to fit a UDP header");
       goto discard_event;
     }
 
@@ -660,22 +660,23 @@ __always_inline int process_skb(struct __sk_buff *skb, __u8 direction) {
     break;
   }
   default:
-    LOG_DEBUG("ignored unsupported L4 protocol %d", l4_proto);
+    AYA_LOG_DEBUG("ignored unsupported L4 protocol ", l4_proto);
     goto send_event;
   }
 
   // Last line of defense before computing the payload length: the headers
   // must never exceed the total packet length.
   if (headers_len > skb->len) {
-    LOG_ERROR("packet headers (%u) exceed packet length (%u)", headers_len,
-              skb->len);
+    AYA_LOG_ERROR("packet headers (", headers_len, ") exceed packet length (",
+                  skb->len, ")");
     goto discard_event;
   }
 
   if (buffer_append_skb_bytes(&network_event->buffer, &msg_event->data, skb,
                               headers_len) < 0) {
-    LOG_ERROR("Failed to retrieve the packet payload. The event is going to "
-              "miss the `data` part.");
+    AYA_LOG_ERROR(
+        "Failed to retrieve the packet payload. The event is going to "
+        "miss the `data` part.");
   }
 
   msg_event->data_len = skb->len - headers_len;
