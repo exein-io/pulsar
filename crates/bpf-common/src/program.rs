@@ -484,7 +484,11 @@ impl Program {
             .into_iter()
             .map(|cpu_id| {
                 let buf = perf_array.open(cpu_id, Some(self.ctx.perf_pages))?;
-                Ok(AsyncFd::with_interest(buf, Interest::READABLE)?)
+                // SAFETY: `buf` owns the perf buffer fd and moves into the `AsyncFd`,
+                // so the fd stays open and unchanged until the `AsyncFd` is dropped.
+                let buf = unsafe { AsyncFd::register_with_interest(buf, Interest::READABLE) }
+                    .map_err(std::io::Error::from)?;
+                Ok(buf)
             })
             .collect::<Result<Vec<_>, PerfBufferError>>()?;
         for mut buf in buffers {
