@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
   - Upgrade `lettre` from 0.11.23 to 0.11.24 (RUSTSEC-2026-0560, RUSTSEC-2026-0561, RUSTSEC-2026-0562, RUSTSEC-2026-0563, RUSTSEC-2026-0564, RUSTSEC-2026-0565) (#467)
+- Upgrade `rusqlite` from 0.40.2 to 0.43.0, builds with `sqlite3-vendored` bundle SQLite 3.54.1 (RUSTSEC-2026-0459)
 - Podman image layer lookup follows the full parent chain regardless of layer store order, without duplicating the top layer, and reports cyclic parent chains as errors (#421)
 - release builds no longer contain test only dependencies, the `test-suite` and `test-utils` features were enabled unconditionally for every consumer of the internal crates
 - the root build script no longer re-runs on every build, it watched the package root, which recurses into `target`, and `.git` paths which do not exist in a worktree
