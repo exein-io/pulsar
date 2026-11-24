@@ -5,7 +5,7 @@ use std::{
 };
 
 use bpf_common::containers::ContainerInfo;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize, de::DeserializeOwned, ser};
 use strum::{EnumDiscriminants, EnumString};
 use validatron::{Operator, Validatron, ValidatronError};
@@ -31,7 +31,10 @@ impl Event {
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let header = self.header();
-        let time = DateTime::<Utc>::from(header.timestamp).format("%Y-%m-%dT%TZ");
+        let time = match Timestamp::try_from(header.timestamp) {
+            Ok(ts) => ts.strftime("%Y-%m-%dT%TZ").to_string(),
+            Err(_) => format!("{:?}", header.timestamp),
+        };
         let image = &header.image;
         let pid = &header.pid;
         let payload = self.payload();
