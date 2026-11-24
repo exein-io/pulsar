@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::SystemTime};
 
 use anyhow::Context;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use nix::unistd::gethostname;
 use pulsar_core::pdk::Payload;
 
@@ -25,14 +25,14 @@ impl Template {
         payload: &Payload,
     ) -> Result<String, anyhow::Error> {
         let hostname = gethostname().context("error getting the hostname")?;
-        let datetime: DateTime<Utc> = <DateTime<Utc>>::from(*timestamp);
+        let datetime = Timestamp::try_from(*timestamp).context("event timestamp out of range")?;
 
         let mut values = HashMap::new();
 
         values.insert("hostname", hostname.to_string_lossy());
         values.insert(
             "timestamp",
-            datetime.format("%d/%m/%Y %T").to_string().into(),
+            datetime.strftime("%d/%m/%Y %T").to_string().into(),
         );
         values.insert("threat_source", source.into());
         values.insert("image", image.into());

@@ -20,7 +20,7 @@ openssl = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 leon = { workspace = true }
 nix = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 rand = { workspace = true }
 
 [features]

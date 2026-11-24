@@ -1,6 +1,2 @@
 [advisories]
-ignore = [
-    # chrono is unmaintained, not vulnerable. We need to find an alternative
-    # for it.
-    "RUSTSEC-2026-0543",
-]
+ignore = []
